@@ -227,7 +227,10 @@ function MissionProposalCard({
                             Générer le brief
                         </Button>
                         <button
-                            onClick={() => onSessionInteractive?.(proposal.poleCode, proposal.managerName, proposal.objective)}
+                            onClick={() => {
+                                setPhase("confirming") // disable card after click
+                                onSessionInteractive?.(proposal.poleCode, proposal.managerName, proposal.objective)
+                            }}
                             disabled={disabled || !onSessionInteractive}
                             className="h-7 text-[11px] px-3 rounded-lg border border-white/[0.1] text-white/50 hover:text-white/80 hover:bg-white/[0.05] transition-colors disabled:opacity-40"
                         >
@@ -675,10 +678,11 @@ interface KaelSlideUpProps {
     currentLab?: string
     onClose: () => void
     onRouteToPole?: (poleCode: string, managerName: string, routingReason?: string) => void
+    onSessionInteractiveToPole?: (poleCode: string, managerName: string, objective: string) => void
     onMissionBriefed?: (poleCode: string, managerName: string, poleSessionId: string, poleId: string, missionId: string) => void
 }
 
-export function KaelSlideUpPanel({ dossierId, currentLab, onClose, onRouteToPole, onMissionBriefed }: KaelSlideUpProps) {
+export function KaelSlideUpPanel({ dossierId, currentLab, onClose, onRouteToPole, onSessionInteractiveToPole, onMissionBriefed }: KaelSlideUpProps) {
     const { clearUnread } = useWorkspaceStore()
     const [messages, setMessages] = useState<Msg[]>([])
     const [sessionId, setSessionId] = useState<string | undefined>()
@@ -950,9 +954,9 @@ export function KaelSlideUpPanel({ dossierId, currentLab, onClose, onRouteToPole
                                             onClose()
                                             onMissionBriefed(poleCode, managerName, poleSessionId, poleId, missionId)
                                         } : undefined}
-                                        onSessionInteractive={onRouteToPole ? (poleCode, managerName, objective) => {
+                                        onSessionInteractive={onSessionInteractiveToPole ? (poleCode, managerName, objective) => {
                                             onClose()
-                                            onRouteToPole(poleCode, managerName, objective)
+                                            onSessionInteractiveToPole(poleCode, managerName, objective)
                                         } : undefined}
                                     />
                                 </div>
@@ -975,16 +979,17 @@ interface PoleSlideUpProps {
     dossierId: string
     currentLab?: string
     onClose: () => void
-    routingContext?: string // context from KAEL routing — auto-starts session with this as first message
+    routingContext?: string // context from KAEL routing — auto-sends as first message
+    initialInput?: string  // pre-fills input without auto-sending (session interactive)
     briefedSessionId?: string // session created by /api/kael/missions/brief — load directly
     briefedMissionId?: string // AutonomousMission to confirm in this session
 }
 
-export function PoleSlideUpPanel({ pole, dossierId, currentLab, onClose, routingContext, briefedSessionId, briefedMissionId }: PoleSlideUpProps) {
+export function PoleSlideUpPanel({ pole, dossierId, currentLab, onClose, routingContext, initialInput, briefedSessionId, briefedMissionId }: PoleSlideUpProps) {
     const { markUnread, clearUnread, notifSoundEnabled } = useWorkspaceStore()
     const [session, setSession] = useState<PoleSessionData | null>(null)
     const [messages, setMessages] = useState<Msg[]>([])
-    const [input, setInput] = useState("")
+    const [input, setInput] = useState(initialInput ?? "")
     const [savedMsgIds, setSavedMsgIds] = useState<Set<string>>(new Set())
     const [savingMsgId, setSavingMsgId] = useState<string | null>(null)
     const [activeMission, setActiveMission] = useState<{ id: string; objective: string } | null>(null)

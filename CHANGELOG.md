@@ -4,6 +4,21 @@ All notable changes to this project are documented in this file.
 
 Format based on Keep a Changelog.
 
+## 2026-07-28
+
+CHORE: Migration Supabase vers nouveau projet qcjtqtagrlwblejosvrt (nouveau compte k3rnlabs)
+CHORE: prisma db push — toutes les tables recréées sur le nouveau Supabase (7 poles + 22 experts seedés)
+CHORE: Storage migré — avatar utilisateur uploadé dans bucket Avatars du nouveau Supabase
+CHORE: .gitignore étendu — exclusion archives .storage.zip, scripts de debug racine, Icon macOS
+CHORE: .agents/ et AGENTS.md ajoutés au repo — instructions Codex et règles projet versionées
+
+
+## 2026-03-13
+
+FIX: Session interactive depuis KAEL pré-remplit l'input sans auto-envoyer le message (ajout prop initialInput sur PoleSlideUpPanel)
+FIX: Carte MissionProposalCard se désactive après clic "Session interactive" pour éviter double-clic
+REFACTOR: KaelSlideUpPanel expose onSessionInteractiveToPole séparé de onRouteToPole — routing KAEL standard conserve l'auto-send
+
 ## 2026-03-09
 
 FEATURE: New autonomous mission flow — "Générer le brief" replaces "Envoyer en mission"; expert plan shown in PoleSlideUpPanel before budget debit

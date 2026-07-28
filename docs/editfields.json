@@ -1,0 +1,55 @@
+{
+  "id": "node-axel-editfields",
+  "name": "EditFields",
+  "type": "n8n-nodes-base.set",
+  "typeVersion": 3,
+  "position": [
+    600,
+    300
+  ],
+  "parameters": {
+    "keepOnlySet": true,
+    "values": {
+      "string": [
+        {
+          "name": "department_mission.requesting_agent",
+          "value": "KAEL"
+        },
+        {
+          "name": "department_mission.department",
+          "value": "Strategy & Innovation"
+        },
+        {
+          "name": "department_mission.business_context.company_name",
+          "value": "k3rn.labs"
+        },
+        {
+          "name": "department_mission.business_context.company_stage",
+          "value": "early-stage SaaS"
+        },
+        {
+          "name": "department_mission.business_context.product_summary",
+          "value": "AI-native advisory platform coordinating expert agents"
+        },
+        {
+          "name": "department_mission.business_context.target_customer",
+          "value": "startup founders"
+        },
+        {
+          "name": "department_mission.business_context.market_context",
+          "value": "AI decision-support platforms"
+        }
+      ],
+      "json": [
+        {
+          "name": "department_mission.known_data",
+          "value": "[]"
+        },
+        {
+          "name": "department_mission.constraints",
+          "value": "[]"
+        }
+      ]
+    }
+  }
+}

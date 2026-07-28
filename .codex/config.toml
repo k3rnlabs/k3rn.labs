@@ -1,0 +1,16 @@
+[mcp_servers.n8n-mcp]
+args = ["n8n-mcp"]
+command = "npx"
+
+[mcp_servers.n8n-mcp.env]
+DISABLE_CONSOLE_OUTPUT = "true"
+LOG_LEVEL = "error"
+MCP_MODE = "stdio"
+N8N_API_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwYmYyMWRlOS04MzUyLTRlMGEtYTI4MC1lNDU3OGZhYTUzMWMiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwianRpIjoiNGE2ZGU3YjktNzYxNy00YTc3LTgwZjktYWZiMmFkMGQ1YmM0IiwiaWF0IjoxNzcxMjkwNDk0fQ.uAJ_PkDQoyyxjNuLiTUnWUIsUINY0G_v8SxDpq25V1A"
+N8N_API_URL = "https://agent.k3rnlabs.com/api/v1"
+
+[shell_environment_policy]
+inherit = "core"
+
+[shell_environment_policy.set]
+CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1"

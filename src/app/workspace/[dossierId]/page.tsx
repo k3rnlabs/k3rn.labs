@@ -45,6 +45,7 @@ export default function WorkspacePage() {
     // Active panel state — null | "kael" | pole id
     const [activePanel, setActivePanel] = useState<null | "kael" | string>(null)
     const [poleRoutingContext, setPoleRoutingContext] = useState<string | undefined>(undefined)
+    const [poleInitialInput, setPoleInitialInput] = useState<string | undefined>(undefined)
     const [taskPanelOpen, setTaskPanelOpen] = useState(false)
     // Mission briefing — store briefed session + mission for PoleSlideUpPanel
     const [briefedSession, setBriefedSession] = useState<{ poleId: string; sessionId: string; missionId: string } | null>(null)
@@ -149,9 +150,10 @@ export default function WorkspacePage() {
         setActivePanel((prev) => prev === "kael" ? null : "kael")
     }
 
-    function handleOpenPole(poleId: string, poleCode: string, managerName: string, routingContext?: string) {
+    function handleOpenPole(poleId: string, poleCode: string, managerName: string, routingContext?: string, initialInput?: string) {
         openPoleChat(poleId, poleCode, managerName) // keep store in sync for Dock active state
         setPoleRoutingContext(routingContext)
+        setPoleInitialInput(initialInput)
         setBriefedSession(null) // clear briefed session when opening normally
         setActivePanel((prev) => prev === poleId ? null : poleId)
     }
@@ -310,7 +312,11 @@ export default function WorkspacePage() {
                         onClose={() => setActivePanel(null)}
                         onRouteToPole={(poleCode, managerName, routingReason) => {
                             const pole = poles.find((p) => p.code === poleCode)
-                            if (pole) handleOpenPole(pole.id, pole.code, managerName || pole.managerName, routingReason)
+                            if (pole) handleOpenPole(pole.id, pole.code, managerName || pole.managerName, routingReason, undefined)
+                        }}
+                        onSessionInteractiveToPole={(poleCode, managerName, objective) => {
+                            const pole = poles.find((p) => p.code === poleCode)
+                            if (pole) handleOpenPole(pole.id, pole.code, managerName || pole.managerName, undefined, objective)
                         }}
                         onMissionBriefed={(poleCode, managerName, poleSessionId, poleId, missionId) => {
                             handleMissionBriefed(poleCode, managerName, poleSessionId, poleId, missionId)
@@ -322,8 +328,9 @@ export default function WorkspacePage() {
                         pole={activePole}
                         dossierId={dossierId}
                         currentLab={currentLab}
-                        onClose={() => { setActivePanel(null); setPoleRoutingContext(undefined); setBriefedSession(null) }}
+                        onClose={() => { setActivePanel(null); setPoleRoutingContext(undefined); setPoleInitialInput(undefined); setBriefedSession(null) }}
                         routingContext={poleRoutingContext}
+                        initialInput={poleInitialInput}
                         briefedSessionId={briefedSession?.poleId === activePole.id ? briefedSession.sessionId : undefined}
                         briefedMissionId={briefedSession?.poleId === activePole.id ? briefedSession.missionId : undefined}
                     />

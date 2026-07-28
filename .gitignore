@@ -46,3 +46,26 @@ next-env.d.ts
 .brain/
 .gemini/
 .env.example
+
+# Storage backups / migration artifacts
+docs/*.storage.zip
+
+# macOS
+Icon?
+
+# Debug/utility scripts (root level)
+activate_workflow.mjs
+check_all_nodes.mjs
+check_candidate.mjs
+check_node.mjs
+check_original.mjs
+deploy_n8n.mjs
+list_all_workflows.mjs
+mcp_client.mjs
+migrate_workflow.mjs
+update_workflow.js
+update_workflow.mjs
+update_workflow_clean.mjs
+update_workflow_debug.mjs
+workflow_v3.json
+
