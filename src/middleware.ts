@@ -5,8 +5,9 @@ import { hasValidInternalWebhookSecret } from "@/lib/internal-webhook"
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname
 
-  // Mirava Studio & Auth Callback — app autonome, pas de session K3RN requise.
-  // Court-circuit avant tout appel réseau pour éviter le MIDDLEWARE_INVOCATION_TIMEOUT.
+  // Mirava Studio & Auth Callback — pas de session K3RN requise.
+  // Court-circuit ABSOLU avant tout appel réseau (évite MIDDLEWARE_INVOCATION_TIMEOUT
+  // et empêche la redirection vers /auth/login pour les liens de confirmation d'email).
   if (
     path === "/visual-engine" ||
     path.startsWith("/visual-engine/studio") ||
@@ -66,7 +67,7 @@ export async function middleware(request: NextRequest) {
     (request.method === "POST" && /^\/api\/kael\/missions\/[^/]+\/(complete|fail|update)$/.test(path))
   const isOgRoute = path.startsWith("/api/og/")
   const isPublicInvest = path.startsWith("/invest/")
-  const isAuthPage = path.startsWith("/auth/") && path !== "/auth/callback"
+  const isAuthPage = path.startsWith("/auth/") && path !== "/auth/callback" && !path.startsWith("/auth/callback")
 
   // Invite/referral — cookie set must happen in middleware, not in Server Component
   const inviteMatch = path.match(/^\/invite\/([^/]+)$/)
