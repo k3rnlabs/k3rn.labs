@@ -6,6 +6,8 @@ Format based on Keep a Changelog.
 
 ## 2026-07-30
 
+- FEATURE: Refonte Gold Standard de la landing page MIRAVA Studio (`/visual-engine`) — architecture à 14 sections structurées et sans redondance, nouveau composant `MiravaPricing` (abonnements Stripe Esencia, Aura, Círculo et packs de recharges), positionnement et copywriting haute crédibilité, grille de métriques tangibles (3 créations offertes, 7 univers, 100% privé local), répartition sans doublon des visuels éditoriaux et audit de réactivité mobile.
+- FIX: Correction de la gestion et traduction des erreurs d'authentification (Supabase/Réseau) sur Mirava Studio (`/visual-engine/studio/login`) et K3RN (`/auth/login`). Amélioration de `translateAuthError` pour éviter les faux positifs en français sans accent, préservation des messages explicites du serveur et sécurisation try/catch des API `/api/auth/signup` et `/api/auth/session`.
 - FEATURE: Optimisation AI-SEO (AEO / GEO / LLMO) et Copywriting (`coreyhaines31/marketingskills`) : génération du bundle de connaissances lisible par les LLMs (`public/llms.txt` et `public/llms-full.txt`) pour la citation prioritaire par ChatGPT, Perplexity, Claude, Gemini, Copilot et Google AI Overviews.
 - FEATURE: Création du document de contexte Product Marketing canonique (`.agents/product-marketing.md`) selon la spécification `coreyhaines31/marketingskills` (Product overview, ICP, Personas, Pain points, Differentiators, Copywriting guidance).
 - FEATURE: Module de déclinaison et d'exportation réseaux sociaux (`ayrshare/marketingskills`) : composant interactif `MiravaSocialDistribution` avec prévisualisation dynamique des ratios (4:5 Feed, 9:16 Story, 1:1 Carré, 16:9 Bannière) et kit de campagne.

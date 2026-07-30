@@ -2,6 +2,8 @@
 
 ## 2026-07-30 — Développement local
 
+- [x] Livrer la refonte Gold Standard de la landing page MIRAVA Studio (`/visual-engine`) : 14 sections sans redondance, tarification bilingue `MiravaPricing`, copywriting haute performance sans hyperbole, design system minéral d'exception (rayons 12px/16px, contrastes WCAG AA, cibles tactiles 44px+), assets visuels 100% uniques et tests automatisés validés.
+- [x] Corriger le traitement et la traduction des erreurs d'authentification Supabase/Réseau sur MIRAVA Studio (`/visual-engine/studio/login`) et K3RN (`/auth/login`) pour restituer le message exact ou traduit du serveur au lieu de "Une erreur est survenue".
 - [x] Rendre Alma facultative, contextuelle et réellement actionnable : modèle `gpt-5-mini` dédié, contrat JSON limité, application explicite à la séance, repli manuel et compatibilité de la passerelle avec GPT-5.
 - [x] Isoler automatiquement chaque serveur Next.js local par port et cache de compilation afin de permettre plusieurs sessions sans corruption de `.next`.
 - [x] Empêcher Next.js de réécrire le `tsconfig.json` partagé lors des démarrages isolés.

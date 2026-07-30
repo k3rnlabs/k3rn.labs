@@ -12,73 +12,80 @@ const signupSchema = z.object({
 })
 
 export async function POST(req: NextRequest) {
-  const result = await validateBody(signupSchema, req)
-  if ("error" in result) return result.error
+  try {
+    const result = await validateBody(signupSchema, req)
+    if ("error" in result) return result.error
 
-  const cookieStore = await cookies()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() { return cookieStore.getAll() },
-        setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            )
-          } catch {}
+    const cookieStore = await cookies()
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() { return cookieStore.getAll() },
+          setAll(cookiesToSet) {
+            try {
+              cookiesToSet.forEach(({ name, value, options }) =>
+                cookieStore.set(name, value, options)
+              )
+            } catch {}
+          },
         },
-      },
-    }
-  )
+      }
+    )
 
-  const { data, error } = await supabase.auth.signUp({
-    email: result.data.email,
-    password: result.data.password,
-  })
-
-  if (error) {
-    return apiError(translateAuthError(error.message), 400)
-  }
-  if (!data.user) return apiError("Échec de l'inscription", 500)
-
-  // Lire le cookie referral_code pour lier le filleul à son ambassadeur
-  const referralCode = cookieStore.get("referral_code")?.value ?? null
-
-  let referredById: string | null = null
-  if (referralCode) {
-    const ambassador = await prisma.user.findUnique({
-      where: { referralCode },
-      select: { id: true },
-    })
-    referredById = ambassador?.id ?? null
-  }
-
-  // Pré-créer le User en DB avec referredById (upsert pour idempotence avec verifySession)
-  await prisma.user.upsert({
-    where: { id: data.user.id },
-    update: {},
-    create: {
-      id: data.user.id,
+    const { data, error } = await supabase.auth.signUp({
       email: result.data.email,
-      role: "OWNER",
-      referredById,
-    },
-  })
-
-  // Écrire ReferralLog SIGNUP si parrainé
-  if (referredById) {
-    await prisma.referralLog.create({
-      data: {
-        userId: data.user.id,
-        ambassadorId: referredById,
-        type: "SIGNUP",
-        missions: 0,
-        metadata: { referralCode },
-      },
+      password: result.data.password,
     })
-  }
 
-  return apiSuccess({ user: data.user }, 201)
+    if (error) {
+      return apiError(translateAuthError(error.message), 400)
+    }
+    if (!data.user) return apiError("Échec de l'inscription. Aucun utilisateur créé.", 500)
+
+    // Synchronisation idempotente de l'utilisateur dans la base Prisma
+    try {
+      const referralCode = cookieStore.get("referral_code")?.value ?? null
+
+      let referredById: string | null = null
+      if (referralCode) {
+        const ambassador = await prisma.user.findUnique({
+          where: { referralCode },
+          select: { id: true },
+        })
+        referredById = ambassador?.id ?? null
+      }
+
+      await prisma.user.upsert({
+        where: { id: data.user.id },
+        update: {},
+        create: {
+          id: data.user.id,
+          email: result.data.email,
+          role: "OWNER",
+          referredById,
+        },
+      })
+
+      if (referredById) {
+        await prisma.referralLog.create({
+          data: {
+            userId: data.user.id,
+            ambassadorId: referredById,
+            type: "SIGNUP",
+            missions: 0,
+            metadata: { referralCode },
+          },
+        })
+      }
+    } catch (dbErr) {
+      console.error("[POST /api/auth/signup] Erreur lors de la synchronisation Prisma :", dbErr)
+    }
+
+    return apiSuccess({ user: data.user }, 201)
+  } catch (err: any) {
+    console.error("[POST /api/auth/signup] Exception imprévue :", err)
+    return apiError(translateAuthError(err?.message ?? "Erreur serveur lors de l'inscription."), 500)
+  }
 }

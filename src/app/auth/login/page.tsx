@@ -59,7 +59,10 @@ export default function LoginPage() {
           body: JSON.stringify({ email, password }),
         })
         const data = await res.json().catch(() => null)
-        if (!res.ok) throw new Error(translateAuthError(data?.error ?? "Échec de la connexion."))
+        if (!res.ok) {
+          const errMsg = data?.error || data?.message || (typeof data?.details === "string" ? data.details : null) || "Échec de la connexion."
+          throw new Error(errMsg)
+        }
         router.push("/home")
         router.refresh()
       } else if (mode === "signup") {
@@ -69,7 +72,10 @@ export default function LoginPage() {
           body: JSON.stringify({ email, password }),
         })
         const data = await res.json().catch(() => null)
-        if (!res.ok) throw new Error(translateAuthError(data?.error ?? "Échec de l'inscription."))
+        if (!res.ok) {
+          const errMsg = data?.error || data?.message || (typeof data?.details === "string" ? data.details : null) || "Échec de l'inscription."
+          throw new Error(errMsg)
+        }
         setSuccess("Compte créé — vérifie ton email pour confirmer.")
         setMode("login")
         setPassword("")
@@ -81,7 +87,10 @@ export default function LoginPage() {
           body: JSON.stringify({ email }),
         })
         const data = await res.json().catch(() => null)
-        if (!res.ok) throw new Error(translateAuthError(data?.error ?? "Échec de l'envoi."))
+        if (!res.ok) {
+          const errMsg = data?.error || data?.message || (typeof data?.details === "string" ? data.details : null) || "Échec de l'envoi du lien."
+          throw new Error(errMsg)
+        }
         setSuccess(data?.message ?? "Si un compte est associé à cet email, un lien de réinitialisation vient d'être envoyé.")
       }
     } catch (err) {

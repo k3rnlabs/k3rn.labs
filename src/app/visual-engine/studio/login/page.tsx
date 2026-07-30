@@ -133,7 +133,10 @@ export default function MiravaLoginPage() {
           body: JSON.stringify({ email, password }),
         })
         const data = await res.json().catch(() => null)
-        if (!res.ok) throw new Error(translateAuthError(data?.error ?? ""))
+        if (!res.ok) {
+          const errMsg = data?.error || data?.message || (typeof data?.details === "string" ? data.details : null) || "Échec de la connexion. Vérifiez vos identifiants."
+          throw new Error(errMsg)
+        }
         router.push("/visual-engine/studio")
         router.refresh()
       } else if (mode === "signup") {
@@ -143,7 +146,10 @@ export default function MiravaLoginPage() {
           body: JSON.stringify({ email, password }),
         })
         const data = await res.json().catch(() => null)
-        if (!res.ok) throw new Error(translateAuthError(data?.error ?? ""))
+        if (!res.ok) {
+          const errMsg = data?.error || data?.message || (typeof data?.details === "string" ? data.details : null) || "Échec de l'inscription. Vérifiez vos informations."
+          throw new Error(errMsg)
+        }
         setSuccess(t.signupSuccess)
         setMode("login")
         setPassword("")
@@ -155,7 +161,10 @@ export default function MiravaLoginPage() {
           body: JSON.stringify({ email }),
         })
         const data = await res.json().catch(() => null)
-        if (!res.ok) throw new Error(translateAuthError(data?.error ?? ""))
+        if (!res.ok) {
+          const errMsg = data?.error || data?.message || (typeof data?.details === "string" ? data.details : null) || "Échec de l'envoi du lien."
+          throw new Error(errMsg)
+        }
         setSuccess(data?.message ?? (locale === "fr"
           ? "Si un compte est associé à cet email, un lien vient d'être envoyé."
           : "Si hay una cuenta asociada a este email, se acaba de enviar un enlace."))

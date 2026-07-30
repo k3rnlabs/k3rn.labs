@@ -3,71 +3,89 @@
  * pour garantir que l'utilisateur reçoit TOUJOURS des messages dans sa langue (Français).
  */
 export function translateAuthError(errorMessage?: string | null): string {
-  if (!errorMessage) return "Une erreur est survenue. Veuillez réessayer."
+  if (!errorMessage || typeof errorMessage !== "string" || !errorMessage.trim()) {
+    return "Une erreur est survenue. Veuillez réessayer."
+  }
 
-  const msg = errorMessage.toLowerCase()
+  const msg = errorMessage.trim()
+  const lowerMsg = msg.toLowerCase()
 
-  if (msg.includes("email rate limit exceeded") || msg.includes("rate limit")) {
+  // 1. Si le message est DÉJÀ en français, on le retourne directement
+  const isFrench =
+    /[éèêëàâäôöûüçîï]/i.test(msg) ||
+    lowerMsg.includes("compte") ||
+    lowerMsg.includes("mot de passe") ||
+    lowerMsg.includes("erreur") ||
+    lowerMsg.includes("échec") ||
+    lowerMsg.includes("connexion") ||
+    lowerMsg.includes("inscription") ||
+    lowerMsg.includes("adresse email") ||
+    lowerMsg.includes("réessayer") ||
+    lowerMsg.includes("patiente") ||
+    lowerMsg.includes("tentatives") ||
+    lowerMsg.includes("vérifie") ||
+    lowerMsg.includes("valide")
+
+  if (isFrench) {
+    return msg
+  }
+
+  // 2. Traduction des erreurs Supabase / Réseau en anglais
+  if (lowerMsg.includes("email rate limit exceeded") || lowerMsg.includes("rate limit")) {
     return "Trop de tentatives en peu de temps. Patiente 2 minutes avant de réessayer, ou connecte-toi si ton compte est déjà créé."
   }
 
-  if (msg.includes("user already registered") || msg.includes("already exists")) {
+  if (lowerMsg.includes("user already registered") || lowerMsg.includes("already exists") || lowerMsg.includes("user_already_exists")) {
     return "Un compte existe déjà avec cette adresse email. Essaye de te connecter."
   }
 
-  if (msg.includes("invalid login credentials") || msg.includes("invalid credentials")) {
+  if (lowerMsg.includes("invalid login credentials") || lowerMsg.includes("invalid credentials")) {
     return "Email ou mot de passe incorrect."
   }
 
-  if (msg.includes("email not confirmed")) {
+  if (lowerMsg.includes("email not confirmed")) {
     return "Ton adresse email n'a pas encore été confirmée. Vérifie ta boîte de réception."
   }
 
-  if (msg.includes("user not found")) {
+  if (lowerMsg.includes("user not found")) {
     return "Aucun compte associé à cette adresse email."
   }
 
-  if (msg.includes("invalid email") || msg.includes("email address is invalid")) {
+  if (lowerMsg.includes("invalid email") || lowerMsg.includes("email address is invalid")) {
     return "L'adresse email saisie n'est pas valide."
   }
 
-  if (msg.includes("password should be at least") || msg.includes("password minimum") || msg.includes("weak password")) {
+  if (lowerMsg.includes("password should be at least") || lowerMsg.includes("password minimum") || lowerMsg.includes("weak password")) {
     return "Le mot de passe doit contenir au moins 6 caractères."
   }
 
-  if (msg.includes("token is expired") || msg.includes("token has expired") || msg.includes("jwt expired")) {
+  if (lowerMsg.includes("token is expired") || lowerMsg.includes("token has expired") || lowerMsg.includes("jwt expired")) {
     return "Le lien de réinitialisation est expiré. Veuillez faire une nouvelle demande."
   }
 
-  if (msg.includes("invalid token") || msg.includes("token is invalid")) {
+  if (lowerMsg.includes("invalid token") || lowerMsg.includes("token is invalid")) {
     return "Le lien de réinitialisation est invalide ou expiré."
   }
 
-  if (msg.includes("same password") || msg.includes("new password should be different")) {
+  if (lowerMsg.includes("same password") || lowerMsg.includes("new password should be different")) {
     return "Le nouveau mot de passe doit être différent de l'ancien."
   }
 
-  if (msg.includes("too many requests")) {
+  if (lowerMsg.includes("too many requests")) {
     return "Trop de requêtes envoyées. Patiente un instant avant de réessayer."
   }
 
-  if (msg.includes("fetch failed") || msg.includes("network") || msg.includes("failed to fetch")) {
+  if (lowerMsg.includes("fetch failed") || lowerMsg.includes("network") || lowerMsg.includes("failed to fetch")) {
     return "Problème de connexion réseau au serveur. Vérifie ta connexion et réessaie."
   }
 
-  if (msg.includes("login failed")) {
+  if (lowerMsg.includes("login failed")) {
     return "Échec de la connexion. Vérifie tes identifiants et réessaie."
   }
 
-  if (msg.includes("signup failed")) {
+  if (lowerMsg.includes("signup failed")) {
     return "Échec de l'inscription. Vérifie tes informations et réessaie."
   }
 
-  // Détection si le message restant contient de l'anglais technique Supabase
-  const containsEnglish = /[a-zA-Z]/.test(errorMessage) && !/[éèêëàâäôöûüçîï]/i.test(errorMessage)
-  if (containsEnglish) {
-    return "Une erreur d'authentification est survenue. Vérifie tes informations et réessaie."
-  }
-
-  return errorMessage
+  return msg
 }
