@@ -6,6 +6,7 @@ Format based on Keep a Changelog.
 
 ## 2026-07-30
 
+- FEATURE: Création du document de contexte Product Marketing canonique (`.agents/product-marketing.md`) selon la spécification `coreyhaines31/marketingskills` (Product overview, ICP, Personas, Pain points, Differentiators, Copywriting guidance).
 - FEATURE: Module de déclinaison et d'exportation réseaux sociaux (`ayrshare/marketingskills`) : composant interactif `MiravaSocialDistribution` avec prévisualisation dynamique des ratios (4:5 Feed, 9:16 Story, 1:1 Carré, 16:9 Bannière) et kit de campagne.
 - FEATURE: Optimisation CRO, Copywriting & SEO de MIRAVA Studio (`/visual-engine`) via `syntax-syndicate/marketing-skills` : composant interactif d'accordéon FAQ & levée d'objections (`MiravaFaq`), schémas JSON-LD `SoftwareApplication` & `Organization` pour l'indexation IA (ChatGPT/Perplexity/Google) et puces de rassurance (Risk Reversal).
 - FEATURE: Refonte UI/UX éditoriale de la landing page MIRAVA Studio (`/visual-engine`) intégrant les principes `impeccable.style`, `UI-UX Pro Max`, `Jakub Kr` (text-wrap balance/pretty, tabular-nums, rayons concentriques, contours 1px/10%), `Agent-Reach` (simulateur d'analyse d'agent IA en direct) et `React Bits` (démonstrateur interactif des 7 univers).
