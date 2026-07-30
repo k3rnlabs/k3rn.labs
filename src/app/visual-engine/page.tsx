@@ -10,6 +10,7 @@ import { MiravaWordmark } from "@/components/mirava/mirava-wordmark"
 import { useMiravaLocale } from "@/components/mirava/mirava-locale"
 import { MiravaUniverseShowcase } from "@/components/mirava/mirava-universe-showcase"
 import { MiravaAgentSimulator } from "@/components/mirava/mirava-agent-simulator"
+import { MiravaSocialDistribution } from "@/components/mirava/mirava-social-distribution"
 import { MiravaFaq } from "@/components/mirava/mirava-faq"
 import { MIRAVA_UNIVERSES } from "@/lib/mirava/universes"
 
@@ -137,6 +138,12 @@ export default function MiravaLandingPage() {
 
       <section className="relative mx-auto max-w-7xl px-4 py-16 sm:px-8 sm:py-24">
         <MiravaAgentSimulator locale={locale} />
+      </section>
+
+      <section className="relative border-y border-mirava-line bg-mirava-canvas-raised px-4 py-16 sm:px-8 sm:py-24">
+        <div className="mx-auto max-w-7xl">
+          <MiravaSocialDistribution locale={locale} />
+        </div>
       </section>
 
       <section className="relative border-y border-mirava-line bg-mirava-canvas-raised px-4 py-16 sm:px-8 sm:py-24">

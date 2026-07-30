@@ -40,5 +40,6 @@
 - [x] Valider le système visuel de matière noir–argent : champ lumineux, grain Canvas React partagé sans SVG et trois intensités de surface centralisées.
 - [x] Refonte UI/UX de la landing page MIRAVA Studio (`/visual-engine`) en intégrant les compétences impeccable.style, UI-UX Pro Max, Jakub Kr, Agent-Reach et React Bits (composants interactifs showcase et simulateur d'agent).
 - [x] Application de la suite `syntax-syndicate/marketing-skills` : levée d'objections & accordéon FAQ (`MiravaFaq`), balisage JSON-LD SEO (`SoftwareApplication`) pour les bots IA et réassurance CRO.
+- [x] Application de la suite `ayrshare/marketingskills` : module interactif `MiravaSocialDistribution` (déclinaison multi-ratios 4:5, 9:16, 1:1, 16:9 et kit de publication social media).
 - [x] Implémenter le parcours adaptatif, les directions contextuelles des sept univers et la matière visuelle centralisée; validation navigateur consignée avec les contrôles de rendu.
 - [x] Intégrer shadcn de façon ciblée avec Collapsible et RadioGroup, puis remplacer la navigation mobile par une barre animée contrôlée et intégrer les quatre étapes Studio au header attaché.
