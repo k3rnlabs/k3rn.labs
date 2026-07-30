@@ -109,6 +109,18 @@ function MiravaLoginPageContent() {
   const displayedError = error ? translateAuthError(error, locale) : null
   const displayedSuccess = success ? translateAuthError(success, locale) : null
 
+  // Affichage du bouton de renvoi uniquement si un envoi a été effectué ou une alerte de confirmation est active
+  const showResendButton = Boolean(
+    (success && (success.includes("Compte créé") || success.includes("resend") || success.includes("confirm"))) ||
+    (error && (
+      error.includes("confirm") ||
+      error.includes("registered") ||
+      error.includes("already") ||
+      error.includes("exists") ||
+      error.includes("resend")
+    ))
+  )
+
   async function handleResendEmail() {
     setError(null)
     setSuccess(null)
@@ -290,7 +302,10 @@ function MiravaLoginPageContent() {
                 type="email"
                 placeholder={t.emailPlaceholder}
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value)
+                  if (error && error !== "passwordMismatch" && error !== "passwordShort") setError(null)
+                }}
                 required
                 disabled={loading}
                 autoComplete="email"
@@ -321,7 +336,12 @@ function MiravaLoginPageContent() {
                     type={showPassword ? "text" : "password"}
                     placeholder={mode === "signup" ? t.passwordNewPlaceholder : t.passwordPlaceholder}
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setPassword(val)
+                      if (error === "passwordMismatch" && val === confirmPassword) setError(null)
+                      else if (error === "passwordShort" && val.length >= 6) setError(null)
+                    }}
                     required
                     disabled={loading}
                     autoComplete={mode === "login" ? "current-password" : "new-password"}
@@ -353,7 +373,11 @@ function MiravaLoginPageContent() {
                     type={showConfirmPassword ? "text" : "password"}
                     placeholder={t.confirmPlaceholder}
                     value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setConfirmPassword(val)
+                      if (error === "passwordMismatch" && val === password) setError(null)
+                    }}
                     required
                     disabled={loading}
                     autoComplete="new-password"
@@ -391,7 +415,7 @@ function MiravaLoginPageContent() {
               {!loading && <ArrowRight className="h-4 w-4" />}
             </button>
 
-            {mode !== "forgot" && (
+            {showResendButton && (
               <button
                 type="button"
                 onClick={handleResendEmail}
