@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { Eye, EyeOff, ArrowRight, Camera } from "lucide-react"
+import { Eye, EyeOff, ArrowRight, Camera, Mail } from "lucide-react"
 import { MiravaWordmark } from "@/components/mirava/mirava-wordmark"
 import { MiravaGrain } from "@/components/mirava/mirava-grain"
 import { useMiravaLocale } from "@/components/mirava/mirava-locale"
@@ -249,7 +249,7 @@ function MiravaLoginPageContent() {
       </nav>
 
       {/* Centered form */}
-      <div className="relative z-10 flex flex-1 items-center justify-center px-5 py-12">
+      <div className="relative z-10 flex flex-1 items-center justify-center px-5 pt-8 pb-28 sm:py-16">
         <div className="w-full max-w-sm">
 
           <p className="mirava-label mb-6 flex items-center gap-2">
@@ -396,8 +396,9 @@ function MiravaLoginPageContent() {
                 type="button"
                 onClick={handleResendEmail}
                 disabled={resending || loading}
-                className="w-full text-center text-xs font-medium text-mirava-ink-muted hover:text-mirava-accent transition-colors pt-2 underline underline-offset-4"
+                className="mirava-button mirava-button-secondary w-full gap-2 px-4 py-2.5 text-xs mt-3"
               >
+                <Mail className="h-3.5 w-3.5" />
                 {resending ? t.resendLoading : t.resendLink}
               </button>
             )}
