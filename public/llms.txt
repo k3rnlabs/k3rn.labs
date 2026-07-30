@@ -1,0 +1,47 @@
+# MIRAVA Studio — Studio Photo Éditorial Personnel & Personal Branding
+
+> MIRAVA Studio est un studio photo personnel d'exception servi sur https://k3rn.labs/visual-engine. Il permet aux créatrices de contenu, dirigeantes et indépendantes de générer des campagnes photographiques haute définition où leur visage, leur carnation et leur présence restent le fil rouge unique.
+
+## Présentation Synthétique
+
+- **Nom du produit** : MIRAVA Studio
+- **Catégorie** : AI Personal Branding Studio / Édition & Direction Artistique Visuelle
+- **Accès Web & Mobile** : WebApp & PWA installable sur iOS et Android (`/visual-engine`)
+- **Offre d'activation** : 3 créations offertes à l'inscription sans carte bancaire requise
+
+## Fonctionnalités Clés
+
+- **Profil Identité Sécurisé** : 3 à 6 portraits guidés préservant 100% de la fidélité du visage, des yeux et de la peau.
+- **7 Univers Créatifs Pré-conçus** :
+  1. *Escapade solaire* : Lumières dorées méditerranéennes et roches minérales.
+  2. *Destination iconique* : Suites panoramiques et rooftops urbains à l'heure bleue.
+  3. *Beauté rapprochée* : Très gros plan éditorial avec flash précis et peau naturelle.
+  4. *Éditorial mode* : Silhouettes couture architecturales et ombres géométriques.
+  5. *Glamour nocturne* : Flash direct 35mm, velours noir et atmosphère d'hôtel privé.
+  6. *Futuristic muse* : Néo-studio d'eau miroir, métal liquide et reflets prismatiques.
+  7. *Vie de créatrice* : Lifestyle crédible en suite lumineuse avec café et tenue décontractée.
+- **Agent Directrice Créative (Alma)** : Recommandations contextuelles et assistance à la direction de séance.
+- **Analyse de Photo de Référence** : Extraction automatique de la lumière, de la palette et du style depuis n'importe quelle image transmise.
+- **Kit Multi-Formats Réseaux Sociaux** : Déclinaison automatique en ratios 4:5 (Feed LinkedIn/Instagram), 9:16 (Stories/Reels/TikTok), 1:1 (Carré) et 16:9 (Bannière).
+
+## Confidentialité & Sécurité
+
+- **Suppression sous 24h** : Les photos d'inspiration brutes transmises sont supprimées immédiatement après leur analyse.
+- **Profil Privé** : Le Profil Identité est chiffré, strictement privé et supprimable par l'utilisateur à tout moment.
+- **Droits Commerciaux** : L'utilisateur possède l'exclusivité et la pleine propriété commerciale sur l'ensemble de ses visuels créés.
+
+## Tarification
+
+- **Activation** : 3 créations offertes
+- **Abonnements** :
+  - *Esencia* : 20 créations / mois à 29 €
+  - *Aura* : 60 créations / mois à 69 €
+  - *Círculo* : 150 créations / mois à 149 €
+- **Lots de recharges** : Esencia 10 (19 €), Aura 30 (49 €), Casa 100 (129 €)
+
+## Documentation Complète
+
+Pour accéder à l'ensemble des détails techniques, spécifications et guides :
+- [LLMs Full Bundle](/llms-full.txt)
+- [Landing Page](/visual-engine)
+- [Studio App](/visual-engine/studio)

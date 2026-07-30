@@ -42,5 +42,6 @@
 - [x] Application de la suite `syntax-syndicate/marketing-skills` : levée d'objections & accordéon FAQ (`MiravaFaq`), balisage JSON-LD SEO (`SoftwareApplication`) pour les bots IA et réassurance CRO.
 - [x] Application de la suite `ayrshare/marketingskills` : module interactif `MiravaSocialDistribution` (déclinaison multi-ratios 4:5, 9:16, 1:1, 16:9 et kit de publication social media).
 - [x] Application de la compétence `coreyhaines31/marketingskills` : génération du document canonique `.agents/product-marketing.md`.
+- [x] Application des compétences `copywriting` et `ai-seo` (`coreyhaines31/marketingskills`) : fichiers Open Knowledge Format `public/llms.txt` et `public/llms-full.txt` pour l'indexation IA.
 - [x] Implémenter le parcours adaptatif, les directions contextuelles des sept univers et la matière visuelle centralisée; validation navigateur consignée avec les contrôles de rendu.
 - [x] Intégrer shadcn de façon ciblée avec Collapsible et RadioGroup, puis remplacer la navigation mobile par une barre animée contrôlée et intégrer les quatre étapes Studio au header attaché.

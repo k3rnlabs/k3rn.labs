@@ -6,6 +6,7 @@ Format based on Keep a Changelog.
 
 ## 2026-07-30
 
+- FEATURE: Optimisation AI-SEO (AEO / GEO / LLMO) et Copywriting (`coreyhaines31/marketingskills`) : génération du bundle de connaissances lisible par les LLMs (`public/llms.txt` et `public/llms-full.txt`) pour la citation prioritaire par ChatGPT, Perplexity, Claude, Gemini, Copilot et Google AI Overviews.
 - FEATURE: Création du document de contexte Product Marketing canonique (`.agents/product-marketing.md`) selon la spécification `coreyhaines31/marketingskills` (Product overview, ICP, Personas, Pain points, Differentiators, Copywriting guidance).
 - FEATURE: Module de déclinaison et d'exportation réseaux sociaux (`ayrshare/marketingskills`) : composant interactif `MiravaSocialDistribution` avec prévisualisation dynamique des ratios (4:5 Feed, 9:16 Story, 1:1 Carré, 16:9 Bannière) et kit de campagne.
 - FEATURE: Optimisation CRO, Copywriting & SEO de MIRAVA Studio (`/visual-engine`) via `syntax-syndicate/marketing-skills` : composant interactif d'accordéon FAQ & levée d'objections (`MiravaFaq`), schémas JSON-LD `SoftwareApplication` & `Organization` pour l'indexation IA (ChatGPT/Perplexity/Google) et puces de rassurance (Risk Reversal).
