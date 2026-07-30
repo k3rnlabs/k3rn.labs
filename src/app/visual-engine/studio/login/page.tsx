@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Eye, EyeOff, ArrowRight, Camera } from "lucide-react"
 import { MiravaWordmark } from "@/components/mirava/mirava-wordmark"
@@ -73,7 +73,7 @@ const copy = {
     signupLink: "Registrarse",
     loginLink: "Iniciar sesión",
     backToLogin: "← Volver al inicio de sesión",
-    signupSuccess: "Cuenta creada — revisa tu email para confirmar.",
+    signupSuccess: "Cuenta creada — revisa tu correo para confirmar.",
     passwordShort: "La contraseña debe tener al menos 6 caracteres.",
     passwordMismatch: "Las contraseñas no coinciden.",
     showPassword: "Mostrar contraseña",
@@ -84,20 +84,36 @@ const copy = {
   },
 } as const
 
-export default function MiravaLoginPage() {
+function MiravaLoginPageContent() {
   const { locale, setLocale } = useMiravaLocale()
   const t = copy[locale]
   const router = useRouter()
+  const searchParams = useSearchParams()
 
   const [mode, setMode] = useState<Mode>("login")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
-  const [showConfirm, setShowConfirm] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  // Traduction dynamique en fonction de la langue sélectionnée (FR / ES)
+  const displayedError = error ? translateAuthError(error, locale) : null
+  const displayedSuccess = success ? translateAuthError(success, locale) : null
+
+  // Capture des paramètres d'URL (confirmation email / erreurs)
+  useEffect(() => {
+    const errParam = searchParams.get("error")
+    const confirmedParam = searchParams.get("confirmed")
+    if (errParam) {
+      setError(errParam)
+    } else if (confirmedParam === "true") {
+      setSuccess("email_confirmed")
+    }
+  }, [searchParams])
 
   // Redirect silently if already authenticated
   useEffect(() => {
@@ -111,7 +127,7 @@ export default function MiravaLoginPage() {
     setSuccess(null)
     setConfirmPassword("")
     setShowPassword(false)
-    setShowConfirm(false)
+    setShowConfirmPassword(false)
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -120,8 +136,8 @@ export default function MiravaLoginPage() {
     setSuccess(null)
 
     if (mode === "signup") {
-      if (password.length < 6) { setError(t.passwordShort); return }
-      if (password !== confirmPassword) { setError(t.passwordMismatch); return }
+      if (password.length < 6) { setError("passwordShort"); return }
+      if (password !== confirmPassword) { setError("passwordMismatch"); return }
     }
 
     setLoading(true)
@@ -155,11 +171,7 @@ export default function MiravaLoginPage() {
           router.refresh()
           return
         }
-        setSuccess(
-          locale === "fr"
-            ? "Compte créé ! Vérifiez votre boîte mail (et vos indésirables/Spam). Si la confirmation automatique est activée, vous pouvez aussi vous connecter directement."
-            : "¡Cuenta creada! Revisa tu correo (y tu carpeta de Spam). Si la confirmación automática está activa, también puedes iniciar sesión directamente."
-        )
+        setSuccess("Compte créé — vérifiez votre email pour confirmer.")
         setMode("login")
         setPassword("")
         setConfirmPassword("")
@@ -174,12 +186,10 @@ export default function MiravaLoginPage() {
           const errMsg = data?.error || data?.message || (typeof data?.details === "string" ? data.details : null) || "Échec de l'envoi du lien."
           throw new Error(errMsg)
         }
-        setSuccess(data?.message ?? (locale === "fr"
-          ? "Si un compte est associé à cet email, un lien vient d'être envoyé."
-          : "Si hay una cuenta asociada a este email, se acaba de enviar un enlace."))
+        setSuccess(data?.message ?? "Si un compte est associé à cet email, un lien vient d'être envoyé.")
       }
     } catch (err) {
-      setError(translateAuthError(err instanceof Error ? err.message : null))
+      setError(err instanceof Error ? err.message : null)
     } finally {
       setLoading(false)
     }
@@ -309,7 +319,7 @@ export default function MiravaLoginPage() {
                 <div className="relative">
                   <input
                     id="mirava-confirm"
-                    type={showConfirm ? "text" : "password"}
+                    type={showConfirmPassword ? "text" : "password"}
                     placeholder={t.confirmPlaceholder}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
@@ -321,22 +331,22 @@ export default function MiravaLoginPage() {
                   />
                   <button
                     type="button"
-                    onClick={() => setShowConfirm(!showConfirm)}
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     tabIndex={-1}
-                    aria-label={showConfirm ? t.hidePassword : t.showPassword}
+                    aria-label={showConfirmPassword ? t.hidePassword : t.showPassword}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-mirava-ink-muted hover:text-mirava-ink transition-colors p-1"
                   >
-                    {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                    {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
               </div>
             )}
 
-            {error && (
-              <div role="alert" className="mirava-alert px-4 py-3 text-sm">{error}</div>
+            {displayedError && (
+              <div role="alert" className="mirava-alert px-4 py-3 text-sm">{displayedError}</div>
             )}
-            {success && (
-              <div className="mirava-notice px-4 py-3 text-sm">{success}</div>
+            {displayedSuccess && (
+              <div className="mirava-notice px-4 py-3 text-sm">{displayedSuccess}</div>
             )}
 
             <button
@@ -384,5 +394,13 @@ export default function MiravaLoginPage() {
         MIRAVA Studio · {t.foot}
       </footer>
     </main>
+  )
+}
+
+export default function MiravaLoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <MiravaLoginPageContent />
+    </Suspense>
   )
 }

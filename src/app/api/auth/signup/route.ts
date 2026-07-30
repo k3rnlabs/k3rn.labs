@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     )
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://k3rnlabs.com"
-    const redirectTo = `${appUrl}/auth/callback`
+    const redirectTo = `${appUrl}/auth/callback?next=/visual-engine/studio`
 
     const { data, error } = await supabase.auth.signUp({
       email: result.data.email,
