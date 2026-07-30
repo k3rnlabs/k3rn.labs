@@ -2,8 +2,9 @@
 
 import Image from "next/image"
 import Link from "next/link"
+import posthog from "posthog-js"
 import { motion, useReducedMotion } from "framer-motion"
-import { ArrowRight, Camera, Check, LockKeyhole, ShieldCheck, Sparkles, Sliders, Layers, UserCheck, CheckCircle2 } from "lucide-react"
+import { ArrowRight, Camera, Check, LockKeyhole, ShieldCheck, Sparkles, Sliders, Layers, UserCheck, CheckCircle2, Sparkle } from "lucide-react"
 import { MiravaInstallButton } from "@/components/mirava/mirava-pwa"
 import { MiravaGrain } from "@/components/mirava/mirava-grain"
 import { MiravaWordmark } from "@/components/mirava/mirava-wordmark"
@@ -16,12 +17,12 @@ import { MiravaPricing } from "@/components/mirava/mirava-pricing"
 import { MIRAVA_UNIVERSES } from "@/lib/mirava/universes"
 
 const identityGuide = [
-  "/visual-engine/identity-guide/01-face.webp",
-  "/visual-engine/identity-guide/02-left.webp",
-  "/visual-engine/identity-guide/03-right.webp",
-  "/visual-engine/identity-guide/04-hair.webp",
-  "/visual-engine/identity-guide/05-body-front.webp",
-  "/visual-engine/identity-guide/06-body-angle.webp",
+  { src: "/visual-engine/identity-guide/01-face.webp", label: "Face neutre" },
+  { src: "/visual-engine/identity-guide/02-left.webp", label: "3/4 Gauche" },
+  { src: "/visual-engine/identity-guide/03-right.webp", label: "3/4 Droit" },
+  { src: "/visual-engine/identity-guide/04-hair.webp", label: "Cheveux & Port" },
+  { src: "/visual-engine/identity-guide/05-body-front.webp", label: "Silhouette face" },
+  { src: "/visual-engine/identity-guide/06-body-angle.webp", label: "Silhouette angle" },
 ]
 
 const copy = {
@@ -29,28 +30,28 @@ const copy = {
     open: "Créer",
     eyebrow: "ÉNERGIE ÉDITORIALE · IDENTITÉ PRÉSERVÉE",
     title: "Votre studio photo éditorial. Votre identité préservée.",
-    intro: "Accédez à une direction artistique complète — photographe, styliste, décors d'exception et retouche Haute Couture — pour créer des campagnes où vous restez l'héroïne centrale.",
-    cta: "Créer ma séance gratuitement",
+    intro: "Fournissez 3 à 6 portraits guidés et choisissez votre direction artistique. MIRAVA compose vos séances photo Haute Couture tout en conservant fidèlement votre regard, votre carnation et la texture naturelle de votre peau.",
+    cta: "Créer ma première séance",
     secondaryCta: "Explorer les 7 univers",
-    offer: "3 créations offertes à l'activation · Sans carte de crédit",
-    heroSourceLabel: "PORTRAIT SOURCE",
-    heroResultLabel: "SÉANCE ÉDITORIALE · LUZ DE ORO",
+    offer: "3 créations offertes à l'activation · Sans carte de crédit · Profil 100% privé",
+    heroSourceLabel: "PORTRAIT SOURCE (VOUS)",
+    heroResultLabel: "RENDU ÉDITORIAL · LUZ DE ORO",
     
     // Proof metrics
     metrics: [
       { number: "3", label: "Créations offertes à l'activation" },
-      { number: "7", label: "Univers photographiques signés" },
+      { number: "7", label: "Univers éditoriaux de référence" },
       { number: "100%", label: "Traitement local & privé du visage" },
-      { number: "4:5 / 9:16", label: "Ratios d'export réseaux prêts" },
+      { number: "4:5 / 9:16", label: "Formats réseaux prêts à publier" },
     ],
 
     // Method steps
-    methodBadge: "PROCESSUS DE CRÉATION",
-    methodTitle: "Une séance éditoriale en trois gestes simples.",
+    methodBadge: "MÉCANISME ET PROCESSUS",
+    methodTitle: "Une séance éditoriale complète en trois gestes simples.",
     steps: [
-      ["01", "Inspirez", "Choisissez parmi 7 univers photographiques signés ou importez une photo de référence personnelle."],
-      ["02", "Affinez", "Formulez vos intentions artistiques avec votre Directrice créative Alma ou sélectionnez vos cadrages."],
-      ["03", "Incarnez", "MIRAVA compose l'image finale autour de votre Profil identité privé, préservant votre regard et votre carnation."],
+      ["01", "Importez vos portraits", "Chargez 3 à 6 portraits guidés (face, 3/4, profil). Votre Profil Identité est analysé en local dans votre navigateur sans être diffusé."],
+      ["02", "Sélectionnez votre univers", "Choisissez parmi 7 univers signés (Escapade Solaire, Éditorial Mode...) ou importez une photo d'inspiration pour créer votre propre studio."],
+      ["03", "Obtenez vos séances photo", "MIRAVA génère vos visuels Haute Couture déclinés dans tous les ratios sociaux (4:5, 9:16, 1:1), en conservant fidèlement vos traits d'origine."],
     ],
 
     // Custom studio from reference
@@ -60,16 +61,16 @@ const copy = {
     customCta: "Créer depuis ma référence",
 
     // Identity profile
-    identityBadge: "TECHNOLOGIE PROPRIÉTAIRE",
-    identityTitle: "Votre identité unique au cœur de chaque image.",
-    identityText: "Créez votre Profil identité avec 3 à 6 portraits guidés (face, 3/4 gauche, 3/4 droit, cheveux, silhouette). MIRAVA préserve fidèlement vos traits, votre texture de peau et votre présence sur chaque décor.",
+    identityBadge: "FIDÉLITÉ PRÉSERVÉE",
+    identityTitle: "Vos traits et votre carnation préservés sur chaque décor.",
+    identityText: "Créez votre Profil Identité privé avec 3 à 6 portraits guidés. Notre moteur de rendu garantit une fidélité absolue à votre regard, votre texture de peau et vos expressions, sans l'aspect lissé ou générique des filtres habituels.",
     camera: "Prévisualisation vidéo 100% locale",
     cameraText: "L'analyse vidéo s'effectue directement dans votre navigateur. Aucune image brute n'est transmise avant votre validation explicite.",
 
     // Confidentiality & Rights
     privacyBadge: "VOTRE VIE PRIVÉE",
-    privacyTitle: "Confidentialité absolue & respect strict des droits.",
-    private: "Vos images de référence sont supprimées immédiatement après analyse. Votre Profil identité reste strictement privé et supprimable en un clic.",
+    privacyTitle: "Vos photos sources restent strictement privées et effaçables en 1 clic.",
+    private: "Vos images de référence sont supprimées immédiatement après analyse. Votre Profil Identité reste strictement privé, chiffré et supprimable à tout moment.",
     adult: "MIRAVA est exclusivement réservé aux personnes majeures détenant les droits et consentements sur les visages importés.",
 
     // Final CTA
@@ -81,28 +82,28 @@ const copy = {
     open: "Crear",
     eyebrow: "ENERGÍA EDITORIAL · IDENTIDAD PRESERVADA",
     title: "Tu estudio fotográfico editorial. Tu identidad preservada.",
-    intro: "Accede a una dirección artística completa — fotografía, estilismo, escenarios excepcionales y retoque de Alta Costura — para crear campañas donde sigues siendo la protagonista.",
-    cta: "Crear mi sesión gratis",
+    intro: "Aporta de 3 a 6 retratos guiados y elige tu dirección artística. MIRAVA compone tus sesiones fotográficas de Alta Costura conservando fielmente tu mirada, tono y textura natural de piel.",
+    cta: "Crear mi primera sesión",
     secondaryCta: "Explorar los 7 universos",
-    offer: "3 creaciones incluidas al activar · Sin tarjeta de crédito",
-    heroSourceLabel: "RETRATO FUENTE",
-    heroResultLabel: "SESIÓN EDITORIAL · LUZ DE ORO",
+    offer: "3 creaciones incluidas al activar · Sin tarjeta de crédito · Perfil 100% privado",
+    heroSourceLabel: "RETRATO FUENTE (TÚ)",
+    heroResultLabel: "RESULTADO EDITORIAL · LUZ DE ORO",
 
     // Proof metrics
     metrics: [
       { number: "3", label: "Creaciones incluidas al activar" },
-      { number: "7", label: "Universos fotográficos de autor" },
+      { number: "7", label: "Universos editoriales de autor" },
       { number: "100%", label: "Procesamiento local y privado" },
       { number: "4:5 / 9:16", label: "Formatos listos para redes" },
     ],
 
     // Method steps
-    methodBadge: "PROCESO DE CREACIÓN",
-    methodTitle: "Una sesión editorial en tres sencillos pasos.",
+    methodBadge: "MECANISMO Y PROCESO",
+    methodTitle: "Una sesión editorial completa en tres sencillos pasos.",
     steps: [
-      ["01", "Inspira", "Elige entre 7 universos fotográficos o sube una foto de referencia personal."],
-      ["02", "Afina", "Formula tus intenciones artísticas con tu Directora creativa Alma o selecciona tus encuadres."],
-      ["03", "Encarna", "MIRAVA compone la imagen final alrededor de tu Perfil de identidad privado, conservando tu mirada."],
+      ["01", "Sube tus retratos", "Carga de 3 a 6 retratos guiados (frente, 3/4, perfil). Tu Perfil de Identidad se analiza localmente en tu navegador."],
+      ["02", "Selecciona tu universo", "Elige entre 7 universos autor (Escapada Solar, Editorial Moda...) o sube una foto de inspiración para crear tu propio estudio."],
+      ["03", "Obtén tus sesiones foto", "MIRAVA genera tus imágenes de Alta Costura adaptadas a todos los ratios sociales (4:5, 9:16, 1:1), conservando tus rasgos reales."],
     ],
 
     // Custom studio from reference
@@ -112,16 +113,16 @@ const copy = {
     customCta: "Crear desde mi referencia",
 
     // Identity profile
-    identityBadge: "TECNOLOGÍA PROPIETARIA",
-    identityTitle: "Tu identidad única en el centro de cada imagen.",
-    identityText: "Crea tu Perfil de identidad con 3 a 6 retratos guiados (frente, 3/4 izquierdo, 3/4 derecho, cabello, silueta). MIRAVA preserva fielmente tus rasgos y textura de piel.",
+    identityBadge: "FIDELIDAD PRESERVADA",
+    identityTitle: "Tus rasgos y tono de piel preservados en cada escenario.",
+    identityText: "Crea tu Perfil de Identidad privado con 3 a 6 retratos guiados. Nuestro motor garantiza una fidelidad absoluta a tu mirada, textura de piel y expresiones sin el efecto genérico de los filtros convencionales.",
     camera: "Vista previa de vídeo 100% local",
     cameraText: "El análisis de vídeo se ejecuta directamente en tu navegador. Ninguna imagen bruta se transmite sin tu validación explícita.",
 
     // Confidentiality & Rights
     privacyBadge: "TU PRIVACIDAD",
-    privacyTitle: "Confidencialidad absoluta y respeto de derechos.",
-    private: "Tus imágenes de referencia se eliminan tras el análisis. Tu Perfil de identidad permanece privado y eliminable en 1 clic.",
+    privacyTitle: "Tus fotos fuente permanecen privadas y borrables en 1 clic.",
+    private: "Tus imágenes de referencia se eliminan tras el análisis. Tu Perfil de Identidad permanece privado, cifrado y eliminable en cualquier momento.",
     adult: "MIRAVA está reservado a personas mayores de edad con los derechos y consentimientos sobre cada imagen.",
 
     // Final CTA
@@ -135,6 +136,12 @@ export default function MiravaLandingPage() {
   const { locale, setLocale } = useMiravaLocale()
   const reduceMotion = useReducedMotion()
   const t = copy[locale]
+
+  const trackHeroCta = () => {
+    try {
+      posthog.capture("hero_cta_clicked", { location: "hero" })
+    } catch (_) {}
+  }
 
   return (
     <main className="mirava-theme min-h-dvh overflow-hidden bg-mirava-canvas text-mirava-ink">
@@ -152,13 +159,14 @@ export default function MiravaLandingPage() {
               type="button"
               aria-label={locale === "fr" ? "Passer en espagnol" : "Cambiar al francés"}
               onClick={() => setLocale(locale === "fr" ? "es" : "fr")}
-              className="mirava-button mirava-button-secondary min-h-11 min-w-12 px-3 text-xs font-semibold font-jakarta"
+              className="mirava-button mirava-button-secondary min-h-[44px] min-w-12 px-3 text-xs font-semibold font-jakarta"
             >
               {locale.toUpperCase()}
             </button>
             <Link
               href="/visual-engine/studio"
-              className="mirava-button mirava-button-primary min-h-11 gap-2 px-5 text-xs font-semibold font-jakarta"
+              onClick={trackHeroCta}
+              className="mirava-button mirava-button-primary min-h-[44px] gap-2 px-5 text-xs font-semibold font-jakarta"
             >
               {t.open}
               <ArrowRight className="h-4 w-4" />
@@ -174,7 +182,7 @@ export default function MiravaLandingPage() {
             <Camera className="h-3.5 w-3.5 text-mirava-accent" />
             {t.eyebrow}
           </p>
-          <h1 className="mirava-title mt-6 max-w-2xl text-[2.85rem] leading-[1.08] sm:text-6xl lg:text-[4.75rem]">
+          <h1 className="mirava-title mt-6 max-w-2xl text-[2.75rem] leading-[1.08] sm:text-6xl lg:text-[4.5rem]">
             {t.title}
           </h1>
           <p className="mirava-copy mt-6 max-w-xl text-base leading-7 sm:text-lg sm:leading-8">
@@ -183,7 +191,8 @@ export default function MiravaLandingPage() {
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <Link
               href="/visual-engine/studio"
-              className="mirava-button mirava-button-primary min-h-13 gap-2 px-7 text-sm font-semibold font-jakarta shadow-lg"
+              onClick={trackHeroCta}
+              className="mirava-button mirava-button-primary min-h-[48px] gap-2 px-7 text-sm font-semibold font-jakarta shadow-lg"
             >
               {t.cta}
               <ArrowRight className="h-4 w-4" />
@@ -191,8 +200,8 @@ export default function MiravaLandingPage() {
             <MiravaInstallButton locale={locale} />
           </div>
           <p className="mirava-muted mt-4 text-xs font-medium flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 text-mirava-accent" />
-            {t.offer}
+            <CheckCircle2 className="h-4 w-4 text-mirava-accent shrink-0" />
+            <span>{t.offer}</span>
           </p>
         </div>
 
@@ -266,26 +275,28 @@ export default function MiravaLandingPage() {
         </div>
       </section>
 
-      {/* 4. 3-Step Creation Method */}
+      {/* 4. 3-Step Creation Method — Composition Style 1: Editorial Open */}
       <section className="relative mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-24">
         <div className="max-w-2xl">
           <span className="mirava-label">{t.methodBadge}</span>
           <h2 className="mirava-section-title mt-4 text-3xl sm:text-5xl">{t.methodTitle}</h2>
         </div>
 
-        <div className="mt-12 grid gap-6 md:grid-cols-3">
+        <div className="mt-12 grid gap-8 md:grid-cols-3">
           {t.steps.map(([number, title, body]) => (
             <article
               key={number}
-              className="mirava-surface relative flex flex-col justify-between p-6 sm:p-8"
-              style={{ borderRadius: "var(--mirava-radius-lg, 16px)" }}
+              className="relative flex flex-col justify-between border-t border-mirava-line pt-6 sm:pt-8"
             >
               <div>
-                <span className="font-jakarta text-sm font-bold text-mirava-accent">
-                  {number}
-                </span>
-                <h3 className="mt-6 font-jakarta text-xl font-bold text-mirava-ink">{title}</h3>
-                <p className="mirava-copy mt-3 text-sm leading-6">{body}</p>
+                <div className="flex items-center justify-between">
+                  <span className="font-jakarta text-3xl font-extrabold tracking-tight text-mirava-accent/90">
+                    {number}
+                  </span>
+                  <span className="h-1.5 w-1.5 rounded-full bg-mirava-accent/40" />
+                </div>
+                <h3 className="mt-4 font-jakarta text-xl font-bold text-mirava-ink">{title}</h3>
+                <p className="mirava-copy mt-3 text-sm leading-relaxed text-mirava-ink-secondary">{body}</p>
               </div>
             </article>
           ))}
@@ -297,14 +308,14 @@ export default function MiravaLandingPage() {
         <MiravaAgentSimulator locale={locale} />
       </section>
 
-      {/* 6. Identity Profile & Camera Privacy */}
+      {/* 6. Identity Profile & Camera Privacy — Composition Style 3: Preuve & Matrix */}
       <section className="relative mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-24">
         <div className="grid gap-12 lg:grid-cols-[.85fr_1.15fr] lg:items-center">
           <div>
             <span className="mirava-label">{t.identityBadge}</span>
             <h2 className="mirava-section-title mt-4 text-3xl sm:text-5xl">{t.identityTitle}</h2>
             <p className="mirava-copy mt-5 text-base leading-7">{t.identityText}</p>
-            <div className="mirava-notice mt-8 p-5 rounded-xl border border-mirava-line">
+            <div className="mirava-notice mt-8 p-5 rounded-xl border border-mirava-line/80 bg-mirava-canvas-raised">
               <p className="flex items-center gap-2 font-jakarta text-sm font-bold text-mirava-ink">
                 <Camera className="h-4 w-4 text-mirava-accent" />
                 {t.camera}
@@ -314,24 +325,30 @@ export default function MiravaLandingPage() {
           </div>
 
           <div className="grid grid-cols-6 gap-3">
-            {identityGuide.map((src, index) => (
+            {identityGuide.map((item, index) => (
               <div
-                key={src}
-                className={`mirava-image-frame relative overflow-hidden bg-mirava-surface ${
+                key={item.src}
+                className={`mirava-image-frame group relative overflow-hidden bg-mirava-surface border border-mirava-line ${
                   index < 4 ? "col-span-3 aspect-[3/4] sm:col-span-2" : "col-span-3 aspect-[3/4]"
                 }`}
                 style={{ borderRadius: "var(--mirava-radius-md, 12px)" }}
               >
                 <Image
-                  src={src}
-                  alt={`Angle ${index + 1}`}
+                  src={item.src}
+                  alt={item.label}
                   fill
                   sizes="(max-width: 640px) 45vw, 20vw"
-                  className="object-cover"
+                  className="object-cover transition-transform duration-500 group-hover:scale-105"
                 />
-                <span className="mirava-control absolute bottom-2 right-2 grid h-7 w-7 place-items-center rounded-full bg-mirava-accent text-mirava-canvas border border-mirava-canvas">
-                  <Check className="h-3.5 w-3.5" />
-                </span>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80" />
+                <div className="absolute inset-x-2.5 bottom-2.5 flex items-center justify-between">
+                  <span className="font-jakarta text-[9px] font-semibold text-white/90">
+                    {item.label}
+                  </span>
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-mirava-accent text-mirava-canvas">
+                    <Check className="h-3 w-3" />
+                  </span>
+                </div>
               </div>
             ))}
           </div>
@@ -353,7 +370,7 @@ export default function MiravaLandingPage() {
             <div className="mt-8">
               <Link
                 href="/visual-engine/studio"
-                className="mirava-button mirava-button-primary inline-flex min-h-12 items-center gap-2 px-6 text-xs font-semibold font-jakarta"
+                className="mirava-button mirava-button-primary inline-flex min-h-[44px] items-center gap-2 px-6 text-xs font-semibold font-jakarta"
               >
                 {t.customCta}
                 <ArrowRight className="h-4 w-4" />
@@ -393,14 +410,14 @@ export default function MiravaLandingPage() {
           <h2 className="mirava-section-title mt-4 text-3xl sm:text-5xl">{t.privacyTitle}</h2>
         </div>
         <div className="mt-10 grid gap-6 md:grid-cols-2">
-          <div className="mirava-notice flex items-start gap-4 p-6 rounded-xl border border-mirava-line">
+          <div className="mirava-notice flex items-start gap-4 p-6 rounded-xl border border-mirava-line bg-mirava-canvas-raised">
             <LockKeyhole className="mt-1 h-5 w-5 shrink-0 text-mirava-accent" />
             <div>
               <h3 className="font-jakarta text-sm font-bold text-mirava-ink">Données d'identité protégées</h3>
               <p className="mt-2 text-xs leading-6 text-mirava-ink-secondary">{t.private}</p>
             </div>
           </div>
-          <div className="mirava-notice flex items-start gap-4 p-6 rounded-xl border border-mirava-line">
+          <div className="mirava-notice flex items-start gap-4 p-6 rounded-xl border border-mirava-line bg-mirava-canvas-raised">
             <ShieldCheck className="mt-1 h-5 w-5 shrink-0 text-mirava-accent" />
             <div>
               <h3 className="font-jakarta text-sm font-bold text-mirava-ink">Consentement & Majorité</h3>
@@ -432,7 +449,8 @@ export default function MiravaLandingPage() {
           </div>
           <Link
             href="/visual-engine/studio"
-            className="mirava-button mirava-button-primary shrink-0 gap-2 px-7 py-3.5 text-sm font-semibold font-jakarta shadow-lg"
+            onClick={trackHeroCta}
+            className="mirava-button mirava-button-primary shrink-0 gap-2 px-7 py-3.5 min-h-[48px] text-sm font-semibold font-jakarta shadow-lg"
           >
             {t.cta}
             <ArrowRight className="h-4 w-4" />
@@ -446,7 +464,7 @@ export default function MiravaLandingPage() {
           <MiravaWordmark />
           <p className="text-[11px]">{t.foot}</p>
           <div className="flex gap-4 text-[11px]">
-            <Link href="/visual-engine/studio/login" className="hover:text-mirava-ink transition-colors">
+            <Link href="/visual-engine/studio/login" className="hover:text-mirava-ink transition-colors min-h-[44px] inline-flex items-center">
               Connexion Studio
             </Link>
           </div>
@@ -455,3 +473,4 @@ export default function MiravaLandingPage() {
     </main>
   )
 }
+

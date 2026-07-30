@@ -240,7 +240,7 @@ export function AvatarCropper({ onClose, onUpload }: AvatarCropperProps) {
                                 onClick={() => setImageSrc(null)}
                                 disabled={isUploading}
                             >
-                                Changer l'image
+                                Changer l&apos;image
                             </Button>
                             <Button
                                 className="flex-1 bg-white text-black hover:bg-white/90 font-bold"

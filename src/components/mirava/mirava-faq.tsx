@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import posthog from "posthog-js"
 import { motion, AnimatePresence } from "framer-motion"
 import { ChevronDown, HelpCircle, ShieldCheck, Sparkles } from "lucide-react"
 
@@ -71,6 +72,16 @@ export function MiravaFaq({ locale }: MiravaFaqProps) {
     },
   }[locale]
 
+  const handleToggle = (id: string) => {
+    const isOpening = openId !== id
+    setOpenId(isOpening ? id : null)
+    if (isOpening) {
+      try {
+        posthog.capture("faq_opened", { faq_id: id })
+      } catch (_) {}
+    }
+  }
+
   return (
     <div className="mx-auto max-w-4xl">
       <div className="text-center">
@@ -93,8 +104,8 @@ export function MiravaFaq({ locale }: MiravaFaqProps) {
               className="mirava-surface-raised overflow-hidden rounded-[var(--mirava-radius-md)] border border-mirava-line transition-colors"
             >
               <button
-                onClick={() => setOpenId(isOpen ? null : item.id)}
-                className="flex w-full items-center justify-between p-5 text-left transition-colors hover:bg-mirava-surface-hover/50 sm:p-6"
+                onClick={() => handleToggle(item.id)}
+                className="flex w-full min-h-[44px] items-center justify-between p-5 text-left transition-colors hover:bg-mirava-surface-hover/50 sm:p-6"
                 aria-expanded={isOpen}
               >
                 <div className="flex items-center gap-3.5 pr-4">

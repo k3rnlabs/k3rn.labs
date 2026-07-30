@@ -1,0 +1,43 @@
+version: "1.0.0"
+name: kern-visual-gold-standard-pipeline
+states: [DRAFT, INPUTS_VALIDATED, PAGE_MAPPED, VISUAL_AUDITED, AI_FINGERPRINT_AUDITED, CRO_AUDITED, ART_DIRECTION_AUDITED, TECHNICAL_AUDITED, TECHNICAL_SKIPPED, PRIORITIZED, PROMPTS_PACKAGED, IMPLEMENTATION_PENDING, VERIFICATION_PENDING, VERIFIED, FINAL_REVIEWED, COMPLETE, BLOCKED, FAILED]
+phases:
+  - {id: P00, name: initialize_run, prompt: prompts/00_MASTER_ORCHESTRATOR.md, output: schemas/audit-run.schema.json, gate: G00}
+  - {id: P01, name: validate_inputs, prompt: prompts/01_INPUT_VALIDATOR.md, output: schemas/input-manifest.schema.json, gate: G01}
+  - {id: P02, name: map_page, prompt: prompts/02_PAGE_MAPPER.md, output: schemas/page-map.schema.json, gate: G02}
+  - id: P03
+    name: visual_audit
+    prompt: prompts/03_VISUAL_AUDITOR.md
+    output: schemas/finding.schema.json
+    skills: [ui-ux-pro-max, impeccable, web-design-guidelines]
+    gate: G03
+  - id: P04
+    name: ai_fingerprint_audit
+    prompt: prompts/04_AI_FINGERPRINT_AUDITOR.md
+    output: schemas/finding.schema.json
+    skills: [impeccable]
+    gate: G04
+  - id: P05
+    name: positioning_cro_audit
+    prompt: prompts/05_POSITIONING_CRO_AUDITOR.md
+    output: schemas/finding.schema.json
+    skills: [product-marketing, copywriting, ai-seo]
+    gate: G05
+  - id: P06
+    name: art_direction_audit
+    prompt: prompts/06_IMAGE_ART_DIRECTION_AUDITOR.md
+    output: schemas/finding.schema.json
+    skills: [ui-ux-pro-max, impeccable]
+    gate: G06
+  - id: P07
+    name: technical_audit
+    conditional: url_or_repository_available
+    prompt: prompts/07_TECHNICAL_AUDITOR.md
+    output: schemas/finding.schema.json
+    skills: [playwright-cli, agent-browser, web-design-guidelines, next-best-practices, vercel-react-best-practices]
+    gate: G07
+  - {id: P08, name: prioritize, prompt: prompts/08_PRIORITIZER.md, output: schemas/finding.schema.json, gate: G08}
+  - {id: P09, name: score, output: schemas/scorecard.schema.json, gate: G09}
+  - {id: P10, name: package_prompts, prompt: prompts/09_PROMPT_PACKAGER.md, output: schemas/prompt-package.schema.json, gate: G10}
+  - {id: P11, name: verify, prompt: prompts/10_VERIFICATION_REVIEWER.md, output: schemas/verification-run.schema.json, gate: G11}
+  - {id: P12, name: independent_review, prompt: prompts/11_FINAL_INDEPENDENT_REVIEWER.md, gate: G12}

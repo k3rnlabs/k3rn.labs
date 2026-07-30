@@ -3,6 +3,7 @@
 import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
+import posthog from "posthog-js"
 import { motion, AnimatePresence } from "framer-motion"
 import { ArrowRight, Sparkles, CheckCircle2 } from "lucide-react"
 import { MIRAVA_UNIVERSES } from "@/lib/mirava/universes"
@@ -34,23 +35,31 @@ export function MiravaUniverseShowcase({ locale }: MiravaUniverseShowcaseProps) 
     },
   }[locale]
 
+  const handleSelectUniverse = (id: string, name: string) => {
+    setSelectedId(id)
+    try {
+      posthog.capture("style_selected", { universe_id: id, universe_name: name })
+    } catch (_) {}
+  }
+
   return (
     <div className="relative mx-auto max-w-7xl">
       {/* Selector Tabs */}
-      <div className="mirava-scroll-row flex gap-2 overflow-x-auto pb-4 sm:grid sm:grid-cols-4 lg:grid-cols-7">
+      <div className="mirava-scroll-row flex gap-2.5 overflow-x-auto pb-4 sm:grid sm:grid-cols-4 lg:grid-cols-7">
         {MIRAVA_UNIVERSES.map((universe, index) => {
           const isSelected = universe.id === selectedId
           return (
             <button
               key={universe.id}
-              onClick={() => setSelectedId(universe.id)}
-              className={`mirava-image-frame group relative min-w-[42vw] snap-center overflow-hidden text-left transition-all duration-300 sm:min-w-0 ${
+              onClick={() => handleSelectUniverse(universe.id, universe.name.fr)}
+              className={`mirava-image-frame group relative min-w-[42vw] min-h-[44px] snap-center overflow-hidden text-left transition-all duration-300 sm:min-w-0 ${
                 isSelected
                   ? "ring-2 ring-mirava-accent ring-offset-2 ring-offset-mirava-canvas shadow-lg scale-[1.02]"
                   : "opacity-75 hover:opacity-100 hover:scale-[1.01]"
               }`}
               style={{ borderRadius: "var(--mirava-radius-md)" }}
             >
+
               <div className="relative aspect-[4/5]">
                 <Image
                   src={universe.image}

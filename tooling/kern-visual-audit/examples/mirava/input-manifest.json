@@ -1,0 +1,49 @@
+{
+  "run_id": "KERN-MIRAVA-20260730-R01",
+  "project": {
+    "name": "MIRAVA Landing Page",
+    "product_name": "MIRAVA",
+    "target_audience": null,
+    "business_goal": "Convert visitors into studio/shooting creation"
+  },
+  "mode": "captures",
+  "evidence_level": "A",
+  "url": null,
+  "repository": null,
+  "artifacts": [
+    {
+      "id": "desktop-full",
+      "kind": "desktop_capture",
+      "path": "assets/desktop-full.png",
+      "sha256": "3228648b17a636cbb826987b70900ff5949f22c2dee829103acc62b10fac5614",
+      "mime_type": "image/png",
+      "width_px": 530,
+      "height_px": 2048,
+      "viewport_width_px": 1440,
+      "readability": "medium",
+      "notes": [
+        "Conversation rendering is downscaled; exact CSS values are not inferable."
+      ]
+    },
+    {
+      "id": "mobile-full",
+      "kind": "mobile_capture",
+      "path": "assets/mobile-full.png",
+      "sha256": "9e57a3964a4e7c396fe6cff1429fc19761a9bf000a6ba47cfc893766a64ec54b",
+      "mime_type": "image/png",
+      "width_px": 96,
+      "height_px": 2048,
+      "viewport_width_px": 390,
+      "readability": "low",
+      "notes": [
+        "Very narrow rendered image; macro responsive analysis remains possible."
+      ]
+    }
+  ],
+  "limitations": [
+    "No live URL inspection.",
+    "No repository access.",
+    "Exact font, contrast, semantics and performance remain unverified."
+  ],
+  "validated": true
+}

@@ -1,0 +1,348 @@
+KERN / MIRAVA landing skills install
+Repository: /Users/user/Desktop/Dossier k3rnlabs/k3rn
+Agent: codex
+Node: v24.13.0
+Git before:
+## feat/mirava-landing-v3
+ M package-lock.json
+ M package.json
+ M src/app/providers.tsx
+?? .kern/
+?? install_mirava_landing_skills.sh
+?? src/app/posthog-provider.tsx
+?? tooling/
+
+$ env npx -y skills add getsentry/skills --skill skill-scanner --skill agents-md -a codex -y 
+
+│
+●   antigravity  Agent detected — installing non-interactively
+[?25l│
+◇  Source: https://github.com/getsentry/skills.git
+[?25h[?25l│
+◒  Cloning repository…[1G[J◐  Cloning repository…[1G[J◓  Cloning repository…[1G[J◑  Cloning repository…[1G[J◒  Cloning repository…[1G[J◐  Cloning repository…[1G[J◓  Cloning repository…[1G[J◑  Cloning repository…[1G[J◒  Cloning repository….[1G[J◐  Cloning repository….[1G[J◓  Cloning repository….[1G[J◇  Repository cloned
+[?25h[?25l│
+[1G[J◇  Found 28 skills
+[?25h│
+●  Selected 2 skills: agents-md, skill-scanner
+
+│
+◇  Installation Summary ─────────────────────────────────────────╮
+│                                                                │
+│  ~/Desktop/Dossier k3rnlabs/k3rn/.agents/skills/agents-md      │
+│    copy → Codex                                                │
+│    overwrites: Codex                                           │
+│                                                                │
+│  ~/Desktop/Dossier k3rnlabs/k3rn/.agents/skills/skill-scanner  │
+│    copy → Codex                                                │
+│    overwrites: Codex                                           │
+│                                                                │
+├────────────────────────────────────────────────────────────────╯
+│
+◇  Security Risk Assessments ───────────────────────────────────╮
+│                                                               │
+│                 Gen               Socket            Snyk      │
+│  agents-md      Safe              0 alerts          Low Risk  │
+│  skill-scanner  Safe              0 alerts          Low Risk  │
+│                                                               │
+│  Details: https://skills.sh/getsentry/skills                  │
+│                                                               │
+├───────────────────────────────────────────────────────────────╯
+[?25l│
+[1G[J◇  Installation complete
+[?25h
+│
+◇  Installed 2 skills ───────────────────────────────────────────────╮
+│                                                                    │
+│  ✓ agents-md (copied)                                              │
+│    → ~/Desktop/Dossier k3rnlabs/k3rn/.agents/skills/agents-md      │
+│  ✓ skill-scanner (copied)                                          │
+│    → ~/Desktop/Dossier k3rnlabs/k3rn/.agents/skills/skill-scanner  │
+│                                                                    │
+├────────────────────────────────────────────────────────────────────╯
+
+│
+└  Done!  Review skills before use; they run with full agent permissions.
+
+
+$ env npx -y skills add coreyhaines31/marketingskills --skill product-marketing --skill copywriting --skill ai-seo -a codex -y 
+
+│
+●   antigravity  Agent detected — installing non-interactively
+[?25l│
+◇  Source: https://github.com/coreyhaines31/marketingskills.git
+[?25h[?25l│
+◒  Cloning repository…[1G[J◐  Cloning repository…[1G[J◓  Cloning repository…[1G[J◑  Cloning repository…[1G[J◒  Cloning repository…[1G[J◐  Cloning repository…[1G[J◓  Cloning repository…[1G[J◑  Cloning repository…[1G[J◒  Cloning repository….[1G[J◐  Cloning repository….[1G[J◓  Cloning repository….[1G[J◑  Cloning repository….[1G[J◒  Cloning repository….[1G[J◐  Cloning repository….[1G[J◓  Cloning repository….[1G[J◑  Cloning repository….[1G[J◒  Cloning repository…..[1G[J◐  Cloning repository…..[1G[J◓  Cloning repository…..[1G[J◇  Repository cloned
+[?25h[?25l│
+[1G[J◇  Found 49 skills
+[?25h│
+●  Selected 3 skills: ai-seo, copywriting, product-marketing
+
+│
+◇  Installation Summary ─────────────────────────────────────────────╮
+│                                                                    │
+│  ~/Desktop/Dossier k3rnlabs/k3rn/.agents/skills/ai-seo             │
+│    copy → Codex                                                    │
+│    overwrites: Codex                                               │
+│                                                                    │
+│  ~/Desktop/Dossier k3rnlabs/k3rn/.agents/skills/copywriting        │
+│    copy → Codex                                                    │
+│    overwrites: Codex                                               │
+│                                                                    │
+│  ~/Desktop/Dossier k3rnlabs/k3rn/.agents/skills/product-marketing  │
+│    copy → Codex                                                    │
+│    overwrites: Codex                                               │
+│                                                                    │
+├────────────────────────────────────────────────────────────────────╯
+│
+◇  Security Risk Assessments ───────────────────────────────────────╮
+│                                                                   │
+│                     Gen               Socket            Snyk      │
+│  ai-seo             Safe              0 alerts          Med Risk  │
+│  copywriting        Safe              0 alerts          Low Risk  │
+│  product-marketing  Safe              0 alerts          Low Risk  │
+│                                                                   │
+│  Details: https://skills.sh/coreyhaines31/marketingskills         │
+│                                                                   │
+├───────────────────────────────────────────────────────────────────╯
+[?25l│
+[1G[J◇  Installation complete
+[?25h
+│
+◇  Installed 3 skills ───────────────────────────────────────────────────╮
+│                                                                        │
+│  ✓ ai-seo (copied)                                                     │
+│    → ~/Desktop/Dossier k3rnlabs/k3rn/.agents/skills/ai-seo             │
+│  ✓ copywriting (copied)                                                │
+│    → ~/Desktop/Dossier k3rnlabs/k3rn/.agents/skills/copywriting        │
+│  ✓ product-marketing (copied)                                          │
+│    → ~/Desktop/Dossier k3rnlabs/k3rn/.agents/skills/product-marketing  │
+│                                                                        │
+├────────────────────────────────────────────────────────────────────────╯
+
+│
+└  Done!  Review skills before use; they run with full agent permissions.
+
+
+$ env npx -y skills add vercel-labs/agent-skills --skill web-design-guidelines --skill vercel-react-best-practices -a codex -y 
+
+│
+●   antigravity  Agent detected — installing non-interactively
+[?25l│
+◇  Source: https://github.com/vercel-labs/agent-skills.git
+[?25h[?25l│
+◒  Fetching skills…[1G[J◐  Fetching skills…[1G[J◓  Fetching skills…[1G[J◑  Fetching skills…[1G[J◒  Fetching skills…[1G[J◐  Fetching skills…[1G[J◓  Fetching skills…[1G[J◑  Fetching skills…[1G[J◒  Fetching skills….[1G[J◐  Fetching skills….[1G[J◓  Fetching skills….[1G[J◇  Found 9 skills
+[?25h│
+●  Selected 2 skills: vercel-react-best-practices, web-design-guidelines
+
+│
+◇  Installation Summary ───────────────────────────────────────────────────────╮
+│                                                                              │
+│  ~/Desktop/Dossier k3rnlabs/k3rn/.agents/skills/vercel-react-best-practices  │
+│    copy → Codex                                                              │
+│    overwrites: Codex                                                         │
+│                                                                              │
+│  ~/Desktop/Dossier k3rnlabs/k3rn/.agents/skills/web-design-guidelines        │
+│    copy → Codex                                                              │
+│    overwrites: Codex                                                         │
+│                                                                              │
+├──────────────────────────────────────────────────────────────────────────────╯
+│
+◇  Security Risk Assessments ─────────────────────────────────────────────────╮
+│                                                                             │
+│                               Gen               Socket            Snyk      │
+│  vercel-react-best-practices  Safe              0 alerts          Low Risk  │
+│  web-design-guidelines        Safe              0 alerts          Med Risk  │
+│                                                                             │
+│  Details: https://skills.sh/vercel-labs/agent-skills                        │
+│                                                                             │
+├─────────────────────────────────────────────────────────────────────────────╯
+[?25l│
+[1G[J◇  Installation complete
+[?25h
+│
+◇  Installed 2 skills ───────────────────────────────────────────────────────╮
+│                                                                            │
+│  ✓ vercel-react-best-practices (copied)                                    │
+│    → ~/Desktop/Dossier                                                     │
+│  k3rnlabs/k3rn/.agents/skills/vercel-react-best-practices                  │
+│  ✓ web-design-guidelines (copied)                                          │
+│    → ~/Desktop/Dossier k3rnlabs/k3rn/.agents/skills/web-design-guidelines  │
+│                                                                            │
+├────────────────────────────────────────────────────────────────────────────╯
+
+│
+└  Done!  Review skills before use; they run with full agent permissions.
+
+
+$ env npx -y skills add getsentry/skills --skill find-bugs --skill code-review --skill code-simplifier -a codex -y 
+
+│
+●   antigravity  Agent detected — installing non-interactively
+[?25l│
+◇  Source: https://github.com/getsentry/skills.git
+[?25h[?25l│
+◒  Cloning repository…[1G[J◐  Cloning repository…[1G[J◓  Cloning repository…[1G[J◑  Cloning repository…[1G[J◒  Cloning repository…[1G[J◐  Cloning repository…[1G[J◓  Cloning repository…[1G[J◑  Cloning repository…[1G[J◒  Cloning repository….[1G[J◐  Cloning repository….[1G[J◓  Cloning repository….[1G[J◑  Cloning repository….[1G[J◇  Repository cloned
+[?25h[?25l│
+[1G[J◇  Found 28 skills
+[?25h│
+●  Selected 3 skills: code-review, code-simplifier, find-bugs
+
+│
+◇  Installation Summary ───────────────────────────────────────────╮
+│                                                                  │
+│  ~/Desktop/Dossier k3rnlabs/k3rn/.agents/skills/code-review      │
+│    copy → Codex                                                  │
+│    overwrites: Codex                                             │
+│                                                                  │
+│  ~/Desktop/Dossier k3rnlabs/k3rn/.agents/skills/code-simplifier  │
+│    copy → Codex                                                  │
+│    overwrites: Codex                                             │
+│                                                                  │
+│  ~/Desktop/Dossier k3rnlabs/k3rn/.agents/skills/find-bugs        │
+│    copy → Codex                                                  │
+│    overwrites: Codex                                             │
+│                                                                  │
+├──────────────────────────────────────────────────────────────────╯
+│
+◇  Security Risk Assessments ──────────────────────────────────────╮
+│                                                                  │
+│                   Gen               Socket            Snyk       │
+│  code-review      Safe              0 alerts          Low Risk   │
+│  code-simplifier  Safe              0 alerts          Low Risk   │
+│  find-bugs        Safe              0 alerts          High Risk  │
+│                                                                  │
+│  Details: https://skills.sh/getsentry/skills                     │
+│                                                                  │
+├──────────────────────────────────────────────────────────────────╯
+[?25l│
+[1G[J◇  Installation complete
+[?25h
+│
+◇  Installed 3 skills ─────────────────────────────────────────────────╮
+│                                                                      │
+│  ✓ code-review (copied)                                              │
+│    → ~/Desktop/Dossier k3rnlabs/k3rn/.agents/skills/code-review      │
+│  ✓ code-simplifier (copied)                                          │
+│    → ~/Desktop/Dossier k3rnlabs/k3rn/.agents/skills/code-simplifier  │
+│  ✓ find-bugs (copied)                                                │
+│    → ~/Desktop/Dossier k3rnlabs/k3rn/.agents/skills/find-bugs        │
+│                                                                      │
+├──────────────────────────────────────────────────────────────────────╯
+
+│
+└  Done!  Review skills before use; they run with full agent permissions.
+
+
+$ env npx -y skills add https://github.com/microsoft/playwright-cli/tree/main/skills/playwright-cli -a codex -y 
+
+│
+●   antigravity  Agent detected — installing non-interactively
+[?25l│
+◇  Source: https://github.com/microsoft/playwright-cli.git @ main (skills/playwright-cli)
+[?25h[?25l│
+◒  Cloning repository…[1G[J◐  Cloning repository…[1G[J◓  Cloning repository…[1G[J◑  Cloning repository…[1G[J◒  Cloning repository…[1G[J◐  Cloning repository…[1G[J◓  Cloning repository…[1G[J◑  Cloning repository…[1G[J◒  Cloning repository….[1G[J◐  Cloning repository….[1G[J◇  Repository cloned
+[?25h[?25l│
+[1G[J◇  Found 1 skill
+[?25h│
+●  Skill: playwright-cli
+│
+│  Automate browser interactions, test web pages and work with Playwright tests.
+
+│
+◇  Installation Summary ──────────────────────────────────────────╮
+│                                                                 │
+│  ~/Desktop/Dossier k3rnlabs/k3rn/.agents/skills/playwright-cli  │
+│    copy → Codex                                                 │
+│                                                                 │
+├─────────────────────────────────────────────────────────────────╯
+│
+◇  Security Risk Assessments ─────────────────────────────────────╮
+│                                                                 │
+│                  Gen               Socket            Snyk       │
+│  playwright-cli  Safe              0 alerts          High Risk  │
+│                                                                 │
+│  Details: https://skills.sh/microsoft/playwright-cli            │
+│                                                                 │
+├─────────────────────────────────────────────────────────────────╯
+[?25l│
+[1G[J◇  Installation complete
+[?25h
+│
+◇  Installed 1 skill ─────────────────────────────────────────────────╮
+│                                                                     │
+│  ✓ playwright-cli (copied)                                          │
+│    → ~/Desktop/Dossier k3rnlabs/k3rn/.agents/skills/playwright-cli  │
+│                                                                     │
+├─────────────────────────────────────────────────────────────────────╯
+
+│
+└  Done!  Review skills before use; they run with full agent permissions.
+
+
+$ env npx -y uipro-cli init --ai codex 
+
+UI/UX Pro Max Installer
+
+info Installing for: Codex (.codex/skills/)
+- Installing files...
+✔ Generated from templates!
+
+info Installed folders:
+  + .codex
+
+success UI/UX Pro Max installed successfully!
+
+Next steps:
+  1. Restart your AI coding assistant
+  2. Try: "Build a landing page for a SaaS product"
+
+
+$ env npx -y impeccable skills install -y --providers=codex --scope=project 
+
+Downloading impeccable skills...
+Installed impeccable into: .agents (project)
+Installed hooks into: .agents
+
+Done! Run /impeccable init in your AI harness to set up design context.
+
+Git after:
+## feat/mirava-landing-v3
+ M .codex/hooks.json
+ M package-lock.json
+ M package.json
+ M skills-lock.json
+ M src/app/providers.tsx
+?? .codex/skills/
+?? .kern/
+?? install_mirava_landing_skills.sh
+?? src/app/posthog-provider.tsx
+?? tooling/
+
+Installation terminée.
+
+À faire maintenant:
+1. Examiner le diff:
+   git status --short
+   git diff --stat
+
+2. Redémarrer codex.
+
+3. Dans l'agent, lancer:
+   Utilise skill-scanner pour auditer tous les skills ajoutés par le dernier diff.
+   Ne modifie rien. Signale scripts, hooks, accès réseau, permissions et risques supply-chain.
+
+4. Puis lancer le prompt MIRAVA V3 uniquement après validation du scan.
+
+Playwright CLI:
+  non installé globalement — exécuter: npm install -g @playwright/cli@latest && playwright-cli install --skills
+
+Motion:
+  N'est pas installé automatiquement.
+  Installer la bibliothèque seulement si le plan approuvé exige une animation fonctionnelle:
+    pnpm add motion
+  Skill/AI Kit officiel optionnel:
+    npx motion-ai@latest
+
+React Bits:
+  Ne pas installer toute la bibliothèque.
+  Ajouter seulement un composant approuvé avec la commande affichée sur sa page React Bits.

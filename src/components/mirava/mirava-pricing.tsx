@@ -2,7 +2,8 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { ArrowRight, Check, Sparkles, ShieldCheck, RefreshCw, Zap } from "lucide-react"
+import posthog from "posthog-js"
+import { ArrowRight, Check, Sparkles, ShieldCheck, RefreshCw, Zap, ChevronDown } from "lucide-react"
 
 interface MiravaPricingProps {
   locale: "fr" | "es"
@@ -10,6 +11,7 @@ interface MiravaPricingProps {
 
 export function MiravaPricing({ locale }: MiravaPricingProps) {
   const [tab, setTab] = useState<"subscription" | "pack">("subscription")
+  const [showAllMobile, setShowAllMobile] = useState(false)
 
   const copy = {
     fr: {
@@ -24,7 +26,9 @@ export function MiravaPricing({ locale }: MiravaPricingProps) {
       creditsLabel: "crédits inclus",
       ctaSub: "Choisir cet abonnement",
       ctaPack: "Acheter ce pack",
-      trialOffer: "3 créations offertes à l'activation",
+      trialOffer: "3 créations offertes à l'activation · Sans CB",
+      showMorePlans: "Voir toutes les options de recharges & abonnements",
+      showLessPlans: "Masquer les options secondaires",
       features: {
         identity: "Profil Identité privé (3 à 6 photos)",
         universes: "Accès illimité aux 7 Univers créatifs",
@@ -51,7 +55,9 @@ export function MiravaPricing({ locale }: MiravaPricingProps) {
       creditsLabel: "créditos incluidos",
       ctaSub: "Elegir esta suscripción",
       ctaPack: "Comprar este pack",
-      trialOffer: "3 creaciones incluidas al activar",
+      trialOffer: "3 creaciones incluidas al activar · Sin tarjeta",
+      showMorePlans: "Ver todas las opciones de recargas y suscripciones",
+      showLessPlans: "Ocultar opciones secundarias",
       features: {
         identity: "Perfil de Identidad privado (3 a 6 fotos)",
         universes: "Acceso ilimitado a los 7 Universos",
@@ -124,6 +130,20 @@ export function MiravaPricing({ locale }: MiravaPricingProps) {
 
   const items = tab === "subscription" ? subscriptions : packs
 
+  const handleTabChange = (newTab: "subscription" | "pack") => {
+    setTab(newTab)
+    try {
+      posthog.capture("pricing_plan_viewed", { plan_type: newTab })
+    } catch (_) {}
+  }
+
+  const handleCtaClick = (planId: string, planName: string, price: number) => {
+    try {
+      posthog.capture("pricing_cta_clicked", { plan_id: planId, plan_name: planName, price })
+      posthog.capture("checkout_started", { plan_id: planId, price })
+    } catch (_) {}
+  }
+
   return (
     <div className="relative mx-auto max-w-7xl">
       {/* Header section */}
@@ -132,15 +152,15 @@ export function MiravaPricing({ locale }: MiravaPricingProps) {
           <Sparkles className="h-3 w-3 text-mirava-accent" />
           {copy.eyebrow}
         </span>
-        <h2 className="mirava-section-title mt-4 text-4xl sm:text-6xl">{copy.title}</h2>
-        <p className="mirava-copy mt-4 text-base leading-7 sm:text-lg">{copy.subtitle}</p>
+        <h2 className="mirava-section-title mt-4 text-3xl sm:text-6xl">{copy.title}</h2>
+        <p className="mirava-copy mt-4 text-sm leading-relaxed sm:text-lg">{copy.subtitle}</p>
 
         {/* Switch toggle */}
         <div className="mt-8 inline-flex items-center gap-1 rounded-xl border border-mirava-line bg-mirava-canvas-raised p-1.5">
           <button
             type="button"
-            onClick={() => setTab("subscription")}
-            className={`rounded-lg px-5 py-2.5 text-xs font-semibold font-jakarta transition-all duration-200 ${
+            onClick={() => handleTabChange("subscription")}
+            className={`min-h-[44px] rounded-lg px-5 py-2.5 text-xs font-semibold font-jakarta transition-all duration-200 ${
               tab === "subscription"
                 ? "bg-mirava-surface-raised text-mirava-ink shadow-sm"
                 : "text-mirava-ink-muted hover:text-mirava-ink-secondary"
@@ -150,8 +170,8 @@ export function MiravaPricing({ locale }: MiravaPricingProps) {
           </button>
           <button
             type="button"
-            onClick={() => setTab("pack")}
-            className={`rounded-lg px-5 py-2.5 text-xs font-semibold font-jakarta transition-all duration-200 ${
+            onClick={() => handleTabChange("pack")}
+            className={`min-h-[44px] rounded-lg px-5 py-2.5 text-xs font-semibold font-jakarta transition-all duration-200 ${
               tab === "pack"
                 ? "bg-mirava-surface-raised text-mirava-ink shadow-sm"
                 : "text-mirava-ink-muted hover:text-mirava-ink-secondary"
@@ -163,12 +183,15 @@ export function MiravaPricing({ locale }: MiravaPricingProps) {
       </div>
 
       {/* Pricing Cards Grid */}
-      <div className="mt-12 grid gap-6 md:grid-cols-3 items-stretch">
-        {items.map((item) => {
+      <div className="mt-10 grid gap-6 md:grid-cols-3 items-stretch">
+        {items.map((item, index) => {
+          const isHiddenOnMobile = !showAllMobile && !item.popular && index !== 1
           return (
             <div
               key={item.id}
               className={`mirava-surface relative flex flex-col justify-between p-6 sm:p-8 transition-all duration-300 ${
+                isHiddenOnMobile ? "hidden md:flex" : "flex"
+              } ${
                 item.popular
                   ? "border-mirava-accent/60 bg-mirava-surface-raised ring-1 ring-mirava-accent/30 shadow-xl"
                   : "border-mirava-line hover:border-mirava-ink-muted/30"
@@ -176,7 +199,7 @@ export function MiravaPricing({ locale }: MiravaPricingProps) {
               style={{ borderRadius: "var(--mirava-radius-lg, 16px)" }}
             >
               {item.popular && (
-                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 rounded-full border border-mirava-accent bg-mirava-accent px-3 py-1 font-jakarta text-[9px] font-bold tracking-[.15em] text-mirava-canvas">
+                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 rounded-full border border-mirava-accent bg-mirava-accent px-3.5 py-1 font-jakarta text-[9px] font-bold tracking-[.15em] text-mirava-canvas">
                   {copy.popularBadge}
                 </div>
               )}
@@ -208,7 +231,8 @@ export function MiravaPricing({ locale }: MiravaPricingProps) {
               <div className="mt-8 pt-4">
                 <Link
                   href="/visual-engine/studio"
-                  className={`mirava-button w-full justify-center gap-2 px-5 py-3 text-xs font-semibold font-jakarta ${
+                  onClick={() => handleCtaClick(item.id, item.name, item.price)}
+                  className={`mirava-button w-full min-h-[44px] justify-center gap-2 px-5 py-3 text-xs font-semibold font-jakarta ${
                     item.popular
                       ? "mirava-button-primary"
                       : "mirava-button-secondary"
@@ -226,12 +250,24 @@ export function MiravaPricing({ locale }: MiravaPricingProps) {
         })}
       </div>
 
+      {/* Mobile Toggle to Show All Pricing Options */}
+      <div className="mt-4 text-center md:hidden">
+        <button
+          type="button"
+          onClick={() => setShowAllMobile(!showAllMobile)}
+          className="inline-flex min-h-[44px] items-center gap-2 text-xs font-semibold text-mirava-accent hover:underline font-jakarta px-4 py-2"
+        >
+          <span>{showAllMobile ? copy.showLessPlans : copy.showMorePlans}</span>
+          <ChevronDown className={`h-4 w-4 transition-transform duration-300 ${showAllMobile ? "rotate-180" : ""}`} />
+        </button>
+      </div>
+
       {/* Trust Guarantees */}
-      <div className="mt-14 grid gap-4 sm:grid-cols-3">
+      <div className="mt-12 grid gap-4 sm:grid-cols-3">
         {copy.guarantees.map((g, idx) => {
           const Icon = g.icon
           return (
-            <div key={idx} className="mirava-notice flex items-center gap-4 p-4 rounded-xl">
+            <div key={idx} className="mirava-notice flex items-center gap-4 p-4 rounded-xl border border-mirava-line/60">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-mirava-canvas-raised text-mirava-accent border border-mirava-line">
                 <Icon className="h-5 w-5" />
               </div>
@@ -246,3 +282,5 @@ export function MiravaPricing({ locale }: MiravaPricingProps) {
     </div>
   )
 }
+
+

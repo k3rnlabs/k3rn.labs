@@ -1,0 +1,65 @@
+KERN / MIRAVA landing skills install
+Repository: /Users/user/Desktop/Dossier k3rnlabs/k3rn
+Agent: codex
+Node: v24.13.0
+Git before:
+## feat/mirava-landing-v3
+ M package-lock.json
+ M package.json
+ M src/app/providers.tsx
+?? .kern/
+?? install_mirava_landing_skills.sh
+?? src/app/posthog-provider.tsx
+?? tooling/
+
+$ env npx -y skills add getsentry/skills --skill skill-scanner --skill agents-md -a codex -y 
+
+$ env npx -y skills add coreyhaines31/marketingskills --skill product-marketing --skill copywriting --skill ai-seo -a codex -y 
+
+$ env npx -y skills add vercel-labs/agent-skills --skill web-design-guidelines --skill vercel-react-best-practices -a codex -y 
+
+$ env npx -y skills add getsentry/skills --skill find-bugs --skill code-review --skill code-simplifier -a codex -y 
+
+$ env npx -y skills add https://github.com/microsoft/playwright-cli/tree/main/skills/playwright-cli -a codex -y 
+
+$ env npx -y uipro-cli init --ai codex 
+
+$ env npx -y impeccable skills install -y --providers=codex --scope=project 
+Git after:
+## feat/mirava-landing-v3
+ M package-lock.json
+ M package.json
+ M src/app/providers.tsx
+?? .kern/
+?? install_mirava_landing_skills.sh
+?? src/app/posthog-provider.tsx
+?? tooling/
+
+Installation terminée.
+
+À faire maintenant:
+1. Examiner le diff:
+   git status --short
+   git diff --stat
+
+2. Redémarrer codex.
+
+3. Dans l'agent, lancer:
+   Utilise skill-scanner pour auditer tous les skills ajoutés par le dernier diff.
+   Ne modifie rien. Signale scripts, hooks, accès réseau, permissions et risques supply-chain.
+
+4. Puis lancer le prompt MIRAVA V3 uniquement après validation du scan.
+
+Playwright CLI:
+  non installé globalement — exécuter: npm install -g @playwright/cli@latest && playwright-cli install --skills
+
+Motion:
+  N'est pas installé automatiquement.
+  Installer la bibliothèque seulement si le plan approuvé exige une animation fonctionnelle:
+    pnpm add motion
+  Skill/AI Kit officiel optionnel:
+    npx motion-ai@latest
+
+React Bits:
+  Ne pas installer toute la bibliothèque.
+  Ajouter seulement un composant approuvé avec la commande affichée sur sa page React Bits.
