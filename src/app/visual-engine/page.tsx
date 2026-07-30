@@ -8,6 +8,8 @@ import { MiravaInstallButton } from "@/components/mirava/mirava-pwa"
 import { MiravaGrain } from "@/components/mirava/mirava-grain"
 import { MiravaWordmark } from "@/components/mirava/mirava-wordmark"
 import { useMiravaLocale } from "@/components/mirava/mirava-locale"
+import { MiravaUniverseShowcase } from "@/components/mirava/mirava-universe-showcase"
+import { MiravaAgentSimulator } from "@/components/mirava/mirava-agent-simulator"
 import { MIRAVA_UNIVERSES } from "@/lib/mirava/universes"
 
 const identityGuide = [
@@ -129,65 +131,11 @@ export default function MiravaLandingPage() {
       </section>
 
       <section className="relative border-y border-mirava-line bg-mirava-canvas-raised px-4 py-16 sm:px-8 sm:py-24">
-        <div className="mx-auto max-w-7xl">
-          <div className="max-w-3xl">
-	            <p className="mirava-label">{locale === "fr" ? "PREUVE D’IDENTITÉ" : "PRUEBA DE IDENTIDAD"}</p>
-	            <h2 className="mirava-section-title mt-4 text-4xl sm:text-6xl">{t.proof}</h2>
-	            <p className="mirava-copy mt-5 max-w-2xl text-base leading-7">{t.proofText}</p>
-          </div>
-	          <div className="mirava-scroll-row mt-10 flex gap-2 overflow-x-auto pb-3 sm:grid sm:grid-cols-4 sm:overflow-visible lg:grid-cols-7">
-            {MIRAVA_UNIVERSES.map((universe) => (
-	              <article key={universe.id} className="mirava-image-frame group relative min-w-[45vw] snap-center overflow-hidden sm:min-w-0">
-                <div className="relative aspect-[4/5]">
-                  <Image src={universe.image} alt={universe.name[locale]} fill sizes="(max-width: 640px) 45vw, 18vw" className="object-cover transition-transform duration-300 group-hover:scale-[1.025]" />
-                  <div className="mirava-media-overlay absolute inset-0" />
-                  <p className="absolute inset-x-3 bottom-3 font-jakarta text-xs font-semibold">{universe.name[locale]}</p>
-                </div>
-              </article>
-            ))}
-          </div>
-        </div>
+        <MiravaUniverseShowcase locale={locale} />
       </section>
 
       <section className="relative mx-auto max-w-7xl px-4 py-16 sm:px-8 sm:py-24">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div className="max-w-3xl">
-	            <p className="mirava-label">MIRAVA / {locale === "fr" ? "UNIVERS CRÉATIFS" : "UNIVERSOS CREATIVOS"}</p>
-	            <h2 className="mirava-section-title mt-4 text-4xl sm:text-6xl">{t.universes}</h2>
-	            <p className="mirava-copy mt-5 max-w-2xl text-base leading-7">{t.universesText}</p>
-          </div>
-	          <Link href="/visual-engine/studio" className="mirava-button mirava-button-secondary gap-2 self-start px-5 text-sm">{t.open}<ArrowRight className="h-4 w-4" /></Link>
-        </div>
-        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {MIRAVA_UNIVERSES.map((universe, index) => (
-	            <article key={universe.id} className={index === 0 ? "mirava-image-frame group overflow-hidden bg-mirava-canvas-raised sm:col-span-2" : "mirava-image-frame group overflow-hidden bg-mirava-canvas-raised"}>
-              <div className={index === 0 ? "relative aspect-[16/10] sm:aspect-[16/8]" : "relative aspect-[4/5]"}>
-                <Image src={universe.image} alt={universe.name[locale]} fill sizes={index === 0 ? "(max-width: 1024px) 100vw, 66vw" : "(max-width: 1024px) 50vw, 33vw"} className="object-cover transition-transform duration-300 group-hover:scale-[1.02]" />
-                <div className="mirava-media-overlay absolute inset-0" />
-                <div className="absolute inset-x-5 bottom-5 text-mirava-ink sm:inset-x-6 sm:bottom-6">
-                  <p className="text-[9px] font-semibold tracking-[.15em] text-mirava-ink/55">{universe.eyebrow[locale]}</p>
-                  <h3 className="mt-2 font-jakarta text-2xl font-semibold tracking-[-.045em]">{universe.name[locale]}</h3>
-                  <p className="mt-2 max-w-xl text-xs leading-5 text-mirava-ink/60">{universe.tagline[locale]}</p>
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="relative mx-auto max-w-7xl px-4 pb-16 sm:px-8 sm:pb-24">
-	        <div className="mirava-surface-raised grid overflow-hidden lg:grid-cols-2">
-          <div className="p-7 sm:p-12 lg:p-16">
-	            <p className="mirava-label">{locale === "fr" ? "VOTRE RÉFÉRENCE / VOTRE STUDIO" : "TU REFERENCIA / TU ESTUDIO"}</p>
-	            <h2 className="mirava-section-title mt-4 text-4xl sm:text-6xl">{t.custom}</h2>
-	            <p className="mirava-copy mt-5 max-w-xl text-base leading-7">{t.customText}</p>
-	            <Link href="/visual-engine/studio" className="mirava-button mirava-button-primary mt-8 gap-2 px-5 text-sm">{t.customCta}<ArrowRight className="h-4 w-4" /></Link>
-          </div>
-          <div className="relative min-h-[28rem]">
-            <Image src="/visual-engine/univers/editorial-mode.webp" alt="" fill sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" />
-	            <div className="mirava-media-overlay-horizontal absolute inset-0" />
-          </div>
-        </div>
+        <MiravaAgentSimulator locale={locale} />
       </section>
 
       <section className="relative border-y border-mirava-line bg-mirava-canvas-raised px-4 py-16 sm:px-8 sm:py-24">
