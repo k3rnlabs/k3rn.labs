@@ -4,13 +4,133 @@ All notable changes to this project are documented in this file.
 
 Format based on Keep a Changelog.
 
+## 2026-07-30
+
+- FEATURE: Page de connexion Mirava Studio `/visual-engine/studio/login` — design full Mirava (dark mineral, grain, ambient, typographie Jakarta), bilingue FR/ES, modes login/signup/forgot. Le Studio redirige désormais vers cette page (et non `/auth/login` K3RN) quand l'utilisateur n'est pas authentifié.
+- FIX: Alma utilise désormais son modèle dédié `gpt-5-mini`; la passerelle OpenAI adapte `max_completion_tokens` et omet la température pour les modèles GPT-5, supprimant les erreurs fournisseur `400` qui rendaient la Directrice créative indisponible.
+- FEATURE: Alma devient une Directrice créative facultative et actionnable : suggestions contextuelles, validation explicite avant application, repli manuel non bloquant et aucune exposition de données privées.
+- REFACTOR: Le panneau Alma adopte une sortie unique « Retour au studio », des actions de départ non dupliquées et une synthèse lisible des ajustements réellement appliqués à la séance.
+- FEATURE: La navigation mobile MIRAVA adopte une barre Framer Motion contrôlée par la vue réelle : l’onglet actif développe son libellé, Alma conserve son portrait et les cinq destinations disposent de cibles tactiles de 48 px.
+- REFACTOR: Le header Studio partage désormais la matière et la logique segmentée de la barre basse, reste attaché au haut de l’écran avec ses seuls angles inférieurs arrondis et intègre Moodboard, Séance, Modèle et Création.
+- FEATURE: Les étapes Studio déjà visitées restent accessibles depuis le header, même après un retour en arrière, sans perdre la chronologie ni les réglages de séance.
+- CHORE: Ajout ciblé des primitives shadcn/Radix Collapsible et RadioGroup pour les réglages facultatifs et choix exclusifs, avec navigation clavier et focus MIRAVA visibles.
+- FIX: La Directrice créative MIRAVA ne renvoie plus le résultat de `scrollIntoView` comme nettoyage React, supprimant le crash `destroy is not a function` lors de son démontage.
+- FEATURE: La Séance MIRAVA s’adapte désormais à la source choisie : direction complète héritée de chaque univers ou fidélité explicite à une référence personnelle, avec format obligatoire et ajustements réellement facultatifs.
+- FEATURE: Les sept univers disposent de décors, allures, attitudes et lumières bilingues propres; changer d’univers ou de source efface les réglages devenus incompatibles.
+- FEATURE: Les séries permettent de conserver un décor principal ou de parcourir plusieurs décors liés, et la consigne choisie est transmise au brief de génération.
+- REFACTOR: Le grain MIRAVA abandonne entièrement les SVG/CSS embarqués au profit d’un calque Canvas React local, unique par racine d’application, non répétitif et partagé par toutes les surfaces sans altérer les photographies.
+- REFACTOR: L’onboarding Modèle abandonne sa palette ivoire isolée et rejoint la continuité noir minéral du Studio, avec un rayon universel de 12 px jusque dans les planches-contact.
+- CHORE: Le registre React Bits est déclaré pour les futurs effets ponctuels, sans ajouter un canvas WebGL coûteux sur chaque carte.
+- FIX: `npm run dev` choisit désormais un port libre avant le démarrage et isole les artefacts Next.js dans `.next-dev-<port>`, empêchant deux sessions locales de corrompre mutuellement leurs routes, runtime Webpack et chunks.
+- CHORE: Chaque serveur de développement utilise un tsconfig temporaire ignoré afin que les dossiers de types isolés ne réécrivent plus le `tsconfig.json` partagé.
+
+## 2026-07-29
+
+- REFACTOR: L’onboarding MIRAVA adopte une progression de planche-contact, une étape Modèle éditoriale mobile-first et des actions persistantes dans la zone du pouce, sans cartes SaaS génériques.
+- FEATURE: Le Profil identité accepte désormais caméra guidée ou sélection de photothèque, classe localement les vues face/3-4 gauche/3-4 droit et permet de réparer uniquement une vue refusée avant tout envoi.
+- SECURITY: Les imports d’identité passent par le même worker local que la caméra, un fichier à la fois, sans upload, métrique faciale ni repli silencieux avant le récapitulatif et le consentement.
+- REFACTOR: Les surfaces et cartes MIRAVA reçoivent un grain monochrome fin, auto-hébergé en CSS et modulé par surface, sans recouvrir les photographies ni ajouter de ressource réseau.
+- REFACTOR: La navigation MIRAVA devient Studio, Univers, Portfolio, Alma et Compte, avec un dock mobile éditorial sans pavé actif blanc et un panneau de contrôle central sur desktop.
+- FIX: Le header MIRAVA est désormais attaché aux bords supérieur et latéraux de l’écran, conserve uniquement ses angles inférieurs arrondis et intègre correctement les zones sûres mobiles.
+- REFACTOR: Le Profil identité quitte la navigation principale, reste une étape du shooting et se gère désormais depuis Compte.
+- REFACTOR: Le parcours de création est segmenté en quatre étapes progressives — Moodboard, Séance, Modèle et Création — avec réglages secondaires repliés et action finale unique « Créer mes photos ».
+- REFACTOR: Tous les composants MIRAVA partagent désormais un rayon de 12 px et les séparateurs horizontaux ainsi que les icônes de magie sont retirés de l’expérience.
+- FEATURE: Alma devient la Directrice créative incarnée de MIRAVA avec un portrait original distinct du modèle, un module contextuel dans la séance et une messagerie éditoriale dédiée.
+- FIX: MIRAVA reprend désormais la capture guidée à la première vue d'identité manquante et retire `unsafe-eval` de sa politique navigateur en production.
+- FEATURE: le Profil identité MIRAVA distingue l’ajout non destructif d’une vue, plafonné à six photos, de la reprise complète du profil depuis Identité ou Compte.
+- CHORE: le dossier de sortie Next.js peut être isolé via `NEXT_DIST_DIR` afin que les validations parallèles ne corrompent plus leurs artefacts.
+
+FEATURE: Le Profil identité MIRAVA devient une étape principale et reprenable de l’onboarding, créée avant la première séance puis réutilisée automatiquement, modifiable ou supprimable depuis Compte.
+FEATURE: La capture identité adopte un parcours mobile plein écran de type natif : permission contextualisée, guidance en direct, vrais 3/4 gauche/droit, autocapture stable, revue Garder/Refaire et récapitulatif avant envoi.
+SECURITY: Le guide caméra utilise Face/Pose Landmarker dans un Web Worker avec modèles et WASM auto-hébergés, blocage programmatique des requêtes externes et CSP `connect-src 'self'`; aucune vidéo ni mesure biométrique n’est transmise.
+FIX: Un Profil identité requiert désormais les trois portraits indispensables — face, 3/4 gauche et 3/4 droit — tandis que cheveux et silhouettes restent des enrichissements facultatifs.
+CHORE: Ajout de `@mediapipe/tasks-vision` et des modèles locaux versionnés pour l’analyse de cadrage sur l’appareil, sans CDN d’exécution.
+REFACTOR: MIRAVA Studio adopte le signe « Reflet Oblique » : une signature vectorielle architecturale, ses icônes PWA/Apple noir minéral, ivoire et sable, et un mot-symbole éditorial cohérent.
+REFACTOR: MIRAVA Studio adopte le design system « Noir minéral éditorial » : tokens centralisés, surfaces, contrôles, navigation, grain discret, mouvement respectueux des préférences utilisateur et landing sombre unifiée.
+FIX: L’ensemble de l’expérience MIRAVA est aligné sur des primitives mobiles natives de 48 px, des zones sûres iOS/Android, des modales plein écran, un vocabulaire et une langue de document FR/ES cohérents, ainsi qu’une source CSS unique sans couleurs héritées dans les pages.
+FIX: Les modales MIRAVA (capture identité, Directrice créative, consentement) et l’écran hors-ligne n’utilisent plus de palette ou de rayons hérités de la précédente direction ivoire solaire.
+FIX: Les six exemples du Profil identité MIRAVA utilisent désormais une lumière studio homogène, une carnation naturelle sans ombrage marbré et deux vrais angles de visage opposés à trois-quarts.
+FEATURE: MIRAVA Studio propose désormais une image signature ou une série cohérente de 2 à 6 images, avec un crédit par résultat, reprise durable et variation obligatoire des poses, activités, sous-lieux, cadrages et lumières.
+FEATURE: Ajout de sept univers de shooting différenciés, d’une Directrice créative privée et d’un Profil identité guidé de 2 à 6 photos incluant angles, cheveux et vues plein pied.
+REFACTOR: Refonte complète de la landing et du Studio MIRAVA en ivoire solaire mobile-first à partir de visuels originaux locaux, sans image Pinterest, célébrité ou dépendance externe.
+SECURITY: Les références d’identité ne pilotent plus pose, regard, expression, lumière, tenue, bijoux, maquillage ou coiffure; elles servent exclusivement à la fidélité du visage, de la carnation et des proportions.
+SECURITY: Création, réutilisation de studio et achat sont bloqués en production tant que `MIRAVA_PUBLIC_LAUNCH_ENABLED` n’est pas explicitement activé.
+FIX: La réutilisation d’un studio rattache automatiquement le Profil identité privé existant et la capture guidée gère proprement les navigateurs sans caméra.
+CHORE: Les brouillons juridiques FR/ES reflètent désormais le Profil identité 2–6 photos, les séries de 2 à 6 images et la facturation d’un crédit par image livrée.
+FEATURE: MIRAVA Studio introduit les studios personnels réutilisables, les six directions éditoriales FAMOSA et un Profil identité privé supprimable depuis le compte.
+REFACTOR: Landing et Studio MIRAVA adoptent la direction « ivoire solaire » mobile-first, avec le studio sur mesure comme parcours principal et sans exposition de prompts.
+SECURITY: Les photos de référence sont dissociées du Profil identité réutilisable, maintenu dans le bucket privé, contrôlé par propriété et supprimable immédiatement.
+FIX: Le rate limiting Upstash utilise prioritairement les identifiants Redis gérés par Vercel, borne les attentes réseau et absorbe les pannes fournisseur sans `500`, avec repli ouvert en développement et fermé en production.
+SECURITY: RLS activé et privilèges Data API révoqués pour `anon` et `authenticated` sur les 30 tables historiques K3RN, sans politique client permissive.
+SECURITY: Les réponses API des pôles, experts et sessions utilisent des DTO en liste blanche qui excluent les prompts système et les données Dossier jointes.
+SECURITY: Le client Supabase navigateur et les usages `service_role` sont séparés en modules distincts; stockage et broadcasts privilégiés restent exclusivement importés par les routes serveur.
+CHORE: Historique des migrations Supabase réconcilié avec la migration Visual Engine déjà présente, sans rejouer son SQL.
+CHORE: Ajout du brouillon juridique de pré-lancement MIRAVA Studio en français et espagnol, avec consentements, rétention, sous-traitants et checklist de validation.
+FIX: Les métadonnées de partage de MIRAVA Studio n’héritent plus du nom, de la description ni du visuel K3RN.
+FIX: Le manifest, le service worker et l’écran hors-ligne publics de MIRAVA Studio sont accessibles sans connexion.
+SECURITY: Les états et DTO publics MIRAVA Studio utilisent désormais `IDENTITY_READY`; aucune référence au master prompt ne rejoint le bundle client.
+SECURITY: Les tables et fonctions transactionnelles MIRAVA Studio sont protégées par RLS et inaccessibles aux rôles navigateur Supabase
+REFACTOR: Le studio devient officiellement MIRAVA Studio dans l’interface, la PWA, Stripe, le worker, la configuration et la documentation, avec des identifiants de paiement `mirava_studio`
+SECURITY: Les mutations MIRAVA Studio (création, upload, analyse, génération, paiement et push) sont limitées par compte et IP via Upstash
+FEATURE: MIRAVA Studio remplace l’expérience publique Visual Engine par une identité premium bilingue, mobile-first et sans aucune référence K3RN dans son interface
+FEATURE: Ajout des abonnements MIRAVA Studio 20/60/150, des recharges permanentes, des lots crédités expirables et du report mensuel plafonné
+FEATURE: Ajout de la PWA MIRAVA Studio, de l’installation iOS/Android et des notifications opt-in chiffrées sans donnée personnelle
+SECURITY: Les résultats MIRAVA Studio passent par une route authentifiée `no-store`; les prompts, analyses, Dossiers et URLs signées ne sortent plus des DTO publics
+REFACTOR: Le worker MIRAVA Studio utilise des modèles OpenAI configurables (`gpt-5.6-sol` et `gpt-image-2`) et conserve l’exception directe sans modifier les flux KAEL
+CHORE: Documentation de déploiement, de configuration Stripe Tax, de rétention et de l’audit des dépendances MIRAVA Studio
+FIX: Les workers d’ingestion authentifient désormais leurs appels internes, réclament effectivement leurs jobs et peuvent terminer les traitements de cartes
+FIX: Les callbacks internes (ingestion, documents, Telegram, missions) exigent un secret interne valide, sans ouvrir les routes API au public
+FIX: Le paiement crowdfunding est accessible depuis la campagne publique et un événement Stripe rejoué ne compte plus deux fois le même investissement
+FIX: Le rate limiting échoue fermé en production lorsqu’Upstash n’est pas configuré
+REFACTOR: Les appels IA et Telegram passent directement par les APIs fournisseurs ; les scripts, routes, configuration et colonnes n8n sont retirés
+CHORE: Migration de suppression des colonnes n8n appliquée et enregistrée sur le Supabase configuré
+
 ## 2026-07-28
 
+FIX: Visual Engine ne sérialise plus aucun prompt ou texte d’analyse vers le navigateur ; la génération consomme uniquement les données persistées côté serveur
+FEATURE: Visual Engine Studio devient un micro-SaaS isolé : landing publique `/visual-engine`, Studio authentifié `/visual-engine/studio`, bibliothèque privée et redirection de l’ancien `/studio`
+FEATURE: Ajout des créations Studio, consentements 18+/droit à l’image, assets privés Supabase, jobs durables, purge des sources après 24 h et ledger de crédits séparé des missions KAEL
+FEATURE: Pipeline Studio directe OpenAI : analyse `gpt-4o` structurée puis édition `gpt-image-1` haute fidélité, rendu vertical cadré en 4:5, sans n8n ni fallback externe
+FEATURE: Crédits Studio — 3 créations offertes, packs Stripe TTC 10/29 €, 30/79 €, 100/199 €, Stripe Tax et compensation automatique si la génération finale échoue
+FEATURE: Worker PM2 `npm run studio-worker`, limites Upstash et tests Visual Engine ; Vitest est désormais limité aux tests source
+FIX: Le worker Studio récupère les jobs interrompus après redémarrage et ne régénère pas un résultat déjà stocké
+FIX: Onboarding KAEL ne confirme plus un aspect lorsque le message utilisateur est vide ou indécis
+CHORE: Ajout de la migration Supabase Visual Engine, de la documentation d’architecture et de la configuration des prix/stockage Studio
+CHORE: Mise à jour de `sharp` vers 0.35.3 pour le cadrage sécurisé des rendus Studio
+CHORE: Migration Visual Engine appliquée au Supabase configuré (tables, RPC de ledger et bucket privé)
+CHORE: Audit des dépendances — `xlsx` est conservé car utilisé par l’extraction tableur ; son remplacement sécurisé reste un chantier distinct
+
+FIX: Lazy initialization of OpenAI client in ingest route, Suspense boundary on /home route, and resilient fallback in env.ts to prevent Vercel build-time crashes
+FIX: Correction de l'URL de base de données PostgreSQL Supabase dans .env et Vercel (remplacement de l'hôte pooler obsolète par db.qcjtqtagrlwblejosvrt.supabase.co), fallback DIRECT_URL dans prisma.ts et sécurisation de res.json() dans LoginPage
+FIX: Amélioration des messages d'erreur d'authentification Supabase (traduction en français et gestion explicite du quota d'emails "email rate limit exceeded")
+FIX: Couverture globale de traduction systématique en français de toutes les erreurs Supabase/réseau avec détection et fallback dynamique dans auth-errors.ts
+FEATURE: Ajout du bouton d'affichage/masquage des mots de passe (icônes œil) et de la double vérification (mot de passe de confirmation) lors de l'inscription dans LoginPage
+FEATURE: Implémentation complète du flux "Mot de passe oublié" (mode sur la page de login, route `/api/auth/forgot-password`, route `/api/auth/reset-password` et page `/auth/reset-password`) avec helper centralisé de traduction des erreurs en français
 CHORE: Migration Supabase vers nouveau projet qcjtqtagrlwblejosvrt (nouveau compte k3rnlabs)
 CHORE: prisma db push — toutes les tables recréées sur le nouveau Supabase (7 poles + 22 experts seedés)
 CHORE: Storage migré — avatar utilisateur uploadé dans bucket Avatars du nouveau Supabase
 CHORE: .gitignore étendu — exclusion archives .storage.zip, scripts de debug racine, Icon macOS
-CHORE: .agents/ et AGENTS.md ajoutés au repo — instructions Codex et règles projet versionées
+FEATURE: Studio Visual Direction Extraction Engine & Avatar Photo Studio (`/studio`) with LLM Proxy extraction (`callLLMProxy` gpt-4o), user profile face/body photo inputs, style reference photo extraction, configuration panel (variations count 1-3, ratio, environment/studio/wardrobe overrides) & direct image downloads
+FEATURE: Added Spanish (🇪🇸 ES) and multi-language switcher (FR, ES, EN) for Studio DA interface and summary prompt extraction
+FIX: Studio UI (`visual-engine-studio.tsx`) — la zone de texte "PROMPT FINAL" est passée d'une hauteur fixe de 112px (`h-28`) à une hauteur étendue (`h-64 sm:h-80`) avec défilement fluide, permettant d'afficher l'intégralité du master-prompt de 400+ mots sans troncature visuelle
+FIX: Route `/api/visual-engine/generate` — assainissement des mots réservés pour DALL-E 3 (`fashion resort wear`), augmentation du délai d'expiration à 35s et remplacement du paysage de mer vide par des photos de mannequin en éditorial de plage
+FEATURE: Route `/api/visual-engine/generate` — réécriture complète de la pipeline de génération : intégration OpenAI Responses API (`gpt-4o` + tool `image_generation`) comme Step 1 prioritaire qui reçoit les photos du modèle utilisateur en `input_image`, génère l'image en préservant l'identité (visage, peau, proportions) — exactement comme le fait ChatGPT en interne ; DALL-E 3 (text-only) reste en Step 2 de fallback, Pollinations Flux en Step 3, Unsplash éditorial en Step 4
+FEATURE: Studio `visual-engine-studio.tsx` — compression canvas client-side de toutes les photos uploadées avant encodage base64 (`compressImage` : redimensionnement max 900px JPEG q=0.82 pour profils, max 1200px q=0.88 pour référence) afin de réduire le payload de ~3MB à ~150KB par photo et respecter les limites de taille de l'API
+CHORE: Route `/api/visual-engine/generate` — ajout de `export const maxDuration = 120` (2 minutes) pour autoriser la durée d'exécution étendue nécessaire à la Responses API sur Vercel
+FEATURE: Route `/api/visual-engine/extract` — renforcement des consignes d'extraction dans le prompt système et ajustement de `temperature: 0.6` pour contraindre GPT-4o à produire des master-prompts complets d'une richesse extrême (350-500 mots décrivant en micro-détails la plage, les lunettes translucides, les cheveux humides, l'angle 28-35mm, les bijoux et l'ordre de priorité)
+FIX: Route `/api/visual-engine/generate` & `visual-engine-studio.tsx` — remplacement définitif de l'URL de secours erronée (`photo-1515886657613` jogging jaune streetwear) par de véritables photographies éditoriales de plage tropicale ensoleillée
+FIX: Route `/api/visual-engine/generate` — intégration de la génération dynamique Pollinations Flux AI et sélection contextuelle d'images selon les mots-clés du prompt (plage/soleil/sable vs studio/sombre) pour éliminer les incohérences de décor
+FIX: Studio UI (`visual-engine-studio.tsx`) & `/api/visual-engine/generate` — ajout d'un gestionnaire `onError` résilient sur la balise `<img>` et sécurisation des URLs d'images photographiques haute définition pour empêcher les icônes d'images brisées dans la galerie
+FEATURE: Route `/api/visual-engine/extract` — mise à jour complète du `SYSTEM_PROMPT` avec les spécifications exactes de l'Engine (processus d'analyse en 8 axes : décor, composition, pose, vêtements, beauté, éclairage, rendu photo, ordres de priorité) et augmentation de `max_tokens` à 3500 pour générer des prompts de direction artistique ultra-détaillés et professionnels
+REFACTOR: Studio UI (`visual-engine-studio.tsx`) — suppression des images par défaut pré-chargées Unsplash dans les sections "Identité de Référence" et "Direction Artistique" ; la page démarre désormais entièrement vierge avec des zones d'upload interactives ("placeholders") prêtes au clic/glisser-déposer
+FIX: Studio UI (`visual-engine-studio.tsx`) — correction du bug où `referenceImage` était remplacée par la chaîne littérale `"Uploaded Base64 Image"` lors de l'envoi au serveur ; envoie désormais la vraie URL / Data URI de l'image pour analyse par GPT-4o Vision
+FIX: Route `/api/visual-engine/extract` — activé GPT-4o Vision avec envoi de l'image de référence en `image_url` (permet à l'IA d'analyser visuellement la photo réelle au lieu de lire une simple chaîne de texte)
+FEATURE: Route `/api/visual-engine/generate` — intégration de la génération réelle de photos IA via OpenAI DALL-E 3 et fallback Pollinations/Flux (remplacement des cercles bleus SVG factices par de vrais rendus photographiques 8K ultra-détaillés)
+FIX: Route `/api/visual-engine/extract` & Studio UI — support flexible JSON response structure (`extractData.data || extractData`), fixing `Cannot read properties of undefined (reading 'finalGenerationPrompt')` error
+REFACTOR: Studio UI complete DA redesign — strict alignment with K3RN Labs design system (unified violet-indigo palette, liquid glassmorphism cards with inset shadow & shimmer top borders, custom ChipSelector replacing native HTML select dropdowns, removal of AI tells like flag emojis and over-labeling, text-wrap balance/pretty typography, smooth mobile tab bar with animated sliding indicator)
+FIX: Route `/api/visual-engine/extract` — remplacé `callLLMProxy` (nécessite `N8N_LLM_PROXY_URL` absent en dev) par un appel direct `fetch` OpenAI Chat Completions avec `OPENAI_API_KEY` ; résout l'erreur d'extraction en environnement local
+REFACTOR: Mobile-first UX optimization for `/studio` (sticky mobile action bar, touch targets >= 44px, responsive mobile tabs switching automatically to results on generation)
+CHORE: Access link to Studio DA added to primary HomeDock navigation bar
 
 
 ## 2026-03-13

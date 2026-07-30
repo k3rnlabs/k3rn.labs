@@ -2,9 +2,6 @@ import "dotenv/config"
 import { createClient } from "@supabase/supabase-js"
 import { randomUUID } from "crypto"
 
-const N8N_POLE_WEBHOOK_URL = "https://agent.k3rnlabs.com/webhook/k3rn-pole-router"
-const N8N_POLE_WORKFLOW_ID = "HTuOdkrv6PodnjBK"
-
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -361,8 +358,6 @@ async function main() {
           systemPrompt: pole.systemPrompt,
           hashtagTriggers: pole.hashtagTriggers,
           activePriorityLabs: pole.activePriorityLabs,
-          n8nWebhookUrl: N8N_POLE_WEBHOOK_URL,
-          n8nWorkflowId: N8N_POLE_WORKFLOW_ID,
         })
         .eq("code", pole.code)
 
@@ -377,8 +372,6 @@ async function main() {
         systemPrompt: pole.systemPrompt,
         hashtagTriggers: pole.hashtagTriggers,
         activePriorityLabs: pole.activePriorityLabs,
-        n8nWebhookUrl: N8N_POLE_WEBHOOK_URL,
-        n8nWorkflowId: N8N_POLE_WORKFLOW_ID,
         createdAt: new Date().toISOString(),
       })
 

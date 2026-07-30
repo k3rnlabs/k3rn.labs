@@ -1,12 +1,28 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
+import { hasValidInternalWebhookSecret } from "@/lib/internal-webhook"
 
 export async function middleware(request: NextRequest) {
+  const path = request.nextUrl.pathname
+
+  // Mirava Studio — app autonome, pas de session K3RN requise.
+  // Court-circuit avant tout appel réseau pour éviter le MIDDLEWARE_INVOCATION_TIMEOUT.
+  if (
+    path === "/visual-engine" ||
+    path.startsWith("/visual-engine/studio") ||
+    path === "/visual-engine/manifest.webmanifest" ||
+    path === "/visual-engine/sw.js" ||
+    path === "/visual-engine/apple-icon" ||
+    path === "/visual-engine/offline"
+  ) {
+    return NextResponse.next()
+  }
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl || !supabaseKey) {
-    if (request.nextUrl.pathname.startsWith("/api/")) {
+    if (path.startsWith("/api/")) {
       return NextResponse.json({ error: "Server not configured" }, { status: 503 })
     }
     return NextResponse.next()
@@ -37,11 +53,16 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  const path = request.nextUrl.pathname
   const isApiRoute = path.startsWith("/api/")
   const isAuthRoute = path.startsWith("/api/auth/")
   const isWebhook = path.startsWith("/api/webhooks/") || path === "/api/billing/webhook"
   const isPublicCampaign = path.startsWith("/api/public/")
+  const isPublicInvestment = request.method === "POST" && /^\/api\/crowdfunding\/[^/]+\/invest$/.test(path)
+  const isInternalWebhook =
+    (request.method === "POST" && /^\/api\/dossiers\/[^/]+\/ingest$/.test(path)) ||
+    (request.method === "POST" && path === "/api/documents") ||
+    (request.method === "POST" && path === "/api/user/telegram/link") ||
+    (request.method === "POST" && /^\/api\/kael\/missions\/[^/]+\/(complete|fail|update)$/.test(path))
   const isOgRoute = path.startsWith("/api/og/")
   const isPublicInvest = path.startsWith("/invest/")
   const isAuthPage = path.startsWith("/auth/")
@@ -60,7 +81,8 @@ export async function middleware(request: NextRequest) {
     return response
   }
 
-  if (isWebhook || isPublicCampaign || isOgRoute) return supabaseResponse
+  if (isWebhook || isPublicCampaign || isPublicInvestment || isOgRoute) return supabaseResponse
+  if (isInternalWebhook && hasValidInternalWebhookSecret(request)) return supabaseResponse
 
   if (isApiRoute && !isAuthRoute && !user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

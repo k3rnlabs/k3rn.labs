@@ -1124,7 +1124,7 @@ export default function LandingPage() {
                 <div className="max-w-[1400px] mx-auto px-6 py-12 flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
                     <Logo size="lg" />
                     <p className="text-[10px] font-jakarta tracking-widest text-white/20 uppercase">
-                        KAEL · n8n · Claude · GPT-4o · Supabase · pgvector
+                        KAEL · OpenAI · GPT-4o · Supabase · pgvector
 
                     </p>
                     <div className="flex gap-8 text-[10px] font-jakarta tracking-widest text-white/20 uppercase">

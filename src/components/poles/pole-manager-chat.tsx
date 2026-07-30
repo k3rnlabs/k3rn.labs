@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Badge } from "@/components/ui/badge"
 import { Send, Mic, MicOff, Loader2, ChevronLeft, Sparkles, BookmarkPlus, Check, Radio } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useSpeech } from "@/hooks/use-speech"
@@ -171,11 +170,6 @@ export function PoleManagerChat({ pole, dossierId, currentLab, existingSession, 
           <p className="font-bold text-sm">{normalizeManagerName(pole.managerName).toUpperCase()}</p>
           <p className="text-xs opacity-75">{pole.code.replace(/_/g, " ")}</p>
         </div>
-        {session?.n8nStatus === "RUNNING" && (
-          <Badge variant="outline" className="text-white border-white/40 text-[10px] gap-1">
-            <Loader2 className="h-3 w-3 animate-spin" /> n8n
-          </Badge>
-        )}
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 min-h-0">
@@ -276,7 +270,7 @@ export function PoleManagerChat({ pole, dossierId, currentLab, existingSession, 
         </div>
         <p className="text-[10px] text-muted-foreground/40 text-center mt-1.5">
           <Sparkles className="h-2.5 w-2.5 inline mr-1" />
-          {session?.n8nStatus === "RUNNING" ? "Workflow n8n en cours…" : `Propulsé par ${pole.managerName} · K3RN OS`}
+          {`Propulsé par ${pole.managerName} · K3RN OS`}
         </p>
       </div>
     </div>

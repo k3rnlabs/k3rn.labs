@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { env } from "@/lib/env";
-import OpenAI from "openai";
+import { callLLM } from "@/lib/llm";
+import { hasValidInternalWebhookSecret } from "@/lib/internal-webhook";
 import crypto from "crypto";
 import { CardType, RelationType } from "@prisma/client";
-import { broadcastToChannel } from "@/lib/realtime";
+import { broadcastToChannel } from "@/lib/realtime-server";
 
-const openai = new OpenAI({
-    apiKey: env.OPENAI_API_KEY,
-});
+export const dynamic = "force-dynamic";
 
 const MAX_CARDS_PER_MESSAGE = 5;
 const MIN_CONFIDENCE = 0.72;
@@ -19,8 +17,7 @@ export async function POST(
 ) {
     const startTime = Date.now();
     try {
-        const secret = req.headers.get("X-N8N-Secret");
-        if (env.N8N_WEBHOOK_SECRET && secret !== env.N8N_WEBHOOK_SECRET) {
+        if (!hasValidInternalWebhookSecret(req)) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
@@ -57,70 +54,23 @@ Valid cardTypes: VISION, PROBLEM, TARGET, CONSTRAINT, SOLUTION, NOTE (which maps
 Focus ONLY on meaning. Extract up to ${MAX_CARDS_PER_MESSAGE} clear, distinct concepts.
 If the message is empty or conversational, return an empty array.
 Assign a confidence score (0.0 to 1.0) to each card.
-Provide relationHints if the card explicitly refers to another concept.`;
+Provide relationHints if the card explicitly refers to another concept.
+Return ONLY a JSON object with this shape:
+{"candidates":[{"cardType":"VISION|PROBLEM|TARGET|CONSTRAINT|SOLUTION|NOTE","title":"string","content":"string","confidence":0.0,"relationHints":[{"type":"string","targetHint":"string"}]}]}.`;
 
-        const toolSchema = {
-            type: "function" as const,
-            function: {
-                name: "extract_cards",
-                description: "Extract structured cards from the input message.",
-                parameters: {
-                    type: "object",
-                    properties: {
-                        candidates: {
-                            type: "array",
-                            items: {
-                                type: "object",
-                                properties: {
-                                    cardType: {
-                                        type: "string",
-                                        enum: ["VISION", "PROBLEM", "TARGET", "CONSTRAINT", "SOLUTION", "NOTE"]
-                                    },
-                                    title: { type: "string", description: "Short, descriptive title" },
-                                    content: { type: "string", description: "Detailed content or explanation" },
-                                    confidence: { type: "number", description: "Confidence score between 0.0 and 1.0" },
-                                    relationHints: {
-                                        type: "array",
-                                        items: {
-                                            type: "object",
-                                            properties: {
-                                                type: { type: "string" },
-                                                targetHint: { type: "string" }
-                                            },
-                                            required: ["type", "targetHint"]
-                                        }
-                                    }
-                                },
-                                required: ["cardType", "title", "content", "confidence", "relationHints"]
-                            }
-                        }
-                    },
-                    required: ["candidates"]
-                }
-            }
-        };
-
-        const completion = await openai.chat.completions.create({
-            model: "gpt-4o",
-            messages: [
+        const { content: llmContent } = await callLLM(
+            [
                 { role: "system", content: systemPrompt },
                 { role: "user", content: `Context: Project ${dossierId}\nMessage: ${content}` }
             ],
-            tools: [toolSchema],
-            tool_choice: { type: "function", function: { name: "extract_cards" } },
-            temperature: 0.2
-        });
-
-        const toolCall = completion.choices[0].message.tool_calls?.[0];
+            { model: "gpt-4o", responseFormat: { type: "json_object" }, temperature: 0.2, maxTokens: 1800 }
+        );
         let candidates: any[] = [];
-
-        if (toolCall && toolCall.type === "function") {
-            try {
-                const parsedArgs = JSON.parse(toolCall.function.arguments);
-                candidates = parsedArgs.candidates || [];
-            } catch (e) {
-                console.error("Failed to parse LLM tools", e);
-            }
+        try {
+            const parsedArgs = JSON.parse(llmContent);
+            candidates = Array.isArray(parsedArgs.candidates) ? parsedArgs.candidates : [];
+        } catch (e) {
+            console.error("Failed to parse card ingestion response", e);
         }
 
         // --- Step 4: Filtering ---

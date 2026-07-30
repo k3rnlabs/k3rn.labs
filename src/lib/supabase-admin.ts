@@ -22,4 +22,3 @@ export const supabaseAdmin = new Proxy({} as any, {
     return _supabaseAdmin[prop]
   },
 })
-

@@ -23,6 +23,62 @@ enum SubscriptionTier {
   STUDIO
 }
 
+enum StudioCreationStatus {
+  DRAFT
+  ANALYSIS_QUEUED
+  ANALYSING
+  MASTER_PROMPT_READY
+  GENERATION_QUEUED
+  GENERATING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum StudioAssetKind {
+  REFERENCE
+  IDENTITY
+  RESULT
+}
+
+enum StudioJobKind {
+  ANALYZE
+  GENERATE
+  PURGE
+}
+
+enum StudioJobStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+}
+
+enum StudioCreditEntryKind {
+  ACTIVATION_GRANT
+  SUBSCRIPTION_GRANT
+  RESERVATION
+  ANALYSIS_DEBIT
+  RESERVATION_RELEASE
+  COMPENSATION
+  PURCHASE
+  EXPIRATION
+}
+
+enum StudioCreditLotKind {
+  ACTIVATION
+  SUBSCRIPTION
+  PURCHASE
+  COMPENSATION
+  MIGRATION
+}
+
+enum StudioCreditAllocationState {
+  RESERVED
+  DEBITED
+  RELEASED
+}
+
 enum MacroState {
   SYSTEM_READY
   DASHBOARD
@@ -180,6 +236,7 @@ model User {
   monthlyMissionsUsed     Int              @default(0)   // missions abonnement consommées ce mois
   topUpMissions           Int              @default(0)   // missions achetées en top-up (permanentes, jamais expirées)
   allowanceResetAt        DateTime?                      // prochain reset mensuel
+  studioCredits           Int              @default(0)
   preferences         Json    @default("{}")
 
   referralCode    String? @unique
@@ -193,6 +250,16 @@ model User {
   auditLogs            AuditLog[]
   cardTransitionLogs   CardTransitionLog[]
   notificationSettings UserNotificationSettings?
+  studioCreations      StudioCreation[]
+  studioAssets         StudioAsset[]
+  studioConsents       StudioConsent[]
+  studioCreditLedger   StudioCreditLedger[]
+  studioCreditLots     StudioCreditLot[]
+  studioSubscription   StudioSubscription?
+  studioPushSubscriptions StudioPushSubscription[]
+  studioProfiles       StudioProfile[]
+  studioIdentityProfile StudioIdentityProfile?
+  studioIdentityAssets StudioIdentityAsset[]
 }
 
 model ReferralLog {
@@ -240,6 +307,7 @@ model Dossier {
   autonomousMissions   AutonomousMission[]
   expertDocuments      ExpertDocument[]
   tasks                Task[]
+  studioCreations      StudioCreation[]
 
   @@index([ownerId])
   @@index([archived])
@@ -387,8 +455,6 @@ model Pole {
   systemPrompt        String   @db.Text
   hashtagTriggers     Json     @default("[]")
   activePriorityLabs  Json     @default("[]")
-  n8nWorkflowId       String?
-  n8nWebhookUrl       String?
   createdAt           DateTime @default(now())
 
   experts  Expert[]
@@ -417,8 +483,6 @@ model PoleSession {
   missionId      String?
   labAtCreation  LabType           @default(DISCOVERY)
   messages       Json              @default("[]")
-  n8nExecutionId String?
-  n8nStatus      String?
   status         PoleSessionStatus @default(ACTIVE)
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
@@ -660,7 +724,7 @@ model CardIngestionJob {
 }
 
 // ─── AI Orchestration Layer ───────────────────────────────────────────────────
-// Isolated from core business tables. Used by KAEL, Elena and n8n workflows.
+// Isolated from core business tables. Used by KAEL and Elena workflows.
 
 model AgentSession {
   id        String   @id @default(uuid())
@@ -681,4 +745,233 @@ model AgentMessage {
   createdAt DateTime @default(now())
 
   session   AgentSession @relation(fields: [sessionId], references: [sessionId])
+}
+
+// ─── Visual Engine Studio ───────────────────────────────────────────────────
+// Isolated product module. It deliberately does not use KAEL missions.
+
+model StudioCreation {
+  id                       String               @id @default(cuid())
+  userId                   String
+  dossierId                String?
+  studioProfileId          String?
+  identityProfileId        String?
+  presetId                 String?
+  creativeOptions          Json                 @default("{}")
+  status                   StudioCreationStatus @default(DRAFT)
+  creativeDirectionSummary String?              @db.Text
+  masterPrompt             String?              @db.Text
+  negativePrompt           String?              @db.Text
+  failureCode              String?
+  failureMessage           String?
+  creditReservationKey     String?              @unique
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
+  completedAt              DateTime?
+
+  user     User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dossier  Dossier?             @relation(fields: [dossierId], references: [id], onDelete: SetNull)
+  assets   StudioAsset[]
+  consent  StudioConsent?
+  jobs     StudioJob[]
+  ledger   StudioCreditLedger[]
+  creditAllocations StudioCreditAllocation[]
+  studioProfile StudioProfile? @relation("StudioProfileCreations", fields: [studioProfileId], references: [id], onDelete: SetNull)
+  sourceStudioProfile StudioProfile? @relation("StudioProfileSource")
+  identityProfile StudioIdentityProfile? @relation(fields: [identityProfileId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([dossierId])
+  @@index([studioProfileId, createdAt])
+  @@index([identityProfileId])
+}
+
+model StudioProfile {
+  id                       String   @id @default(cuid())
+  userId                   String
+  sourceCreationId         String?  @unique
+  presetId                 String?
+  name                     String
+  creativeDirectionSummary String?  @db.Text
+  masterPrompt             String?  @db.Text
+  negativePrompt           String?  @db.Text
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceCreation StudioCreation? @relation("StudioProfileSource", fields: [sourceCreationId], references: [id], onDelete: SetNull)
+  creations StudioCreation[] @relation("StudioProfileCreations")
+
+  @@index([userId, createdAt])
+}
+
+model StudioIdentityProfile {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  retentionAcceptedAt DateTime
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assets StudioIdentityAsset[]
+  creations StudioCreation[]
+}
+
+model StudioIdentityAsset {
+  id                String   @id @default(cuid())
+  identityProfileId String
+  userId            String
+  storagePath       String   @unique
+  mimeType          String
+  bytes             Int
+  createdAt         DateTime @default(now())
+
+  profile StudioIdentityProfile @relation(fields: [identityProfileId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([identityProfileId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model StudioAsset {
+  id         String          @id @default(cuid())
+  creationId String
+  userId     String
+  kind       StudioAssetKind
+  storagePath String          @unique
+  mimeType   String
+  bytes      Int
+  expiresAt  DateTime?
+  deletedAt  DateTime?
+  createdAt  DateTime        @default(now())
+
+  creation StudioCreation @relation(fields: [creationId], references: [id], onDelete: Cascade)
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([creationId, kind])
+  @@index([userId, expiresAt])
+}
+
+model StudioConsent {
+  id                    String   @id @default(cuid())
+  creationId            String   @unique
+  userId                String
+  version               String
+  ageConfirmed          Boolean
+  rightsConfirmed       Boolean
+  privacyAccepted       Boolean
+  openaiDisclosureAccepted Boolean
+  createdAt             DateTime @default(now())
+
+  creation StudioCreation @relation(fields: [creationId], references: [id], onDelete: Cascade)
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model StudioJob {
+  id         String          @id @default(cuid())
+  creationId String
+  kind       StudioJobKind
+  status     StudioJobStatus @default(PENDING)
+  attempts   Int             @default(0)
+  nextRunAt  DateTime        @default(now())
+  lockedAt   DateTime?
+  failureCode String?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  creation StudioCreation @relation(fields: [creationId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextRunAt])
+  @@index([creationId, kind])
+}
+
+model StudioCreditLedger {
+  id                String                @id
+  userId            String
+  creationId        String?
+  kind              StudioCreditEntryKind
+  amount            Int
+  balanceAfter      Int
+  idempotencyKey    String                @unique
+  stripeSessionId   String?               @unique
+  metadata          Json                  @default("{}")
+  createdAt         DateTime              @default(now())
+
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  creation StudioCreation? @relation(fields: [creationId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([creationId])
+}
+
+model StudioCreditLot {
+  id             String              @id @default(cuid())
+  userId         String
+  kind           StudioCreditLotKind
+  originalAmount Int
+  remaining      Int
+  idempotencyKey String              @unique
+  stripeSessionId String?            @unique
+  periodStart    DateTime?
+  periodEnd      DateTime?
+  expiresAt      DateTime?
+  rolloverUsedAt DateTime?
+  metadata       Json                @default("{}")
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  user        User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  allocations StudioCreditAllocation[]
+
+  @@index([userId, expiresAt])
+  @@index([userId, createdAt])
+}
+
+model StudioCreditAllocation {
+  id         String                     @id @default(cuid())
+  creationId String
+  lotId      String
+  amount     Int
+  state      StudioCreditAllocationState @default(RESERVED)
+  createdAt  DateTime                   @default(now())
+  updatedAt  DateTime                   @updatedAt
+
+  creation StudioCreation @relation(fields: [creationId], references: [id], onDelete: Cascade)
+  lot      StudioCreditLot @relation(fields: [lotId], references: [id], onDelete: Cascade)
+
+  @@unique([creationId, lotId])
+  @@index([lotId, state])
+}
+
+model StudioSubscription {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  stripeCustomerId     String?
+  stripeSubscriptionId String?  @unique
+  planId               String?
+  status               String?
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model StudioPushSubscription {
+  id                String   @id @default(cuid())
+  userId            String
+  endpoint          String   @unique
+  encryptedPayload  String   @db.Text
+  locale            String   @default("fr")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }

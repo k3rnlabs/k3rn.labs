@@ -156,6 +156,10 @@ export function applyLLMResponse(
   // État terminal → immuable
   if (existing.step === "COMPLETE") return existing
 
+  // Aucune confirmation ne peut être fondée sur une réponse vide ou hésitante.
+  // Le LLM peut continuer à guider l'utilisateur, mais l'audit trail reste intact.
+  if (isDontKnow(userMessage)) return existing
+
   const confirmed: ConfirmedAspects = { ...existing.confirmedAspects }
   const now = new Date().toISOString()
   const trimmed = userMessage.trim()

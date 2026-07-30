@@ -6,6 +6,7 @@ import { apiError, apiSuccess, validateBody } from "@/lib/validate"
 import { buildProjectMemory } from "@/lib/project-memory"
 import { invokeExpertDirect } from "@/lib/claude"
 import { createAuditLog } from "@/lib/audit"
+import { publicPole } from "@/lib/public-dto"
 import { z } from "zod"
 import { randomUUID } from "node:crypto"
 
@@ -80,7 +81,6 @@ export async function POST(req: NextRequest, { params }: { params: { poleId: str
         dossierId,
         labAtCreation: currentLab as any,
         messages: [userMsgObj, initialManagerMessage],
-        n8nStatus: "COMPLETED",
         status: "ACTIVE",
       },
     })
@@ -129,6 +129,5 @@ export async function POST(req: NextRequest, { params }: { params: { poleId: str
     console.error("Referral ACTIVATED tracking error:", err)
   }
 
-  return apiSuccess({ session: poleSession, pole })
+  return apiSuccess({ session: poleSession, pole: publicPole(pole) })
 }
-

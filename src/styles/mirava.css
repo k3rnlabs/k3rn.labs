@@ -1,0 +1,1042 @@
+/* MIRAVA Studio — Noir minéral éditorial.
+ * Every visual brand value and reusable component rule for /visual-engine
+ * lives here. Product pages consume semantic classes, never legacy colors.
+ */
+
+.mirava-theme {
+  --mirava-canvas-rgb: 9 10 10;
+  --mirava-canvas-raised-rgb: 14 16 16;
+  --mirava-surface-rgb: 21 23 23;
+  --mirava-surface-raised-rgb: 29 31 31;
+  --mirava-surface-hover-rgb: 36 38 38;
+  --mirava-ink-rgb: 241 241 237;
+  --mirava-ink-secondary-rgb: 171 172 168;
+  --mirava-ink-muted-rgb: 116 117 114;
+  --mirava-accent-rgb: 213 198 176;
+  --mirava-success-rgb: 184 205 184;
+  --mirava-danger-rgb: 223 167 164;
+  --mirava-danger-surface-rgb: 91 37 38;
+  --mirava-canvas: rgb(var(--mirava-canvas-rgb));
+  --mirava-canvas-raised: rgb(var(--mirava-canvas-raised-rgb));
+  --mirava-surface: rgb(var(--mirava-surface-rgb));
+  --mirava-surface-raised: rgb(var(--mirava-surface-raised-rgb));
+  --mirava-surface-hover: rgb(var(--mirava-surface-hover-rgb));
+  --mirava-ink: rgb(var(--mirava-ink-rgb));
+  --mirava-ink-secondary: rgb(var(--mirava-ink-secondary-rgb));
+  --mirava-ink-muted: rgb(var(--mirava-ink-muted-rgb));
+  --mirava-line: rgb(255 255 255 / 0.1);
+  --mirava-line-strong: rgb(255 255 255 / 0.18);
+  --mirava-media-outline: rgb(255 255 255 / 0.12);
+  --mirava-accent: rgb(var(--mirava-accent-rgb));
+  --mirava-accent-muted: #8f8374;
+  --mirava-success: rgb(var(--mirava-success-rgb));
+  --mirava-warning: rgb(var(--mirava-accent-rgb));
+  --mirava-danger: rgb(var(--mirava-danger-rgb));
+  --mirava-radius: 12px;
+  --mirava-radius-xs: var(--mirava-radius);
+  --mirava-radius-sm: var(--mirava-radius);
+  --mirava-radius-md: var(--mirava-radius);
+  --mirava-radius-lg: var(--mirava-radius);
+  --mirava-light-subtle: radial-gradient(ellipse at 12% -8%, rgb(255 255 255 / 0.045), transparent 44%), linear-gradient(135deg, rgb(255 255 255 / 0.018), transparent 58%);
+  --mirava-light-mineral: radial-gradient(ellipse at 8% 0%, rgb(255 255 255 / 0.09), transparent 46%), radial-gradient(ellipse at 92% 110%, rgb(255 255 255 / 0.035), transparent 42%), linear-gradient(135deg, rgb(255 255 255 / 0.025), transparent 56%);
+  --mirava-light-spotlight: radial-gradient(ellipse at 4% -12%, rgb(255 255 255 / 0.16), transparent 48%), radial-gradient(ellipse at 92% 115%, rgb(255 255 255 / 0.055), transparent 46%), linear-gradient(122deg, rgb(255 255 255 / 0.035), transparent 52%);
+  --mirava-shadow-line: 0 0 0 1px var(--mirava-line);
+  --mirava-shadow-line-hover: 0 0 0 1px var(--mirava-line-strong);
+  --mirava-header-bg: rgb(12 13 13 / 0.94);
+  --mirava-nav-bg: rgb(5 6 6 / 0.94);
+  --mirava-nav-active: var(--mirava-surface-raised);
+  --mirava-nav-marker: var(--mirava-accent);
+  --mirava-safe-top: max(1rem, env(safe-area-inset-top));
+  --mirava-safe-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  background: var(--mirava-canvas);
+  color: var(--mirava-ink);
+  color-scheme: dark;
+  font-family: Inter, sans-serif;
+  min-height: 100dvh;
+  overflow-x: clip;
+  overscroll-behavior-x: none;
+  isolation: isolate;
+  position: relative;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mirava-theme *,
+.mirava-theme *::before,
+.mirava-theme *::after {
+  box-sizing: border-box;
+}
+
+.mirava-theme ::selection {
+  background: var(--mirava-accent);
+  color: var(--mirava-canvas);
+}
+
+.mirava-theme :focus-visible {
+  outline: 2px solid var(--mirava-ink);
+  outline-offset: 3px;
+}
+
+.mirava-theme :is(h1, h2, h3) {
+  text-wrap: balance;
+}
+
+.mirava-theme :is(p, li, figcaption) {
+  text-wrap: pretty;
+}
+
+.mirava-theme :is(button, a, label[for], summary) {
+  touch-action: manipulation;
+}
+
+.mirava-theme :is(button, a):not(:disabled) {
+  cursor: pointer;
+}
+
+.mirava-theme .tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.mirava-react-grain {
+  height: 100dvh;
+  inset: 0;
+  mix-blend-mode: soft-light;
+  opacity: 0.24;
+  pointer-events: none;
+  position: fixed;
+  width: 100vw;
+  z-index: 1;
+}
+
+.mirava-ambient {
+  background:
+    radial-gradient(circle at 78% 12%, rgb(255 255 255 / 0.08), transparent 30rem),
+    radial-gradient(circle at 16% 78%, rgb(255 255 255 / 0.035), transparent 34rem);
+}
+
+.mirava-label {
+  color: var(--mirava-accent);
+  font-family: var(--font-jakarta), sans-serif;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.mirava-title {
+  color: var(--mirava-ink);
+  font-family: var(--font-jakarta), sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.065em;
+  line-height: 0.94;
+}
+
+.mirava-section-title {
+  color: var(--mirava-ink);
+  font-family: var(--font-jakarta), sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.055em;
+  line-height: 1;
+}
+
+.mirava-copy {
+  color: var(--mirava-ink-secondary);
+}
+
+.mirava-muted {
+  color: var(--mirava-ink-muted);
+}
+
+.mirava-meta {
+  border: 1px solid var(--mirava-line);
+  border-radius: var(--mirava-radius-xs);
+  color: var(--mirava-ink-secondary);
+}
+
+.mirava-surface,
+.mirava-surface-raised {
+  border-radius: var(--mirava-radius-lg);
+  box-shadow: var(--mirava-shadow-line);
+  color: var(--mirava-ink);
+}
+
+.mirava-surface {
+  background-color: var(--mirava-surface);
+  background-image: var(--mirava-light-subtle);
+  background-size: 100% 100%;
+}
+
+.mirava-surface-raised {
+  background-color: var(--mirava-surface-raised);
+  background-image: var(--mirava-light-mineral);
+  background-size: 100% 100%;
+}
+
+.mirava-dark-panel {
+  background-color: var(--mirava-canvas-raised);
+  background-image: var(--mirava-light-spotlight);
+  background-size: 100% 100%;
+  border-radius: var(--mirava-radius-lg);
+  box-shadow: var(--mirava-shadow-line);
+  color: var(--mirava-ink);
+}
+
+.mirava-material-subtle,
+.mirava-material-mineral,
+.mirava-material-spotlight {
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+}
+
+.mirava-material-subtle {
+  background-color: var(--mirava-surface);
+  background-image: var(--mirava-light-subtle);
+}
+
+.mirava-material-mineral {
+  background-color: var(--mirava-surface-raised);
+  background-image: var(--mirava-light-mineral);
+}
+
+.mirava-material-spotlight {
+  background-color: var(--mirava-canvas-raised);
+  background-image: var(--mirava-light-spotlight);
+}
+
+.mirava-direction-card,
+.mirava-reference-direction,
+.mirava-refinement-shell {
+  border: 1px solid var(--mirava-line);
+  border-radius: var(--mirava-radius);
+  box-shadow: 0 28px 80px rgb(0 0 0 / 0.24);
+  color: var(--mirava-ink);
+}
+
+.mirava-choice-card {
+  background-color: rgb(var(--mirava-canvas-raised-rgb) / 0.76);
+  background-image: var(--mirava-light-subtle);
+  border: 1px solid var(--mirava-line);
+  border-radius: var(--mirava-radius);
+  color: var(--mirava-ink-secondary);
+  transition: background-color 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out, transform 150ms ease-out;
+}
+
+.mirava-choice-card:hover {
+  border-color: var(--mirava-line-strong);
+  color: var(--mirava-ink);
+}
+
+.mirava-choice-card:active {
+  transform: scale(0.99);
+}
+
+.mirava-choice-card:has([role="radio"]:focus-visible) {
+  outline: 2px solid var(--mirava-ink);
+  outline-offset: 3px;
+}
+
+.mirava-choice-card[data-selected="true"] {
+  background-color: var(--mirava-surface-raised);
+  background-image: var(--mirava-light-mineral);
+  border-color: var(--mirava-line-strong);
+  box-shadow: inset 3px 0 0 var(--mirava-accent);
+  color: var(--mirava-ink);
+}
+
+.mirava-choice-copy {
+  color: var(--mirava-ink-muted);
+}
+
+.mirava-choice-card[data-selected="true"] .mirava-choice-copy {
+  color: var(--mirava-ink-secondary);
+}
+
+.mirava-required-mark,
+.mirava-inherited-mark {
+  border: 1px solid var(--mirava-line-strong);
+  border-radius: var(--mirava-radius);
+  color: var(--mirava-accent);
+}
+
+.mirava-required-mark {
+  padding: 0.55rem 0.65rem;
+}
+
+.mirava-inherited-mark {
+  background: rgb(var(--mirava-surface-raised-rgb) / 0.64);
+}
+
+.mirava-warning-copy {
+  color: var(--mirava-danger);
+}
+
+.mirava-collapsible-content {
+  overflow: hidden;
+}
+
+.mirava-collapsible-content[data-state="open"] {
+  animation: mirava-collapsible-down 180ms ease-out;
+}
+
+.mirava-collapsible-content[data-state="closed"] {
+  animation: mirava-collapsible-up 150ms ease-out;
+}
+
+@keyframes mirava-collapsible-down {
+  from { height: 0; opacity: 0; }
+  to { height: var(--radix-collapsible-content-height); opacity: 1; }
+}
+
+@keyframes mirava-collapsible-up {
+  from { height: var(--radix-collapsible-content-height); opacity: 1; }
+  to { height: 0; opacity: 0; }
+}
+
+.mirava-divider {
+  border-color: var(--mirava-line);
+}
+
+.mirava-image-frame {
+  border-radius: var(--mirava-radius-md);
+  outline: 1px solid var(--mirava-media-outline);
+  outline-offset: -1px;
+}
+
+.mirava-media-overlay,
+.mirava-media-overlay-soft,
+.mirava-camera-shade {
+  pointer-events: none;
+}
+
+.mirava-media-overlay {
+  background: linear-gradient(to top, rgb(var(--mirava-canvas-rgb) / 0.84), transparent 55%);
+}
+
+.mirava-media-overlay-soft {
+  background: linear-gradient(to top, rgb(var(--mirava-canvas-rgb) / 0.58), transparent 50%);
+}
+
+.mirava-media-overlay-horizontal {
+  background: linear-gradient(to right, rgb(var(--mirava-surface-raised-rgb) / 0.5), transparent);
+}
+
+.mirava-camera-shade {
+  background: linear-gradient(to bottom, rgb(0 0 0 / 0.16), transparent 35%, rgb(0 0 0 / 0.62));
+}
+
+.mirava-camera-mask {
+  box-shadow: 0 0 0 999px rgb(0 0 0 / 0.15);
+}
+
+.mirava-capture-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-height: 100dvh;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+
+.mirava-capture-safe-top {
+  min-height: calc(4rem + env(safe-area-inset-top));
+  padding-top: env(safe-area-inset-top);
+}
+
+.mirava-capture-emblem {
+  background:
+    radial-gradient(circle at 35% 30%, rgb(255 255 255 / 0.16), transparent 42%),
+    var(--mirava-surface-raised);
+  box-shadow: 0 0 0 1px var(--mirava-line), 0 24px 70px rgb(0 0 0 / 0.32);
+  color: var(--mirava-accent);
+}
+
+.mirava-capture-round-control {
+  align-items: center;
+  background: rgb(0 0 0 / 0.42);
+  border: 1px solid rgb(255 255 255 / 0.18);
+  border-radius: 999px;
+  color: white;
+  display: inline-flex;
+  height: 48px;
+  justify-content: center;
+  min-width: 48px;
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+
+.mirava-capture-round-control:disabled {
+  opacity: 0.35;
+}
+
+.mirava-capture-round-control:not(:disabled):active,
+.mirava-capture-shutter:active {
+  transform: scale(0.94);
+}
+
+.mirava-capture-shutter {
+  background: transparent;
+  border: 0;
+  color: white;
+  transition: transform 120ms ease-out;
+}
+
+.mirava-direction-arrow {
+  filter: drop-shadow(0 2px 12px rgb(0 0 0 / 0.7));
+  text-shadow: 0 2px 18px rgb(0 0 0 / 0.5);
+}
+
+.mirava-button {
+  align-items: center;
+  border: 0;
+  border-radius: var(--mirava-radius-xs);
+  display: inline-flex;
+  font-weight: 600;
+  justify-content: center;
+  min-height: 48px;
+  transition-duration: 150ms;
+  transition-property: background-color, border-color, color, opacity, transform;
+  transition-timing-function: ease-out;
+}
+
+.mirava-button:not(:disabled):active {
+  transform: scale(0.96);
+}
+
+.mirava-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.mirava-button-primary {
+  background: var(--mirava-ink);
+  color: var(--mirava-canvas);
+}
+
+.mirava-button-primary:hover {
+  background: rgb(255 255 255);
+}
+
+.mirava-button-secondary {
+  background: transparent;
+  box-shadow: var(--mirava-shadow-line);
+  color: var(--mirava-ink);
+}
+
+.mirava-button-secondary:hover {
+  background: var(--mirava-surface-hover);
+  box-shadow: var(--mirava-shadow-line-hover);
+}
+
+.mirava-button-quiet {
+  background: transparent;
+  color: var(--mirava-ink-secondary);
+}
+
+.mirava-button-quiet:hover {
+  color: var(--mirava-ink);
+}
+
+.mirava-button-danger {
+  background: transparent;
+  box-shadow: 0 0 0 1px rgb(var(--mirava-danger-rgb) / 0.32);
+  color: var(--mirava-danger);
+}
+
+.mirava-button-danger:hover {
+  background: rgb(var(--mirava-danger-surface-rgb) / 0.28);
+}
+
+.mirava-control {
+  background: var(--mirava-surface);
+  border: 1px solid var(--mirava-line);
+  border-radius: var(--mirava-radius-sm);
+  color: var(--mirava-ink-secondary);
+  min-height: 48px;
+  transition-duration: 150ms;
+  transition-property: background-color, border-color, color, transform;
+  transition-timing-function: ease-out;
+}
+
+.mirava-control:hover {
+  border-color: var(--mirava-line-strong);
+  color: var(--mirava-ink);
+}
+
+.mirava-control:active {
+  transform: scale(0.98);
+}
+
+.mirava-control[data-selected="true"] {
+  background: var(--mirava-ink);
+  border-color: var(--mirava-ink);
+  color: var(--mirava-canvas);
+}
+
+.mirava-input {
+  background: var(--mirava-canvas-raised);
+  border: 1px solid var(--mirava-line);
+  border-radius: var(--mirava-radius-sm);
+  color: var(--mirava-ink);
+  font-size: 1rem;
+}
+
+.mirava-input::placeholder {
+  color: var(--mirava-ink-muted);
+}
+
+.mirava-input:focus {
+  border-color: var(--mirava-ink);
+  outline: none;
+}
+
+.mirava-upload {
+  background-color: var(--mirava-canvas-raised);
+  background-image: var(--mirava-light-subtle);
+  background-size: 100% 100%;
+  border: 1px dashed var(--mirava-line-strong);
+  border-radius: var(--mirava-radius-md);
+  color: var(--mirava-ink-secondary);
+  transition-duration: 150ms;
+  transition-property: background-color, border-color, color;
+}
+
+.mirava-upload:hover {
+  background-color: var(--mirava-surface);
+  border-color: var(--mirava-ink);
+  color: var(--mirava-ink);
+}
+
+.mirava-notice {
+  background-color: var(--mirava-surface-raised);
+  background-image: var(--mirava-light-mineral);
+  background-size: 100% 100%;
+  border: 1px solid var(--mirava-line);
+  border-radius: var(--mirava-radius-sm);
+  color: var(--mirava-ink-secondary);
+}
+
+.mirava-alert {
+  background: rgb(var(--mirava-danger-surface-rgb) / 0.32);
+  border: 1px solid rgb(var(--mirava-danger-rgb) / 0.35);
+  border-radius: var(--mirava-radius-sm);
+  color: rgb(241 205 202);
+}
+
+.mirava-status-success {
+  color: var(--mirava-success);
+}
+
+.mirava-scroll-row {
+  scrollbar-width: none;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mirava-scroll-row::-webkit-scrollbar {
+  display: none;
+}
+
+.mirava-app-shell {
+  min-height: 100dvh;
+  padding-bottom: calc(8rem + env(safe-area-inset-bottom));
+  scroll-padding-bottom: calc(7.5rem + env(safe-area-inset-bottom));
+}
+
+.mirava-journey-actions {
+  background: rgb(var(--mirava-canvas-rgb) / 0.9);
+  border-radius: var(--mirava-radius);
+  bottom: calc(5.5rem + var(--mirava-safe-bottom));
+  box-shadow: 0 -16px 36px rgb(0 0 0 / 0.22);
+  padding: 0.5rem;
+  position: sticky;
+  z-index: 20;
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+
+.mirava-app-header {
+  background: var(--mirava-header-bg);
+  background-image: var(--mirava-light-subtle);
+  background-size: 100% 100%;
+  border-radius: 0 0 var(--mirava-radius) var(--mirava-radius);
+  box-shadow: 0 18px 45px rgb(0 0 0 / 0.2), var(--mirava-shadow-line);
+  position: sticky;
+  top: 0;
+  transition: box-shadow 180ms ease-out, background-color 180ms ease-out;
+  z-index: 40;
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+.mirava-app-header[data-scrolled="true"] {
+  background-color: rgb(8 9 9 / 0.97);
+  box-shadow: 0 24px 60px rgb(0 0 0 / 0.38), var(--mirava-shadow-line);
+}
+
+.mirava-app-header-inner {
+  min-height: 4.5rem;
+  padding-bottom: 0.75rem;
+  padding-top: var(--mirava-safe-top);
+}
+
+.mirava-header-journey {
+  transition: padding-bottom 180ms ease-out;
+}
+
+.mirava-header-steps {
+  background: rgb(var(--mirava-canvas-raised-rgb) / 0.72);
+  border: 1px solid var(--mirava-line);
+  border-radius: var(--mirava-radius);
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+}
+
+.mirava-header-steps > li {
+  flex: 0.72 1 0;
+  transition: flex-grow 180ms ease-out;
+}
+
+.mirava-header-steps > li[data-active="true"] {
+  flex-grow: 1.6;
+}
+
+.mirava-header-step {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: var(--mirava-radius);
+  color: var(--mirava-ink-muted);
+  display: flex;
+  gap: 0.45rem;
+  justify-content: center;
+  min-height: 3rem;
+  min-width: 0;
+  padding: 0.35rem 0.45rem;
+  transition: background-color 150ms ease-out, color 150ms ease-out, opacity 150ms ease-out;
+  width: 100%;
+}
+
+.mirava-header-step:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
+.mirava-header-step[data-active="true"] {
+  background-color: var(--mirava-surface-raised);
+  background-image: var(--mirava-light-mineral);
+  box-shadow: inset 0 -2px 0 var(--mirava-nav-marker);
+  color: var(--mirava-ink);
+}
+
+.mirava-header-step[data-complete="true"] {
+  color: var(--mirava-ink-secondary);
+}
+
+.mirava-header-step-number {
+  align-items: center;
+  border: 1px solid var(--mirava-line);
+  border-radius: calc(var(--mirava-radius) - 4px);
+  display: flex;
+  flex: 0 0 1.8rem;
+  font-family: var(--font-jakarta), sans-serif;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  height: 1.8rem;
+  justify-content: center;
+}
+
+.mirava-header-step[data-active="true"] .mirava-header-step-number {
+  background: var(--mirava-ink);
+  border-color: var(--mirava-ink);
+  color: var(--mirava-canvas);
+}
+
+.mirava-header-step[data-complete="true"] .mirava-header-step-number {
+  border-color: rgb(var(--mirava-accent-rgb) / 0.48);
+  color: var(--mirava-accent);
+}
+
+.mirava-header-step-label {
+  display: none;
+  font-family: var(--font-jakarta), sans-serif;
+  font-size: 0.625rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mirava-header-step[data-active="true"] .mirava-header-step-label {
+  display: block;
+}
+
+.mirava-bottom-nav {
+  background: var(--mirava-nav-bg);
+  border: 1px solid var(--mirava-line);
+  border-radius: var(--mirava-radius);
+  bottom: calc(0.5rem + env(safe-area-inset-bottom));
+  box-shadow: 0 24px 70px rgb(0 0 0 / 0.52);
+  display: flex;
+  gap: 0.25rem;
+  height: 4rem;
+  max-width: calc(100vw - 1rem);
+  padding: 0.45rem;
+  width: fit-content;
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+.mirava-bottom-nav-item {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: var(--mirava-radius);
+  color: var(--mirava-ink-muted);
+  display: flex;
+  flex: 0 1 auto;
+  height: 3rem;
+  justify-content: center;
+  min-width: 3rem;
+  padding: 0 0.75rem;
+  position: relative;
+  transition: background-color 150ms ease-out, color 150ms ease-out;
+}
+
+.mirava-bottom-nav-item:hover {
+  background: var(--mirava-surface-hover);
+  color: var(--mirava-ink-secondary);
+}
+
+.mirava-bottom-nav-item[data-active="true"] {
+  background-color: var(--mirava-surface-raised);
+  background-image: var(--mirava-light-mineral);
+  color: var(--mirava-ink);
+}
+
+.mirava-bottom-nav-item[data-active="true"]::before {
+  background: var(--mirava-nav-marker);
+  border-radius: var(--mirava-radius);
+  bottom: 0.32rem;
+  content: "";
+  height: 2px;
+  left: 50%;
+  position: absolute;
+  transform: translateX(-50%);
+  width: 1rem;
+}
+
+.mirava-bottom-nav-icon {
+  align-items: center;
+  display: flex;
+  flex: 0 0 1.25rem;
+  height: 1.25rem;
+  justify-content: center;
+  width: 1.25rem;
+}
+
+.mirava-bottom-nav-icon svg {
+  height: 1.1rem;
+  stroke-width: 1.7;
+  width: 1.1rem;
+}
+
+.mirava-bottom-nav-icon img,
+.mirava-desktop-tab-icon img {
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px var(--mirava-line-strong);
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.mirava-bottom-nav-label {
+  display: block;
+  font-family: var(--font-jakarta), sans-serif;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mirava-desktop-nav {
+  background: var(--mirava-nav-bg);
+  border-radius: var(--mirava-radius);
+  box-shadow: var(--mirava-shadow-line);
+}
+
+.mirava-desktop-tab {
+  background: transparent;
+  border: 0;
+  border-radius: var(--mirava-radius);
+  color: var(--mirava-ink-muted);
+  position: relative;
+  transition: background-color 150ms ease-out, color 150ms ease-out;
+}
+
+.mirava-desktop-tab:hover {
+  background: var(--mirava-surface-hover);
+  color: var(--mirava-ink);
+}
+
+.mirava-desktop-tab[data-active="true"] {
+  background: var(--mirava-nav-active);
+  color: var(--mirava-ink);
+}
+
+.mirava-desktop-tab[data-active="true"]::after {
+  background: var(--mirava-nav-marker);
+  border-radius: var(--mirava-radius);
+  bottom: 0.35rem;
+  content: "";
+  height: 2px;
+  left: 50%;
+  position: absolute;
+  transform: translateX(-50%);
+  width: 1rem;
+}
+
+.mirava-desktop-tab[data-primary="true"] {
+  font-family: var(--font-jakarta), sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.mirava-desktop-tab-icon {
+  display: block;
+  height: 1.25rem;
+  width: 1.25rem;
+}
+
+.mirava-onboarding {
+  position: relative;
+}
+
+.mirava-onboarding-heading {
+  min-height: 10rem;
+  padding-right: 3rem;
+}
+
+.mirava-onboarding-heading::after {
+  color: rgb(var(--mirava-ink-rgb) / 0.055);
+  content: attr(data-step);
+  font-family: var(--font-jakarta), sans-serif;
+  font-size: clamp(6rem, 20vw, 11rem);
+  font-weight: 700;
+  letter-spacing: -0.12em;
+  line-height: 0.8;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  top: 0;
+  z-index: -1;
+}
+
+.mirava-identity-passport {
+  background-color: var(--mirava-surface);
+  background-image: var(--mirava-light-spotlight);
+  background-size: 100% 100%;
+  border-radius: var(--mirava-radius-lg);
+  box-shadow: var(--mirava-shadow-line), 0 30px 90px rgb(0 0 0 / 0.34);
+  display: grid;
+  gap: 1.5rem;
+  overflow: hidden;
+  padding: 1.25rem;
+}
+
+.mirava-identity-copy {
+  align-self: center;
+}
+
+.mirava-identity-contact-sheet {
+  display: grid;
+  gap: 0.35rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.mirava-identity-contact-frame {
+  background: var(--mirava-canvas-raised);
+  border: 1px solid var(--mirava-line-strong);
+  border-radius: var(--mirava-radius);
+  box-shadow: 0 12px 28px rgb(0 0 0 / 0.26);
+  min-height: 7rem;
+}
+
+.mirava-identity-contact-frame:nth-child(2),
+.mirava-identity-contact-frame:nth-child(5) {
+  transform: translateY(0.55rem);
+}
+
+.mirava-identity-contact-frame > span {
+  background: rgb(14 13 12 / 0.72);
+  bottom: 0.3rem;
+  color: white;
+  font-family: var(--font-jakarta), sans-serif;
+  font-size: 0.5rem;
+  left: 0.3rem;
+  letter-spacing: 0.08em;
+  padding: 0.15rem 0.25rem;
+  position: absolute;
+  z-index: 2;
+}
+
+.mirava-import-orbit {
+  align-items: center;
+  background-color: var(--mirava-surface-raised);
+  background-image: var(--mirava-light-mineral);
+  background-size: 100% 100%;
+  border: 1px solid var(--mirava-line);
+  border-radius: 999px;
+  color: var(--mirava-accent);
+  display: flex;
+  height: 5.5rem;
+  justify-content: center;
+  width: 5.5rem;
+}
+
+.mirava-repair-list {
+  border-top: 1px solid var(--mirava-line);
+  padding-top: 1.25rem;
+}
+
+.mirava-repair-row {
+  background-color: var(--mirava-surface);
+  background-image: var(--mirava-light-subtle);
+  background-size: 100% 100%;
+  border: 1px solid var(--mirava-line);
+  border-radius: var(--mirava-radius-sm);
+  padding: 1rem;
+}
+
+.mirava-alma-card {
+  background-color: var(--mirava-surface-raised);
+  background-image: var(--mirava-light-mineral);
+  background-size: 100% 100%;
+  border: 0;
+  border-radius: var(--mirava-radius);
+  box-shadow: var(--mirava-shadow-line);
+  color: var(--mirava-ink);
+  transition: background-color 150ms ease-out, transform 150ms ease-out;
+}
+
+.mirava-alma-card:hover {
+  background-color: var(--mirava-surface-hover);
+}
+
+.mirava-alma-card:active {
+  transform: scale(0.99);
+}
+
+.mirava-alma-avatar {
+  border-radius: var(--mirava-radius);
+  box-shadow: var(--mirava-shadow-line);
+}
+
+.mirava-director-shell {
+  border-radius: var(--mirava-radius);
+  box-shadow: 0 24px 80px rgb(0 0 0 / 0.38), var(--mirava-shadow-line);
+  overflow: hidden;
+}
+
+.mirava-modal-backdrop {
+  background: rgb(0 0 0 / 0.72);
+  min-height: 100dvh;
+}
+
+.mirava-modal {
+  background: var(--mirava-surface);
+  color: var(--mirava-ink);
+  min-height: 100dvh;
+  padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+  padding-top: max(1.25rem, env(safe-area-inset-top));
+}
+
+@media (min-width: 640px) {
+  .mirava-header-steps > li,
+  .mirava-header-steps > li[data-active="true"] {
+    flex: 1 1 0;
+  }
+
+  .mirava-header-step-label {
+    display: block;
+    font-size: 0.6875rem;
+  }
+
+  .mirava-modal {
+    border-radius: var(--mirava-radius-lg);
+    box-shadow: var(--mirava-shadow-line);
+    min-height: 0;
+  }
+
+  .mirava-identity-contact-sheet {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .mirava-repair-row {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+  }
+}
+
+@media (min-width: 1024px) {
+  .mirava-app-shell {
+    padding-bottom: 3rem;
+  }
+
+  .mirava-journey-actions {
+    background: transparent;
+    bottom: auto;
+    box-shadow: none;
+    padding: 0;
+    position: static;
+  }
+
+  .mirava-app-header-inner {
+    padding-top: 0.75rem;
+  }
+
+  .mirava-identity-passport {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    padding: 2rem;
+  }
+
+  .mirava-identity-contact-sheet {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (hover: none) {
+  .mirava-button-primary:hover {
+    background: var(--mirava-ink);
+  }
+
+  .mirava-button-secondary:hover {
+    background: transparent;
+  }
+
+  .mirava-control:hover {
+    background: var(--mirava-surface);
+  }
+
+  .mirava-control[data-selected="true"]:hover {
+    background: var(--mirava-ink);
+  }
+
+  .mirava-upload:hover {
+    background-color: var(--mirava-canvas-raised);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mirava-theme *,
+  .mirava-theme *::before,
+  .mirava-theme *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,7 +1,8 @@
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest } from "next/server"
 import { validateBody, apiError, apiSuccess } from "@/lib/validate"
+import { translateAuthError } from "@/lib/auth-errors"
 import { z } from "zod"
 
 const loginSchema = z.object({
@@ -36,7 +37,9 @@ export async function POST(req: NextRequest) {
     password: result.data.password,
   })
 
-  if (error) return apiError(error.message, 401)
+  if (error) {
+    return apiError(translateAuthError(error.message), 401)
+  }
   return apiSuccess({ user: data.user, session: data.session })
 }
 

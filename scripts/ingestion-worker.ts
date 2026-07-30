@@ -36,7 +36,10 @@ async function ingestNow(params: CardIngestionParams): Promise<void> {
     try {
         const res = await fetch(url, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+                "X-Internal-Secret": process.env.INTERNAL_WEBHOOK_SECRET ?? "",
+            },
             body: JSON.stringify({
                 messageId: params.messageId,
                 content: params.content,
@@ -75,13 +78,14 @@ async function processJobs(): Promise<void> {
 
     for (const job of jobs) {
         // Mark RUNNING atomically to prevent double-processing
-        const { count: updated } = await supabase
+        const { data: claimed } = await supabase
             .from("CardIngestionJob")
             .update({ status: "RUNNING" })
             .eq("id", job.id)
-            .eq("status", "PENDING"); // guard
+            .eq("status", "PENDING")
+            .select("id")
 
-        if ((updated ?? 0) === 0) continue;
+        if (!claimed?.length) continue;
 
         const params = job.payload as CardIngestionParams;
 

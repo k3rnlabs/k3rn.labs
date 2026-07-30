@@ -1,10 +1,11 @@
-// Webhook interne appelé par n8n quand la mission est terminée
+// Webhook interne appelé par un worker quand la mission est terminée
 import { NextRequest } from "next/server"
 import { apiError, apiSuccess, validateBody } from "@/lib/validate"
 import { db as prisma } from "@/lib/db"
-import { broadcastToChannel } from "@/lib/realtime"
+import { broadcastToChannel } from "@/lib/realtime-server"
 import { z } from "zod"
 import { randomUUID } from "node:crypto"
+import { hasValidInternalWebhookSecret } from "@/lib/internal-webhook"
 
 const proposedCardSchema = z.object({
   type: z.string(),
@@ -30,6 +31,7 @@ const schema = z.object({
 })
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+  if (!hasValidInternalWebhookSecret(req)) return apiError("Unauthorized", 401)
   const result = await validateBody(schema, req)
   if ("error" in result) return result.error
 
@@ -91,8 +93,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     where: { userId: mission.dossier.ownerId },
   })
   if (notifSettings?.telegramOnComplete && notifSettings.telegramChatId) {
-    // Fire-and-forget via n8n notify
-    const { notifyTelegram } = await import("@/lib/n8n")
+    // Notification directe via le Bot API Telegram
+    const { notifyTelegram } = await import("@/lib/llm")
     notifyTelegram(notifSettings.telegramChatId, [
       `✅ *Mission terminée* — ${mission.managerName}`,
       `📋 ${summary}`,

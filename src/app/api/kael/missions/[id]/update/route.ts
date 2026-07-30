@@ -1,19 +1,19 @@
-// Webhook interne appelé par n8n pour les mises à jour intermédiaires de mission
+// Webhook interne appelé par un worker pour les mises à jour intermédiaires de mission
 import { NextRequest } from "next/server"
 import { apiError, apiSuccess, validateBody } from "@/lib/validate"
 import { db as prisma } from "@/lib/db"
-import { broadcastToChannel } from "@/lib/realtime"
+import { broadcastToChannel } from "@/lib/realtime-server"
 import { z } from "zod"
 import { randomUUID } from "node:crypto"
+import { hasValidInternalWebhookSecret } from "@/lib/internal-webhook"
 
 const schema = z.object({
   message: z.string().min(1),
   source: z.string().optional(), // ex: "Reddit", "GitHub", "Google Trends"
-  secret: z.string().optional(),
 })
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  // Sécurité basique : secret partagé entre n8n et l'app
+  if (!hasValidInternalWebhookSecret(req)) return apiError("Unauthorized", 401)
   const result = await validateBody(schema, req)
   if ("error" in result) return result.error
 

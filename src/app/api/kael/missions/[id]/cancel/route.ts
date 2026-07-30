@@ -2,7 +2,7 @@ import { NextRequest } from "next/server"
 import { verifySession } from "@/lib/auth"
 import { apiError, apiSuccess } from "@/lib/validate"
 import { db as prisma } from "@/lib/db"
-import { broadcastToChannel } from "@/lib/realtime"
+import { broadcastToChannel } from "@/lib/realtime-server"
 import { randomUUID } from "node:crypto"
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {

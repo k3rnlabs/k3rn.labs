@@ -4,7 +4,7 @@ import { db as prisma } from "@/lib/db"
 import { validateBody, apiError, apiSuccess } from "@/lib/validate"
 import { createAuditLog } from "@/lib/audit"
 import { computeAndPersistScore } from "@/lib/score-engine"
-import { broadcastToChannel } from "@/lib/realtime"
+import { broadcastToChannel } from "@/lib/realtime-server"
 import { z } from "zod"
 import type { CardState } from "@prisma/client"
 

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { verifySession } from "@/lib/auth"
 import { db as prisma } from "@/lib/db"
+import { publicPole } from "@/lib/public-dto"
 import { apiError, apiSuccess } from "@/lib/validate"
 
 export async function GET(_req: NextRequest, { params }: { params: { poleId: string } }) {
@@ -16,5 +17,5 @@ export async function GET(_req: NextRequest, { params }: { params: { poleId: str
   })
 
   if (!pole) return apiError("Not found", 404)
-  return apiSuccess(pole)
+  return apiSuccess(publicPole(pole))
 }

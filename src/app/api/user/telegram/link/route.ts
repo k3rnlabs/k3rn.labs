@@ -1,8 +1,7 @@
 import { NextRequest } from "next/server"
-import { supabaseAdmin } from "@/lib/supabase-admin"
 import { apiError, apiSuccess, validateBody } from "@/lib/validate"
-import { Redis } from "@upstash/redis"
-import { env } from "@/lib/env"
+import { hasValidInternalWebhookSecret } from "@/lib/internal-webhook"
+import { linkTelegramChat } from "@/lib/telegram"
 import { z } from "zod"
 
 const schema = z.object({
@@ -10,45 +9,18 @@ const schema = z.object({
   telegramChatId: z.string().min(1),
 })
 
-function getRedis() {
-  return new Redis({
-    url: process.env.UPSTASH_REDIS_REST_URL!,
-    token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-  })
-}
-
-// Called by n8n when user types /link {token} in Telegram bot
-// No auth session — webhook secret instead
+// Internal fallback for trusted workers. Telegram itself calls /api/webhooks/telegram.
 export async function POST(req: NextRequest) {
-  const secret = req.headers.get("x-webhook-secret")
-  if (env.N8N_WEBHOOK_SECRET && secret !== env.N8N_WEBHOOK_SECRET) {
+  if (!hasValidInternalWebhookSecret(req)) {
     return apiError("Forbidden", 403)
   }
 
   const result = await validateBody(schema, req)
   if ("error" in result) return result.error
 
-  const { token, telegramChatId } = result.data
-  const key = `telegram:link:${token}`
-
-  const redis = getRedis()
-  const userId = await redis.get<string>(key)
-
-  if (!userId) {
+  const linked = await linkTelegramChat(result.data.token, result.data.telegramChatId)
+  if (!linked.ok) {
     return apiError("Token invalide ou expiré", 400)
   }
-
-  await redis.del(key)
-
-  // UserNotificationSettings uses userId as PK — use supabaseAdmin upsert directly
-  const { error } = await supabaseAdmin
-    .from("UserNotificationSettings")
-    .upsert(
-      { userId, telegramChatId, missionProgressUpdates: true, telegramOnComplete: true },
-      { onConflict: "userId" }
-    )
-
-  if (error) return apiError("Failed to link Telegram", 500)
-
-  return apiSuccess({ ok: true, userId })
+  return apiSuccess({ ok: true, userId: linked.userId })
 }

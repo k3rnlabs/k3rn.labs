@@ -5,7 +5,7 @@
 Avant tout travail, lire dans l'ordre :
 1. **Ce fichier** (AGENTS.md) — stack, règles, architecture
 2. **`.Codex/rules/project-state.md`** — état vivant du projet, dernières avancées, next steps
-3. **`memory/MEMORY.md`** (auto-memory Codex) — patterns, fichiers clés, workflows n8n
+3. **`memory/MEMORY.md`** (auto-memory Codex) — patterns, fichiers clés et opérations de projet
 
 Ces 3 fichiers constituent le contexte minimum pour travailler sur K3RN sans régresser ni dupliquer du travail déjà fait.
 
@@ -51,11 +51,9 @@ Modifier uniquement ce qui est demandé. Pas de refacto non sollicitée, pas de 
 
 ### IA / LLM
 - LLM principal : OpenAI `gpt-4o` via `OPENAI_API_KEY`
-- Tous les appels LLM passent par `callLLMProxy()` dans `src/lib/n8n.ts` — jamais d'instance OpenAI directe
-- Appels complexes (pôles experts) → `invokeN8nPole()` via webhook n8n dédié
+- Tous les appels LLM passent par `callLLM()` dans `src/lib/llm.ts` ; aucun proxy d'automatisation entre l'app et OpenAI
 - `src/lib/Codex.ts` : invokeKAEL (Chief of Staff), invokeChefDeProjet (onboarding), generateKAELOpener, triggerKAELPostSessionNote, detectPoleRouting
-- `src/lib/n8n.ts` : callLLMProxy, invokeN8nPole, callN8nTool, notifySlack, sendEmail
-- Voir `.Codex/rules/llm-calls.md` pour le détail complet et les interdits
+- `src/lib/llm.ts` : gateway OpenAI directe et notification Telegram sortante
 
 ### Onboarding (KAEL)
 - `OnboardingState` est **authoritative côté serveur** — jamais dériver `isComplete` uniquement côté client
@@ -63,10 +61,10 @@ Modifier uniquement ce qui est demandé. Pas de refacto non sollicitée, pas de 
 - Filtrer `kind === "binary"` côté client avant envoi au LLM (pas de content/dataUrl utile)
 - Textarea auto-resize cappée à `max-h-[200px]` via `useAutoResize` (lit `getComputedStyle.maxHeight`)
 
-### n8n
-- Architecture : `K3RN app → n8n MCP → [slack|email|audit|budget]`
-- Jamais Zapier direct depuis l'app
-- Pattern sub-workflow : `toolWorkflow` v2.2 (Execute Workflow Trigger)
+### Workers et intégrations
+- Architecture : `K3RN app → workers internes → APIs fournisseurs`
+- Les webhooks internes utilisent `X-Internal-Secret` et `INTERNAL_WEBHOOK_SECRET`.
+- Telegram utilise le Bot API directement, avec un secret dédié pour son webhook entrant.
 
 ### 2.8 Missions & Dossiers
 - **Dossiers** : Gratuits, servent de conteneurs de regroupement.
@@ -80,7 +78,7 @@ Modifier uniquement ce qui est demandé. Pas de refacto non sollicitée, pas de 
 | Fichier | Rôle |
 |---------|------|
 | `src/lib/Codex.ts` | invokeKAEL (Chief of Staff), invokeChefDeProjet (onboarding), generateKAELOpener, triggerKAELPostSessionNote |
-| `src/lib/n8n.ts` | callLLMProxy, invokeN8nPole, callN8nTool, notifySlack, sendEmail |
+| `src/lib/llm.ts` | callLLM, notifyTelegram |
 | `src/lib/project-memory.ts` | buildProjectMemory — brief structuré injecté dans KAEL |
 | `src/lib/score-engine.ts` | computeAndPersistScore — 4 dimensions, quality multiplier |
 | `src/lib/db.ts` | Wrapper Supabase (DbModel) |
@@ -98,9 +96,6 @@ Modifier uniquement ce qui est demandé. Pas de refacto non sollicitée, pas de 
 ---
 
 ## MCP Servers disponibles
-
-### n8n MCP
-Workflows K3RN, gestion nodes, validation. Voir `memory/MEMORY.md` pour IDs des workflows actifs.
 
 ### Context7 MCP
 Doc live des librairies tierces. Utiliser systématiquement : `resolve-library-id` → `query-docs`.
@@ -141,7 +136,7 @@ Les originaux se trouvent dans `docs/experts/` et doivent être synchronisés ve
 | `brainstorming` | AVANT tout travail créatif (features, composants, archi) |
 | `architecture` | Décisions archi, trade-offs, ADR |
 | `ai-agents-architect` | Concevoir agent IA, tool use, orchestration |
-| `workflow-automation` | n8n vs Temporal vs Inngest, patterns durables |
+| `workflow-automation` | Workers internes et APIs fournisseurs, patterns durables |
 | `api-design-principles` | Conception ou review d'API REST/GraphQL |
 | `simplify` | Review code après écriture |
 

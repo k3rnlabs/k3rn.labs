@@ -2,7 +2,7 @@ import { NextRequest } from "next/server"
 import { verifySession } from "@/lib/auth"
 import { db as prisma } from "@/lib/db"
 import { validateBody, apiError, apiSuccess } from "@/lib/validate"
-import { broadcastToChannel } from "@/lib/realtime"
+import { broadcastToChannel } from "@/lib/realtime-server"
 import { z } from "zod"
 
 const canvasNodeSchema = z.object({

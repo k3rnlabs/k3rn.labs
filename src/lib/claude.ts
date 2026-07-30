@@ -1,4 +1,4 @@
-import { callLLMProxy, type LLMMessage } from "./n8n"
+import { callLLM, type LLMMessage } from "./llm"
 
 // ─── triggerDocumentExtraction ────────────────────────────────────────────────
 // Fire-and-forget: analyse les derniers messages d'une session pôle et extrait
@@ -19,7 +19,7 @@ export async function triggerDocumentExtraction(
 
     const messagesText = managerMessages.map((m) => m.content).join("\n\n---\n\n")
 
-    const { content } = await callLLMProxy([
+    const { content } = await callLLM([
       {
         role: "system",
         content: `Tu es un extracteur de livrables experts. Analyse les messages ci-dessous d'un expert (${managerName}, pôle ${poleCode}).
@@ -62,7 +62,7 @@ Réponds UNIQUEMENT en JSON valide :
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-webhook-secret": process.env.N8N_WEBHOOK_SECRET ?? "",
+        "x-internal-secret": process.env.INTERNAL_WEBHOOK_SECRET ?? "",
       },
       body: JSON.stringify({
         dossierId,
@@ -153,7 +153,7 @@ IMPORTANT: You MUST respond with a single valid JSON object matching exactly thi
 }
 Do not include any text outside the JSON object.`
 
-  const { content: text } = await callLLMProxy(
+  const { content: text } = await callLLM(
     [
       { role: "system", content: fullSystemPrompt },
       ...messages.map((m) => ({ role: m.role, content: m.content })),
@@ -192,7 +192,7 @@ Réponds en JSON:
 }
 Le message doit être naturel, direct, orienté action.`
 
-  const { content: text } = await callLLMProxy(
+  const { content: text } = await callLLM(
     [{ role: "system", content: systemPrompt }],
     { maxTokens: 800 }
   )
@@ -243,7 +243,7 @@ Sois concis, direct, orienté décision. Max 3 phrases par réponse.`
     { role: "user", content: userInput },
   ]
 
-  const { content: text } = await callLLMProxy(msgs, { maxTokens: 2048 })
+  const { content: text } = await callLLM(msgs, { maxTokens: 2048 })
   try {
     return JSON.parse(text) as ExpertChatResponse
   } catch {
@@ -454,7 +454,7 @@ message est OBLIGATOIRE. choices est OBLIGATOIRE si missionProposal est absent. 
     { role: "user", content: userInput },
   ]
 
-  const { content: text } = await callLLMProxy(msgs, { maxTokens: 1024 })
+  const { content: text } = await callLLM(msgs, { maxTokens: 1024 })
   try {
     return JSON.parse(text) as KAELResponse
   } catch {
@@ -501,7 +501,7 @@ Exemples corrects :
 
 Réponds en JSON : { "message": "ton message d'ouverture", "choices": ["action 1", "action 2", "action 3"] }`
 
-  const { content: text } = await callLLMProxy(
+  const { content: text } = await callLLM(
     [{ role: "system", content: system }],
     { maxTokens: 400, temperature: 0.4 }
   )
@@ -541,7 +541,7 @@ Génère une note de synthèse interne — 2-3 lignes max :
 Réponds en JSON : { "note": "ta synthèse interne" }`
 
   try {
-    const { content: text } = await callLLMProxy(
+    const { content: text } = await callLLM(
       [{ role: "system", content: system }],
       { maxTokens: 200, temperature: 0.3 }
     )
@@ -779,7 +779,7 @@ confirmedAspects = tous les aspects collectés. aspectQuality = qualité de chac
     { role: "user", content: userContent },
   ]
 
-  const { content: text } = await callLLMProxy(msgs, { maxTokens: 1024, timeoutMs: 28000, temperature: 0.3 })
+  const { content: text } = await callLLM(msgs, { maxTokens: 1024, timeoutMs: 28000, temperature: 0.3 })
   try {
     const parsed = JSON.parse(text) as KAELResponse
 
@@ -825,7 +825,7 @@ confirmedAspects = tous les aspects collectés. aspectQuality = qualité de chac
 /**
  * invokeExpertDirect — Appel LLM direct pour une session pôle expert.
  * Utilise le systemPrompt stocké en DB + le contexte projet.
- * Remplace invokeN8nPole pour les sessions interactives.
+ * Invocation directe de l'expert pour les sessions interactives.
  */
 export async function invokeExpertDirect(params: {
   managerName: string
@@ -857,7 +857,7 @@ RÈGLES DE COMPORTEMENT :
   ]
 
   try {
-    const { content } = await callLLMProxy(msgs, { maxTokens: 2048, temperature: 0.7, responseFormat: { type: "text" } })
+    const { content } = await callLLM(msgs, { maxTokens: 2048, temperature: 0.7, responseFormat: { type: "text" } })
     return content
   } catch (err) {
     console.error("[invokeExpertDirect] error:", err)

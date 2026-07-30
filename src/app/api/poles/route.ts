@@ -1,5 +1,6 @@
 import { verifySession } from "@/lib/auth"
 import { db as prisma } from "@/lib/db"
+import { publicPole } from "@/lib/public-dto"
 import { apiError, apiSuccess } from "@/lib/validate"
 
 export async function GET() {
@@ -13,5 +14,5 @@ export async function GET() {
     },
   })
 
-  return apiSuccess(poles)
+  return apiSuccess(poles.map(publicPole))
 }

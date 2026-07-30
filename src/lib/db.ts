@@ -74,6 +74,23 @@ const RELATIONS: Record<
   },
   User: {
     dossiers: { table: "Dossier", fk: "ownerId", type: "hasMany" },
+    studioCreations: { table: "StudioCreation", fk: "userId", type: "hasMany" },
+    studioProfiles: { table: "StudioProfile", fk: "userId", type: "hasMany" },
+    studioIdentityProfile: { table: "StudioIdentityProfile", fk: "userId", type: "hasOne" },
+  },
+  StudioCreation: {
+    user: { table: "User", fk: "userId", selfFk: "userId", type: "belongsTo" },
+    dossier: { table: "Dossier", fk: "dossierId", selfFk: "dossierId", type: "belongsTo" },
+    assets: { table: "StudioAsset", fk: "creationId", type: "hasMany" },
+    jobs: { table: "StudioJob", fk: "creationId", type: "hasMany" },
+    consent: { table: "StudioConsent", fk: "creationId", type: "hasOne" },
+  },
+  StudioProfile: {
+    creations: { table: "StudioCreation", fk: "studioProfileId", type: "hasMany" },
+  },
+  StudioIdentityProfile: {
+    assets: { table: "StudioIdentityAsset", fk: "identityProfileId", type: "hasMany" },
+    creations: { table: "StudioCreation", fk: "identityProfileId", type: "hasMany" },
   },
   Mission: {
     dossier: { table: "Dossier", fk: "dossierId", selfFk: "dossierId", type: "belongsTo" },
@@ -90,6 +107,14 @@ const TABLES_WITH_UPDATED_AT = new Set([
   "CanvasEdge",
   "PoleSession",
   "KaelSession",
+  "StudioCreation",
+  "StudioJob",
+  "StudioCreditLot",
+  "StudioCreditAllocation",
+  "StudioSubscription",
+  "StudioPushSubscription",
+  "StudioProfile",
+  "StudioIdentityProfile",
 ])
 
 function applyWhere(query: any, where: Record<string, any>): any {
@@ -342,9 +367,9 @@ class DbModel {
     }
     let q = supabaseAdmin.from(this.tableName).update(updateData)
     q = applyWhere(q, args.where)
-    const { error } = await q
+    const { data, error } = await q.select("id")
     if (error) throw new Error(`DB updateMany error on ${this.tableName}: ${error.message}`)
-    return { count: 0 }
+    return { count: data?.length ?? 0 }
   }
 }
 
@@ -375,6 +400,18 @@ class DbClient {
   userNotificationSettings = new DbModel("UserNotificationSettings")
   expertDocument = new DbModel("ExpertDocument")
   task = new DbModel("Task")
+  studioCreation = new DbModel("StudioCreation")
+  studioAsset = new DbModel("StudioAsset")
+  studioConsent = new DbModel("StudioConsent")
+  studioJob = new DbModel("StudioJob")
+  studioCreditLedger = new DbModel("StudioCreditLedger")
+  studioCreditLot = new DbModel("StudioCreditLot")
+  studioCreditAllocation = new DbModel("StudioCreditAllocation")
+  studioSubscription = new DbModel("StudioSubscription")
+  studioPushSubscription = new DbModel("StudioPushSubscription")
+  studioProfile = new DbModel("StudioProfile")
+  studioIdentityProfile = new DbModel("StudioIdentityProfile")
+  studioIdentityAsset = new DbModel("StudioIdentityAsset")
 
   // Raw text search via Supabase textSearch (uses GIN index)
   async cardFullTextSearch(args: {

@@ -17,7 +17,6 @@ export interface PoleSessionData {
   labAtCreation: string
   messages: Array<{ id: string; role: string; content: string; timestamp: string }>
   status: string
-  n8nStatus?: string
   pole?: { managerName: string; code: string; managerSlug: string }
 }
 
@@ -104,7 +103,7 @@ export function useSendPoleMessage() {
         body: JSON.stringify({ userMessage }),
       })
       if (!res.ok) throw new Error("Failed to send message")
-      return res.json() as Promise<{ session: PoleSessionData; managerResponse: unknown; n8nStatus: string }>
+      return res.json() as Promise<{ session: PoleSessionData; managerResponse: unknown; executionStatus: string }>
     },
   })
 }

@@ -3,6 +3,7 @@ import { cookies } from "next/headers"
 import { NextRequest } from "next/server"
 import { validateBody, apiError, apiSuccess } from "@/lib/validate"
 import { prisma } from "@/lib/prisma"
+import { translateAuthError } from "@/lib/auth-errors"
 import { z } from "zod"
 
 const signupSchema = z.object({
@@ -37,8 +38,10 @@ export async function POST(req: NextRequest) {
     password: result.data.password,
   })
 
-  if (error) return apiError(error.message, 400)
-  if (!data.user) return apiError("Signup failed", 500)
+  if (error) {
+    return apiError(translateAuthError(error.message), 400)
+  }
+  if (!data.user) return apiError("Échec de l'inscription", 500)
 
   // Lire le cookie referral_code pour lier le filleul à son ambassadeur
   const referralCode = cookieStore.get("referral_code")?.value ?? null

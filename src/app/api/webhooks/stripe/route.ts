@@ -22,22 +22,27 @@ export async function POST(req: NextRequest) {
     const { campaignId } = pi.metadata
 
     if (campaignId) {
-      await prisma.investment.updateMany({
-        where: { stripePaymentIntentId: pi.id },
+      const confirmed = await prisma.investment.updateMany({
+        where: { stripePaymentIntentId: pi.id, status: "PENDING" },
         data: { status: "CONFIRMED" },
       })
 
-      await prisma.crowdfundingCampaign.update({
-        where: { id: campaignId },
-        data: { raised: { increment: pi.amount / 100 } },
-      })
+      if (confirmed.count > 0) {
+        const campaign = await prisma.crowdfundingCampaign.findUnique({ where: { id: campaignId } })
+        if (!campaign) return NextResponse.json({ received: true })
 
-      const campaign = await prisma.crowdfundingCampaign.findUnique({ where: { id: campaignId } })
-      if (campaign && campaign.raised >= campaign.goal) {
+        const raised = campaign.raised + pi.amount / 100
         await prisma.crowdfundingCampaign.update({
           where: { id: campaignId },
-          data: { state: "CLOSED", closedAt: new Date() },
+          data: { raised },
         })
+
+        if (raised >= campaign.goal) {
+          await prisma.crowdfundingCampaign.update({
+            where: { id: campaignId },
+            data: { state: "CLOSED", closedAt: new Date() },
+          })
+        }
       }
     }
   }

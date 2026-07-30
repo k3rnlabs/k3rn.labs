@@ -53,7 +53,8 @@ export async function ingestNow(params: CardIngestionParams) {
         const res = await fetch(url, {
             method: "POST",
             headers: {
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
+                "X-Internal-Secret": process.env.INTERNAL_WEBHOOK_SECRET ?? "",
             },
             body: JSON.stringify({
                 messageId: params.messageId,

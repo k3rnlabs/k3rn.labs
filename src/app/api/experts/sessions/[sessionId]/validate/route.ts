@@ -4,7 +4,7 @@ import { db as prisma } from "@/lib/db"
 import { apiError, apiSuccess } from "@/lib/validate"
 import { createAuditLog } from "@/lib/audit"
 import { computeAndPersistScore } from "@/lib/score-engine"
-import { broadcastToChannel } from "@/lib/realtime"
+import { broadcastToChannel } from "@/lib/realtime-server"
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ sessionId: string }> }) {
   const session = await verifySession()

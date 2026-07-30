@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { Plus, Tag, Layers, FlaskConical, X, User, Settings, MessageCircle, Zap } from "lucide-react"
+import { Plus, Tag, Layers, FlaskConical, X, User, Settings, MessageCircle, Zap, Sparkles } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { useUserProfile } from "@/hooks/use-user-profile"
@@ -370,6 +370,12 @@ export function HomeDock({
                             </button>
                         </>
                     )}
+
+                    <DockButton
+                        icon={<Sparkles className="h-4 w-4 text-purple-400" />}
+                        label="Studio DA"
+                        onClick={() => router.push("/visual-engine/studio")}
+                    />
 
                     <div className="w-px h-6 bg-white/[0.07] mx-1 shrink-0" />
 

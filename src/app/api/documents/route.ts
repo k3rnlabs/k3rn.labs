@@ -2,7 +2,7 @@ import { NextRequest } from "next/server"
 import { verifySession } from "@/lib/auth"
 import { db as prisma } from "@/lib/db"
 import { apiError, apiSuccess, validateBody } from "@/lib/validate"
-import { env } from "@/lib/env"
+import { hasValidInternalWebhookSecret } from "@/lib/internal-webhook"
 import { z } from "zod"
 
 const createSchema = z.object({
@@ -48,9 +48,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  // Support webhook from n8n (no user session) OR authenticated user (upload)
-  const webhookSecret = req.headers.get("x-webhook-secret")
-  const isWebhook = env.N8N_WEBHOOK_SECRET && webhookSecret === env.N8N_WEBHOOK_SECRET
+  // Support trusted internal workers (no user session) OR authenticated user (upload)
+  const isWebhook = hasValidInternalWebhookSecret(req)
 
   if (!isWebhook) {
     const session = await verifySession()

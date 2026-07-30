@@ -1,0 +1,7 @@
+ALTER TABLE "Pole"
+  DROP COLUMN IF EXISTS "n8nWorkflowId",
+  DROP COLUMN IF EXISTS "n8nWebhookUrl";
+
+ALTER TABLE "PoleSession"
+  DROP COLUMN IF EXISTS "n8nExecutionId",
+  DROP COLUMN IF EXISTS "n8nStatus";

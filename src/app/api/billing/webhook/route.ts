@@ -4,6 +4,9 @@ import { getPackById } from "@/lib/credit-packs"
 import { getPlanByPriceId } from "@/lib/subscription-plans"
 import { creditTopUpMissions } from "@/lib/mission-budget"
 import { supabaseAdmin } from "@/lib/supabase-admin"
+import { getMiravaOffer, getMiravaPlanByPriceId, MIRAVA_STRIPE_PRODUCT } from "@/lib/mirava/brand"
+import { grantMiravaCredits, recordMiravaSubscription } from "@/lib/visual-engine/credits"
+import { getStripe } from "@/lib/stripe"
 import Stripe from "stripe"
 
 export async function POST(req: NextRequest) {
@@ -31,12 +34,36 @@ export async function POST(req: NextRequest) {
 
     // Top-up one-shot (mode: payment)
     if (checkoutSession.mode === "payment") {
-      const { userId, packId } = checkoutSession.metadata ?? {}
-      if (!userId || !packId) {
+      const { userId, offerId, packId, product } = checkoutSession.metadata ?? {}
+      if (!userId || (!offerId && !packId)) {
         console.error("[billing] top-up: missing metadata", checkoutSession.metadata)
         return NextResponse.json({ error: "Missing metadata" }, { status: 400 })
       }
 
+      if (product === MIRAVA_STRIPE_PRODUCT) {
+        const pack = getMiravaOffer(offerId ?? "")
+        if (pack?.kind !== "pack") {
+          console.error("[billing] mirava-studio top-up: unknown offer", checkoutSession.metadata)
+          return NextResponse.json({ error: "Unknown MIRAVA Studio offer" }, { status: 400 })
+        }
+        try {
+          await grantMiravaCredits({
+            userId,
+            kind: "PURCHASE",
+            ledgerKind: "PURCHASE",
+            amount: pack.credits,
+            key: `mirava-studio-stripe:${checkoutSession.id}`,
+            stripeSessionId: checkoutSession.id,
+            metadata: { product: MIRAVA_STRIPE_PRODUCT, offerId: pack.id },
+          })
+          console.log(`[billing] MIRAVA Studio credits applied → user ${userId} (offer: ${pack.id})`)
+          return NextResponse.json({ received: true })
+        } catch {
+          return NextResponse.json({ error: "Studio credit application failed" }, { status: 500 })
+        }
+      }
+
+      if (!packId) return NextResponse.json({ error: "Missing pack metadata" }, { status: 400 })
       const pack = getPackById(packId)
       if (!pack) {
         console.error("[billing] top-up: unknown packId", packId)
@@ -60,6 +87,23 @@ export async function POST(req: NextRequest) {
     }
 
     const priceId = sub.items.data[0]?.price?.id
+    if (sub.metadata?.product === MIRAVA_STRIPE_PRODUCT) {
+      const miravaPlan = getMiravaPlanByPriceId(priceId)
+      const periodStart = (sub.items.data[0] as Stripe.SubscriptionItem & { current_period_start?: number })?.current_period_start
+      const periodEnd = (sub.items.data[0] as Stripe.SubscriptionItem & { current_period_end?: number })?.current_period_end
+      await recordMiravaSubscription({
+        userId,
+        stripeCustomerId: typeof sub.customer === "string" ? sub.customer : sub.customer.id,
+        stripeSubscriptionId: sub.id,
+        planId: miravaPlan?.id ?? null,
+        status: sub.status,
+        currentPeriodStart: periodStart ? new Date(periodStart * 1000).toISOString() : null,
+        currentPeriodEnd: periodEnd ? new Date(periodEnd * 1000).toISOString() : null,
+        cancelAtPeriodEnd: sub.cancel_at_period_end,
+      })
+      await supabaseAdmin.from("User").update({ stripeCustomerId: typeof sub.customer === "string" ? sub.customer : sub.customer.id }).eq("id", userId)
+      return NextResponse.json({ received: true })
+    }
     const plan = priceId ? getPlanByPriceId(priceId) : undefined
 
     if (!plan || plan.tier === "FREE") {
@@ -91,6 +135,20 @@ export async function POST(req: NextRequest) {
     const userId = sub.metadata?.userId
     if (!userId) return NextResponse.json({ received: true })
 
+    if (sub.metadata?.product === MIRAVA_STRIPE_PRODUCT) {
+      await recordMiravaSubscription({
+        userId,
+        stripeCustomerId: typeof sub.customer === "string" ? sub.customer : sub.customer.id,
+        stripeSubscriptionId: sub.id,
+        planId: null,
+        status: "canceled",
+        currentPeriodStart: null,
+        currentPeriodEnd: null,
+        cancelAtPeriodEnd: false,
+      })
+      return NextResponse.json({ received: true })
+    }
+
     await supabaseAdmin
       .from("User")
       .update({
@@ -111,12 +169,54 @@ export async function POST(req: NextRequest) {
     const subId = typeof invoice.subscription === "string" ? invoice.subscription : invoice.subscription?.id
     if (!subId) return NextResponse.json({ received: true })
 
+    const subscription = await getStripe().subscriptions.retrieve(subId)
+    if (subscription.metadata?.product === MIRAVA_STRIPE_PRODUCT && subscription.metadata.userId) {
+      const item = subscription.items.data[0] as Stripe.SubscriptionItem & { current_period_start?: number; current_period_end?: number }
+      const plan = getMiravaPlanByPriceId(item?.price?.id)
+      await recordMiravaSubscription({
+        userId: subscription.metadata.userId,
+        stripeCustomerId: typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id,
+        stripeSubscriptionId: subscription.id,
+        planId: plan?.id ?? null,
+        status: subscription.status,
+        currentPeriodStart: item?.current_period_start ? new Date(item.current_period_start * 1000).toISOString() : null,
+        currentPeriodEnd: item?.current_period_end ? new Date(item.current_period_end * 1000).toISOString() : null,
+        cancelAtPeriodEnd: subscription.cancel_at_period_end,
+      })
+      return NextResponse.json({ received: true })
+    }
+
     await supabaseAdmin
       .from("User")
       .update({ subscriptionStatus: "past_due" })
       .eq("stripeSubscriptionId", subId)
 
     console.warn(`[billing] invoice payment failed for subscription ${subId}`)
+  }
+
+  // Stripe may emit a paid invoice without a subscription.updated event. Reading
+  // the subscription here keeps the monthly grant idempotent by period start.
+  if (event.type === "invoice.paid") {
+    const invoice = event.data.object as Stripe.Invoice & { subscription?: string | { id: string } }
+    const subscriptionId = typeof invoice.subscription === "string" ? invoice.subscription : invoice.subscription?.id
+    if (subscriptionId) {
+      const sub = await getStripe().subscriptions.retrieve(subscriptionId)
+      if (sub.metadata?.product === MIRAVA_STRIPE_PRODUCT && sub.metadata.userId) {
+        const priceId = sub.items.data[0]?.price?.id
+        const plan = getMiravaPlanByPriceId(priceId)
+        const item = sub.items.data[0] as Stripe.SubscriptionItem & { current_period_start?: number; current_period_end?: number }
+        await recordMiravaSubscription({
+          userId: sub.metadata.userId,
+          stripeCustomerId: typeof sub.customer === "string" ? sub.customer : sub.customer.id,
+          stripeSubscriptionId: sub.id,
+          planId: plan?.id ?? null,
+          status: sub.status,
+          currentPeriodStart: item?.current_period_start ? new Date(item.current_period_start * 1000).toISOString() : null,
+          currentPeriodEnd: item?.current_period_end ? new Date(item.current_period_end * 1000).toISOString() : null,
+          cancelAtPeriodEnd: sub.cancel_at_period_end,
+        })
+      }
+    }
   }
 
   return NextResponse.json({ received: true })

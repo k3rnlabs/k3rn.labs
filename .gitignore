@@ -11,6 +11,8 @@
 
 # next.js
 /.next/
+/.next-dev-*/
+/.tsconfig-dev-*.json
 /out/
 
 # production
@@ -68,4 +70,3 @@ update_workflow.mjs
 update_workflow_clean.mjs
 update_workflow_debug.mjs
 workflow_v3.json
-

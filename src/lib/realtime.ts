@@ -19,19 +19,3 @@ export function subscribeToChannel(
     supabase.removeChannel(sub)
   }
 }
-
-export async function broadcastToChannel(
-  dossierId: string,
-  channel: RealtimeChannel,
-  payload: unknown
-) {
-  const { createSupabaseAdmin } = await import("./supabase")
-  const supabase = createSupabaseAdmin()
-  const channelName = `dossier:${dossierId}:${channel}`
-
-  await supabase.channel(channelName).send({
-    type: "broadcast",
-    event: "update",
-    payload,
-  })
-}

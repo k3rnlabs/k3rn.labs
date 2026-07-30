@@ -15,7 +15,7 @@ Le système repose sur deux concepts fondamentaux :
 - **Base de données**: PostgreSQL (Supabase) + pgvector pour la mémoire sémantique
 - **ORM**: Prisma 7
 - **UI/UX**: Tailwind CSS + Framer Motion (Glassmorphism & Liquid Design)
-- **AI Orchestration**: n8n (Guichet Unique) + OpenAI/Claude
+- **AI Orchestration**: appels directs OpenAI (GPT-4o) depuis la couche serveur
 
 ## 🔋 Fonctionnalités Clés
 - **Canvas Unifié**: Une surface cognitive sans sidebar pour une immersion totale.
@@ -39,10 +39,17 @@ npm run dev
 
 # Worker d'ingestion (Graph)
 npm run worker
+
+# Worker MIRAVA Studio (générations privées asynchrones)
+npm run studio-worker
 ```
 
 ## 📜 Changelog
 Voir le fichier [CHANGELOG.md](./CHANGELOG.md) pour le détail des dernières versions.
+
+## MIRAVA Studio
+
+MIRAVA Studio est le studio de personal branding isolé accessible sous `/visual-engine`. Son exploitation, ses variables et sa configuration Stripe sont documentées dans [docs/architecture/MIRAVA-STUDIO.md](./docs/architecture/MIRAVA-STUDIO.md).
 # or
 pnpm dev
 # or

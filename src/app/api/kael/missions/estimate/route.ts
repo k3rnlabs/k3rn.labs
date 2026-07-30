@@ -3,7 +3,7 @@ import { verifySession } from "@/lib/auth"
 import { db as prisma } from "@/lib/db"
 import { apiError, apiSuccess, validateBody } from "@/lib/validate"
 import { buildProjectMemory } from "@/lib/project-memory"
-import { callLLMProxy } from "@/lib/n8n"
+import { callLLM } from "@/lib/llm"
 import { z } from "zod"
 
 const schema = z.object({
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
         .join("\n")}`
     : ""
 
-  const { content } = await callLLMProxy([
+  const { content } = await callLLM([
     {
       role: "system",
       content: `Tu es KAEL, Chief of Staff. À partir du brief projet et de l'objectif de mission, génère :

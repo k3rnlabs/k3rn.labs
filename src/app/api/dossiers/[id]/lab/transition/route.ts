@@ -4,7 +4,7 @@ import { db as prisma } from "@/lib/db"
 import { apiError, apiSuccess } from "@/lib/validate"
 import { createAuditLog } from "@/lib/audit"
 import { LAB_CONDITIONS, getLabOrder } from "@/lib/lab-conditions"
-import { broadcastToChannel } from "@/lib/realtime"
+import { broadcastToChannel } from "@/lib/realtime-server"
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await verifySession()

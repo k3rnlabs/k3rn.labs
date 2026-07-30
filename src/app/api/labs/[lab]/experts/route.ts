@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { verifySession } from "@/lib/auth"
 import { apiError, apiSuccess } from "@/lib/validate"
 import { db as prisma } from "@/lib/db"
+import { publicExpert } from "@/lib/public-dto"
 import type { LabType } from "@prisma/client"
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ lab: string }> }) {
@@ -19,5 +20,5 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ lab:
     where: { lab: lab as LabType },
   })
 
-  return apiSuccess(experts)
+  return apiSuccess(experts.map(publicExpert))
 }

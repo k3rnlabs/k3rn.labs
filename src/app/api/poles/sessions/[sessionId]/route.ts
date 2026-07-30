@@ -6,6 +6,7 @@ import { buildProjectMemory } from "@/lib/project-memory"
 import { invokeExpertDirect, triggerKAELPostSessionNote, triggerDocumentExtraction } from "@/lib/claude"
 import { computeAndPersistScore } from "@/lib/score-engine"
 import { checkMissionBudget, consumeMission } from "@/lib/mission-budget"
+import { publicPoleSession } from "@/lib/public-dto"
 import { z } from "zod"
 import { randomUUID } from "node:crypto"
 
@@ -69,7 +70,6 @@ export async function POST(req: NextRequest, { params }: { params: { sessionId: 
     where: { id: params.sessionId },
     data: {
       messages: newMessages,
-      n8nStatus: "COMPLETED",
     },
   })
 
@@ -108,7 +108,7 @@ export async function POST(req: NextRequest, { params }: { params: { sessionId: 
   return apiSuccess({
     session: updated,
     managerResponse: lastManagerMsg,
-    n8nStatus: "COMPLETED",
+    executionStatus: "COMPLETED",
   })
 }
 
@@ -123,5 +123,5 @@ export async function GET(_req: NextRequest, { params }: { params: { sessionId: 
   if (!poleSession) return apiError("Not found", 404)
   if (poleSession.dossier.ownerId !== session.userId) return apiError("Forbidden", 403)
 
-  return apiSuccess(poleSession)
+  return apiSuccess(publicPoleSession(poleSession))
 }

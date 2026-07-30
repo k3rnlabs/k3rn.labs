@@ -10,6 +10,20 @@ const config: Config = {
 	theme: {
 		extend: {
 			colors: {
+				mirava: {
+					canvas: 'rgb(var(--mirava-canvas-rgb) / <alpha-value>)',
+					'canvas-raised': 'rgb(var(--mirava-canvas-raised-rgb) / <alpha-value>)',
+					surface: 'rgb(var(--mirava-surface-rgb) / <alpha-value>)',
+					'surface-raised': 'rgb(var(--mirava-surface-raised-rgb) / <alpha-value>)',
+					ink: 'rgb(var(--mirava-ink-rgb) / <alpha-value>)',
+					'ink-secondary': 'rgb(var(--mirava-ink-secondary-rgb) / <alpha-value>)',
+					muted: 'rgb(var(--mirava-ink-muted-rgb) / <alpha-value>)',
+					line: 'var(--mirava-line)',
+					'line-strong': 'var(--mirava-line-strong)',
+					accent: 'rgb(var(--mirava-accent-rgb) / <alpha-value>)',
+					success: 'rgb(var(--mirava-success-rgb) / <alpha-value>)',
+					danger: 'rgb(var(--mirava-danger-rgb) / <alpha-value>)',
+				},
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
 				ring: 'hsl(var(--ring))',

@@ -1,4 +1,4 @@
-import { callLLMProxy } from "@/lib/n8n";
+import { callLLM } from "@/lib/llm";
 import { buildSystemPrompt, buildUserPrompt } from "./promptBuilder";
 import { validateConcepts, StoryConcept } from "./schemaGuard";
 import { type StoryPayload } from "../schema/types";
@@ -16,7 +16,7 @@ export async function generateStoryConcepts(
         const systemPrompt = buildSystemPrompt();
         const userPrompt = buildUserPrompt(intent, tone, variantsCount);
 
-        const response = await callLLMProxy([
+        const response = await callLLM([
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt }
         ], {
