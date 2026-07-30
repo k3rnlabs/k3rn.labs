@@ -1,0 +1,5 @@
+PASS examples/mirava/input-manifest.json
+PASS examples/mirava/page-map.json
+PASS examples/mirava/scorecard.json
+PASS examples/mirava/prompt-package.json
+PASS examples/mirava/findings.json

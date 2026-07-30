@@ -150,7 +150,16 @@ export default function MiravaLoginPage() {
           const errMsg = data?.error || data?.message || (typeof data?.details === "string" ? data.details : null) || "Échec de l'inscription. Vérifiez vos informations."
           throw new Error(errMsg)
         }
-        setSuccess(t.signupSuccess)
+        if (data?.session || data?.autoConfirmed) {
+          router.push("/visual-engine/studio")
+          router.refresh()
+          return
+        }
+        setSuccess(
+          locale === "fr"
+            ? "Compte créé ! Vérifiez votre boîte mail (et vos indésirables/Spam). Si la confirmation automatique est activée, vous pouvez aussi vous connecter directement."
+            : "¡Cuenta creada! Revisa tu correo (y tu carpeta de Spam). Si la confirmación automática está activa, también puedes iniciar sesión directamente."
+        )
         setMode("login")
         setPassword("")
         setConfirmPassword("")

@@ -76,7 +76,12 @@ export default function LoginPage() {
           const errMsg = data?.error || data?.message || (typeof data?.details === "string" ? data.details : null) || "Échec de l'inscription."
           throw new Error(errMsg)
         }
-        setSuccess("Compte créé — vérifie ton email pour confirmer.")
+        if (data?.session || data?.autoConfirmed) {
+          router.push("/home")
+          router.refresh()
+          return
+        }
+        setSuccess("Compte créé ! Vérifie ta boîte mail (et ton dossier Spams/Indésirables). Tu peux aussi essayer de te connecter directement.")
         setMode("login")
         setPassword("")
         setConfirmPassword("")

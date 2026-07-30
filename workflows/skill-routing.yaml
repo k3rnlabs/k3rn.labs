@@ -1,0 +1,8 @@
+routing:
+  product_marketing: {skills: [product-marketing], triggers: [target_audience_unclear, proposition_unclear, differentiation_missing]}
+  copy: {skills: [copywriting, ai-seo], triggers: [headline, cta, section_copy, faq, public_landing]}
+  visual: {skills: [ui-ux-pro-max, impeccable, web-design-guidelines], triggers: [layout, typography, color, cards, responsive, design_system, ai_fingerprint]}
+  browser: {skills: [playwright-cli, agent-browser], triggers: [url_available, interaction_review, responsive_runtime, console_network]}
+  react_next: {skills: [next-best-practices, vercel-react-best-practices], triggers: [confirmed_nextjs, confirmed_react]}
+  data: {skills: [supabase, supabase-postgres-best-practices], triggers: [confirmed_supabase, schema, rls, storage]}
+  review: {skills: [find-bugs, code-review, security-review, code-simplifier, iterate-pr], triggers: [implementation_complete, pr_ready]}

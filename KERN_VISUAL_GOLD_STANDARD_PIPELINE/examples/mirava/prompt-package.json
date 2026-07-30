@@ -1,0 +1,113 @@
+{
+  "run_id": "KERN-MIRAVA-20260730-R01",
+  "lots": [
+    {
+      "id": "LOT-01",
+      "title": "Positioning, structure and trust",
+      "finding_ids": [
+        "POS-001",
+        "CRO-001",
+        "IA-001",
+        "TRUST-001",
+        "COPY-001"
+      ],
+      "skills": [
+        "product-marketing",
+        "copywriting",
+        "ui-ux-pro-max"
+      ],
+      "objective": "Make MIRAVA understandable, trustworthy and actionable before visual polish.",
+      "audit_prompt": "Audit MIRAVA positioning and structure without modifying code. Validate the listed findings and stop before implementation.",
+      "implementation_prompt": "Use product-marketing, copywriting and ui-ux-pro-max. Clarify the target and mechanism, rewrite hero/CTA, move the process earlier and add truthful privacy reassurance. Do not invent proof.",
+      "verification_prompt": "Do not modify code. Compare new desktop/mobile captures with the original and classify every LOT-01 finding.",
+      "acceptance_criteria": [
+        "Hero passes five-second test.",
+        "Input/output mechanism is explicit.",
+        "Process appears in first four sections.",
+        "Privacy claims are truthful and close to upload.",
+        "CTA states a concrete result."
+      ],
+      "dependencies": []
+    },
+    {
+      "id": "LOT-02",
+      "title": "Visual system and AI-template reduction",
+      "finding_ids": [
+        "VIS-001",
+        "AI-001",
+        "VIS-002"
+      ],
+      "skills": [
+        "ui-ux-pro-max",
+        "impeccable",
+        "web-design-guidelines"
+      ],
+      "objective": "Replace card monoculture with a proprietary editorial grammar.",
+      "audit_prompt": "Audit only component hierarchy, surfaces, radii, cadence and identity composition.",
+      "implementation_prompt": "Implement approved visual-system changes while preserving MIRAVA’s dark photographic identity.",
+      "verification_prompt": "Compare cadence, card count and identity balance at 1440 and 390.",
+      "acceptance_criteria": [
+        "No universal card treatment.",
+        "At least three composition types.",
+        "Identity section is intentionally balanced.",
+        "Fingerprint target <=25."
+      ],
+      "dependencies": [
+        "LOT-01"
+      ]
+    },
+    {
+      "id": "LOT-03",
+      "title": "Asset diversity and evidence",
+      "finding_ids": [
+        "IMG-001",
+        "CRO-002"
+      ],
+      "skills": [
+        "ui-ux-pro-max",
+        "product-marketing",
+        "copywriting"
+      ],
+      "objective": "Demonstrate range and credibility with non-repeated assets and real proof.",
+      "audit_prompt": "Inventory image families and available real proof without fabricating replacements.",
+      "implementation_prompt": "Replace repeated assets and add only verified proof.",
+      "verification_prompt": "Count repeated families and validate provenance.",
+      "acceptance_criteria": [
+        "No hero asset reused as another primary visual.",
+        "At least three distinct use cases.",
+        "Every proof is sourced."
+      ],
+      "dependencies": [
+        "LOT-01"
+      ]
+    },
+    {
+      "id": "LOT-04",
+      "title": "Mobile readability and compression",
+      "finding_ids": [
+        "VIS-003",
+        "RESP-001"
+      ],
+      "skills": [
+        "ui-ux-pro-max",
+        "impeccable",
+        "web-design-guidelines",
+        "playwright-cli"
+      ],
+      "objective": "Reduce mobile scroll fatigue while preserving the story.",
+      "audit_prompt": "Audit mobile at 390 and 360; measure current typography when URL exists.",
+      "implementation_prompt": "Compact mobile layouts, remove nonessential microcopy and preserve touch targets.",
+      "verification_prompt": "Run browser checks at 390 and 360 and inspect overflow, text, focus and flow.",
+      "acceptance_criteria": [
+        "No essential text below 14px.",
+        "No nested-card overflow.",
+        "Primary CTA reached without redundant sections.",
+        "Touch targets >=44px when measured."
+      ],
+      "dependencies": [
+        "LOT-01",
+        "LOT-02"
+      ]
+    }
+  ]
+}

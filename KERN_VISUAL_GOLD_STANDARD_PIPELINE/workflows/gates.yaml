@@ -1,0 +1,18 @@
+version: "1.0.0"
+gates:
+  G00: {pass: [unique_run_id, inputs_registered, prior_run_not_overwritten]}
+  G01:
+    pass: [desktop_capture_usable, mobile_capture_usable, manifest_valid]
+    block: [missing_required_viewport, unreadable_capture, corrupt_or_unsafe_file]
+  G02: {pass: [stable_section_ids, desktop_mobile_reconciled, neutral_language_only]}
+  G03: {pass: [finding_schema_valid, evidence_for_every_finding, no_unsupported_exact_values]}
+  G04: {pass: [score_dimensions_evidenced, no_authorship_claim]}
+  G05: {pass: [positioning_and_design_separated, no_fabricated_social_proof, five_second_test_completed]}
+  G06: {pass: [asset_families_inventoried, repeats_counted, uncertain_identity_matches_labeled]}
+  G07: {pass: [technical_claims_reproducible, command_or_file_evidence], skip: [captures_only_mode]}
+  G08: {pass: [all_p0_p1_assigned_to_one_lot, dependencies_explicit, no_unbounded_lot]}
+  G09: {pass: [weights_total_100, arithmetic_valid, evidence_ceiling_respected, score_over_90_rule_respected]}
+  G10: {pass: [three_prompts_per_lot, prompts_self_contained, audit_and_verification_no_mutation]}
+  G11: {pass: [every_p0_p1_verified, like_for_like_viewports, regressions_checked]}
+  G12:
+    gold_standard: [open_p0_equals_0, critical_open_p1_equals_0, desktop_and_mobile_verified, evidence_level_requirements_met, score_gte_90, ai_fingerprint_lte_25, no_unsupported_claims]

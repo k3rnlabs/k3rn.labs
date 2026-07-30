@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Page Map",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_id",
+    "sections"
+  ],
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "order",
+          "role",
+          "desktop",
+          "mobile"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+$"
+          },
+          "order": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "role": {
+            "type": "string",
+            "minLength": 1
+          },
+          "heading": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "desktop": {
+            "$ref": "#/$defs/layout"
+          },
+          "mobile": {
+            "$ref": "#/$defs/layout"
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "asset_families": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "uncertainty": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "layout": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "layout_type",
+        "visible"
+      ],
+      "properties": {
+        "visible": {
+          "type": "boolean"
+        },
+        "layout_type": {
+          "enum": [
+            "stack",
+            "split",
+            "grid",
+            "carousel",
+            "timeline",
+            "accordion",
+            "banner",
+            "unknown"
+          ]
+        },
+        "column_ratio": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "estimated_height": {
+          "enum": [
+            "compact",
+            "medium",
+            "large",
+            "very_large",
+            "unknown"
+          ]
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

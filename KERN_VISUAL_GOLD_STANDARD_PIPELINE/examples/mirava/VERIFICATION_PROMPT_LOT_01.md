@@ -1,0 +1,1 @@
+Do not modify code. Compare new desktop/mobile captures with the original and classify every LOT-01 finding.

@@ -1,0 +1,201 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Audit Finding",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "run_id",
+    "category",
+    "severity",
+    "viewport",
+    "section_id",
+    "title",
+    "observation",
+    "evidence",
+    "impact",
+    "recommendation",
+    "skills",
+    "effort",
+    "confidence",
+    "status",
+    "verification"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Z]{2,5}-[0-9]{3}$"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "category": {
+      "enum": [
+        "positioning",
+        "information_architecture",
+        "visual_hierarchy",
+        "layout",
+        "spacing",
+        "typography",
+        "color_contrast",
+        "component_system",
+        "responsive",
+        "image_art_direction",
+        "ai_fingerprint",
+        "trust",
+        "cro",
+        "copy",
+        "accessibility",
+        "performance",
+        "seo_geo",
+        "privacy_security",
+        "technical_quality"
+      ]
+    },
+    "severity": {
+      "enum": [
+        "P0",
+        "P1",
+        "P2",
+        "P3"
+      ]
+    },
+    "viewport": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "desktop",
+          "tablet",
+          "mobile",
+          "all",
+          "technical"
+        ]
+      }
+    },
+    "section_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "observation": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "artifact",
+          "note"
+        ],
+        "properties": {
+          "artifact": {
+            "type": "string",
+            "minLength": 1
+          },
+          "region": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "minItems": 4,
+            "maxItems": 4,
+            "items": {
+              "type": "number",
+              "minimum": 0
+            }
+          },
+          "note": {
+            "type": "string",
+            "minLength": 1
+          },
+          "command": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "file": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "line": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          }
+        }
+      }
+    },
+    "impact": {
+      "type": "string",
+      "minLength": 1
+    },
+    "recommendation": {
+      "type": "string",
+      "minLength": 1
+    },
+    "skills": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string"
+      }
+    },
+    "effort": {
+      "enum": [
+        "XS",
+        "S",
+        "M",
+        "L",
+        "XL"
+      ]
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "status": {
+      "enum": [
+        "OPEN",
+        "APPROVED",
+        "IN_PROGRESS",
+        "RESOLVED",
+        "PARTIALLY_RESOLVED",
+        "UNCHANGED",
+        "REGRESSED",
+        "REJECTED"
+      ]
+    },
+    "verification": {
+      "type": "string",
+      "minLength": 1
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "lot_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}

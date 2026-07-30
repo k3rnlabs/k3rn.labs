@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Audit Run",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "project_id",
+    "status",
+    "mode",
+    "evidence_level",
+    "created_at"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "enum": [
+        "DRAFT",
+        "INPUTS_VALIDATED",
+        "PAGE_MAPPED",
+        "VISUAL_AUDITED",
+        "AI_FINGERPRINT_AUDITED",
+        "CRO_AUDITED",
+        "ART_DIRECTION_AUDITED",
+        "TECHNICAL_AUDITED",
+        "TECHNICAL_SKIPPED",
+        "PRIORITIZED",
+        "PROMPTS_PACKAGED",
+        "IMPLEMENTATION_PENDING",
+        "VERIFICATION_PENDING",
+        "VERIFIED",
+        "FINAL_REVIEWED",
+        "COMPLETE",
+        "BLOCKED",
+        "FAILED"
+      ]
+    },
+    "mode": {
+      "enum": [
+        "captures",
+        "url",
+        "repository"
+      ]
+    },
+    "evidence_level": {
+      "enum": [
+        "A",
+        "B",
+        "C"
+      ]
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "updated_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "current_gate": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "limitations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "metadata": {
+      "type": "object"
+    }
+  }
+}

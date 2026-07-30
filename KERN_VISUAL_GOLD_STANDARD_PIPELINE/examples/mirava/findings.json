@@ -1,0 +1,423 @@
+[
+  {
+    "id": "POS-001",
+    "run_id": "KERN-MIRAVA-20260730-R01",
+    "category": "positioning",
+    "severity": "P0",
+    "viewport": [
+      "all"
+    ],
+    "section_id": "hero",
+    "title": "La cible et le mécanisme restent insuffisamment explicites",
+    "observation": "Le hero promet un studio photo personnel sans expliquer clairement les photos fournies, le résultat généré et l’utilisateur prioritaire.",
+    "evidence": [
+      {
+        "artifact": "assets/desktop-full.png",
+        "region": null,
+        "note": "Promesse, montage et CTA visibles sans schéma input/output explicite.",
+        "command": null,
+        "file": null,
+        "line": null
+      }
+    ],
+    "impact": "Le visiteur peut apprécier l’esthétique sans comprendre assez vite le produit.",
+    "recommendation": "Ajouter une phrase mécaniste et étiqueter photos sources, style et résultats.",
+    "skills": [
+      "product-marketing",
+      "copywriting"
+    ],
+    "effort": "S",
+    "confidence": 0.9,
+    "status": "OPEN",
+    "verification": "Re-audit with like-for-like desktop/mobile evidence and record result.",
+    "dependencies": [],
+    "lot_id": "LOT-01"
+  },
+  {
+    "id": "CRO-001",
+    "run_id": "KERN-MIRAVA-20260730-R01",
+    "category": "cro",
+    "severity": "P0",
+    "viewport": [
+      "all"
+    ],
+    "section_id": "hero",
+    "title": "Le CTA ne réduit pas le risque d’entrée",
+    "observation": "Le CTA ne précise pas le nombre de photos, le temps, le prix ou les conditions d’essai.",
+    "evidence": [
+      {
+        "artifact": "assets/desktop-full.png",
+        "region": null,
+        "note": "Aucune réassurance opérationnelle clairement lisible près du CTA.",
+        "command": null,
+        "file": null,
+        "line": null
+      }
+    ],
+    "impact": "L’incertitude peut empêcher le clic.",
+    "recommendation": "Employer un CTA orienté résultat et ajouter uniquement des conditions véridiques.",
+    "skills": [
+      "product-marketing",
+      "copywriting"
+    ],
+    "effort": "S",
+    "confidence": 0.86,
+    "status": "OPEN",
+    "verification": "Re-audit with like-for-like desktop/mobile evidence and record result.",
+    "dependencies": [
+      "POS-001"
+    ],
+    "lot_id": "LOT-01"
+  },
+  {
+    "id": "TRUST-001",
+    "run_id": "KERN-MIRAVA-20260730-R01",
+    "category": "trust",
+    "severity": "P0",
+    "viewport": [
+      "all"
+    ],
+    "section_id": "reference-flow",
+    "title": "La confiance autour des photos personnelles est trop éloignée de l’action",
+    "observation": "La page implique un upload de portraits sans réassurance forte visible sur stockage, suppression, droits ou contrôle.",
+    "evidence": [
+      {
+        "artifact": "assets/desktop-full.png",
+        "region": null,
+        "note": "Aucune preuve de confidentialité clairement visible près du premier flux.",
+        "command": null,
+        "file": null,
+        "line": null
+      }
+    ],
+    "impact": "Le risque perçu est élevé pour des portraits personnels.",
+    "recommendation": "Ajouter une réassurance véridique au point de décision et une section détaillée.",
+    "skills": [
+      "product-marketing",
+      "copywriting",
+      "security-review"
+    ],
+    "effort": "M",
+    "confidence": 0.8,
+    "status": "OPEN",
+    "verification": "Re-audit with like-for-like desktop/mobile evidence and record result.",
+    "dependencies": [],
+    "lot_id": "LOT-01"
+  },
+  {
+    "id": "VIS-001",
+    "run_id": "KERN-MIRAVA-20260730-R01",
+    "category": "component_system",
+    "severity": "P1",
+    "viewport": [
+      "all"
+    ],
+    "section_id": "all",
+    "title": "La page repose sur une monoculture de cartes sombres arrondies",
+    "observation": "De nombreuses sections utilisent la même surface graphite, bordure fine, rayon proche et composition split.",
+    "evidence": [
+      {
+        "artifact": "assets/desktop-full.png",
+        "region": null,
+        "note": "Styles, référence, formats, processus, FAQ et CTA reprennent une grammaire très proche.",
+        "command": null,
+        "file": null,
+        "line": null
+      }
+    ],
+    "impact": "La cohérence devient monotonie et renforce la perception de template.",
+    "recommendation": "Réserver les cartes aux unités autonomes et varier les compositions.",
+    "skills": [
+      "ui-ux-pro-max",
+      "impeccable"
+    ],
+    "effort": "M",
+    "confidence": 0.95,
+    "status": "OPEN",
+    "verification": "Re-audit with like-for-like desktop/mobile evidence and record result.",
+    "dependencies": [],
+    "lot_id": "LOT-02"
+  },
+  {
+    "id": "AI-001",
+    "run_id": "KERN-MIRAVA-20260730-R01",
+    "category": "ai_fingerprint",
+    "severity": "P1",
+    "viewport": [
+      "all"
+    ],
+    "section_id": "all",
+    "title": "Plusieurs conventions signalent un template IA",
+    "observation": "Gradients noirs radiaux, micro-labels, titres formulaires, arrondis universels et splits répétés.",
+    "evidence": [
+      {
+        "artifact": "assets/desktop-full.png",
+        "region": null,
+        "note": "Les conventions se répètent sur la majorité des sections.",
+        "command": null,
+        "file": null,
+        "line": null
+      }
+    ],
+    "impact": "Le produit paraît moins propriétaire.",
+    "recommendation": "Créer une grammaire liée au studio photo et réduire les motifs répétitifs.",
+    "skills": [
+      "impeccable",
+      "ui-ux-pro-max"
+    ],
+    "effort": "M",
+    "confidence": 0.92,
+    "status": "OPEN",
+    "verification": "Re-audit with like-for-like desktop/mobile evidence and record result.",
+    "dependencies": [
+      "VIS-001"
+    ],
+    "lot_id": "LOT-02"
+  },
+  {
+    "id": "IMG-001",
+    "run_id": "KERN-MIRAVA-20260730-R01",
+    "category": "image_art_direction",
+    "severity": "P1",
+    "viewport": [
+      "all"
+    ],
+    "section_id": "all",
+    "title": "La même famille d’image est réutilisée dans trop de sections",
+    "observation": "La femme en robe orange apparaît dans le hero, les styles, Escapade solaire et les formats.",
+    "evidence": [
+      {
+        "artifact": "assets/desktop-full.png",
+        "region": null,
+        "note": "Au moins quatre occurrences visibles de la famille orange-dress.",
+        "command": null,
+        "file": null,
+        "line": null
+      }
+    ],
+    "impact": "La variété promise semble plus faible et les assets paraissent limités.",
+    "recommendation": "Conserver une occurrence principale et remplacer les autres par des cas distincts.",
+    "skills": [
+      "ui-ux-pro-max",
+      "impeccable"
+    ],
+    "effort": "M",
+    "confidence": 0.98,
+    "status": "OPEN",
+    "verification": "Re-audit with like-for-like desktop/mobile evidence and record result.",
+    "dependencies": [],
+    "lot_id": "LOT-03"
+  },
+  {
+    "id": "VIS-002",
+    "run_id": "KERN-MIRAVA-20260730-R01",
+    "category": "layout",
+    "severity": "P1",
+    "viewport": [
+      "desktop"
+    ],
+    "section_id": "identity",
+    "title": "La section identité présente un vide vertical disproportionné",
+    "observation": "La colonne texte se termine bien avant la mosaïque d’images.",
+    "evidence": [
+      {
+        "artifact": "assets/desktop-full.png",
+        "region": null,
+        "note": "Déséquilibre visible dans la section identité.",
+        "command": null,
+        "file": null,
+        "line": null
+      }
+    ],
+    "impact": "La composition paraît accidentelle et allonge la page.",
+    "recommendation": "Recomposer la grille et répartir preuve et explication.",
+    "skills": [
+      "ui-ux-pro-max",
+      "impeccable"
+    ],
+    "effort": "M",
+    "confidence": 0.94,
+    "status": "OPEN",
+    "verification": "Re-audit with like-for-like desktop/mobile evidence and record result.",
+    "dependencies": [],
+    "lot_id": "LOT-02"
+  },
+  {
+    "id": "COPY-001",
+    "run_id": "KERN-MIRAVA-20260730-R01",
+    "category": "copy",
+    "severity": "P1",
+    "viewport": [
+      "all"
+    ],
+    "section_id": "all",
+    "title": "Les titres suivent une formule répétitive",
+    "observation": "Plusieurs titres utilisent une courte promesse élégante avec peu de vocabulaire propriétaire.",
+    "evidence": [
+      {
+        "artifact": "assets/desktop-full.png",
+        "region": null,
+        "note": "Les titres de référence, identité et processus partagent une construction proche.",
+        "command": null,
+        "file": null,
+        "line": null
+      }
+    ],
+    "impact": "La copy paraît issue d’un modèle de landing.",
+    "recommendation": "Alterner promesse, preuve, mécanisme, objection et résultat.",
+    "skills": [
+      "product-marketing",
+      "copywriting"
+    ],
+    "effort": "S",
+    "confidence": 0.9,
+    "status": "OPEN",
+    "verification": "Re-audit with like-for-like desktop/mobile evidence and record result.",
+    "dependencies": [
+      "POS-001"
+    ],
+    "lot_id": "LOT-01"
+  },
+  {
+    "id": "VIS-003",
+    "run_id": "KERN-MIRAVA-20260730-R01",
+    "category": "typography",
+    "severity": "P1",
+    "viewport": [
+      "mobile"
+    ],
+    "section_id": "all",
+    "title": "Les textes secondaires deviennent trop petits sur mobile",
+    "observation": "Labels, métadonnées et contenus internes sont difficilement lisibles.",
+    "evidence": [
+      {
+        "artifact": "assets/mobile-full.png",
+        "region": null,
+        "note": "Les petites lignes des cartes, formulaires et FAQ perdent en lisibilité.",
+        "command": null,
+        "file": null,
+        "line": null
+      }
+    ],
+    "impact": "La lecture devient fatigante et des informations disparaissent pratiquement.",
+    "recommendation": "Fixer un minimum mobile et supprimer les métadonnées non essentielles.",
+    "skills": [
+      "ui-ux-pro-max",
+      "web-design-guidelines"
+    ],
+    "effort": "M",
+    "confidence": 0.82,
+    "status": "OPEN",
+    "verification": "Re-audit with like-for-like desktop/mobile evidence and record result.",
+    "dependencies": [],
+    "lot_id": "LOT-04"
+  },
+  {
+    "id": "IA-001",
+    "run_id": "KERN-MIRAVA-20260730-R01",
+    "category": "information_architecture",
+    "severity": "P1",
+    "viewport": [
+      "all"
+    ],
+    "section_id": "process",
+    "title": "Le fonctionnement apparaît trop tard",
+    "observation": "La section en trois étapes arrive après plusieurs bénéfices et démonstrations.",
+    "evidence": [
+      {
+        "artifact": "assets/desktop-full.png",
+        "region": null,
+        "note": "La section processus est proche du bas, avant la FAQ.",
+        "command": null,
+        "file": null,
+        "line": null
+      }
+    ],
+    "impact": "Le visiteur doit inférer le fonctionnement.",
+    "recommendation": "Déplacer une version compacte du processus juste après le hero ou la première preuve.",
+    "skills": [
+      "product-marketing",
+      "copywriting",
+      "ui-ux-pro-max"
+    ],
+    "effort": "M",
+    "confidence": 0.96,
+    "status": "OPEN",
+    "verification": "Re-audit with like-for-like desktop/mobile evidence and record result.",
+    "dependencies": [
+      "POS-001"
+    ],
+    "lot_id": "LOT-01"
+  },
+  {
+    "id": "CRO-002",
+    "run_id": "KERN-MIRAVA-20260730-R01",
+    "category": "cro",
+    "severity": "P1",
+    "viewport": [
+      "all"
+    ],
+    "section_id": "all",
+    "title": "La page manque de preuve externe ou mesurée",
+    "observation": "Les captures montrent résultats et fonctionnalités mais pas d’étude de cas ou métrique réelle.",
+    "evidence": [
+      {
+        "artifact": "assets/desktop-full.png",
+        "region": null,
+        "note": "Aucune bande de preuve ou étude de cas visible.",
+        "command": null,
+        "file": null,
+        "line": null
+      }
+    ],
+    "impact": "La landing peut être perçue comme un concept soigné plutôt qu’un produit éprouvé.",
+    "recommendation": "Ajouter uniquement des preuves réelles et sourcées.",
+    "skills": [
+      "product-marketing",
+      "copywriting"
+    ],
+    "effort": "L",
+    "confidence": 0.88,
+    "status": "OPEN",
+    "verification": "Re-audit with like-for-like desktop/mobile evidence and record result.",
+    "dependencies": [],
+    "lot_id": "LOT-03"
+  },
+  {
+    "id": "RESP-001",
+    "run_id": "KERN-MIRAVA-20260730-R01",
+    "category": "responsive",
+    "severity": "P1",
+    "viewport": [
+      "mobile"
+    ],
+    "section_id": "all",
+    "title": "L’empilement mobile produit une page très longue et monotone",
+    "observation": "Les grands blocs split deviennent des cartes verticales successives avec plusieurs niveaux.",
+    "evidence": [
+      {
+        "artifact": "assets/mobile-full.png",
+        "region": null,
+        "note": "La capture mobile montre une succession prolongée de surfaces proches.",
+        "command": null,
+        "file": null,
+        "line": null
+      }
+    ],
+    "impact": "La fatigue de scroll augmente avant le CTA final.",
+    "recommendation": "Compacter les étapes, utiliser tabs/swipes et supprimer les détails secondaires.",
+    "skills": [
+      "ui-ux-pro-max",
+      "impeccable",
+      "web-design-guidelines"
+    ],
+    "effort": "L",
+    "confidence": 0.9,
+    "status": "OPEN",
+    "verification": "Re-audit with like-for-like desktop/mobile evidence and record result.",
+    "dependencies": [
+      "VIS-001"
+    ],
+    "lot_id": "LOT-04"
+  }
+]

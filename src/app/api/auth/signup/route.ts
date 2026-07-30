@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
       console.error("[POST /api/auth/signup] Erreur lors de la synchronisation Prisma :", dbErr)
     }
 
-    return apiSuccess({ user: data.user }, 201)
+    return apiSuccess({ user: data.user, session: data.session, autoConfirmed: !!data.session }, 201)
   } catch (err: any) {
     console.error("[POST /api/auth/signup] Exception imprévue :", err)
     return apiError(translateAuthError(err?.message ?? "Erreur serveur lors de l'inscription."), 500)

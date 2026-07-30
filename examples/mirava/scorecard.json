@@ -1,0 +1,116 @@
+{
+  "run_id": "KERN-MIRAVA-20260730-R01",
+  "evidence_level": "A",
+  "axes": [
+    {
+      "id": "positioning_clarity",
+      "label": "Positioning and clarity",
+      "weight": 15,
+      "score": 62,
+      "weighted_score": 9.3,
+      "evidence": [
+        "examples/mirava/findings.json"
+      ]
+    },
+    {
+      "id": "information_architecture",
+      "label": "Information architecture",
+      "weight": 10,
+      "score": 68,
+      "weighted_score": 6.8,
+      "evidence": [
+        "examples/mirava/findings.json"
+      ]
+    },
+    {
+      "id": "visual_composition",
+      "label": "Visual composition and hierarchy",
+      "weight": 15,
+      "score": 75,
+      "weighted_score": 11.25,
+      "evidence": [
+        "examples/mirava/findings.json"
+      ]
+    },
+    {
+      "id": "typography",
+      "label": "Typography",
+      "weight": 10,
+      "score": 71,
+      "weighted_score": 7.1,
+      "evidence": [
+        "examples/mirava/findings.json"
+      ]
+    },
+    {
+      "id": "image_art_direction",
+      "label": "Images and art direction",
+      "weight": 10,
+      "score": 70,
+      "weighted_score": 7.0,
+      "evidence": [
+        "examples/mirava/findings.json"
+      ]
+    },
+    {
+      "id": "design_system",
+      "label": "Design system and components",
+      "weight": 10,
+      "score": 72,
+      "weighted_score": 7.2,
+      "evidence": [
+        "examples/mirava/findings.json"
+      ]
+    },
+    {
+      "id": "trust_conversion",
+      "label": "Trust and conversion",
+      "weight": 10,
+      "score": 52,
+      "weighted_score": 5.2,
+      "evidence": [
+        "examples/mirava/findings.json"
+      ]
+    },
+    {
+      "id": "responsive",
+      "label": "Responsive mobile",
+      "weight": 10,
+      "score": 63,
+      "weighted_score": 6.3,
+      "evidence": [
+        "examples/mirava/findings.json"
+      ]
+    },
+    {
+      "id": "accessibility_performance",
+      "label": "Accessibility and performance",
+      "weight": 5,
+      "score": 55,
+      "weighted_score": 2.75,
+      "evidence": [
+        "examples/mirava/findings.json"
+      ]
+    },
+    {
+      "id": "ai_template_distinction",
+      "label": "Distinction from AI-template conventions",
+      "weight": 5,
+      "score": 42,
+      "weighted_score": 2.1,
+      "evidence": [
+        "examples/mirava/findings.json"
+      ]
+    }
+  ],
+  "total": 65.0,
+  "ai_fingerprint_score": 58,
+  "confidence": 0.72,
+  "ceiling": 85,
+  "open_p0": 3,
+  "open_p1": 9,
+  "limitations": [
+    "No runtime interaction, contrast, accessibility or performance measurement.",
+    "Mobile capture is heavily downscaled."
+  ]
+}

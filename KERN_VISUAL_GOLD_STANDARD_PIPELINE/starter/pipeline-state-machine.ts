@@ -1,0 +1,5 @@
+import type {AuditRunStatus,EvidenceLevel} from "./types";
+const NEXT:Partial<Record<AuditRunStatus,AuditRunStatus>>={DRAFT:"INPUTS_VALIDATED",INPUTS_VALIDATED:"PAGE_MAPPED",PAGE_MAPPED:"VISUAL_AUDITED",VISUAL_AUDITED:"AI_FINGERPRINT_AUDITED",AI_FINGERPRINT_AUDITED:"CRO_AUDITED",CRO_AUDITED:"ART_DIRECTION_AUDITED",ART_DIRECTION_AUDITED:"TECHNICAL_AUDITED",TECHNICAL_AUDITED:"PRIORITIZED",TECHNICAL_SKIPPED:"PRIORITIZED",PRIORITIZED:"PROMPTS_PACKAGED",PROMPTS_PACKAGED:"IMPLEMENTATION_PENDING",IMPLEMENTATION_PENDING:"VERIFICATION_PENDING",VERIFICATION_PENDING:"VERIFIED",VERIFIED:"FINAL_REVIEWED",FINAL_REVIEWED:"COMPLETE"};
+export function nextStatus(current:AuditRunStatus,level:EvidenceLevel):AuditRunStatus|null{if(current==="ART_DIRECTION_AUDITED"&&level==="A")return "TECHNICAL_SKIPPED";return NEXT[current]??null;}
+export function canTransition(current:AuditRunStatus,target:AuditRunStatus,level:EvidenceLevel){return nextStatus(current,level)===target;}
+export function isTerminal(status:AuditRunStatus){return ["COMPLETE","BLOCKED","FAILED"].includes(status);}

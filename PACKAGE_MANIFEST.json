@@ -1,0 +1,358 @@
+{
+  "name": "KERN_VISUAL_GOLD_STANDARD_PIPELINE",
+  "version": "1.0.0",
+  "generated_at": "2026-07-30T17:39:00+02:00",
+  "status": "READY_FOR_KERN_REPO_INTEGRATION",
+  "files": [
+    {
+      "path": ".env.example",
+      "size_bytes": 328,
+      "sha256": "58c3cf231e4c725ca78082b0b6fc413afd70d6209bd1e3743af438ba278d072f"
+    },
+    {
+      "path": "AGENTS.md",
+      "size_bytes": 1654,
+      "sha256": "ab3c57a1c779bc85b73b9a92d14c8f2b8434613f17fd6a5ea2a739e9395ded0c"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "size_bytes": 405,
+      "sha256": "905e366799a178cb7b602dde5220b67a695e4b36418c75fe5e588fca7cbb3ece"
+    },
+    {
+      "path": "CURRENT_STATE.md",
+      "size_bytes": 321,
+      "sha256": "0472f37efb4e453bfcd012220418165df5da8150a17d0172c80c1fbbb36af69d"
+    },
+    {
+      "path": "MASTER_PROMPT.md",
+      "size_bytes": 10321,
+      "sha256": "bc791095f2b2847cb3a1f898b2b95fff580ba7bd0a2380bd25e464f97381161c"
+    },
+    {
+      "path": "README.md",
+      "size_bytes": 3206,
+      "sha256": "2381b742804c9ac8ff1ecab530fbaa58b8bd38dc60986122c251475dc4c267f3"
+    },
+    {
+      "path": "SOURCES.md",
+      "size_bytes": 804,
+      "sha256": "eab67e89dddec5ee54016a6a1f2ccd631967cf10434ea6be1688546684d05ade"
+    },
+    {
+      "path": "VALIDATION_REPORT.txt",
+      "size_bytes": 188,
+      "sha256": "ebb0b333bd8fee093bb84c4bcee78e7b1d835b9c79ad56dfbda9143fda912a6b"
+    },
+    {
+      "path": "agent-skill/kern-visual-audit/SKILL.md",
+      "size_bytes": 1328,
+      "sha256": "0e4a03a1596a00cfc48ed679a02697e0a064107dea0ce48d4aa2dc61ad892fc1"
+    },
+    {
+      "path": "agent-skill/kern-visual-audit/references/finding-contract.md",
+      "size_bytes": 214,
+      "sha256": "ae01a15dd85c6e7bf231ecaef63d59377038655fbe9f1160809a85b660f224c2"
+    },
+    {
+      "path": "agent-skill/kern-visual-audit/references/pipeline.md",
+      "size_bytes": 278,
+      "sha256": "581714809a500958ef104cb81ea29cf35b6c9a762619c8054cfa3c2a6cb5137e"
+    },
+    {
+      "path": "agent-skill/kern-visual-audit/references/scoring.md",
+      "size_bytes": 223,
+      "sha256": "73eda0c76f906722313ce85d7cbf31883c5e6569fb22efaaeab52cb84bba7478"
+    },
+    {
+      "path": "database/supabase-schema.sql",
+      "size_bytes": 7239,
+      "sha256": "a88817c49b83653755c3fda623c64332422142b99e25eb7e2a395d6507b76f82"
+    },
+    {
+      "path": "docs/ACCEPTANCE_CRITERIA.md",
+      "size_bytes": 572,
+      "sha256": "59e9ef9abddd3075b25683e141897d4926776ec3909d83cd576bddd2d2d3956a"
+    },
+    {
+      "path": "docs/API_CONTRACT.md",
+      "size_bytes": 548,
+      "sha256": "f106303f5ac1d02ecff24260cd02288525a79b31790952974273891d20c48c0a"
+    },
+    {
+      "path": "docs/DATA_MODEL.md",
+      "size_bytes": 406,
+      "sha256": "de85f9d30b763d5500e3796d19d39280a908fed7d8bb447bf1e6eb81d27f23a5"
+    },
+    {
+      "path": "docs/IMPLEMENTATION_HANDOFF.md",
+      "size_bytes": 662,
+      "sha256": "49d81020d3a51cdd0e93d24216579152476359e030c99037a598cebcbf0c20f8"
+    },
+    {
+      "path": "docs/PRD.md",
+      "size_bytes": 1222,
+      "sha256": "24f9be9fd568b217608fbf7f7fbfae6a15481940e17f0e94f7c4089c59a74b9b"
+    },
+    {
+      "path": "docs/PRODUCT_POSITIONING.md",
+      "size_bytes": 497,
+      "sha256": "513ac820865eae9164d618a20333560794d877071b42c3d8dd1cf2ec9aff24ae"
+    },
+    {
+      "path": "docs/ROADMAP.md",
+      "size_bytes": 364,
+      "sha256": "5d2eecc023812736431398c0841af04b10d8fea0843858ddb678e0fcd226d13b"
+    },
+    {
+      "path": "docs/SCORING_MODEL.md",
+      "size_bytes": 576,
+      "sha256": "efee6c582d50a07a0e72a51548da68d105a0254e6dc3b6ba094d111ddab76c69"
+    },
+    {
+      "path": "docs/SECURITY_PRIVACY.md",
+      "size_bytes": 539,
+      "sha256": "39df98858b271be8bd45909da1825e0ffbeb37a7d63262b0adebdfbb7e6a84b5"
+    },
+    {
+      "path": "docs/SYSTEM_ARCHITECTURE.md",
+      "size_bytes": 590,
+      "sha256": "ce8f7d8ce0ba84e35bde062d41761c6f02d261ae7194628aa791bf82155e74d8"
+    },
+    {
+      "path": "docs/UI_UX_SPEC.md",
+      "size_bytes": 676,
+      "sha256": "c1c19d787697df98ddfcb82462e18a58d353e313e1728cf62f2630b5c52835a3"
+    },
+    {
+      "path": "examples/mirava/IMPLEMENTATION_PROMPT_LOT_01.md",
+      "size_bytes": 189,
+      "sha256": "6b9141bbebd4156cf769efadbd57ff37b14209c321a6242c96c6bb322f8006a0"
+    },
+    {
+      "path": "examples/mirava/REMEDIATION_PLAN.md",
+      "size_bytes": 331,
+      "sha256": "e7d66594cb20891d78baeefbe5076f435bc936fdfd24eb61eee723b743e66510"
+    },
+    {
+      "path": "examples/mirava/VERIFICATION_PROMPT_LOT_01.md",
+      "size_bytes": 108,
+      "sha256": "5443add6c2dfbee40e89e0bb2aed9eee081653096d98a64e2ed670095c9eab49"
+    },
+    {
+      "path": "examples/mirava/assets/desktop-full.png",
+      "size_bytes": 642312,
+      "sha256": "3228648b17a636cbb826987b70900ff5949f22c2dee829103acc62b10fac5614"
+    },
+    {
+      "path": "examples/mirava/assets/mobile-full.png",
+      "size_bytes": 248224,
+      "sha256": "9e57a3964a4e7c396fe6cff1429fc19761a9bf000a6ba47cfc893766a64ec54b"
+    },
+    {
+      "path": "examples/mirava/findings.json",
+      "size_bytes": 13390,
+      "sha256": "dd073ca1285fe4ce18ebc7ec7ca59c0985296f3b4a1160dc99562c9e2a50c3d2"
+    },
+    {
+      "path": "examples/mirava/input-manifest.json",
+      "size_bytes": 1404,
+      "sha256": "d448b511f91ca3a11eb432c8bf8dadd63b36159a27a548c95ea7ad1662e7e819"
+    },
+    {
+      "path": "examples/mirava/page-map.json",
+      "size_bytes": 6362,
+      "sha256": "9514a9ef9c29d039385cb5110d7a3c8dcc08931d496b4f08edeb214233827cb2"
+    },
+    {
+      "path": "examples/mirava/prompt-package.json",
+      "size_bytes": 4103,
+      "sha256": "97d1d927d931ee527a5423ed5123b16a25db7e9edc03e39ade59615b65634736"
+    },
+    {
+      "path": "examples/mirava/scorecard.json",
+      "size_bytes": 2618,
+      "sha256": "545523563535977eaf564dde86b7f842d6621f21472494f1356c6b200b257d07"
+    },
+    {
+      "path": "prompts/00_MASTER_ORCHESTRATOR.md",
+      "size_bytes": 569,
+      "sha256": "cc00452261a37adb2dd06c280a8f019408fd765701ad748c90f82d8dc1b4b889"
+    },
+    {
+      "path": "prompts/01_INPUT_VALIDATOR.md",
+      "size_bytes": 510,
+      "sha256": "339af32639dd7bd0e1d4f95d7f3c5d77bdae21d34489f229cc82c712dbbe01be"
+    },
+    {
+      "path": "prompts/02_PAGE_MAPPER.md",
+      "size_bytes": 333,
+      "sha256": "e0f6ca36a9366878e0fbab935ee82685009c17a8fef837731eb9967daad39cf1"
+    },
+    {
+      "path": "prompts/03_VISUAL_AUDITOR.md",
+      "size_bytes": 679,
+      "sha256": "a505c0d44593b26073e65dc1bdd741ec0ba5d3eb9c3fe7e9dea2e0b3a383eb59"
+    },
+    {
+      "path": "prompts/04_AI_FINGERPRINT_AUDITOR.md",
+      "size_bytes": 641,
+      "sha256": "9d34c5b8053ec77f49d8e463b07fae8970a3f2aa5454feb7eb07999499ff8a1a"
+    },
+    {
+      "path": "prompts/05_POSITIONING_CRO_AUDITOR.md",
+      "size_bytes": 450,
+      "sha256": "226c5befab9b56ec8fc7fb98ba77859e5c2f9defde664231164d997a64fcf38c"
+    },
+    {
+      "path": "prompts/06_IMAGE_ART_DIRECTION_AUDITOR.md",
+      "size_bytes": 451,
+      "sha256": "f7558f2deb161a09b1d1154363c79886c3c1cf63f0f1ec095b72d14029392d64"
+    },
+    {
+      "path": "prompts/07_TECHNICAL_AUDITOR.md",
+      "size_bytes": 586,
+      "sha256": "2cc1327a24dea59d52e91aed33be0e367f0c72f1ee8d807985a1c5b2a220bb97"
+    },
+    {
+      "path": "prompts/08_PRIORITIZER.md",
+      "size_bytes": 421,
+      "sha256": "29ccc9e59ea32d07c4963f1ee9f5a58fee55edd10f714dc4294644178b941e9c"
+    },
+    {
+      "path": "prompts/09_PROMPT_PACKAGER.md",
+      "size_bytes": 472,
+      "sha256": "5f84fd0642d7623e46758a8bd5bd18d04664a4f152046ebe6b3fa28dd8d4c3e6"
+    },
+    {
+      "path": "prompts/10_VERIFICATION_REVIEWER.md",
+      "size_bytes": 449,
+      "sha256": "b385b45f5d8bf008a2b6f6c93b1d284f09e404c4c854d98e99af73ae2639449e"
+    },
+    {
+      "path": "prompts/11_FINAL_INDEPENDENT_REVIEWER.md",
+      "size_bytes": 412,
+      "sha256": "28d518e379124c36032b1c49a517f4b068c004da2be8f1bcff3c2ca4d4d7024d"
+    },
+    {
+      "path": "prompts/12_LOT_IMPLEMENTATION_TEMPLATE.md",
+      "size_bytes": 840,
+      "sha256": "e5784189bf85024b988d3c765a0b817aa2eb15be44185dd2211ea8c07acf179f"
+    },
+    {
+      "path": "prototype/visual-audit-console.html",
+      "size_bytes": 3789,
+      "sha256": "9dd21d0e3aa19c5fbe2f055e18f53671e34923b7ec73cefa6828ae21a01765a5"
+    },
+    {
+      "path": "requirements.txt",
+      "size_bytes": 30,
+      "sha256": "d2bf5450603cdeaa55463c59f3c88b8bb1a749b8e8661307cff02065d4ac017b"
+    },
+    {
+      "path": "schemas/audit-run.schema.json",
+      "size_bytes": 1484,
+      "sha256": "c0197405193454812bd5008d836292a928cc71656a03d3d9d564e94925b63214"
+    },
+    {
+      "path": "schemas/finding.schema.json",
+      "size_bytes": 3680,
+      "sha256": "f55193247f7aab9d235b965059cbc38d7186aeb455042dbb2dda07308f3e81f3"
+    },
+    {
+      "path": "schemas/input-manifest.schema.json",
+      "size_bytes": 3184,
+      "sha256": "bc893f2e52c4da0a6551ca35c92e31ea1d50224bcd33d0a6e65971da1aa54ccb"
+    },
+    {
+      "path": "schemas/page-map.schema.json",
+      "size_bytes": 2587,
+      "sha256": "a3a0d7fcb2730303e19c6419e1d8ddbdf22dd8d06852b4c2dadc757c529e7f0e"
+    },
+    {
+      "path": "schemas/prompt-package.schema.json",
+      "size_bytes": 1953,
+      "sha256": "c8c49ee7ce3942a9499e2c48f05c8d50db55e62f77b603885f468f5a6d028391"
+    },
+    {
+      "path": "schemas/scorecard.schema.json",
+      "size_bytes": 2134,
+      "sha256": "3b88dd563c194d3d74b3114d5d9aa1fcc70dcdc43170bb2c301803de7fd4c00b"
+    },
+    {
+      "path": "schemas/verification-run.schema.json",
+      "size_bytes": 1555,
+      "sha256": "fdbeb79c89b31c3c2e507bca20ef7729bd7987c36504ffb9cd497a041099ddc4"
+    },
+    {
+      "path": "scripts/create_run.py",
+      "size_bytes": 1703,
+      "sha256": "9055695f892785fe4df98ce3fe362f4f40089a9119bc0b49df3baea58f1b1e81"
+    },
+    {
+      "path": "scripts/install-kern-skill.sh",
+      "size_bytes": 550,
+      "sha256": "05faa518d3bae46643b78f1b32b63097f13f6dc1a4ece1d9bfacefaeed79d75e"
+    },
+    {
+      "path": "scripts/segment_capture.py",
+      "size_bytes": 963,
+      "sha256": "bb39fee8bd51300c88a5b2cddc279ff776b7864d45e412435e389fb2bd9af521"
+    },
+    {
+      "path": "scripts/validate_package.py",
+      "size_bytes": 892,
+      "sha256": "aec997e5a1a1aa243e8c7183147bc24b2d4ae33a2f22cf6592be8f8164bdb2e0"
+    },
+    {
+      "path": "skills/SKILLS_MATRIX.md",
+      "size_bytes": 1537,
+      "sha256": "440be2054c9fe219a7c94822c5346ba82be59cdd5030792e39c319fd1554f4b2"
+    },
+    {
+      "path": "skills/install-skills.sh",
+      "size_bytes": 1364,
+      "sha256": "b9392777110eacc639648d01c04c8ab728bfe24fbe489294df7162d7c407c7fd"
+    },
+    {
+      "path": "starter/README.md",
+      "size_bytes": 129,
+      "sha256": "7b759a26e877e1ff300555e452e704cafd05c96f8383f6c9d2b8e385e849f1d4"
+    },
+    {
+      "path": "starter/pipeline-state-machine.ts",
+      "size_bytes": 1072,
+      "sha256": "426848111f169e4d2b847ea2c74a5c87c5605821748acd45a2e0ea2eac7ac434"
+    },
+    {
+      "path": "starter/scoring.ts",
+      "size_bytes": 676,
+      "sha256": "20533a94ff2da42a54051861f9037b70fdd553794bfbb8d49524ed9e55cd9ff5"
+    },
+    {
+      "path": "starter/types.ts",
+      "size_bytes": 1380,
+      "sha256": "8e7c4ed1daa9dd4ae2b7c8a45ba445989d8ca85e10073cef1a35bb547ad99fad"
+    },
+    {
+      "path": "workflows/gates.yaml",
+      "size_bytes": 1391,
+      "sha256": "5e17e3e8e9505e92badff701c399db28b37d7eeff4345f70d9c1f9844b98fb5e"
+    },
+    {
+      "path": "workflows/severity-rubric.yaml",
+      "size_bytes": 364,
+      "sha256": "3f2f6fb01c321a8feb3b63c03ff55177d2d5feeeb4772ee32606f94ce0d28495"
+    },
+    {
+      "path": "workflows/skill-routing.yaml",
+      "size_bytes": 919,
+      "sha256": "cc9b7441e91154659e7e2623f0df4748f01903825e2df72320267f1af2b6b3ce"
+    },
+    {
+      "path": "workflows/visual-audit.workflow.yaml",
+      "size_bytes": 2338,
+      "sha256": "8b5a2e68e7cad2b7703372ab3ccdaf1a6a11a89fce9b97f6efb55266b22e852a"
+    }
+  ]
+}

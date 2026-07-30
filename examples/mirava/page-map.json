@@ -1,0 +1,259 @@
+{
+  "run_id": "KERN-MIRAVA-20260730-R01",
+  "sections": [
+    {
+      "id": "header",
+      "order": 1,
+      "role": "Global navigation",
+      "heading": "MIRAVA / language / CTA",
+      "desktop": {
+        "visible": true,
+        "layout_type": "banner",
+        "column_ratio": null,
+        "estimated_height": "compact",
+        "notes": []
+      },
+      "mobile": {
+        "visible": true,
+        "layout_type": "banner",
+        "column_ratio": null,
+        "estimated_height": "compact",
+        "notes": []
+      },
+      "components": [],
+      "actions": [
+        "Créer mon studio"
+      ],
+      "asset_families": [],
+      "uncertainty": []
+    },
+    {
+      "id": "hero",
+      "order": 2,
+      "role": "Primary proposition and product visual",
+      "heading": "Votre studio photo personnel, partout où vous voulez être vue.",
+      "desktop": {
+        "visible": true,
+        "layout_type": "split",
+        "column_ratio": "approximate",
+        "estimated_height": "large",
+        "notes": []
+      },
+      "mobile": {
+        "visible": true,
+        "layout_type": "stack",
+        "column_ratio": null,
+        "estimated_height": "very_large",
+        "notes": []
+      },
+      "components": [],
+      "actions": [
+        "Créer mon studio"
+      ],
+      "asset_families": [
+        "orange-dress"
+      ],
+      "uncertainty": []
+    },
+    {
+      "id": "style-selector",
+      "order": 3,
+      "role": "Style discovery",
+      "heading": null,
+      "desktop": {
+        "visible": true,
+        "layout_type": "carousel",
+        "column_ratio": null,
+        "estimated_height": "medium",
+        "notes": []
+      },
+      "mobile": {
+        "visible": true,
+        "layout_type": "carousel",
+        "column_ratio": null,
+        "estimated_height": "large",
+        "notes": []
+      },
+      "components": [],
+      "actions": [],
+      "asset_families": [
+        "orange-dress"
+      ],
+      "uncertainty": []
+    },
+    {
+      "id": "style-detail",
+      "order": 4,
+      "role": "Selected style explanation and result",
+      "heading": "Escapade solaire",
+      "desktop": {
+        "visible": true,
+        "layout_type": "split",
+        "column_ratio": "approximate",
+        "estimated_height": "medium",
+        "notes": []
+      },
+      "mobile": {
+        "visible": true,
+        "layout_type": "stack",
+        "column_ratio": null,
+        "estimated_height": "large",
+        "notes": []
+      },
+      "components": [],
+      "actions": [],
+      "asset_families": [
+        "orange-dress"
+      ],
+      "uncertainty": []
+    },
+    {
+      "id": "reference-flow",
+      "order": 5,
+      "role": "Reference-to-output product demonstration",
+      "heading": "Votre référence devient votre studio.",
+      "desktop": {
+        "visible": true,
+        "layout_type": "split",
+        "column_ratio": "approximate",
+        "estimated_height": "large",
+        "notes": []
+      },
+      "mobile": {
+        "visible": true,
+        "layout_type": "stack",
+        "column_ratio": null,
+        "estimated_height": "very_large",
+        "notes": []
+      },
+      "components": [],
+      "actions": [],
+      "asset_families": [],
+      "uncertainty": []
+    },
+    {
+      "id": "formats",
+      "order": 6,
+      "role": "Social and campaign formats",
+      "heading": "Prêt pour Instagram, LinkedIn & vos campagnes.",
+      "desktop": {
+        "visible": true,
+        "layout_type": "split",
+        "column_ratio": "approximate",
+        "estimated_height": "large",
+        "notes": []
+      },
+      "mobile": {
+        "visible": true,
+        "layout_type": "stack",
+        "column_ratio": null,
+        "estimated_height": "very_large",
+        "notes": []
+      },
+      "components": [],
+      "actions": [],
+      "asset_families": [
+        "orange-dress"
+      ],
+      "uncertainty": []
+    },
+    {
+      "id": "identity",
+      "order": 7,
+      "role": "Identity consistency proof",
+      "heading": "Votre identité unique, au centre de la séance.",
+      "desktop": {
+        "visible": true,
+        "layout_type": "split",
+        "column_ratio": "approximate",
+        "estimated_height": "very_large",
+        "notes": []
+      },
+      "mobile": {
+        "visible": true,
+        "layout_type": "stack",
+        "column_ratio": null,
+        "estimated_height": "very_large",
+        "notes": []
+      },
+      "components": [],
+      "actions": [],
+      "asset_families": [],
+      "uncertainty": []
+    },
+    {
+      "id": "process",
+      "order": 8,
+      "role": "Three-step process",
+      "heading": "Une séance, sans complexité.",
+      "desktop": {
+        "visible": true,
+        "layout_type": "grid",
+        "column_ratio": null,
+        "estimated_height": "medium",
+        "notes": []
+      },
+      "mobile": {
+        "visible": true,
+        "layout_type": "stack",
+        "column_ratio": null,
+        "estimated_height": "large",
+        "notes": []
+      },
+      "components": [],
+      "actions": [],
+      "asset_families": [],
+      "uncertainty": []
+    },
+    {
+      "id": "faq",
+      "order": 9,
+      "role": "Objection handling",
+      "heading": "Vos questions sur le Studio MIRAVA",
+      "desktop": {
+        "visible": true,
+        "layout_type": "accordion",
+        "column_ratio": null,
+        "estimated_height": "large",
+        "notes": []
+      },
+      "mobile": {
+        "visible": true,
+        "layout_type": "accordion",
+        "column_ratio": null,
+        "estimated_height": "very_large",
+        "notes": []
+      },
+      "components": [],
+      "actions": [],
+      "asset_families": [],
+      "uncertainty": []
+    },
+    {
+      "id": "final-cta",
+      "order": 10,
+      "role": "Final conversion action",
+      "heading": "Votre studio photo personnel, partout où vous voulez être vue.",
+      "desktop": {
+        "visible": true,
+        "layout_type": "banner",
+        "column_ratio": null,
+        "estimated_height": "compact",
+        "notes": []
+      },
+      "mobile": {
+        "visible": true,
+        "layout_type": "banner",
+        "column_ratio": null,
+        "estimated_height": "medium",
+        "notes": []
+      },
+      "components": [],
+      "actions": [
+        "Créer mon studio"
+      ],
+      "asset_families": [],
+      "uncertainty": []
+    }
+  ]
+}

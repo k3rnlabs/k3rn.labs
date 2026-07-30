@@ -1,0 +1,9 @@
+severity:
+  P0:
+    definition: Blocks comprehension, core task completion, trust, legal/security safety or primary conversion.
+  P1:
+    definition: Materially prevents premium/gold-standard quality or creates meaningful conversion friction.
+  P2:
+    definition: Meaningful refinement with moderate impact.
+  P3:
+    definition: Optional optimization or polish.
