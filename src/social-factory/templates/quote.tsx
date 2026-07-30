@@ -58,7 +58,7 @@ export const QuoteTemplate = ({ headline, quote, author, logoVariant, background
                         maxWidth: 900,
                     }}
                 >
-                    "{quote}"
+                    &ldquo;{quote}&rdquo;
                 </div>
 
                 <div
