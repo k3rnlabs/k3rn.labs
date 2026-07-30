@@ -284,5 +284,35 @@ export function translateAuthError(
       : "Veuillez saisir votre adresse email ci-dessus pour renvoyer le lien."
   }
 
+  // 21. Erreurs PKCE & Code Verifier Supabase (ouverture cross-navigateur / cross-device)
+  if (
+    lowerMsg.includes("code challenge does not match") ||
+    lowerMsg.includes("code verifier") ||
+    lowerMsg.includes("flow_state_not_found") ||
+    lowerMsg.includes("pkce_cookie_missing")
+  ) {
+    return lang === "es"
+      ? "El enlace de confirmación no es válido o se abrió en otro navegador. Por favor ingresa tu correo para recibir un nuevo enlace."
+      : "Le lien de confirmation est invalide ou a été ouvert dans un autre navigateur. Veuillez saisir votre email pour renvoyer un nouveau lien."
+  }
+
+  if (
+    lowerMsg.includes("invalid grant") ||
+    lowerMsg.includes("invalid_grant") ||
+    lowerMsg.includes("session not found") ||
+    lowerMsg.includes("auth session missing")
+  ) {
+    return lang === "es"
+      ? "La sesión de confirmación ha expirado. Por favor solicita un nuevo enlace."
+      : "La session de confirmation a expiré. Veuillez demander un nouvel email."
+  }
+
+  // 22. Sécurité : Si le message contient encore du texte anglais non traduit, on retourne un fallback propre
+  if (/code challenge|verifier|grant|token|auth|session|invalid|expired/i.test(msg)) {
+    return lang === "es"
+      ? "Ocurrió un error con el enlace de confirmación. Por favor solicita un nuevo correo."
+      : "Une erreur est survenue avec le lien de confirmation. Veuillez demander un nouvel email."
+  }
+
   return msg
 }

@@ -36,22 +36,22 @@ export async function GET(request: NextRequest) {
     }
   )
 
-  // 1. Flux Code PKCE (Supabase Auth SSR standard)
-  if (code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(code)
-    if (!error) {
-      return NextResponse.redirect(successUrl.toString())
-    }
-    console.error("[GET /auth/callback] Erreur exchangeCodeForSession :", error.message)
-    errorUrl.searchParams.set("error", error.message)
-  }
-  // 2. Flux Jeton OTP / Token Hash (Confirmation d'email direct Supabase)
-  else if (token_hash && type) {
+  // 1. Flux Jeton OTP / Token Hash (Confirmation d'email directe Supabase, insensible au navigateur)
+  if (token_hash && type) {
     const { error } = await supabase.auth.verifyOtp({ type, token_hash })
     if (!error) {
       return NextResponse.redirect(successUrl.toString())
     }
     console.error("[GET /auth/callback] Erreur verifyOtp :", error.message)
+    errorUrl.searchParams.set("error", error.message)
+  }
+  // 2. Flux Code PKCE (Supabase Auth SSR standard)
+  else if (code) {
+    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    if (!error) {
+      return NextResponse.redirect(successUrl.toString())
+    }
+    console.error("[GET /auth/callback] Erreur exchangeCodeForSession :", error.message)
     errorUrl.searchParams.set("error", error.message)
   } else {
     errorUrl.searchParams.set("error", "confirmation_failed")
