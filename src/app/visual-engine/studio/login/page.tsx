@@ -46,6 +46,8 @@ const copy = {
     offer: "3 créations offertes à l'activation",
     eyebrow: "ÉNERGIE ÉDITORIALE · IDENTITÉ PRÉSERVÉE",
     foot: "Votre studio éditorial personnel.",
+    resendLink: "Renvoyer l'email de confirmation",
+    resendLoading: "Renvoi de l'email…",
   },
   es: {
     login: "Conexión",
@@ -81,6 +83,8 @@ const copy = {
     offer: "3 creaciones incluidas al activar",
     eyebrow: "ENERGÍA EDITORIAL · IDENTIDAD PRESERVADA",
     foot: "Tu estudio editorial personal.",
+    resendLink: "Reenviar correo de confirmación",
+    resendLoading: "Reenviando correo…",
   },
 } as const
 
@@ -99,10 +103,37 @@ function MiravaLoginPageContent() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [resending, setResending] = useState(false)
 
   // Traduction dynamique en fonction de la langue sélectionnée (FR / ES)
   const displayedError = error ? translateAuthError(error, locale) : null
   const displayedSuccess = success ? translateAuthError(success, locale) : null
+
+  async function handleResendEmail() {
+    setError(null)
+    setSuccess(null)
+    if (!email.trim()) {
+      setError("resend_email_required")
+      return
+    }
+    setResending(true)
+    try {
+      const res = await fetch("/api/auth/resend-confirmation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        throw new Error(data?.error || data?.message || "Échec du renvoi de l'email.")
+      }
+      setSuccess("resend_success")
+    } catch (err) {
+      setError(err instanceof Error ? err.message : null)
+    } finally {
+      setResending(false)
+    }
+  }
 
   // Capture des paramètres d'URL (confirmation email / erreurs)
   useEffect(() => {
@@ -359,6 +390,17 @@ function MiravaLoginPageContent() {
                 : (mode === "login" ? t.submitLogin : mode === "signup" ? t.submitSignup : t.submitForgot)}
               {!loading && <ArrowRight className="h-4 w-4" />}
             </button>
+
+            {mode !== "forgot" && (
+              <button
+                type="button"
+                onClick={handleResendEmail}
+                disabled={resending || loading}
+                className="w-full text-center text-xs font-medium text-mirava-ink-muted hover:text-mirava-accent transition-colors pt-2 underline underline-offset-4"
+              >
+                {resending ? t.resendLoading : t.resendLink}
+              </button>
+            )}
           </form>
 
           <div className="mt-6 border-t border-mirava-line pt-5 text-center text-xs text-mirava-ink-muted">

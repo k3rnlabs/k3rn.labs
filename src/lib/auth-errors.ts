@@ -263,5 +263,26 @@ export function translateAuthError(
       : "Email confirmé avec succès ! Vous pouvez maintenant accéder à votre studio."
   }
 
+  // 20. Renvoi d'email de confirmation
+  if (
+    lowerMsg.includes("resend_success") ||
+    lowerMsg.includes("email de confirmation renvoyé") ||
+    lowerMsg.includes("correo de confirmación reenviado")
+  ) {
+    return lang === "es"
+      ? "¡Correo de confirmación reenviado! Revisa tu bandeja de entrada (y tu carpeta de Spam)."
+      : "Email de confirmation renvoyé ! Vérifiez votre boîte mail (et vos indésirables/Spam)."
+  }
+
+  if (
+    lowerMsg.includes("resend_email_required") ||
+    lowerMsg.includes("veuillez saisir votre adresse email pour renvoyer") ||
+    lowerMsg.includes("ingresa tu correo electrónico pour reenviar")
+  ) {
+    return lang === "es"
+      ? "Por favor ingresa tu correo electrónico para reenviar el enlace."
+      : "Veuillez saisir votre adresse email ci-dessus pour renvoyer le lien."
+  }
+
   return msg
 }
