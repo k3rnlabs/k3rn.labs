@@ -10,6 +10,7 @@ import { MiravaWordmark } from "@/components/mirava/mirava-wordmark"
 import { useMiravaLocale } from "@/components/mirava/mirava-locale"
 import { MiravaUniverseShowcase } from "@/components/mirava/mirava-universe-showcase"
 import { MiravaAgentSimulator } from "@/components/mirava/mirava-agent-simulator"
+import { MiravaFaq } from "@/components/mirava/mirava-faq"
 import { MIRAVA_UNIVERSES } from "@/lib/mirava/universes"
 
 const identityGuide = [
@@ -176,6 +177,10 @@ export default function MiravaLandingPage() {
 	          <p className="mirava-notice flex gap-3 p-4"><LockKeyhole className="mt-0.5 h-4 w-4 shrink-0 text-mirava-accent" />{t.private}</p>
 	          <p className="mirava-notice flex gap-3 p-4"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-mirava-accent" />{t.adult}</p>
         </div>
+      </section>
+
+      <section className="relative border-y border-mirava-line bg-mirava-canvas-raised px-4 py-16 sm:px-8 sm:py-24">
+        <MiravaFaq locale={locale} />
       </section>
 
       <section className="relative px-4 pb-16 sm:px-8 sm:pb-24">

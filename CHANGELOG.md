@@ -6,6 +6,7 @@ Format based on Keep a Changelog.
 
 ## 2026-07-30
 
+- FEATURE: Optimisation CRO, Copywriting & SEO de MIRAVA Studio (`/visual-engine`) via `syntax-syndicate/marketing-skills` : composant interactif d'accordéon FAQ & levée d'objections (`MiravaFaq`), schémas JSON-LD `SoftwareApplication` & `Organization` pour l'indexation IA (ChatGPT/Perplexity/Google) et puces de rassurance (Risk Reversal).
 - FEATURE: Refonte UI/UX éditoriale de la landing page MIRAVA Studio (`/visual-engine`) intégrant les principes `impeccable.style`, `UI-UX Pro Max`, `Jakub Kr` (text-wrap balance/pretty, tabular-nums, rayons concentriques, contours 1px/10%), `Agent-Reach` (simulateur d'analyse d'agent IA en direct) et `React Bits` (démonstrateur interactif des 7 univers).
 - FEATURE: Page de connexion Mirava Studio `/visual-engine/studio/login` — design full Mirava (dark mineral, grain, ambient, typographie Jakarta), bilingue FR/ES, modes login/signup/forgot. Le Studio redirige désormais vers cette page (et non `/auth/login` K3RN) quand l'utilisateur n'est pas authentifié.
 - FIX: Alma utilise désormais son modèle dédié `gpt-5-mini`; la passerelle OpenAI adapte `max_completion_tokens` et omet la température pour les modèles GPT-5, supprimant les erreurs fournisseur `400` qui rendaient la Directrice créative indisponible.
