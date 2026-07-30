@@ -16,6 +16,9 @@ export async function GET(request: NextRequest) {
 
   const errorUrl = new URL("/visual-engine/studio/login", origin)
 
+  // Instance de réponse pour propager les cookies Set-Cookie sur la redirection HTTP
+  let response = NextResponse.redirect(successUrl)
+
   const cookieStore = await cookies()
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -31,6 +34,10 @@ export async function GET(request: NextRequest) {
               cookieStore.set(name, value, options)
             )
           } catch {}
+          response = NextResponse.redirect(successUrl)
+          cookiesToSet.forEach(({ name, value, options }) =>
+            response.cookies.set(name, value, options)
+          )
         },
       },
     }
@@ -40,22 +47,23 @@ export async function GET(request: NextRequest) {
   if (token_hash && type) {
     const { error } = await supabase.auth.verifyOtp({ type, token_hash })
     if (!error) {
-      return NextResponse.redirect(successUrl.toString())
+      return response
     }
     console.error("[GET /auth/callback] Erreur verifyOtp :", error.message)
     errorUrl.searchParams.set("error", error.message)
+    return NextResponse.redirect(errorUrl)
   }
   // 2. Flux Code PKCE (Supabase Auth SSR standard)
   else if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (!error) {
-      return NextResponse.redirect(successUrl.toString())
+      return response
     }
     console.error("[GET /auth/callback] Erreur exchangeCodeForSession :", error.message)
     errorUrl.searchParams.set("error", error.message)
+    return NextResponse.redirect(errorUrl)
   } else {
     errorUrl.searchParams.set("error", "confirmation_failed")
+    return NextResponse.redirect(errorUrl)
   }
-
-  return NextResponse.redirect(errorUrl.toString())
 }

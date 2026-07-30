@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
-import { NextRequest } from "next/server"
-import { validateBody, apiError, apiSuccess } from "@/lib/validate"
+import { NextRequest, NextResponse } from "next/server"
+import { validateBody, apiError } from "@/lib/validate"
 import { translateAuthError } from "@/lib/auth-errors"
 import { z } from "zod"
 
@@ -14,6 +14,8 @@ export async function POST(req: NextRequest) {
   try {
     const result = await validateBody(loginSchema, req)
     if ("error" in result) return result.error
+
+    let res = NextResponse.json({ success: true })
 
     const cookieStore = await cookies()
     const supabase = createServerClient(
@@ -28,6 +30,9 @@ export async function POST(req: NextRequest) {
                 cookieStore.set(name, value, options)
               )
             } catch {}
+            cookiesToSet.forEach(({ name, value, options }) =>
+              res.cookies.set(name, value, options)
+            )
           },
         },
       }
@@ -41,7 +46,13 @@ export async function POST(req: NextRequest) {
     if (error) {
       return apiError(translateAuthError(error.message), 401)
     }
-    return apiSuccess({ user: data.user, session: data.session })
+
+    const payload = { success: true, data: { user: data.user, session: data.session } }
+    const finalResponse = NextResponse.json(payload)
+    res.cookies.getAll().forEach((c) => {
+      finalResponse.cookies.set(c.name, c.value, c)
+    })
+    return finalResponse
   } catch (err: any) {
     console.error("[POST /api/auth/session] Exception imprévue :", err)
     return apiError(translateAuthError(err?.message ?? "Erreur serveur lors de la connexion."), 500)
@@ -49,6 +60,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE() {
+  let res = NextResponse.json({ success: true })
+
   const cookieStore = await cookies()
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -62,10 +75,13 @@ export async function DELETE() {
               cookieStore.set(name, value, options)
             )
           } catch {}
+          cookiesToSet.forEach(({ name, value, options }) =>
+            res.cookies.set(name, value, options)
+          )
         },
       },
     }
   )
   await supabase.auth.signOut()
-  return apiSuccess({ success: true })
+  return res
 }
