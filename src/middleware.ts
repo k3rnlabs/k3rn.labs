@@ -65,7 +65,7 @@ export async function middleware(request: NextRequest) {
     (request.method === "POST" && /^\/api\/kael\/missions\/[^/]+\/(complete|fail|update)$/.test(path))
   const isOgRoute = path.startsWith("/api/og/")
   const isPublicInvest = path.startsWith("/invest/")
-  const isAuthPage = path.startsWith("/auth/")
+  const isAuthPage = path.startsWith("/auth/") && path !== "/auth/callback"
 
   // Invite/referral — cookie set must happen in middleware, not in Server Component
   const inviteMatch = path.match(/^\/invite\/([^/]+)$/)

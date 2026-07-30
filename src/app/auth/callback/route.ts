@@ -50,6 +50,11 @@ export async function GET(request: NextRequest) {
       return response
     }
     console.error("[GET /auth/callback] Erreur verifyOtp :", error.message)
+    // Si l'utilisateur est déjà connecté (ex: clic secondaire sur le lien), on l'envoie sur le studio
+    const { data: { user } } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }))
+    if (user) {
+      return NextResponse.redirect(successUrl)
+    }
     errorUrl.searchParams.set("error", error.message)
     return NextResponse.redirect(errorUrl)
   }
@@ -60,9 +65,18 @@ export async function GET(request: NextRequest) {
       return response
     }
     console.error("[GET /auth/callback] Erreur exchangeCodeForSession :", error.message)
+    // Si l'utilisateur est déjà connecté (ex: clic secondaire sur le lien), on l'envoie sur le studio
+    const { data: { user } } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }))
+    if (user) {
+      return NextResponse.redirect(successUrl)
+    }
     errorUrl.searchParams.set("error", error.message)
     return NextResponse.redirect(errorUrl)
   } else {
+    const { data: { user } } = await supabase.auth.getUser().catch(() => ({ data: { user: null } }))
+    if (user) {
+      return NextResponse.redirect(successUrl)
+    }
     errorUrl.searchParams.set("error", "confirmation_failed")
     return NextResponse.redirect(errorUrl)
   }
