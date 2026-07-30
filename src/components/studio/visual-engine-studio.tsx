@@ -238,7 +238,7 @@ const identityGuide = [
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { ...init, cache: "no-store" })
   const data = await response.json().catch(() => ({})) as T & { error?: string }
-  if (!response.ok) throw new Error(data.error ?? "MIRAVA_REQUEST_FAILED")
+  if (!response.ok) throw new Error(response.status === 401 ? "MIRAVA_REQUEST_FAILED" : (data.error ?? "MIRAVA_REQUEST_FAILED"))
   return data
 }
 
@@ -293,7 +293,7 @@ export function VisualEngineStudio() {
     if (requestedView === "identity") setView("account")
     else if (requestedView === "create" || requestedView === "universes" || requestedView === "library" || requestedView === "account") setView(requestedView)
     void refresh(params.get("creation") ?? undefined).catch((reason: unknown) => {
-      if (reason instanceof Error && reason.message === "MIRAVA_REQUEST_FAILED") {
+      if (reason instanceof Error && (reason.message === "MIRAVA_REQUEST_FAILED" || reason.message === "Unauthorized")) {
         window.location.replace("/visual-engine/studio/login")
         return
       }
