@@ -1,2 +1,2 @@
--- AlterTable: add physicalTraits JSONB column to StudioIdentityProfile
-ALTER TABLE "StudioIdentityProfile" ADD COLUMN "physicalTraits" JSONB;
+-- AlterTable: add physicalTraits JSONB column to StudioIdentityProfile (idempotent)
+ALTER TABLE "StudioIdentityProfile" ADD COLUMN IF NOT EXISTS "physicalTraits" JSONB;
