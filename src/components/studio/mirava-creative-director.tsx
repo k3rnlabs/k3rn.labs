@@ -84,13 +84,13 @@ export function MiravaCreativeDirector({
   }
 
   return (
-    <div className="mirava-theme fixed inset-0 z-50 min-h-dvh bg-mirava-canvas text-mirava-ink lg:grid lg:grid-cols-[1fr_minmax(24rem,38rem)_1fr]">
-      <button onClick={onClose} className="mirava-button mirava-button-secondary absolute left-4 top-[var(--mirava-safe-top)] z-10 gap-2 bg-mirava-canvas/70 px-4 text-sm backdrop-blur-xl lg:left-8 lg:top-8">
+    <div className="mirava-theme fixed inset-0 z-50 flex h-[100dvh] w-screen flex-col overflow-hidden bg-mirava-canvas text-mirava-ink lg:grid lg:grid-cols-[1fr_minmax(24rem,38rem)_1fr]">
+      <button onClick={onClose} className="mirava-button mirava-button-secondary absolute left-4 top-[calc(var(--mirava-safe-top)+0.75rem)] z-20 gap-2 bg-mirava-canvas/80 px-4 text-sm backdrop-blur-xl lg:left-8 lg:top-8">
         <ArrowLeft className="h-4 w-4" />
         {locale === "fr" ? "Retour au studio" : "Volver al estudio"}
       </button>
-      <section aria-label={locale === "fr" ? "Conversation avec Alma" : "Conversación con Alma"} className="mirava-director-shell col-start-2 flex min-h-dvh flex-col bg-mirava-surface lg:my-4 lg:min-h-[calc(100dvh-2rem)]">
-        <header className="border-b border-mirava-line/40 px-5 pb-5 pt-[calc(var(--mirava-safe-top)+3.75rem)] sm:px-7 lg:pt-7">
+      <section aria-label={locale === "fr" ? "Conversation avec Alma" : "Conversación con Alma"} className="mirava-director-shell col-start-2 flex h-full max-h-full min-h-0 flex-col overflow-hidden bg-mirava-surface lg:my-4 lg:max-h-[calc(100dvh-2rem)] lg:rounded-3xl lg:border lg:border-mirava-line/50">
+        <header className="shrink-0 border-b border-mirava-line/40 px-5 pb-4 pt-[calc(var(--mirava-safe-top)+3.5rem)] sm:px-7 lg:pt-6">
           <div className="flex min-w-0 items-center gap-3.5">
             <div className="relative shrink-0">
               <Image src="/visual-engine/alma-directrice.webp" alt="Alma" width={64} height={64} priority className="mirava-alma-avatar h-14 w-14 shrink-0 rounded-full object-cover ring-2 ring-mirava-accent/40 shadow-lg shadow-mirava-accent/15" />
@@ -208,7 +208,7 @@ export function MiravaCreativeDirector({
           <div ref={endRef} />
         </div>
 
-        <footer className="border-t border-mirava-line/30 bg-mirava-canvas-raised p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-5">
+        <footer className="shrink-0 border-t border-mirava-line/40 bg-mirava-canvas-raised p-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:p-5 shadow-2xl">
           {isFirstExchange && (
             <div className="mb-4 space-y-2">
               <p className="px-1 text-[11px] font-semibold tracking-wider text-mirava-muted uppercase">

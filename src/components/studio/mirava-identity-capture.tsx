@@ -265,7 +265,7 @@ export function MiravaIdentityCapture({
     setPhase("loading")
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 1080 }, height: { ideal: 1920 }, aspectRatio: { ideal: 9 / 16 } },
+        video: { facingMode: "user", width: { ideal: 1920 }, height: { ideal: 1080 } },
         audio: false,
       })
       streamRef.current = stream
@@ -662,10 +662,22 @@ export function MiravaIdentityCapture({
 
   return (
     <div className="mirava-theme mirava-capture-shell fixed inset-0 z-50 overflow-hidden bg-black text-white">
-      <video ref={videoRef} autoPlay muted playsInline className="absolute inset-0 h-full w-full scale-x-[-1] object-cover object-center" />
+      <video ref={videoRef} autoPlay muted playsInline className="absolute inset-0 h-full w-full scale-x-[-1] object-cover object-center max-h-[100dvh]" />
       <canvas ref={analysisCanvasRef} className="hidden" />
       <div className="mirava-camera-shade absolute inset-0" />
-      <div className={cn("mirava-camera-mask pointer-events-none absolute left-1/2 top-[44%] -translate-x-1/2 -translate-y-1/2 border transition-colors", currentStep.mode === "pose" ? "h-[54%] w-[52%] max-w-[240px] rounded-3xl" : "h-[44%] w-[68%] max-w-xs rounded-[48%]", visionIssue === "ready" ? "border-mirava-success" : "border-white/65")} />
+      <div
+        className={cn(
+          "mirava-camera-mask pointer-events-none absolute left-1/2 top-[40%] -translate-x-1/2 -translate-y-1/2 border-2 transition-all shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]",
+          currentStep.mode === "pose"
+            ? "h-[62%] w-[44%] max-w-[200px] rounded-3xl"
+            : "h-[42%] w-[58%] max-w-[220px] max-h-[290px] rounded-[50%]",
+          visionIssue === "ready" ? "border-mirava-success" : "border-white/80"
+        )}
+      >
+        {currentStep.mode !== "pose" && (
+          <div className="absolute inset-x-5 top-[38%] border-t border-dashed border-white/30" />
+        )}
+      </div>
 
       <header className="mirava-capture-safe-top absolute inset-x-0 top-0 z-10 flex items-center justify-between px-4">
         <button onClick={close} aria-label={locale === "fr" ? "Fermer" : "Cerrar"} className="mirava-capture-round-control"><X className="h-5 w-5" /></button>

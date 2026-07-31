@@ -33,6 +33,7 @@ import {
 } from "lucide-react"
 import { MiravaWordmark } from "@/components/mirava/mirava-wordmark"
 import { MiravaGrain } from "@/components/mirava/mirava-grain"
+import { MiravaFirstTimeInstallBanner } from "@/components/mirava/mirava-pwa"
 import { enableMiravaPush } from "@/components/mirava/mirava-pwa"
 import { useMiravaLocale } from "@/components/mirava/mirava-locale"
 import { MiravaCreativeDirector } from "@/components/studio/mirava-creative-director"
@@ -507,6 +508,7 @@ export function VisualEngineStudio() {
       />
 
       <div className="relative mx-auto max-w-6xl px-4 pt-4 sm:px-7 sm:pt-6">
+        <MiravaFirstTimeInstallBanner locale={locale} />
         {error && <div role="alert" className="mirava-alert mb-6 flex gap-3 p-4 text-sm shadow-lg"><CircleAlert className="h-5 w-5 shrink-0" />{error}</div>}
         {notice && <div className="mirava-notice mb-6 p-4 text-sm shadow-lg">{notice}</div>}
         {view === "create" && (!current

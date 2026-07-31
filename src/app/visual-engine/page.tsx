@@ -11,7 +11,7 @@ import { MiravaWordmark } from "@/components/mirava/mirava-wordmark"
 import { useMiravaLocale } from "@/components/mirava/mirava-locale"
 import { MiravaUniverseShowcase } from "@/components/mirava/mirava-universe-showcase"
 import { MiravaAgentSimulator } from "@/components/mirava/mirava-agent-simulator"
-import { MiravaSocialDistribution } from "@/components/mirava/mirava-social-distribution"
+import { MiravaChannelShowcase } from "@/components/mirava/mirava-channel-showcase"
 import { MiravaFaq } from "@/components/mirava/mirava-faq"
 import { MiravaPricing } from "@/components/mirava/mirava-pricing"
 import { MIRAVA_UNIVERSES } from "@/lib/mirava/universes"
@@ -360,47 +360,9 @@ export default function MiravaLandingPage() {
         <MiravaUniverseShowcase locale={locale} />
       </section>
 
-      {/* 8. Studio from Reference Image */}
-      <section className="relative mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-24">
-        <div className="mirava-surface-raised grid gap-8 p-8 sm:p-12 lg:grid-cols-[1.1fr_.9fr] lg:items-center rounded-2xl border border-mirava-line">
-          <div>
-            <span className="mirava-label">{t.customBadge}</span>
-            <h2 className="mirava-section-title mt-4 text-3xl sm:text-5xl">{t.customTitle}</h2>
-            <p className="mirava-copy mt-4 text-base leading-7">{t.customText}</p>
-            <div className="mt-8">
-              <Link
-                href="/visual-engine/studio"
-                className="mirava-button mirava-button-primary inline-flex min-h-[44px] items-center gap-2 px-6 text-xs font-semibold font-jakarta"
-              >
-                {t.customCta}
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
-          </div>
-          <div className="relative aspect-[4/3] overflow-hidden rounded-xl border border-mirava-line">
-            <Image
-              src="/visual-engine/univers/destination-iconique.webp"
-              alt="Studio sur-mesure"
-              fill
-              sizes="(max-width: 1024px) 90vw, 40vw"
-              className="object-cover"
-            />
-            <div className="mirava-media-overlay absolute inset-0" />
-            <div className="absolute inset-x-4 bottom-4 text-mirava-ink">
-              <span className="text-[9px] font-bold tracking-[.15em] text-mirava-accent">
-                STUDIO D'INSPIRATION ANALYSÉ
-              </span>
-              <p className="mt-0.5 text-xs text-mirava-ink-muted">
-                Atmosphère, lumière et texture reproduites à l'identique
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 9. Social Media Multi-Format Export */}
-      <section className="relative border-y border-mirava-line bg-mirava-canvas-raised px-5 py-16 sm:px-8 sm:py-24">
-        <MiravaSocialDistribution locale={locale} />
+      {/* 8. Multi-Channel Brand Deployment (V4 Editorial Showcase) */}
+      <section className="relative border-y border-mirava-line bg-mirava-canvas-raised">
+        <MiravaChannelShowcase locale={locale} />
       </section>
 
       {/* 10. Confidentiality & Rights */}
