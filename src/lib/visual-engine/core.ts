@@ -6,6 +6,7 @@ import { MIRAVA_ANALYSIS_MODEL, MIRAVA_IMAGE_MODEL } from "@/lib/mirava/server-c
 import { MIRAVA_STRIPE_PRODUCT, getMiravaStudioPreset, type MiravaStudioPresetId } from "@/lib/mirava/brand"
 import { formatMiravaCreativeOptions } from "@/lib/mirava/creative-options"
 import { MIRAVA_MAX_IDENTITY_PHOTOS, MIRAVA_MIN_IDENTITY_PHOTOS, MIRAVA_RECOMMENDED_IDENTITY_PHOTOS } from "@/lib/mirava/identity-profile"
+import { type PhysicalTrait, formatPhysicalTraitsForPrompt, parsePhysicalTraits } from "@/lib/mirava/physical-traits"
 import { buildMiravaSeriesShotBrief, getMiravaSeriesSize } from "@/lib/mirava/series"
 import {
   MiravaCreditError,
@@ -343,7 +344,14 @@ export async function getIdentityProfilePublic(userId: string) {
   const profile = await db.studioIdentityProfile.findUnique({ where: { userId } })
   if (!profile) return null
   const count = (await db.studioIdentityAsset.findMany({ where: { identityProfileId: profile.id } })).length
-  return { id: profile.id as string, assetCount: count, updatedAt: profile.updatedAt as string }
+  const physicalTraits = parsePhysicalTraits((profile as unknown as Record<string, unknown>).physicalTraits)
+  return { id: profile.id as string, assetCount: count, updatedAt: profile.updatedAt as string, physicalTraits }
+}
+
+export async function updateIdentityProfilePhysicalTraits(userId: string, traits: PhysicalTrait[]): Promise<void> {
+  const profile = await db.studioIdentityProfile.findUnique({ where: { userId } })
+  if (!profile) throw new StudioError("Profil identité introuvable.", "NOT_FOUND")
+  await db.studioIdentityProfile.update({ where: { id: profile.id, userId }, data: { physicalTraits: { items: traits } } })
 }
 
 export async function replaceIdentityProfile(args: {
@@ -651,13 +659,16 @@ async function extractMasterPrompt(reference: StudioAssetRecord): Promise<{ crea
 
 export function buildMiravaGenerationPrompt(
   creation: Pick<StudioCreationRecord, "masterPrompt" | "negativePrompt" | "creativeOptions">,
-  frameIndex = 0
+  frameIndex = 0,
+  physicalTraits: PhysicalTrait[] = []
 ): string {
   const creativePreferences = formatMiravaCreativeOptions(creation.creativeOptions)
   const seriesBrief = buildMiravaSeriesShotBrief(creation.creativeOptions, frameIndex)
+  const physicalTraitsSegment = formatPhysicalTraitsForPrompt(physicalTraits)
   return [
     "Create one photorealistic premium editorial image.",
     "IDENTITY INVARIANT — The supplied identity images are biometric references only. Preserve the same adult person’s facial geometry, eye shape and color, nose, lips, eyebrows, skin tone, distinctive facial traits and natural body proportions. Do not blend identities or invent a different face.",
+    physicalTraitsSegment,
     "CREATIVE FREEDOM — Do not copy the identity photos’ pose, gaze, expression, head angle, crop, camera perspective, lighting, background, clothing, jewelry, makeup, accessories or hair arrangement. Rebuild all of those elements from the approved art direction below. Vary them naturally so the person is convincingly photographed inside the requested scene, not pasted into it.",
     "SCENE COHERENCE — The face and body must receive the same direction, perspective, light color, shadow hardness, contrast and environmental reflections as the requested scene. Wardrobe, styling, pose and expression must be specific to this shoot.",
     "Compose the vertical image with a center-safe 4:5 crop area.",
@@ -671,13 +682,14 @@ export function buildMiravaGenerationPrompt(
 async function generateStudioImage(
   creation: StudioCreationRecord,
   identityAssets: Array<StudioAssetRecord | StudioIdentityAssetRecord>,
-  frameIndex = 0
+  frameIndex = 0,
+  physicalTraits: PhysicalTrait[] = []
 ): Promise<Buffer> {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) throw new StudioError("Le moteur Studio n’est pas configuré.", "PROVIDER_CONFIGURATION")
   const form = new FormData()
   form.append("model", MIRAVA_IMAGE_MODEL)
-  form.append("prompt", buildMiravaGenerationPrompt(creation, frameIndex))
+  form.append("prompt", buildMiravaGenerationPrompt(creation, frameIndex, physicalTraits))
   form.append("size", "1024x1536")
   form.append("quality", "high")
   form.append("input_fidelity", "high")
@@ -811,8 +823,12 @@ async function processStudioJob(job: StudioJobRecord): Promise<void> {
       const currentCreation = asCreation(await db.studioCreation.findUnique({ where: { id: creation.id } }))
       const identities = await getIdentityAssetsForCreation(currentCreation)
       if (!identities.length) throw new StudioError("Photo d’identité introuvable.", "IDENTITY_REQUIRED")
+      const identityProfile = currentCreation.identityProfileId
+        ? await db.studioIdentityProfile.findUnique({ where: { id: currentCreation.identityProfileId } })
+        : await db.studioIdentityProfile.findUnique({ where: { userId: currentCreation.userId } })
+      const physicalTraits = parsePhysicalTraits((identityProfile as unknown as Record<string, unknown> | null)?.physicalTraits)
       for (let frameIndex = existingResults.length; frameIndex < requestedResultCount; frameIndex += 1) {
-        const output = await generateStudioImage(creation, identities, frameIndex)
+        const output = await generateStudioImage(creation, identities, frameIndex, physicalTraits)
         await storeResultAsset(creation, output)
       }
       await db.studioCreation.update({ where: { id: creation.id }, data: { status: "COMPLETED", completedAt: new Date().toISOString() } })

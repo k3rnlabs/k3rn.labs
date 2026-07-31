@@ -25,6 +25,7 @@ import {
   LayoutGrid,
   Loader2,
   MessageCircle,
+  Plus,
   RotateCcw,
   ShieldCheck,
   Trash2,
@@ -44,6 +45,7 @@ import { Header } from "@/components/ui/header-2"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import type { MiravaCreativeOptions } from "@/lib/mirava/creative-options"
 import { isMiravaIdentityProfileReady, MIRAVA_MAX_IDENTITY_PHOTOS, MIRAVA_MIN_IDENTITY_PHOTOS } from "@/lib/mirava/identity-profile"
+import { BODY_ZONE_LABELS, MAX_DESCRIPTION_LENGTH, MAX_TRAITS, TRAIT_KIND_EMOJIS, TRAIT_KIND_LABELS, BODY_ZONES, TRAIT_KINDS, type BodyZone, type PhysicalTrait, type TraitKind } from "@/lib/mirava/physical-traits"
 import { MIRAVA_UNIVERSES, getMiravaUniverse, type MiravaUniverse } from "@/lib/mirava/universes"
 import { cn } from "@/lib/utils"
 
@@ -66,7 +68,7 @@ type Creation = {
 }
 type Detail = { creation: Creation; assets: Asset[]; resultUrl: string | null; resultUrls: string[]; completedResultCount: number; studioCredits: number }
 type Studio = { id: string; name: string; presetId: string | null; createdAt: string; updatedAt: string }
-type IdentityProfile = { id: string; assetCount: number; updatedAt: string } | null
+type IdentityProfile = { id: string; assetCount: number; updatedAt: string; physicalTraits: PhysicalTrait[] } | null
 type Offer = { id: string; name: string; credits: number; priceEur: number; kind: "pack" | "subscription" }
 type Account = { credits: number; subscription: { planId: string | null; status: string | null; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean } | null; plans: Offer[]; packs: Offer[] }
 type Consents = { adult: boolean; rights: boolean; privacy: boolean; provider: boolean }
@@ -1091,6 +1093,48 @@ function AccountView({
   const [pushNotice, setPushNotice] = useState<string | null>(null)
   const [pushError, setPushError] = useState<string | null>(null)
 
+  // Physical traits state
+  const [traits, setTraits] = useState<PhysicalTrait[]>(identityProfile?.physicalTraits ?? [])
+  const [traitsOpen, setTraitsOpen] = useState(false)
+  const [traitKind, setTraitKind] = useState<TraitKind>("tattoo")
+  const [traitZone, setTraitZone] = useState<BodyZone>("left-forearm")
+  const [traitDesc, setTraitDesc] = useState("")
+  const [traitsSaving, setTraitsSaving] = useState(false)
+  const [traitsError, setTraitsError] = useState<string | null>(null)
+
+  const saveTraits = async (next: PhysicalTrait[]) => {
+    setTraitsSaving(true)
+    setTraitsError(null)
+    try {
+      await fetch("/api/visual-engine/identity-profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ traits: next }),
+        credentials: "same-origin",
+      }).then(async (r) => { if (!r.ok) { const d = await r.json() as { error?: string }; throw new Error(d.error ?? "Erreur") } })
+      setTraits(next)
+    } catch (e) {
+      setTraitsError(e instanceof Error ? e.message : "Impossible de sauvegarder.")
+    } finally {
+      setTraitsSaving(false)
+    }
+  }
+
+  const addTrait = async () => {
+    const desc = traitDesc.trim()
+    if (!desc) return
+    if (traits.length >= MAX_TRAITS) return
+    const next: PhysicalTrait[] = [...traits, { id: crypto.randomUUID(), kind: traitKind, zone: traitZone, description: desc }]
+    await saveTraits(next)
+    setTraitDesc("")
+    setTraitsOpen(false)
+  }
+
+  const removeTrait = async (id: string) => {
+    const next = traits.filter((t) => t.id !== id)
+    await saveTraits(next)
+  }
+
   const handleNotify = async () => {
     setPushLoading(true)
     setPushNotice(null)
@@ -1159,6 +1203,131 @@ function AccountView({
           </div>
         </Surface>
       </div>
+
+      {/* ── Physical Traits Panel ── */}
+      {identityProfile && (
+        <Surface className="mt-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="mirava-label">{locale === "fr" ? "CARACTÉRISTIQUES DISTINCTIVES" : "CARACTERÍSTICAS DISTINTIVAS"}</p>
+              <h2 className="mirava-section-title mt-2 text-xl">
+                {locale === "fr" ? "Tatouages, cicatrices & autres" : "Tatuajes, cicatrices y otras"}
+              </h2>
+            </div>
+            {traits.length < MAX_TRAITS && (
+              <button
+                onClick={() => setTraitsOpen((o) => !o)}
+                className="mirava-button mirava-button-secondary shrink-0 px-3 text-sm font-semibold"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          <p className="mirava-copy mt-2 text-xs leading-5">
+            {locale === "fr"
+              ? "Ces caractéristiques sont reproduites fidèlement sur chaque image générée."
+              : "Estas características se reproducen fielmente en cada imagen generada."}
+          </p>
+
+          {/* Chip list */}
+          {traits.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {traits.map((trait) => (
+                <span
+                  key={trait.id}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium"
+                >
+                  <span>{TRAIT_KIND_EMOJIS[trait.kind]}</span>
+                  <span className="opacity-60">{BODY_ZONE_LABELS[trait.zone][locale]}</span>
+                  <span>·</span>
+                  <span className="max-w-[120px] truncate">{trait.description}</span>
+                  <button
+                    onClick={() => void removeTrait(trait.id)}
+                    disabled={traitsSaving}
+                    className="ml-1 rounded-full p-0.5 opacity-40 transition-opacity hover:opacity-100"
+                    aria-label={locale === "fr" ? "Supprimer" : "Eliminar"}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Add form */}
+          {traitsOpen && (
+            <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
+              <p className="mirava-label mb-3">{locale === "fr" ? "AJOUTER UNE CARACTÉRISTIQUE" : "AÑADIR CARACTERÍSTICA"}</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mirava-copy mb-1 block text-[11px] font-semibold uppercase tracking-wider opacity-60">
+                    {locale === "fr" ? "Type" : "Tipo"}
+                  </label>
+                  <select
+                    value={traitKind}
+                    onChange={(e) => setTraitKind(e.target.value as TraitKind)}
+                    className="mirava-input w-full text-sm"
+                  >
+                    {TRAIT_KINDS.map((k) => (
+                      <option key={k} value={k}>{TRAIT_KIND_EMOJIS[k]} {TRAIT_KIND_LABELS[k][locale]}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mirava-copy mb-1 block text-[11px] font-semibold uppercase tracking-wider opacity-60">
+                    {locale === "fr" ? "Zone" : "Zona"}
+                  </label>
+                  <select
+                    value={traitZone}
+                    onChange={(e) => setTraitZone(e.target.value as BodyZone)}
+                    className="mirava-input w-full text-sm"
+                  >
+                    {BODY_ZONES.map((z) => (
+                      <option key={z} value={z}>{BODY_ZONE_LABELS[z][locale]}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="mt-3">
+                <label className="mirava-copy mb-1 block text-[11px] font-semibold uppercase tracking-wider opacity-60">
+                  {locale === "fr" ? "Description (ex: rose noire sur le poignet gauche)" : "Descripción (ej: rosa negra en la muñeca izquierda)"}
+                </label>
+                <textarea
+                  value={traitDesc}
+                  onChange={(e) => setTraitDesc(e.target.value.slice(0, MAX_DESCRIPTION_LENGTH))}
+                  rows={2}
+                  placeholder={locale === "fr" ? "Rose noire avec des épines, style old school…" : "Rosa negra con espinas, estilo old school…"}
+                  className="mirava-input w-full resize-none text-sm"
+                />
+                <p className="mirava-meta mt-1 text-right text-[10px] tabular-nums opacity-40">{traitDesc.length}/{MAX_DESCRIPTION_LENGTH}</p>
+              </div>
+              {traitsError && (
+                <p className="mt-2 text-xs text-red-400">{traitsError}</p>
+              )}
+              <div className="mt-4 flex justify-end gap-3">
+                <button onClick={() => setTraitsOpen(false)} className="mirava-button mirava-button-secondary px-4 text-sm font-semibold">
+                  {locale === "fr" ? "Annuler" : "Cancelar"}
+                </button>
+                <button
+                  onClick={() => void addTrait()}
+                  disabled={!traitDesc.trim() || traitsSaving}
+                  className="mirava-button mirava-button-primary px-4 text-sm font-semibold"
+                >
+                  {traitsSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+                  {locale === "fr" ? "Ajouter" : "Añadir"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {traits.length === 0 && !traitsOpen && (
+            <p className="mt-4 text-xs opacity-40 italic">
+              {locale === "fr" ? "Aucune caractéristique renseignée." : "Ninguna característica registrada."}
+            </p>
+          )}
+        </Surface>
+      )}
+
       <div className="mt-10">
         <h2 className="font-jakarta text-2xl font-semibold">{t.plans}</h2>
         <Offers offers={account?.plans ?? []} locale={locale} t={t} onCheckout={onCheckout} pending={pending} />

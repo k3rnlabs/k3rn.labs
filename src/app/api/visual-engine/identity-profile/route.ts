@@ -2,8 +2,9 @@ import { NextRequest } from "next/server"
 import { verifySession } from "@/lib/auth"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { apiError, apiSuccess } from "@/lib/validate"
-import { appendIdentityProfile, deleteIdentityProfile, getIdentityProfilePublic, MAX_IDENTITY_ASSETS, MIN_IDENTITY_ASSETS, replaceIdentityProfile, studioErrorResponse } from "@/lib/visual-engine/core"
+import { appendIdentityProfile, deleteIdentityProfile, getIdentityProfilePublic, MAX_IDENTITY_ASSETS, MIN_IDENTITY_ASSETS, replaceIdentityProfile, studioErrorResponse, updateIdentityProfilePhysicalTraits } from "@/lib/visual-engine/core"
 import { recordMiravaAudit } from "@/lib/visual-engine/audit"
+import { type PhysicalTrait, MAX_TRAITS, MAX_DESCRIPTION_LENGTH, TRAIT_KINDS, BODY_ZONES, isValidPhysicalTrait } from "@/lib/mirava/physical-traits"
 
 export async function GET() {
   const session = await verifySession()
@@ -45,4 +46,21 @@ export async function DELETE() {
   if (!session) return apiError("Unauthorized", 401)
   try { await deleteIdentityProfile(session.userId); await recordMiravaAudit(session.userId, "IDENTITY_PROFILE_DELETED", "identity-profile"); return apiSuccess({ deleted: true }) }
   catch (error) { const mapped = studioErrorResponse(error); return apiError(mapped.message, mapped.status) }
+}
+
+export async function PATCH(req: NextRequest) {
+  const session = await verifySession()
+  if (!session) return apiError("Unauthorized", 401)
+  const limit = await checkRateLimit("mutations", `${session.userId}:${req.headers.get("x-forwarded-for") ?? "local"}`)
+  if (!limit.success) return apiError("Trop de requêtes. Réessayez plus tard.", 429)
+  try {
+    const body = await req.json() as { traits?: unknown }
+    if (!Array.isArray(body.traits)) return apiError("Format invalide.", 400)
+    if (body.traits.length > MAX_TRAITS) return apiError(`Maximum ${MAX_TRAITS} caractéristiques autorisées.`, 400)
+    const traits = body.traits as unknown[]
+    if (!traits.every(isValidPhysicalTrait)) return apiError("Une ou plusieurs caractéristiques sont invalides.", 400)
+    await updateIdentityProfilePhysicalTraits(session.userId, traits as PhysicalTrait[])
+    await recordMiravaAudit(session.userId, "IDENTITY_PROFILE_UPDATED", "physical-traits")
+    return apiSuccess({ ok: true })
+  } catch (error) { const mapped = studioErrorResponse(error); return apiError(mapped.message, mapped.status) }
 }
