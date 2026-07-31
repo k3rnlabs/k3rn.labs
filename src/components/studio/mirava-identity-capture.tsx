@@ -665,19 +665,12 @@ export function MiravaIdentityCapture({
       <video ref={videoRef} autoPlay muted playsInline className="absolute inset-0 h-full w-full scale-x-[-1] object-cover object-center max-h-[100dvh]" />
       <canvas ref={analysisCanvasRef} className="hidden" />
       <div className="mirava-camera-shade absolute inset-0" />
-      <div
-        className={cn(
-          "mirava-camera-mask pointer-events-none absolute left-1/2 top-[40%] -translate-x-1/2 -translate-y-1/2 border-2 transition-all shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]",
-          currentStep.mode === "pose"
-            ? "h-[62%] w-[44%] max-w-[200px] rounded-3xl"
-            : "h-[42%] w-[58%] max-w-[220px] max-h-[290px] rounded-[50%]",
-          visionIssue === "ready" ? "border-mirava-success" : "border-white/80"
-        )}
-      >
-        {currentStep.mode !== "pose" && (
-          <div className="absolute inset-x-5 top-[38%] border-t border-dashed border-white/30" />
-        )}
-      </div>
+      <AppleFaceIdOverlay
+        mode={currentStep.mode}
+        visionIssue={visionIssue}
+        stableProgress={stableProgress}
+        stepId={currentStep.id}
+      />
 
       <header className="mirava-capture-safe-top absolute inset-x-0 top-0 z-10 flex items-center justify-between px-4">
         <button onClick={close} aria-label={locale === "fr" ? "Fermer" : "Cerrar"} className="mirava-capture-round-control"><X className="h-5 w-5" /></button>
@@ -687,11 +680,9 @@ export function MiravaIdentityCapture({
         <button onClick={() => { stopCamera(); setPhase("summary") }} disabled={!identityViewsReady} className="mirava-capture-round-control" aria-label={locale === "fr" ? "Voir le récapitulatif" : "Ver el resumen"}><Images className="h-5 w-5" /></button>
       </header>
 
-      {(currentStep.id === "left" || currentStep.id === "right") && <div aria-hidden="true" className={cn("mirava-direction-arrow absolute top-[42%] z-10 text-5xl font-light", currentStep.id === "left" ? "left-[12%]" : "right-[12%]")}>{currentStep.id === "left" ? "←" : "→"}</div>}
-
       <div className="absolute inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-10 mx-auto max-w-md rounded-[var(--mirava-radius)] border border-white/15 bg-black/75 px-4 py-3 text-center shadow-2xl backdrop-blur-xl">
-        <div aria-live="polite" aria-atomic="true" className={cn("mx-auto inline-flex min-h-7 items-center gap-1.5 rounded-[var(--mirava-radius)] border px-2.5 py-1 text-[11px] font-semibold", visionIssue === "ready" ? "border-mirava-success/60 bg-mirava-success/15 text-mirava-success" : "border-white/15 bg-white/8 text-white")}>
-          {visionIssue === "loading" ? <Loader2 className="h-3 w-3 animate-spin" /> : visionIssue === "ready" ? <Check className="h-3 w-3" /> : null}
+        <div aria-live="polite" aria-atomic="true" className={cn("mx-auto inline-flex min-h-7 items-center gap-1.5 rounded-[var(--mirava-radius)] border px-2.5 py-1 text-[11px] font-semibold transition-all duration-200", visionIssue === "ready" ? "border-emerald-500/60 bg-emerald-500/20 text-emerald-400 shadow-[0_0_16px_rgba(16,185,129,0.35)]" : "border-white/15 bg-white/8 text-white")}>
+          {visionIssue === "loading" ? <Loader2 className="h-3 w-3 animate-spin" /> : visionIssue === "ready" ? <Check className="h-3.5 w-3.5 text-emerald-400 stroke-[3]" /> : null}
           {instruction}
         </div>
         <p className="mt-1.5 font-jakarta text-lg font-semibold tracking-[-.035em]">{currentStep.title[locale]}</p>
@@ -702,14 +693,129 @@ export function MiravaIdentityCapture({
           ) : (
             <span className="w-12" />
           )}
-          <button onClick={() => void capture()} className="mirava-capture-shutter relative grid h-14 w-14 place-items-center rounded-full" aria-label={locale === "fr" ? "Prendre la photo" : "Tomar la foto"}>
-            <span className="absolute inset-0 rounded-full border-[2.5px] border-white/35" />
-            <span className="absolute inset-0 rounded-full" style={{ background: `conic-gradient(white ${stableProgress * 360}deg, transparent 0)` }} />
-            <span className="relative grid h-11 w-11 place-items-center rounded-full bg-white text-black"><Camera className="h-5 w-5" /></span>
+          <button onClick={() => void capture()} className="mirava-capture-shutter relative grid h-14 w-14 place-items-center rounded-full transition-transform active:scale-95" aria-label={locale === "fr" ? "Prendre la photo" : "Tomar la foto"}>
+            <span className={cn("absolute inset-0 rounded-full border-[2.5px] transition-colors", visionIssue === "ready" ? "border-emerald-400/60" : "border-white/35")} />
+            <span className="absolute inset-0 rounded-full" style={{ background: `conic-gradient(#10B981 ${stableProgress * 360}deg, transparent 0)` }} />
+            <span className={cn("relative grid h-11 w-11 place-items-center rounded-full transition-colors", visionIssue === "ready" ? "bg-emerald-400 text-black shadow-[0_0_16px_rgba(16,185,129,0.8)]" : "bg-white text-black")}><Camera className="h-5 w-5" /></span>
           </button>
           <span className="w-12 text-right text-xs font-semibold text-white/55">{activeStep + 1}/{steps.length}</span>
         </div>
       </div>
+    </div>
+  )
+}
+
+function AppleFaceIdOverlay({
+  mode,
+  visionIssue,
+  stableProgress,
+  stepId,
+}: {
+  mode: MiravaVisionMode
+  visionIssue: MiravaVisionIssue
+  stableProgress: number
+  stepId: MiravaVisionStep
+}) {
+  const isPerfect = visionIssue === "ready"
+  const isReady = visionIssue === "ready" || visionIssue === "hold-still"
+  const isLightingIssue = visionIssue === "dark" || visionIssue === "bright" || visionIssue === "uneven-light"
+  const isBlurry = visionIssue === "blurry"
+
+  const TICK_COUNT = 36
+  const activeTicksCount = Math.round(stableProgress * TICK_COUNT)
+
+  return (
+    <div
+      className={cn(
+        "pointer-events-none absolute left-1/2 top-[40%] -translate-x-1/2 -translate-y-1/2 transition-all duration-300 flex items-center justify-center z-10",
+        mode === "pose"
+          ? "h-[62%] w-[44%] max-w-[200px] rounded-3xl"
+          : "h-[42%] w-[58%] max-w-[220px] max-h-[290px] rounded-[50%]"
+      )}
+    >
+      <div
+        className={cn(
+          "absolute inset-0 rounded-[inherit] border-2 transition-all duration-300 shadow-[0_0_0_9999px_rgba(0,0,0,0.6)]",
+          isPerfect
+            ? "border-emerald-400 shadow-[0_0_36px_rgba(16,185,129,0.85),0_0_0_9999px_rgba(0,0,0,0.6)] scale-[1.02]"
+            : isReady
+            ? "border-emerald-300 shadow-[0_0_24px_rgba(52,211,153,0.5),0_0_0_9999px_rgba(0,0,0,0.6)]"
+            : isLightingIssue || isBlurry
+            ? "border-amber-400/90 shadow-[0_0_20px_rgba(251,191,36,0.35),0_0_0_9999px_rgba(0,0,0,0.55)]"
+            : "border-white/75 shadow-[0_0_0_9999px_rgba(0,0,0,0.55)]"
+        )}
+      />
+
+      <svg className="absolute -inset-6 h-[calc(100%+3rem)] w-[calc(100%+3rem)] overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <defs>
+          <filter id="emerald-glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="2" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+        {Array.from({ length: TICK_COUNT }).map((_, index) => {
+          const angle = (index * 360) / TICK_COUNT - 90
+          const rad = (angle * Math.PI) / 180
+          const isFilled = isPerfect || (stableProgress > 0 && index / TICK_COUNT <= stableProgress)
+          const tickProgress = (index + 1) / TICK_COUNT
+
+          const rxInner = 48
+          const ryInner = 48
+          const rxOuter = 52.5
+          const ryOuter = 52.5
+
+          const x1 = 50 + rxInner * Math.cos(rad)
+          const y1 = 50 + ryInner * Math.sin(rad)
+          const x2 = 50 + rxOuter * Math.cos(rad)
+          const y2 = 50 + ryOuter * Math.sin(rad)
+
+          return (
+            <line
+              key={index}
+              x1={x1}
+              y1={y1}
+              x2={x2}
+              y2={y2}
+              stroke={
+                isFilled
+                  ? "#10B981"
+                  : stableProgress >= tickProgress
+                  ? "#34D399"
+                  : "rgba(255,255,255,0.3)"
+              }
+              strokeWidth={isFilled ? "2.5" : "1.5"}
+              strokeLinecap="round"
+              filter={isFilled ? "url(#emerald-glow)" : undefined}
+              className="transition-colors duration-150"
+            />
+          )
+        })}
+      </svg>
+
+      {mode !== "pose" && (
+        <div
+          className={cn(
+            "absolute inset-x-5 top-[38%] border-t transition-all duration-200",
+            isPerfect ? "border-solid border-emerald-400/90 shadow-[0_0_8px_rgba(16,185,129,0.8)]" : "border-dashed border-white/35"
+          )}
+        />
+      )}
+
+      {stepId === "left" && !isPerfect && (
+        <div className="absolute -left-14 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-emerald-400 animate-pulse font-jakarta text-xs font-bold bg-black/80 px-3 py-1.5 rounded-full border border-emerald-500/50 backdrop-blur-md shadow-xl">
+          <span>←</span>
+          <span>GAUCHE</span>
+        </div>
+      )}
+      {stepId === "right" && !isPerfect && (
+        <div className="absolute -right-14 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-emerald-400 animate-pulse font-jakarta text-xs font-bold bg-black/80 px-3 py-1.5 rounded-full border border-emerald-500/50 backdrop-blur-md shadow-xl">
+          <span>DROITE</span>
+          <span>→</span>
+        </div>
+      )}
     </div>
   )
 }
