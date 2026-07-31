@@ -160,19 +160,17 @@ function faceIssue(step: MiravaVisionStep, points: NormalizedLandmark[], quality
   const yaw = (nose.x - eyeMidX) / eyeDistance
   const roll = Math.atan2(rightEye.y - leftEye.y, rightEye.x - leftEye.x) * 180 / Math.PI
 
-  if (box.width < 0.25) return { issue: "move-closer", yaw, roll }
-  if (box.width > 0.7) return { issue: "move-back", yaw, roll }
-  if (Math.abs(box.centerX - 0.5) > 0.14 || Math.abs(box.centerY - 0.44) > 0.17) return { issue: "center", yaw, roll }
-  if (Math.abs(roll) > 9) return { issue: "tilt", yaw, roll }
-  if ((step === "front" || step === "hair") && Math.abs(yaw) > 0.13) return { issue: "face-camera", yaw, roll }
-  if (step === "left" && yaw < 0.16) return { issue: "turn-left", yaw, roll }
-  if (step === "left" && yaw > 0.48) return { issue: "face-camera", yaw, roll }
-  if (step === "right" && yaw > -0.16) return { issue: "turn-right", yaw, roll }
-  if (step === "right" && yaw < -0.48) return { issue: "face-camera", yaw, roll }
-  if (quality.luminance < 68) return { issue: "dark", yaw, roll }
-  if (quality.luminance > 214) return { issue: "bright", yaw, roll }
-  if (quality.lightDifference > 42) return { issue: "uneven-light", yaw, roll }
-  if (quality.sharpness < 7.2) return { issue: "blurry", yaw, roll }
+  if (box.width < 0.12) return { issue: "move-closer", yaw, roll }
+  if (box.width > 0.90) return { issue: "move-back", yaw, roll }
+  if (Math.abs(box.centerX - 0.5) > 0.28 || Math.abs(box.centerY - 0.46) > 0.30) return { issue: "center", yaw, roll }
+  if (Math.abs(roll) > 25) return { issue: "tilt", yaw, roll }
+  if ((step === "front" || step === "hair") && Math.abs(yaw) > 0.32) return { issue: "face-camera", yaw, roll }
+  if (step === "left" && yaw < 0.05) return { issue: "turn-left", yaw, roll }
+  if (step === "right" && yaw > -0.05) return { issue: "turn-right", yaw, roll }
+  if (quality.luminance < 25) return { issue: "dark", yaw, roll }
+  if (quality.luminance > 245) return { issue: "bright", yaw, roll }
+  if (quality.lightDifference > 80) return { issue: "uneven-light", yaw, roll }
+  if (quality.sharpness < 2.5) return { issue: "blurry", yaw, roll }
   return { issue: "ready", yaw, roll }
 }
 

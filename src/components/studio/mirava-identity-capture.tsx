@@ -85,20 +85,20 @@ const steps: CaptureStep[] = [
 
 type CapturedFrame = { stepId: MiravaVisionStep; file: File; preview: string }
 
-const STABLE_CAPTURE_MS = 800
+const STABLE_CAPTURE_MS = 250
 
 function issueCopy(issue: MiravaVisionIssue, locale: Locale, step: CaptureStep) {
   const copy: Record<MiravaVisionIssue, Record<Locale, string>> = {
     loading: { fr: "Préparation du guide…", es: "Preparando la guía…" },
-    "no-face": { fr: "Placez votre visage dans le guide.", es: "Coloca tu rostro dentro de la guía." },
+    "no-face": { fr: "Placez votre visage dans le cercle.", es: "Coloca tu rostro dentro del círculo." },
     "multiple-faces": { fr: "Une seule personne dans le cadre.", es: "Solo una persona en el encuadre." },
     "no-pose": { fr: "Reculez pour apparaître entièrement.", es: "Retrocede para aparecer por completo." },
     "multiple-poses": { fr: "Une seule personne dans le cadre.", es: "Solo una persona en el encuadre." },
     "move-closer": { fr: "Approchez-vous légèrement.", es: "Acércate un poco." },
     "move-back": { fr: "Reculez légèrement.", es: "Aléjate un poco." },
-    center: { fr: "Replacez-vous au centre.", es: "Vuelve al centro." },
-    "turn-left": { fr: "Tournez encore un peu vers la gauche.", es: "Gira un poco más hacia la izquierda." },
-    "turn-right": { fr: "Tournez encore un peu vers la droite.", es: "Gira un poco más hacia la derecha." },
+    center: { fr: "Replacez-vous au centre du cercle.", es: "Vuelve al centro del círculo." },
+    "turn-left": { fr: "Tournez la tête vers la gauche.", es: "Gira la cabeza hacia la izquierda." },
+    "turn-right": { fr: "Tournez la tête vers la droite.", es: "Gira la cabeza hacia la derecha." },
     "face-camera": { fr: "Revenez légèrement vers l’objectif.", es: "Vuelve un poco hacia el objetivo." },
     tilt: { fr: "Gardez la tête bien droite.", es: "Mantén la cabeza recta." },
     "body-in-frame": { fr: "Gardez la tête et les pieds dans le cadre.", es: "Mantén la cabeza y los pies en el encuadre." },
@@ -242,9 +242,9 @@ export function MiravaIdentityCapture({
     }
     const previous = lastMetricsRef.current
     const stable = !previous || (
-      Math.abs((result.centerX ?? 0) - (previous.centerX ?? 0)) < 0.018
-      && Math.abs((result.centerY ?? 0) - (previous.centerY ?? 0)) < 0.018
-      && Math.abs((result.yaw ?? 0) - (previous.yaw ?? 0)) < 0.045
+      Math.abs((result.centerX ?? 0) - (previous.centerX ?? 0)) < 0.05
+      && Math.abs((result.centerY ?? 0) - (previous.centerY ?? 0)) < 0.05
+      && Math.abs((result.yaw ?? 0) - (previous.yaw ?? 0)) < 0.08
     )
     lastMetricsRef.current = { centerX: result.centerX, centerY: result.centerY, yaw: result.yaw }
     if (!stable) {
@@ -718,104 +718,93 @@ function AppleFaceIdOverlay({
 }) {
   const isPerfect = visionIssue === "ready"
   const isReady = visionIssue === "ready" || visionIssue === "hold-still"
-  const isLightingIssue = visionIssue === "dark" || visionIssue === "bright" || visionIssue === "uneven-light"
-  const isBlurry = visionIssue === "blurry"
 
-  const TICK_COUNT = 36
-  const activeTicksCount = Math.round(stableProgress * TICK_COUNT)
+  // 60 tick marks around the circle like iOS Face ID setup
+  const TICK_COUNT = 60
 
   return (
-    <div
-      className={cn(
-        "pointer-events-none absolute left-1/2 top-[40%] -translate-x-1/2 -translate-y-1/2 transition-all duration-300 flex items-center justify-center z-10",
-        mode === "pose"
-          ? "h-[62%] w-[44%] max-w-[200px] rounded-3xl"
-          : "h-[42%] w-[58%] max-w-[220px] max-h-[290px] rounded-[50%]"
-      )}
-    >
-      <div
-        className={cn(
-          "absolute inset-0 rounded-[inherit] border-2 transition-all duration-300 shadow-[0_0_0_9999px_rgba(0,0,0,0.6)]",
-          isPerfect
-            ? "border-emerald-400 shadow-[0_0_36px_rgba(16,185,129,0.85),0_0_0_9999px_rgba(0,0,0,0.6)] scale-[1.02]"
-            : isReady
-            ? "border-emerald-300 shadow-[0_0_24px_rgba(52,211,153,0.5),0_0_0_9999px_rgba(0,0,0,0.6)]"
-            : isLightingIssue || isBlurry
-            ? "border-amber-400/90 shadow-[0_0_20px_rgba(251,191,36,0.35),0_0_0_9999px_rgba(0,0,0,0.55)]"
-            : "border-white/75 shadow-[0_0_0_9999px_rgba(0,0,0,0.55)]"
-        )}
-      />
-
-      <svg className="absolute -inset-6 h-[calc(100%+3rem)] w-[calc(100%+3rem)] overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none">
-        <defs>
-          <filter id="emerald-glow" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="2" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-        </defs>
-        {Array.from({ length: TICK_COUNT }).map((_, index) => {
-          const angle = (index * 360) / TICK_COUNT - 90
-          const rad = (angle * Math.PI) / 180
-          const isFilled = isPerfect || (stableProgress > 0 && index / TICK_COUNT <= stableProgress)
-          const tickProgress = (index + 1) / TICK_COUNT
-
-          const rxInner = 48
-          const ryInner = 48
-          const rxOuter = 52.5
-          const ryOuter = 52.5
-
-          const x1 = 50 + rxInner * Math.cos(rad)
-          const y1 = 50 + ryInner * Math.sin(rad)
-          const x2 = 50 + rxOuter * Math.cos(rad)
-          const y2 = 50 + ryOuter * Math.sin(rad)
-
-          return (
-            <line
-              key={index}
-              x1={x1}
-              y1={y1}
-              x2={x2}
-              y2={y2}
-              stroke={
-                isFilled
-                  ? "#10B981"
-                  : stableProgress >= tickProgress
-                  ? "#34D399"
-                  : "rgba(255,255,255,0.3)"
-              }
-              strokeWidth={isFilled ? "2.5" : "1.5"}
-              strokeLinecap="round"
-              filter={isFilled ? "url(#emerald-glow)" : undefined}
-              className="transition-colors duration-150"
-            />
-          )
-        })}
-      </svg>
-
-      {mode !== "pose" && (
+    <div className="pointer-events-none absolute left-1/2 top-[40%] -translate-x-1/2 -translate-y-1/2 z-10 flex flex-col items-center justify-center">
+      <div className="relative flex items-center justify-center">
+        {/* Circle viewport mask outline */}
         <div
           className={cn(
-            "absolute inset-x-5 top-[38%] border-t transition-all duration-200",
-            isPerfect ? "border-solid border-emerald-400/90 shadow-[0_0_8px_rgba(16,185,129,0.8)]" : "border-dashed border-white/35"
+            "relative grid place-items-center transition-all duration-300 shadow-[0_0_0_9999px_rgba(0,0,0,0.85)]",
+            mode === "pose"
+              ? "h-[58vh] w-[46vw] max-w-[220px] max-h-[350px] rounded-3xl"
+              : "h-[68vw] w-[68vw] max-w-[270px] max-h-[270px] rounded-full",
+            isPerfect
+              ? "ring-4 ring-[#30D158] shadow-[0_0_40px_rgba(48,209,88,0.5),0_0_0_9999px_rgba(0,0,0,0.85)] scale-[1.02]"
+              : "ring-2 ring-white/20"
           )}
-        />
-      )}
+        >
+          {/* Directional 3D Arrow inside circle for turn steps (Face ID Style) */}
+          {stepId === "left" && !isPerfect && (
+            <div className="absolute inset-0 grid place-items-center text-[#30D158] animate-pulse">
+              <div className="flex items-center gap-2 bg-black/60 px-4 py-2 rounded-2xl backdrop-blur-md border border-[#30D158]/40 shadow-2xl">
+                <span className="text-3xl font-light">←</span>
+                <span className="text-xs font-bold tracking-wider uppercase">Gauche</span>
+              </div>
+            </div>
+          )}
+          {stepId === "right" && !isPerfect && (
+            <div className="absolute inset-0 grid place-items-center text-[#30D158] animate-pulse">
+              <div className="flex items-center gap-2 bg-black/60 px-4 py-2 rounded-2xl backdrop-blur-md border border-[#30D158]/40 shadow-2xl">
+                <span className="text-xs font-bold tracking-wider uppercase">Droite</span>
+                <span className="text-3xl font-light">→</span>
+              </div>
+            </div>
+          )}
+        </div>
 
-      {stepId === "left" && !isPerfect && (
-        <div className="absolute -left-14 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-emerald-400 animate-pulse font-jakarta text-xs font-bold bg-black/80 px-3 py-1.5 rounded-full border border-emerald-500/50 backdrop-blur-md shadow-xl">
-          <span>←</span>
-          <span>GAUCHE</span>
-        </div>
-      )}
-      {stepId === "right" && !isPerfect && (
-        <div className="absolute -right-14 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-emerald-400 animate-pulse font-jakarta text-xs font-bold bg-black/80 px-3 py-1.5 rounded-full border border-emerald-500/50 backdrop-blur-md shadow-xl">
-          <span>DROITE</span>
-          <span>→</span>
-        </div>
-      )}
+        {/* 60 Radial Ticks Ring around the Circle (Apple Face ID Ring) */}
+        <svg
+          className="absolute -inset-8 h-[calc(100%+4rem)] w-[calc(100%+4rem)] overflow-visible pointer-events-none"
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+        >
+          {Array.from({ length: TICK_COUNT }).map((_, index) => {
+            const angle = (index * 360) / TICK_COUNT - 90
+            const rad = (angle * Math.PI) / 180
+            const tickProgress = (index + 1) / TICK_COUNT
+            const isFilled = isPerfect || (stableProgress > 0 && index / TICK_COUNT <= stableProgress)
+
+            const rxInner = 48
+            const ryInner = 48
+            const rxOuter = 53.5
+            const ryOuter = 53.5
+
+            const x1 = 50 + rxInner * Math.cos(rad)
+            const y1 = 50 + ryInner * Math.sin(rad)
+            const x2 = 50 + rxOuter * Math.cos(rad)
+            const y2 = 50 + ryOuter * Math.sin(rad)
+
+            return (
+              <line
+                key={index}
+                x1={x1}
+                y1={y1}
+                x2={x2}
+                y2={y2}
+                stroke={isFilled ? "#30D158" : "rgba(255,255,255,0.25)"}
+                strokeWidth={isFilled ? "3" : "2"}
+                strokeLinecap="round"
+                className="transition-colors duration-100"
+              />
+            )
+          })}
+        </svg>
+      </div>
+
+      {/* Main Guidance Text under Circle */}
+      <div className="mt-7 px-6 text-center max-w-xs">
+        <p className="text-base font-medium text-white/90 tracking-tight leading-snug">
+          {stepId === "left"
+            ? "Tournez la tête vers la gauche pour compléter le cercle."
+            : stepId === "right"
+            ? "Tournez la tête vers la droite pour compléter le cercle."
+            : "Placez votre visage au centre du cercle."}
+        </p>
+      </div>
     </div>
   )
 }
