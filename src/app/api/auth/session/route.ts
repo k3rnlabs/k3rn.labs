@@ -5,6 +5,8 @@ import { validateBody, apiError } from "@/lib/validate"
 import { translateAuthError } from "@/lib/auth-errors"
 import { z } from "zod"
 
+import { ensureUserSynced } from "@/lib/auth"
+
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
@@ -15,24 +17,26 @@ export async function POST(req: NextRequest) {
     const result = await validateBody(loginSchema, req)
     if ("error" in result) return result.error
 
-    let res = NextResponse.json({ success: true })
-
     const cookieStore = await cookies()
+
+    // La réponse finale est créée d'abord. Le setAll y écrit directement.
+    const res = NextResponse.json({ success: true })
+
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
-          getAll() { return cookieStore.getAll() },
+          getAll() {
+            return cookieStore.getAll()
+          },
           setAll(cookiesToSet) {
-            try {
-              cookiesToSet.forEach(({ name, value, options }) =>
-                cookieStore.set(name, value, options)
-              )
-            } catch {}
-            cookiesToSet.forEach(({ name, value, options }) =>
+            // Écriture sur les deux cibles : next/headers (pour Server Components éventuels)
+            // ET directement sur la réponse JSON (ce qui compte vraiment pour le navigateur).
+            cookiesToSet.forEach(({ name, value, options }) => {
+              try { cookieStore.set(name, value, options) } catch { /* server component context */ }
               res.cookies.set(name, value, options)
-            )
+            })
           },
         },
       }
@@ -47,12 +51,14 @@ export async function POST(req: NextRequest) {
       return apiError(translateAuthError(error.message), 401)
     }
 
-    const payload = { success: true, data: { user: data.user, session: data.session } }
-    const finalResponse = NextResponse.json(payload)
-    res.cookies.getAll().forEach((c) => {
-      finalResponse.cookies.set(c.name, c.value, c)
-    })
-    return finalResponse
+    if (!data.session || !data.user) {
+      return apiError(translateAuthError("Échec de la connexion. Session non créée."), 401)
+    }
+
+    // Synchronisation immédiate et atomique avec Prisma avant de renvoyer la réponse au navigateur
+    await ensureUserSynced(data.user.id, data.user.email!)
+
+    return res
   } catch (err: any) {
     console.error("[POST /api/auth/session] Exception imprévue :", err)
     return apiError(translateAuthError(err?.message ?? "Erreur serveur lors de la connexion."), 500)
@@ -60,9 +66,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE() {
-  let res = NextResponse.json({ success: true })
-
   const cookieStore = await cookies()
+  const res = NextResponse.json({ success: true })
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -70,18 +76,15 @@ export async function DELETE() {
       cookies: {
         getAll() { return cookieStore.getAll() },
         setAll(cookiesToSet) {
-          try {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
-            )
-          } catch {}
-          cookiesToSet.forEach(({ name, value, options }) =>
+          cookiesToSet.forEach(({ name, value, options }) => {
+            try { cookieStore.set(name, value, options) } catch { /* server component context */ }
             res.cookies.set(name, value, options)
-          )
+          })
         },
       },
     }
   )
+
   await supabase.auth.signOut()
   return res
 }
