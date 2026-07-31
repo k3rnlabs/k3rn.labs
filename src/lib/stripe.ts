@@ -7,10 +7,7 @@ export function getStripe(): Stripe {
     throw new Error("Stripe is not configured. Set STRIPE_SECRET_KEY to enable payment features.")
   }
   if (!stripeInstance) {
-    stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: "2026-02-25.clover" as const,
-      typescript: true,
-    })
+    stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY)
   }
   return stripeInstance
 }

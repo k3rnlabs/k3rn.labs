@@ -48,7 +48,6 @@ export async function POST(req: NextRequest) {
     const checkout = await stripe.checkout.sessions.create({
       mode: offer.kind === "subscription" ? "subscription" : "payment",
       payment_method_types: ["card"],
-      automatic_tax: { enabled: true },
       billing_address_collection: "auto",
       line_items: [lineItem],
       metadata: { product: MIRAVA_STRIPE_PRODUCT, userId: session.userId, offerId: offer.id, credits: String(offer.credits), offerKind: offer.kind },
@@ -59,7 +58,8 @@ export async function POST(req: NextRequest) {
     })
     if (!checkout.url) return apiError("Impossible de créer le paiement MIRAVA Studio.", 500)
     return apiSuccess({ url: checkout.url })
-  } catch {
-    return apiError("Le paiement MIRAVA Studio est indisponible.", 500)
+  } catch (error) {
+    console.error("[billing] checkout error:", error)
+    return apiError(error instanceof Error ? error.message : "Le paiement MIRAVA Studio est indisponible.", 500)
   }
 }

@@ -17,7 +17,8 @@ export async function POST() {
       return_url: `${appUrl}/visual-engine/studio?view=account`,
     })
     return apiSuccess({ url: portal.url })
-  } catch {
-    return apiError("Le portail d’abonnement est momentanément indisponible.", 500)
+  } catch (error) {
+    console.error("[billing] portal error:", error)
+    return apiError(error instanceof Error ? error.message : "Le portail d'abonnement est momentanément indisponible.", 500)
   }
 }
