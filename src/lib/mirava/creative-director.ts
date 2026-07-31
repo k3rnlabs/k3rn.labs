@@ -18,8 +18,10 @@ const actionableKeys = [
 type ActionableKey = typeof actionableKeys[number]
 
 export type MiravaCreativeDirectorAction = {
-  id: "light" | "energy" | "series" | "directions"
-  label: string
+  id: "branding" | "editorial" | "series" | "guided"
+  icon: "briefcase" | "sparkles" | "camera" | "compass"
+  title: string
+  subtitle: string
   message: string
 }
 
@@ -59,18 +61,70 @@ export function getMiravaCreativeDirectorStarterActions(locale: Locale, universe
 
   if (locale === "es") {
     return [
-      { id: "light", label: "Ajustar la luz", message: universeName ? `Propón una luz que respete ${universeName}.` : "Propón una luz que valore esta sesión." },
-      { id: "energy", label: "Cambiar la actitud", message: "Haz la actitud más espontánea y natural." },
-      { id: "series", label: "Preparar una serie", message: "Propón una serie coherente de cuatro imágenes." },
-      { id: "directions", label: "Explorar direcciones", message: "Propón tres direcciones creativas para esta sesión." },
+      {
+        id: "branding",
+        icon: "briefcase",
+        title: "Perfil Profesional y LinkedIn",
+        subtitle: "Retrato profesional moderno, confiado y natural",
+        message: "Deseo crear retratos profesionales limpios y elegantes para mi perfil LinkedIn y mis redes profesionales.",
+      },
+      {
+        id: "editorial",
+        icon: "sparkles",
+        title: "Sesión Moda y Redes Sociales",
+        subtitle: "Serie editorial estilo portada de revista con luz refinada",
+        message: universeName
+          ? `Propón una dirección editorial de Alta Costura impactante para el universo ${universeName}.`
+          : "Propón una dirección editorial de Alta Costura impactante estilo portada de revista.",
+      },
+      {
+        id: "series",
+        icon: "camera",
+        title: "Serie de 3 fotos complementarias",
+        subtitle: "3 encuadres variados (primer plano, plano medio y ambiente)",
+        message: "Estructura una serie de 3 imágenes complementarias variando encuadres y actitudes.",
+      },
+      {
+        id: "guided",
+        icon: "compass",
+        title: "Proponer un concepto a medida",
+        subtitle: "Alma elige la mejor dirección artística adaptada a tu perfil",
+        message: "Propón un concepto creativo original y personalizado adaptado a mi sesión fotográfica.",
+      },
     ]
   }
 
   return [
-    { id: "light", label: "Ajuster la lumière", message: universeName ? `Propose une lumière fidèle à ${universeName}.` : "Propose une lumière qui valorise cette séance." },
-    { id: "energy", label: "Faire évoluer l’attitude", message: "Rends l’attitude plus spontanée et naturelle." },
-    { id: "series", label: "Préparer une série", message: "Propose une série cohérente de quatre images." },
-    { id: "directions", label: "Explorer des directions", message: "Propose trois directions créatives pour cette séance." },
+    {
+      id: "branding",
+      icon: "briefcase",
+      title: "Profil Pro & LinkedIn",
+      subtitle: "Portrait pro moderne, élégant, confiant & naturel",
+      message: "Je souhaite créer des portraits professionnels modernes et élégants pour mon profil LinkedIn et mon image pro.",
+    },
+    {
+      id: "editorial",
+      icon: "sparkles",
+      title: "Shooting Mode & Réseaux",
+      subtitle: "Série éditoriale style magazine avec angles & décors déclinés",
+      message: universeName
+        ? `Propose une direction éditoriale Haute Couture percutante pour l'univers ${universeName}.`
+        : "Propose une direction éditoriale Haute Couture percutante style couverture de magazine.",
+    },
+    {
+      id: "series",
+      icon: "camera",
+      title: "Série de 3 visuels déclinés",
+      subtitle: "3 vues complémentaires : portrait serré, plan moyen & vue d’ambiance",
+      message: "Structure une série de 3 visuels complémentaires en déclinant cadrages et attitudes.",
+    },
+    {
+      id: "guided",
+      icon: "compass",
+      title: "Me proposer un concept sur-mesure",
+      subtitle: "Alma choisit la meilleure direction artistique selon votre profil",
+      message: "Propose-moi un concept créatif original et sur-mesure adapté à ma séance photo.",
+    },
   ]
 }
 

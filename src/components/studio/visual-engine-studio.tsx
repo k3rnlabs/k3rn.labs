@@ -342,7 +342,14 @@ export function VisualEngineStudio() {
     setPending(name)
     setError(null)
     setNotice(null)
-    try { await action() } catch (reason) { setError(reason instanceof Error && reason.message !== "MIRAVA_REQUEST_FAILED" ? reason.message : (locale === "fr" ? "MIRAVA n’a pas pu terminer cette action." : "MIRAVA no ha podido completar esta acción.")) } finally { setPending(null) }
+    try {
+      await action()
+    } catch (reason) {
+      setError(reason instanceof Error && reason.message !== "MIRAVA_REQUEST_FAILED" ? reason.message : (locale === "fr" ? "MIRAVA n’a pas pu terminer cette action." : "MIRAVA no ha podido completar esta acción."))
+      if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" })
+    } finally {
+      setPending(null)
+    }
   }
 
   const ready = Object.values(consents).every(Boolean)
@@ -411,12 +418,16 @@ export function VisualEngineStudio() {
       ? files.length < 1 || files.length > remaining
       : files.length < MIRAVA_MIN_IDENTITY_PHOTOS || files.length > MIRAVA_MAX_IDENTITY_PHOTOS
     if (invalidCount || (!current && !consent)) {
-      setError(mode === "append"
+      const msg = mode === "append"
         ? (locale === "fr" ? `Ajoutez entre une et ${Math.max(1, remaining)} photo(s).` : `Añade entre una y ${Math.max(1, remaining)} foto(s).`)
-        : (locale === "fr" ? "Sélectionnez entre trois et six photos." : "Selecciona entre tres y seis fotos."))
-      return
+        : (locale === "fr" ? "Sélectionnez entre trois et six photos." : "Selecciona entre tres y seis fotos.")
+      setError(msg)
+      throw new Error(msg)
     }
-    await run("identity", async () => {
+    setPending("identity")
+    setError(null)
+    setNotice(null)
+    try {
       const form = new FormData()
       form.set("mode", mode)
       if (current) form.set("creationId", current.creation.id)
@@ -429,7 +440,13 @@ export function VisualEngineStudio() {
       await api("/api/visual-engine/identity-profile", { method: "POST", body: form })
       setCaptureContext(null)
       await refresh(current?.creation.id)
-    })
+    } catch (reason) {
+      const msg = reason instanceof Error && reason.message !== "MIRAVA_REQUEST_FAILED" ? reason.message : (locale === "fr" ? "MIRAVA n’a pas pu enregistrer le profil." : "MIRAVA no ha podido guardar el perfil.")
+      setError(msg)
+      throw new Error(msg)
+    } finally {
+      setPending(null)
+    }
   }
 
   const analyze = () => current && run("analyze", async () => { await api(`/api/visual-engine/creations/${current.creation.id}/analyze`, { method: "POST" }); await refresh(current.creation.id) })
@@ -489,15 +506,15 @@ export function VisualEngineStudio() {
         stepsLabel={locale === "fr" ? "Étapes de création" : "Etapas de creación"}
       />
 
-      <div className="relative mx-auto max-w-6xl px-4 sm:px-7">
-        {error && <div role="alert" className="mirava-alert mb-5 flex gap-3 p-4 text-sm"><CircleAlert className="h-5 w-5 shrink-0" />{error}</div>}
-        {notice && <div className="mirava-notice mb-5 p-4 text-sm">{notice}</div>}
+      <div className="relative mx-auto max-w-6xl px-4 pt-4 sm:px-7 sm:pt-6">
+        {error && <div role="alert" className="mirava-alert mb-6 flex gap-3 p-4 text-sm shadow-lg"><CircleAlert className="h-5 w-5 shrink-0" />{error}</div>}
+        {notice && <div className="mirava-notice mb-6 p-4 text-sm shadow-lg">{notice}</div>}
         {view === "create" && (!current
           ? <StartView locale={locale} t={t} step={createStep} setStep={setCreateStep} selectedUniverseId={selectedUniverseId} setSelectedUniverseId={setSelectedUniverseId} options={options} setOptions={setOptions} identityProfile={identityProfile} pending={pending} onCreate={requestCreate} onDirector={() => setDirectorOpen(true)} onOpenCapture={() => setCaptureContext(identityProfile ? (identityProfile.assetCount < MIRAVA_MAX_IDENTITY_PHOTOS ? "append" : "replace") : "onboarding")} />
           : <CreationView locale={locale} t={t} current={current} identityProfile={identityProfile} pending={pending} onUploadReference={uploadReference} onAnalyze={analyze} onOpenCapture={() => setCaptureContext(identityProfile ? (identityProfile.assetCount < MIRAVA_MAX_IDENTITY_PHOTOS ? "append" : "replace") : "onboarding")} onGenerate={generate} onDelete={removeCreation} onContinue={(studioId) => void reuse(studioId)} />)}
         {view === "universes" && <UniversesView locale={locale} t={t} selectedUniverseId={selectedUniverseId} setSelectedUniverseId={setSelectedUniverseId} onChoose={(brief) => { setOptions((value) => ({ ...(value.seriesSize ? { seriesSize: value.seriesSize } : {}), ...(value.seriesSize && value.seriesSize > 1 && value.seriesStrategy ? { seriesStrategy: value.seriesStrategy } : {}), ...(brief ? { note: brief } : {}) })); setCreateStep(1); selectView("create") }} />}
         {view === "library" && <LibraryView locale={locale} t={t} studios={studios} creations={creations} onReuse={(id) => void reuse(id)} onSelect={(id) => void run("select", async () => { setCurrent(await api<Detail>(`/api/visual-engine/creations/${id}`)); selectView("create") })} />}
-        {view === "account" && <AccountView locale={locale} t={t} account={account} identityProfile={identityProfile} pending={pending} onCheckout={checkout} onPortal={portal} onOpenCapture={() => setCaptureContext(identityProfile ? "append" : "onboarding")} onReplaceIdentity={() => setCaptureContext("replace")} onDeleteIdentity={removeIdentity} onNotify={() => run("push", async () => { const ok = await enableMiravaPush(locale); if (!ok) throw new Error(locale === "fr" ? "Les notifications ne sont pas disponibles sur cet appareil." : "Las notificaciones no están disponibles en este dispositivo."); setNotice(t.installed) })} />}
+        {view === "account" && <AccountView locale={locale} t={t} account={account} identityProfile={identityProfile} pending={pending} onCheckout={checkout} onPortal={portal} onOpenCapture={() => setCaptureContext(identityProfile ? "append" : "onboarding")} onReplaceIdentity={() => setCaptureContext("replace")} onDeleteIdentity={removeIdentity} />}
       </div>
 
       <BottomNavBar
@@ -509,7 +526,7 @@ export function VisualEngineStudio() {
       />
 
       {consentTarget !== undefined && <ConsentGate locale={locale} t={t} consents={consents} setConsents={setConsents} pending={pending} onClose={() => { setConsentTarget(undefined); setConsentReference(null) }} onConfirm={() => void create(consentTarget, consentReference)} />}
-      {directorOpen && <MiravaCreativeDirector locale={locale} universeId={selectedUniverseId} options={options} onApply={(suggestions) => { setOptions((value) => ({ ...value, ...suggestions })); setDirectorOpen(false) }} onClose={() => setDirectorOpen(false)} />}
+      {directorOpen && <MiravaCreativeDirector locale={locale} universeId={selectedUniverseId} options={options} onApply={(suggestions) => { setOptions((value) => ({ ...value, ...suggestions })) }} onClose={() => setDirectorOpen(false)} />}
       {captureContext && <MiravaIdentityCapture locale={locale} context={captureContext} existingCount={identityProfile?.assetCount ?? 0} onClose={() => setCaptureContext(null)} onComplete={(files, consent) => uploadIdentityFiles(files, consent, captureContext === "append" ? "append" : "replace")} />}
     </main>
   )
@@ -619,8 +636,8 @@ function StartView({
             <Image src="/visual-engine/alma-directrice.webp" alt="Alma" width={72} height={72} className="mirava-alma-avatar h-16 w-16 shrink-0 object-cover" />
             <span className="min-w-0 flex-1">
               <span className="mirava-label block">ALMA / {locale === "fr" ? "DIRECTRICE CRÉATIVE" : "DIRECTORA CREATIVA"}</span>
-              <span className="mt-2 block font-jakarta text-lg font-semibold">{locale === "fr" ? "Besoin d’affiner votre intention ?" : "¿Quieres afinar tu intención?"}</span>
-              <span className="mirava-copy mt-1 block text-xs leading-5">{locale === "fr" ? "Alma vous aide à traduire une sensation en choix de lumière, de lieu et d’attitude." : "Alma traduce una sensación en decisiones de luz, lugar y actitud."}</span>
+              <span className="mt-2 block font-jakarta text-lg font-semibold">{locale === "fr" ? "Concevoir votre séance avec Alma" : "Diseñar tu sesión con Alma"}</span>
+              <span className="mirava-copy mt-1 block text-xs leading-5">{locale === "fr" ? "Alma vous aide à définir votre direction artistique (Profil Pro, Shooting Mode, Série) et applique automatiquement tous les réglages." : "Alma te ayuda a definir tu dirección artística (Perfil Pro, Sesión Moda, Serie) y aplica automáticamente todos los ajustes."}</span>
             </span>
             <MessageCircle className="h-5 w-5 shrink-0 text-mirava-accent" />
           </button>
@@ -1042,38 +1059,155 @@ function LibraryView({ locale, t, studios, creations, onReuse, onSelect }: { loc
   )
 }
 
-function AccountView({ locale, t, account, identityProfile, pending, onCheckout, onPortal, onOpenCapture, onReplaceIdentity, onDeleteIdentity, onNotify }: { locale: Locale; t: Copy; account: Account | null; identityProfile: IdentityProfile; pending: string | null; onCheckout: (id: string) => void; onPortal: () => void; onOpenCapture: () => void; onReplaceIdentity: () => void; onDeleteIdentity: () => void; onNotify: () => void }) {
+function AccountView({
+  locale,
+  t,
+  account,
+  identityProfile,
+  pending,
+  onCheckout,
+  onPortal,
+  onOpenCapture,
+  onReplaceIdentity,
+  onDeleteIdentity,
+}: {
+  locale: Locale
+  t: Copy
+  account: Account | null
+  identityProfile: IdentityProfile
+  pending: string | null
+  onCheckout: (id: string) => void
+  onPortal: () => void
+  onOpenCapture: () => void
+  onReplaceIdentity: () => void
+  onDeleteIdentity: () => void
+}) {
   const ready = isMiravaIdentityProfileReady(identityProfile)
+  const [pushLoading, setPushLoading] = useState(false)
+  const [pushNotice, setPushNotice] = useState<string | null>(null)
+  const [pushError, setPushError] = useState<string | null>(null)
+
+  const handleNotify = async () => {
+    setPushLoading(true)
+    setPushNotice(null)
+    setPushError(null)
+    try {
+      const ok = await enableMiravaPush(locale)
+      if (ok) {
+        setPushNotice(t.installed)
+      } else {
+        const isIos = typeof navigator !== "undefined" && /iphone|ipad|ipod/i.test(navigator.userAgent)
+        const msg = isIos
+          ? (locale === "fr"
+              ? "Sur iOS (Safari), les notifications nécessitent d’installer l’application sur votre écran d’accueil (via le menu Partager Safari)."
+              : "En iOS (Safari), las notificaciones requieren instalar la aplicación en tu pantalla de inicio (desde el menú Compartir Safari).")
+          : (locale === "fr"
+              ? "Les notifications ne sont pas autorisées ou non supportées par ce navigateur."
+              : "Las notificaciones no están autorizadas o no son compatibles con este navegador.")
+        setPushError(msg)
+      }
+    } catch {
+      setPushError(locale === "fr" ? "Impossible d’activer les notifications." : "No se han podido activar las notificaciones.")
+    } finally {
+      setPushLoading(false)
+    }
+  }
+
   return (
     <section className="py-8 sm:py-14">
       <p className="mirava-label">MIRAVA / {locale === "fr" ? "ACCÈS" : "ACCESO"}</p>
       <h1 className="mirava-section-title mt-3 text-4xl sm:text-5xl">{t.accountTitle}</h1>
       <div className="mt-8 grid gap-4 lg:grid-cols-2">
         <Surface className="flex flex-col justify-between">
-          <div><p className="tabular-nums font-jakarta text-4xl font-semibold">{account?.credits ?? 0}</p><p className="mirava-copy mt-1 text-sm">{t.credits}</p></div>
-          <button onClick={onPortal} disabled={!account?.subscription || pending === "portal"} className="mirava-button mirava-button-secondary mt-6 self-start px-4 text-sm">{t.portal}</button>
+          <div>
+            <p className="tabular-nums font-jakarta text-4xl font-semibold">{account?.credits ?? 0}</p>
+            <p className="mirava-copy mt-1 text-sm">{t.credits}</p>
+          </div>
+          <button onClick={onPortal} disabled={!account?.subscription || pending === "portal"} className="mirava-button mirava-button-secondary mt-6 self-start px-4 text-sm font-semibold">
+            {pending === "portal" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            {t.portal}
+          </button>
         </Surface>
         <Surface>
           <div className="flex items-start justify-between gap-4">
-            <div><p className="mirava-label">{locale === "fr" ? "MODÈLE PRIVÉ" : "MODELO PRIVADO"}</p><h2 className="mirava-section-title mt-3 text-2xl">{ready ? t.identityReady : (locale === "fr" ? "Préparer mon modèle" : "Preparar mi modelo")}</h2></div>
+            <div>
+              <p className="mirava-label">{locale === "fr" ? "MODÈLE PRIVÉ" : "MODELO PRIVADO"}</p>
+              <h2 className="mirava-section-title mt-3 text-2xl">{ready ? t.identityReady : (locale === "fr" ? "Préparer mon modèle" : "Preparar mi modelo")}</h2>
+            </div>
             <span className="mirava-meta px-3 py-2 text-[10px] font-semibold tabular-nums">{identityProfile?.assetCount ?? 0}/6</span>
           </div>
           <p className="mirava-copy mt-4 text-sm leading-6">{t.profilePrivacy}</p>
           <div className="mt-5 flex flex-wrap gap-3">
-            <button onClick={onOpenCapture} disabled={identityProfile?.assetCount === MIRAVA_MAX_IDENTITY_PHOTOS} className="mirava-button mirava-button-primary px-4 text-sm"><Camera className="mr-2 h-4 w-4" />{identityProfile ? (locale === "fr" ? "Ajouter une vue" : "Añadir una vista") : t.guided}</button>
-            {identityProfile && <button onClick={onReplaceIdentity} className="mirava-button mirava-button-secondary px-4 text-sm"><RotateCcw className="mr-2 h-4 w-4" />{locale === "fr" ? "Refaire" : "Rehacer"}</button>}
-            {identityProfile && <button onClick={onDeleteIdentity} disabled={pending === "identity-delete"} className="mirava-button mirava-button-danger px-4 text-sm">{locale === "fr" ? "Supprimer" : "Eliminar"}</button>}
+            <button onClick={onOpenCapture} disabled={identityProfile?.assetCount === MIRAVA_MAX_IDENTITY_PHOTOS} className="mirava-button mirava-button-primary px-4 text-sm font-semibold">
+              <Camera className="mr-2 h-4 w-4" />{identityProfile ? (locale === "fr" ? "Ajouter une vue" : "Añadir una vista") : t.guided}
+            </button>
+            {identityProfile && (
+              <button onClick={onReplaceIdentity} className="mirava-button mirava-button-secondary px-4 text-sm font-semibold">
+                <RotateCcw className="mr-2 h-4 w-4" />{locale === "fr" ? "Refaire" : "Rehacer"}
+              </button>
+            )}
+            {identityProfile && (
+              <button onClick={onDeleteIdentity} disabled={pending === "identity-delete"} className="mirava-button mirava-button-danger px-4 text-sm font-semibold">
+                {pending === "identity-delete" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                {locale === "fr" ? "Supprimer" : "Eliminar"}
+              </button>
+            )}
           </div>
         </Surface>
       </div>
-      <div className="mt-10"><h2 className="font-jakarta text-2xl font-semibold">{t.plans}</h2><Offers offers={account?.plans ?? []} t={t} onCheckout={onCheckout} pending={pending} /><h2 className="mt-10 font-jakarta text-2xl font-semibold">{t.packs}</h2><Offers offers={account?.packs ?? []} t={t} onCheckout={onCheckout} pending={pending} /></div>
-      <button onClick={onNotify} disabled={pending === "push"} className="mirava-button mirava-button-secondary mt-8 px-4 text-sm"><Bell className="mr-2 h-4 w-4" />{t.notify}</button>
+      <div className="mt-10">
+        <h2 className="font-jakarta text-2xl font-semibold">{t.plans}</h2>
+        <Offers offers={account?.plans ?? []} locale={locale} t={t} onCheckout={onCheckout} pending={pending} />
+        <h2 className="mt-10 font-jakarta text-2xl font-semibold">{t.packs}</h2>
+        <Offers offers={account?.packs ?? []} locale={locale} t={t} onCheckout={onCheckout} pending={pending} />
+      </div>
+      <div className="mt-10 max-w-lg">
+        <button onClick={() => void handleNotify()} disabled={pushLoading} className="mirava-button mirava-button-secondary min-h-12 w-full gap-2 px-4 text-sm font-semibold sm:w-auto">
+          {pushLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bell className="h-4 w-4" />}
+          {t.notify}
+        </button>
+        {pushNotice && (
+          <div role="status" className="mirava-notice mt-3 flex items-center gap-2 p-3 text-xs leading-5">
+            <Check className="h-4 w-4 shrink-0 text-mirava-success" />
+            <span>{pushNotice}</span>
+          </div>
+        )}
+        {pushError && (
+          <div role="alert" className="mirava-alert mt-3 flex items-start gap-2.5 p-3.5 text-xs leading-5">
+            <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{pushError}</span>
+          </div>
+        )}
+      </div>
     </section>
   )
 }
 
-function Offers({ offers, t, onCheckout, pending }: { offers: Offer[]; t: Copy; onCheckout: (id: string) => void; pending: string | null }) {
-  return <div className="mt-4 grid gap-3 sm:grid-cols-3">{offers.map((offer) => <Surface key={offer.id} className="p-5"><p className="tabular-nums font-jakarta text-lg font-semibold">{offer.credits}</p><p className="mirava-copy text-sm">{offer.name}</p><p className="tabular-nums mt-4 font-jakarta text-xl font-semibold">{offer.priceEur} €</p><button onClick={() => onCheckout(offer.id)} disabled={pending === `offer-${offer.id}`} className="mirava-button mirava-button-primary mt-4 min-h-12 w-full text-xs">{t.choose}</button></Surface>)}</div>
+function Offers({ offers, locale, t, onCheckout, pending }: { offers: Offer[]; locale: Locale; t: Copy; onCheckout: (id: string) => void; pending: string | null }) {
+  return (
+    <div className="mt-4 grid gap-3 sm:grid-cols-3">
+      {offers.map((offer) => {
+        const isOfferPending = pending === `offer-${offer.id}`
+        return (
+          <Surface key={offer.id} className="flex flex-col justify-between p-5">
+            <div>
+              <p className="tabular-nums font-jakarta text-xl font-semibold">{offer.credits}</p>
+              <p className="mirava-copy mt-0.5 text-xs">{offer.name}</p>
+              <p className="tabular-nums mt-4 font-jakarta text-2xl font-semibold">{offer.priceEur} €</p>
+            </div>
+            <button
+              onClick={() => onCheckout(offer.id)}
+              disabled={pending !== null}
+              className="mirava-button mirava-button-primary mt-5 min-h-12 w-full gap-2 text-xs font-semibold"
+            >
+              {isOfferPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {isOfferPending ? (locale === "fr" ? "Ouverture…" : "Abriendo…") : t.choose}
+            </button>
+          </Surface>
+        )
+      })}
+    </div>
+  )
 }
 
 function DesktopNavButton({ active, primary = false, icon, label, onClick }: { active: boolean; primary?: boolean; icon?: ReactElement; label: string; onClick: () => void }) {

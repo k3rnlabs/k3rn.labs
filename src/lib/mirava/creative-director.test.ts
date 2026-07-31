@@ -6,8 +6,8 @@ describe("MIRAVA creative director actions", () => {
     const actions = getMiravaCreativeDirectorStarterActions("fr", "escapade-solaire")
 
     expect(actions).toHaveLength(4)
-    expect(actions[0]).toMatchObject({ id: "light", label: "Ajuster la lumière" })
-    expect(actions[0].message).toContain("Escapade solaire")
+    expect(actions[0]).toMatchObject({ id: "branding", title: "Profil Pro & LinkedIn" })
+    expect(actions[1].message).toContain("Escapade solaire")
   })
 
   it("keeps at most three server-approved changes for an explicit application", () => {

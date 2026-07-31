@@ -247,7 +247,7 @@ function MiravaLoginPageContent() {
       <div className="mirava-ambient pointer-events-none fixed inset-0" />
 
       {/* Top bar */}
-      <nav className="relative z-20 flex items-center justify-between px-5 py-4 sm:px-8">
+      <nav className="relative z-20 flex items-center justify-between px-5 pt-[max(1rem,env(safe-area-inset-top,0px))] pb-4 sm:px-8">
         <Link href="/visual-engine" aria-label="Accueil MIRAVA Studio">
           <MiravaWordmark />
         </Link>

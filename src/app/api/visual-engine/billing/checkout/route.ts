@@ -3,7 +3,7 @@ import { z } from "zod"
 import { verifySession } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { checkRateLimit } from "@/lib/rate-limit"
-import { getStripe } from "@/lib/stripe"
+import { getStripe, isStripeConfigured } from "@/lib/stripe"
 import { apiError, apiSuccess, validateBody } from "@/lib/validate"
 import { getMiravaOffer, MIRAVA_STRIPE_PRODUCT } from "@/lib/mirava/brand"
 import { isMiravaPublicLaunchEnabled } from "@/lib/mirava/server-config"
@@ -14,6 +14,7 @@ export async function POST(req: NextRequest) {
   const session = await verifySession()
   if (!session) return apiError("Unauthorized", 401)
   if (!isMiravaPublicLaunchEnabled()) return apiError("Les achats MIRAVA ne sont pas encore ouverts.", 503)
+  if (!isStripeConfigured()) return apiError("Le paiement en ligne n’est pas encore configuré (Clé Stripe manquante).", 503)
   const limit = await checkRateLimit("studioBilling", `${session.userId}:${req.headers.get("x-forwarded-for") ?? "local"}`)
   if (!limit.success) return apiError("Trop de demandes de paiement. Réessayez plus tard.", 429)
   const parsed = await validateBody(schema, req)

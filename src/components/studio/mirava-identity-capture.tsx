@@ -161,6 +161,7 @@ export function MiravaIdentityCapture({
   const [visionIssue, setVisionIssue] = useState<MiravaVisionIssue>("loading")
   const [stableProgress, setStableProgress] = useState(0)
   const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
   const [legalAccepted, setLegalAccepted] = useState(false)
   const [importRejected, setImportRejected] = useState<MiravaImportRejection[]>([])
   const [repairStep, setRepairStep] = useState<number | null>(null)
@@ -264,7 +265,7 @@ export function MiravaIdentityCapture({
     setPhase("loading")
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 1600 } },
+        video: { facingMode: "user", width: { ideal: 1080 }, height: { ideal: 1920 }, aspectRatio: { ideal: 9 / 16 } },
         audio: false,
       })
       streamRef.current = stream
@@ -485,10 +486,13 @@ export function MiravaIdentityCapture({
 
   const complete = async () => {
     if (!identityViewsReady || !legalAccepted) return
+    setSubmitError(null)
     setSubmitting(true)
     try {
       const ordered = steps.flatMap((step) => frames.filter((frame) => frame.stepId === step.id)).map((frame) => frame.file)
       await onComplete(ordered, { ageConfirmed: true, rightsConfirmed: true, retentionAccepted: true })
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : (locale === "fr" ? "L’enregistrement a échoué. Veuillez réessayer." : "Error al guardar. Por favor, inténtalo de nuevo."))
     } finally {
       setSubmitting(false)
     }
@@ -639,6 +643,12 @@ export function MiravaIdentityCapture({
             <span>{locale === "fr" ? "Je confirme avoir au moins 18 ans, disposer des droits sur ces photos et accepter leur conservation privée jusqu’à leur suppression depuis mon compte." : "Confirmo que tengo al menos 18 años, dispongo de los derechos sobre estas fotos y acepto su conservación privada hasta que las elimine desde mi cuenta."}</span>
           </label>
           {!identityViewsReady && <p role="alert" className="mirava-alert mt-4 p-4 text-sm">{context === "append" ? (locale === "fr" ? "Ajoutez au moins une nouvelle vue pour continuer." : "Añade al menos una vista nueva para continuar.") : (locale === "fr" ? "Ajoutez les vues de face, 3/4 gauche et 3/4 droit pour continuer." : "Añade las vistas frontal, tres cuartos izquierdo y derecho para continuar.")}</p>}
+          {submitError && (
+            <div role="alert" className="mirava-alert mt-4 flex gap-3 p-4 text-sm">
+              <CircleAlert className="h-5 w-5 shrink-0" />
+              <span>{submitError}</span>
+            </div>
+          )}
           <button onClick={() => void complete()} disabled={!identityViewsReady || !legalAccepted || submitting} className="mirava-button mirava-button-primary mt-5 min-h-14 w-full gap-2 px-6 text-sm">
             {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShieldCheck className="h-5 w-5" />}
             {submitting ? (locale === "fr" ? "Enregistrement privé…" : "Guardando de forma privada…") : context === "append" ? (locale === "fr" ? "Ajouter à mon profil" : "Añadir a mi perfil") : (locale === "fr" ? "Enregistrer mon profil" : "Guardar mi perfil")}
@@ -652,10 +662,10 @@ export function MiravaIdentityCapture({
 
   return (
     <div className="mirava-theme mirava-capture-shell fixed inset-0 z-50 overflow-hidden bg-black text-white">
-      <video ref={videoRef} autoPlay muted playsInline className="absolute inset-0 h-full w-full scale-x-[-1] object-cover" />
+      <video ref={videoRef} autoPlay muted playsInline className="absolute inset-0 h-full w-full scale-x-[-1] object-cover object-center" />
       <canvas ref={analysisCanvasRef} className="hidden" />
       <div className="mirava-camera-shade absolute inset-0" />
-      <div className={cn("mirava-camera-mask pointer-events-none absolute left-1/2 top-[44%] -translate-x-1/2 -translate-y-1/2 border transition-colors", currentStep.mode === "pose" ? "h-[69%] w-[46%] max-w-xs rounded-[42%]" : "h-[47%] w-[72%] max-w-sm rounded-[48%]", visionIssue === "ready" ? "border-mirava-success" : "border-white/65")} />
+      <div className={cn("mirava-camera-mask pointer-events-none absolute left-1/2 top-[44%] -translate-x-1/2 -translate-y-1/2 border transition-colors", currentStep.mode === "pose" ? "h-[54%] w-[52%] max-w-[240px] rounded-3xl" : "h-[44%] w-[68%] max-w-xs rounded-[48%]", visionIssue === "ready" ? "border-mirava-success" : "border-white/65")} />
 
       <header className="mirava-capture-safe-top absolute inset-x-0 top-0 z-10 flex items-center justify-between px-4">
         <button onClick={close} aria-label={locale === "fr" ? "Fermer" : "Cerrar"} className="mirava-capture-round-control"><X className="h-5 w-5" /></button>
@@ -667,21 +677,25 @@ export function MiravaIdentityCapture({
 
       {(currentStep.id === "left" || currentStep.id === "right") && <div aria-hidden="true" className={cn("mirava-direction-arrow absolute top-[42%] z-10 text-5xl font-light", currentStep.id === "left" ? "left-[12%]" : "right-[12%]")}>{currentStep.id === "left" ? "←" : "→"}</div>}
 
-      <div className="absolute inset-x-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-10 mx-auto max-w-lg rounded-[var(--mirava-radius)] border border-white/15 bg-black/68 p-4 text-center shadow-2xl backdrop-blur-xl">
-        <div aria-live="polite" aria-atomic="true" className={cn("mx-auto inline-flex min-h-8 items-center gap-2 rounded-[var(--mirava-radius)] border px-3 py-1.5 text-xs font-semibold", visionIssue === "ready" ? "border-mirava-success/60 bg-mirava-success/15 text-mirava-success" : "border-white/15 bg-white/8 text-white")}>
-          {visionIssue === "loading" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : visionIssue === "ready" ? <Check className="h-3.5 w-3.5" /> : null}
+      <div className="absolute inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-10 mx-auto max-w-md rounded-[var(--mirava-radius)] border border-white/15 bg-black/75 px-4 py-3 text-center shadow-2xl backdrop-blur-xl">
+        <div aria-live="polite" aria-atomic="true" className={cn("mx-auto inline-flex min-h-7 items-center gap-1.5 rounded-[var(--mirava-radius)] border px-2.5 py-1 text-[11px] font-semibold", visionIssue === "ready" ? "border-mirava-success/60 bg-mirava-success/15 text-mirava-success" : "border-white/15 bg-white/8 text-white")}>
+          {visionIssue === "loading" ? <Loader2 className="h-3 w-3 animate-spin" /> : visionIssue === "ready" ? <Check className="h-3 w-3" /> : null}
           {instruction}
         </div>
-        <p className="mt-3 font-jakarta text-2xl font-semibold tracking-[-.045em]">{currentStep.title[locale]}</p>
-        <p className="mx-auto mt-1 max-w-sm text-xs leading-5 text-white/68">{currentStep.instruction[locale]}</p>
-        <div className="mt-4 flex items-center justify-center gap-5">
-          {currentStep.optional ? <button onClick={skip} className="min-h-12 min-w-16 px-2 text-xs font-semibold text-white/72">{locale === "fr" ? "Passer" : "Omitir"}</button> : <span className="min-w-16" />}
-          <button onClick={() => void capture()} className="mirava-capture-shutter relative grid h-[4.6rem] w-[4.6rem] place-items-center rounded-full" aria-label={locale === "fr" ? "Prendre la photo" : "Tomar la foto"}>
-            <span className="absolute inset-0 rounded-full border-[3px] border-white/35" />
+        <p className="mt-1.5 font-jakarta text-lg font-semibold tracking-[-.035em]">{currentStep.title[locale]}</p>
+        <p className="mx-auto mt-0.5 max-w-xs text-[11px] leading-4 text-white/68">{currentStep.instruction[locale]}</p>
+        <div className="mt-2.5 flex items-center justify-between px-2">
+          {currentStep.optional ? (
+            <button onClick={skip} className="w-12 text-left text-xs font-semibold text-white/72 hover:text-white">{locale === "fr" ? "Passer" : "Omitir"}</button>
+          ) : (
+            <span className="w-12" />
+          )}
+          <button onClick={() => void capture()} className="mirava-capture-shutter relative grid h-14 w-14 place-items-center rounded-full" aria-label={locale === "fr" ? "Prendre la photo" : "Tomar la foto"}>
+            <span className="absolute inset-0 rounded-full border-[2.5px] border-white/35" />
             <span className="absolute inset-0 rounded-full" style={{ background: `conic-gradient(white ${stableProgress * 360}deg, transparent 0)` }} />
-            <span className="relative grid h-[3.7rem] w-[3.7rem] place-items-center rounded-full bg-white text-black"><Camera className="h-6 w-6" /></span>
+            <span className="relative grid h-11 w-11 place-items-center rounded-full bg-white text-black"><Camera className="h-5 w-5" /></span>
           </button>
-          <span className="min-w-16 text-xs font-semibold text-white/55">{activeStep + 1}/{steps.length}</span>
+          <span className="w-12 text-right text-xs font-semibold text-white/55">{activeStep + 1}/{steps.length}</span>
         </div>
       </div>
     </div>
