@@ -236,9 +236,14 @@ const identityGuide = [
 ]
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, { ...init, cache: "no-store" })
+  const response = await fetch(url, { ...init, cache: "no-store", credentials: "same-origin" })
   const data = await response.json().catch(() => ({})) as T & { error?: string }
-  if (!response.ok) throw new Error(response.status === 401 ? "MIRAVA_REQUEST_FAILED" : (data.error ?? "MIRAVA_REQUEST_FAILED"))
+  if (!response.ok) {
+    // Seul le 401 déclenche une déconnexion et une redirection vers le login.
+    // Les autres erreurs (5xx, etc.) restent des erreurs locales affichées dans le studio.
+    if (response.status === 401) throw new Error("MIRAVA_REQUEST_FAILED")
+    throw new Error(data.error ?? `MIRAVA_ERROR_${response.status}`)
+  }
   return data
 }
 
@@ -292,13 +297,29 @@ export function VisualEngineStudio() {
     const requestedView = params.get("view")
     if (requestedView === "identity") setView("account")
     else if (requestedView === "create" || requestedView === "universes" || requestedView === "library" || requestedView === "account") setView(requestedView)
-    void refresh(params.get("creation") ?? undefined).catch((reason: unknown) => {
-      if (reason instanceof Error && (reason.message === "MIRAVA_REQUEST_FAILED" || reason.message === "Unauthorized")) {
-        window.location.replace("/visual-engine/studio/login")
-        return
-      }
-      setError(reason instanceof Error ? reason.message : (locale === "fr" ? "Impossible de charger MIRAVA." : "No se ha podido cargar MIRAVA."))
-    })
+
+    // Si on arrive depuis la confirmation d'email (?confirmed=true), on attend 800ms
+    // pour que les cookies de session aient le temps d'être établis dans le navigateur
+    // avant de faire les appels API qui vérifient la session.
+    const isConfirmed = params.get("confirmed") === "true"
+    const delay = isConfirmed ? 800 : 0
+
+    const loadStudio = () => {
+      void refresh(params.get("creation") ?? undefined).catch((reason: unknown) => {
+        if (reason instanceof Error && reason.message === "MIRAVA_REQUEST_FAILED") {
+          window.location.replace("/visual-engine/studio/login")
+          return
+        }
+        setError(reason instanceof Error ? reason.message : (locale === "fr" ? "Impossible de charger MIRAVA." : "No se ha podido cargar MIRAVA."))
+      })
+    }
+
+    if (delay > 0) {
+      const timer = setTimeout(loadStudio, delay)
+      return () => clearTimeout(timer)
+    } else {
+      loadStudio()
+    }
   }, [locale, refresh])
 
   useEffect(() => {
