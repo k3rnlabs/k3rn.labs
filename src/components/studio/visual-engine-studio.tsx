@@ -363,6 +363,8 @@ export function VisualEngineStudio() {
   }
 
   const create = async (presetId?: string | null, referenceFile?: File | null) => {
+    setConsentTarget(undefined)
+    setConsentReference(null)
     await run("create", async () => {
       const data = await api<{ creation: Creation }>("/api/visual-engine/creations", {
         method: "POST",
@@ -385,8 +387,6 @@ export function VisualEngineStudio() {
       } else if (isMiravaIdentityProfileReady(identityProfile)) {
         await api(`/api/visual-engine/creations/${data.creation.id}/generate`, { method: "POST" })
       }
-      setConsentTarget(undefined)
-      setConsentReference(null)
       await refresh(data.creation.id)
     })
   }
