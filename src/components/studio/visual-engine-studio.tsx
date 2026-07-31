@@ -48,7 +48,7 @@ import { MIRAVA_UNIVERSES, getMiravaUniverse, type MiravaUniverse } from "@/lib/
 import { cn } from "@/lib/utils"
 
 type Locale = "fr" | "es"
-type Status = "DRAFT" | "ANALYSIS_QUEUED" | "ANALYSING" | "IDENTITY_READY" | "GENERATION_QUEUED" | "GENERATING" | "COMPLETED" | "FAILED" | "CANCELLED"
+type Status = "DRAFT" | "ANALYSIS_QUEUED" | "ANALYSING" | "MASTER_PROMPT_READY" | "IDENTITY_READY" | "GENERATION_QUEUED" | "GENERATING" | "COMPLETED" | "FAILED" | "CANCELLED"
 type View = "create" | "universes" | "library" | "account"
 type Asset = { id: string; kind: "REFERENCE" | "IDENTITY" | "RESULT"; createdAt: string }
 type Creation = {
@@ -139,7 +139,7 @@ const copy = {
     installed: "Notifications activées.",
     failure: "Cette création demande votre attention.",
     busy: "Vous pouvez fermer l’application : MIRAVA poursuit le travail en privé.",
-    status: { DRAFT: "Préparez votre référence", ANALYSIS_QUEUED: "Direction en attente", ANALYSING: "Direction en cours", IDENTITY_READY: "Studio prêt", GENERATION_QUEUED: "Création en attente", GENERATING: "Création en cours", COMPLETED: "Terminée", FAILED: "Action requise", CANCELLED: "Annulée" },
+    status: { DRAFT: "Préparez votre référence", ANALYSIS_QUEUED: "Direction en attente", ANALYSING: "Direction en cours", MASTER_PROMPT_READY: "Studio prêt", IDENTITY_READY: "Studio prêt", GENERATION_QUEUED: "Création en attente", GENERATING: "Création en cours", COMPLETED: "Terminée", FAILED: "Action requise", CANCELLED: "Annulée" },
   },
   es: {
     create: "Estudio",
@@ -206,7 +206,7 @@ const copy = {
     installed: "Notificaciones activadas.",
     failure: "Esta creación requiere tu atención.",
     busy: "Puedes cerrar la aplicación: MIRAVA continúa trabajando en privado.",
-    status: { DRAFT: "Prepara tu referencia", ANALYSIS_QUEUED: "Dirección en espera", ANALYSING: "Creando la dirección", IDENTITY_READY: "Estudio listo", GENERATION_QUEUED: "Creación en espera", GENERATING: "Creando", COMPLETED: "Terminada", FAILED: "Acción necesaria", CANCELLED: "Cancelada" },
+    status: { DRAFT: "Prepara tu referencia", ANALYSIS_QUEUED: "Dirección en espera", ANALYSING: "Creando la dirección", MASTER_PROMPT_READY: "Estudio listo", IDENTITY_READY: "Estudio listo", GENERATION_QUEUED: "Creación en espera", GENERATING: "Creando", COMPLETED: "Terminada", FAILED: "Acción necesaria", CANCELLED: "Cancelada" },
   },
 } as const
 
@@ -380,6 +380,8 @@ export function VisualEngineStudio() {
         form.set("file", referenceFile)
         await api(`/api/visual-engine/creations/${data.creation.id}/assets`, { method: "POST", body: form })
         await api(`/api/visual-engine/creations/${data.creation.id}/analyze`, { method: "POST" })
+      } else if (isMiravaIdentityProfileReady(identityProfile)) {
+        await api(`/api/visual-engine/creations/${data.creation.id}/generate`, { method: "POST" })
       }
       setConsentTarget(undefined)
       setConsentReference(null)
@@ -977,7 +979,7 @@ function CreationView({
         </Surface>
       )}
 
-      {status === "IDENTITY_READY" && (
+      {(status === "IDENTITY_READY" || status === "MASTER_PROMPT_READY") && (
         <>
           <Surface className="mt-7">
             <h2 className="font-jakarta text-2xl font-semibold tracking-[-.04em]">{t.identity}</h2>
