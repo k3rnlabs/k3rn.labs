@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { MiravaGrain } from "@/components/mirava/mirava-grain"
 import { MIRAVA_MIN_IDENTITY_PHOTOS } from "@/lib/mirava/identity-profile"
 import type {
   MiravaVisionIssue,
@@ -152,6 +153,7 @@ export function MiravaIdentityCapture({
   const importOperationRef = useRef(0)
   const libraryInputRef = useRef<HTMLInputElement>(null)
   const repairInputRef = useRef<HTMLInputElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
   const [phase, setPhase] = useState<Phase>("intro")
   const appendStartStep = context === "append" ? Math.min(existingCount, steps.length - 1) : 0
   const [activeStep, setActiveStep] = useState(appendStartStep)
@@ -167,6 +169,7 @@ export function MiravaIdentityCapture({
   const [repairStep, setRepairStep] = useState<number | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
   const currentStep = steps[activeStep]
+  const dialogLabel = locale === "fr" ? "Capture guidée de votre Profil identité" : "Captura guiada de tu Perfil de identidad"
 
   const requiredCount = useMemo(() => frames.filter((frame) => ["front", "left", "right"].includes(frame.stepId)).length, [frames])
   const identityViewsReady = context === "append"
@@ -198,39 +201,6 @@ export function MiravaIdentityCapture({
     inFlightRef.current = false
   }, [])
 
-  const initialiseWorker = useCallback((mode: MiravaVisionMode) => {
-    stopWorker()
-    setVisionIssue("loading")
-    stableStartedRef.current = null
-    setStableProgress(0)
-    try {
-      const worker = new Worker(new URL("./mirava-vision.worker.ts", import.meta.url), { type: "module" })
-      workerRef.current = worker
-      worker.onmessage = (event: MessageEvent<MiravaVisionWorkerResponse>) => {
-        const message = event.data
-        if (message.kind === "ready") {
-          workerModeRef.current = message.mode
-          setVisionIssue(message.mode === mode ? (mode === "face" ? "no-face" : "no-pose") : "loading")
-          return
-        }
-        if (message.kind === "error") {
-          inFlightRef.current = false
-          setVisionIssue("unavailable")
-          return
-        }
-        inFlightRef.current = false
-        handleVisionResult(message)
-      }
-      worker.onerror = () => {
-        inFlightRef.current = false
-        setVisionIssue("unavailable")
-      }
-      worker.postMessage({ kind: "init", mode, origin: window.location.origin })
-    } catch {
-      setVisionIssue("unavailable")
-    }
-  }, [stopWorker])
-
   const handleVisionResult = useCallback((result: MiravaVisionResult) => {
     if (!result.ready) {
       stableStartedRef.current = null
@@ -259,6 +229,39 @@ export function MiravaIdentityCapture({
     setStableProgress(progress)
     setVisionIssue("ready")
   }, [])
+
+  const initialiseWorker = useCallback((mode: MiravaVisionMode) => {
+    stopWorker()
+    setVisionIssue("loading")
+    stableStartedRef.current = null
+    setStableProgress(0)
+    try {
+      const worker = new Worker("/visual-engine/vision/mirava-vision.worker.js", { type: "module" })
+      workerRef.current = worker
+      worker.onmessage = (event: MessageEvent<MiravaVisionWorkerResponse>) => {
+        const message = event.data
+        if (message.kind === "ready") {
+          workerModeRef.current = message.mode
+          setVisionIssue(message.mode === mode ? (mode === "face" ? "no-face" : "no-pose") : "loading")
+          return
+        }
+        if (message.kind === "error") {
+          inFlightRef.current = false
+          setVisionIssue("unavailable")
+          return
+        }
+        inFlightRef.current = false
+        handleVisionResult(message)
+      }
+      worker.onerror = () => {
+        inFlightRef.current = false
+        setVisionIssue("unavailable")
+      }
+      worker.postMessage({ kind: "init", mode, origin: window.location.origin })
+    } catch {
+      setVisionIssue("unavailable")
+    }
+  }, [handleVisionResult, stopWorker])
 
   const startCamera = useCallback(async () => {
     setCameraError(null)
@@ -498,47 +501,91 @@ export function MiravaIdentityCapture({
     }
   }
 
-  const close = () => {
+  const close = useCallback(() => {
     importOperationRef.current += 1
     stopCamera()
     stopWorker()
     onClose()
-  }
+  }, [onClose, stopCamera, stopWorker])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return
+      event.preventDefault()
+      close()
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [close])
+
+  useEffect(() => {
+    const dialog = dialogRef.current
+    if (!dialog) return
+    const focusableSelector = 'button:not([disabled]), [href], input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    const getFocusable = () => Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector))
+      .filter((element) => !element.hasAttribute("hidden") && element.getClientRects().length > 0)
+    const initialFocus = window.setTimeout(() => {
+      const target = dialog.querySelector<HTMLElement>("[data-dialog-initial-focus]") ?? getFocusable()[0]
+      target?.focus({ preventScroll: true })
+    }, 0)
+    const retainFocus = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return
+      const focusable = getFocusable()
+      if (!focusable.length) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      const active = document.activeElement
+      if (event.shiftKey && (active === first || !dialog.contains(active))) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && (active === last || !dialog.contains(active))) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    window.addEventListener("keydown", retainFocus)
+    return () => {
+      window.clearTimeout(initialFocus)
+      window.removeEventListener("keydown", retainFocus)
+    }
+  }, [phase])
 
   if (phase === "importing") {
     return (
-      <div className="mirava-theme mirava-capture-shell fixed inset-0 z-50 bg-mirava-canvas text-mirava-ink">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={dialogLabel} className="mirava-theme mirava-capture-shell fixed inset-0 z-50 bg-mirava-canvas text-mirava-ink">
+        <MiravaGrain />
         <header className="mirava-capture-safe-top flex items-center justify-between px-4">
           <span className="font-jakarta text-xs font-semibold tracking-[.16em]">MIRAVA / ID</span>
           <button onClick={close} aria-label={locale === "fr" ? "Fermer" : "Cerrar"} className="mirava-button mirava-button-secondary h-12 w-12"><X className="h-4 w-4" /></button>
         </header>
-        <main role="status" aria-live="polite" className="mx-auto flex min-h-0 w-full max-w-lg flex-1 flex-col items-center justify-center px-6 pb-[max(2rem,env(safe-area-inset-bottom))] text-center">
+        <div role="status" aria-live="polite" className="mx-auto flex min-h-0 w-full max-w-lg flex-1 flex-col items-center justify-center px-6 pb-[max(2rem,env(safe-area-inset-bottom))] text-center">
           <div className="mirava-import-orbit" aria-hidden="true"><Loader2 className="h-7 w-7 animate-spin" /></div>
           <p className="mirava-label mt-8">{locale === "fr" ? "ANALYSE LOCALE" : "ANÁLISIS LOCAL"}</p>
           <h1 className="mt-4 font-jakarta text-3xl font-semibold tracking-[-.05em]">{locale === "fr" ? "Nous classons vos vues." : "Estamos clasificando tus vistas."}</h1>
           <p className="mirava-copy mt-4 max-w-sm text-sm leading-6">{locale === "fr" ? "Une photo à la fois, sur cet appareil. Rien n’est envoyé avant votre récapitulatif et votre consentement." : "Una foto cada vez, en este dispositivo. No se envía nada antes de tu resumen y consentimiento."}</p>
-        </main>
+        </div>
       </div>
     )
   }
 
   if (phase === "intro" || phase === "loading") {
     return (
-      <div className="mirava-theme mirava-capture-shell fixed inset-0 z-50 bg-mirava-canvas text-mirava-ink">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={dialogLabel} className="mirava-theme mirava-capture-shell fixed inset-0 z-50 bg-mirava-canvas text-mirava-ink">
+        <MiravaGrain />
         <header className="mirava-capture-safe-top flex items-center justify-between px-4">
           <span className="font-jakarta text-xs font-semibold tracking-[.16em]">MIRAVA / ID</span>
-          <button onClick={close} aria-label={locale === "fr" ? "Fermer" : "Cerrar"} className="mirava-button mirava-button-secondary h-12 w-12"><X className="h-4 w-4" /></button>
+          <button onClick={close} className="mirava-button mirava-button-quiet min-h-12 px-3 text-sm">{locale === "fr" ? "Plus tard" : "Más tarde"}</button>
         </header>
-        <main className="mx-auto flex min-h-0 w-full max-w-lg flex-1 flex-col justify-center px-5 pb-[max(2rem,env(safe-area-inset-bottom))]">
+        <div className="mx-auto flex min-h-0 w-full max-w-lg flex-1 flex-col justify-center px-5 pb-[max(2rem,env(safe-area-inset-bottom))]">
           <div className="mirava-capture-emblem mx-auto grid h-24 w-24 place-items-center rounded-[var(--mirava-radius)]"><Camera className="h-8 w-8" /></div>
-          <p className="mirava-label mt-8 text-center">{context === "onboarding" ? (locale === "fr" ? "VOTRE ONBOARDING" : "TU ONBOARDING") : (locale === "fr" ? "PROFIL IDENTITÉ" : "PERFIL DE IDENTIDAD")}</p>
+          <p className="mirava-label mt-8 text-center">{context === "onboarding" ? (locale === "fr" ? "VOTRE ONBOARDING" : "TU BIENVENIDA") : (locale === "fr" ? "PROFIL IDENTITÉ" : "PERFIL DE IDENTIDAD")}</p>
           <h1 className="mt-4 text-center font-jakarta text-[2.4rem] font-semibold leading-[1.02] tracking-[-.055em]">
             {locale === "fr" ? "Même vous. Dans chaque univers." : "La misma tú. En cada universo."}
           </h1>
           <p className="mirava-copy mx-auto mt-5 max-w-sm text-center text-sm leading-6">
             {context === "append"
-              ? (locale === "fr" ? "Ajoutez une nouvelle vue guidée à votre profil privé, sans recommencer les photos déjà enregistrées." : "Añade una nueva vista guiada a tu perfil privado, sin repetir las fotos ya guardadas.")
-              : (locale === "fr" ? "Trois portraits guidés créent votre profil privé. Ajoutez ensuite vos cheveux et votre silhouette pour renforcer la fidélité." : "Tres retratos guiados crean tu perfil privado. Añade después tu cabello y tu silueta para reforzar la fidelidad.")}
+              ? (locale === "fr" ? "Ajoutez une vue à votre profil privé, par caméra guidée ou depuis votre galerie, sans recommencer les photos déjà enregistrées." : "Añade una vista a tu perfil privado, con cámara guiada o desde tu galería, sin repetir las fotos ya guardadas.")
+              : (locale === "fr" ? "Trois portraits construisent votre profil privé. Choisissez la caméra guidée ou vos propres photos, puis ajoutez vos cheveux et votre silhouette si vous le souhaitez." : "Tres retratos construyen tu perfil privado. Elige la cámara guiada o tus propias fotos y añade tu cabello y silueta si lo deseas.")}
           </p>
           <div className="mirava-notice mt-7 space-y-3 p-4 text-xs leading-5">
             <p className="flex gap-3"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-mirava-accent" />{locale === "fr" ? "L’analyse reste sur cet appareil. Aucune vidéo ni mesure du visage n’est envoyée." : "El análisis permanece en este dispositivo. No se envía ningún vídeo ni medida del rostro."}</p>
@@ -548,7 +595,7 @@ export function MiravaIdentityCapture({
             ? (locale === "fr" ? `${existingCount}/6 photos déjà enregistrées restent intactes.` : `${existingCount}/6 fotos ya guardadas permanecen intactas.`)
             : (locale === "fr" ? `${existingCount} photo${existingCount > 1 ? "s" : ""} actuelle${existingCount > 1 ? "s" : ""} seront remplacées après validation.` : `${existingCount} foto${existingCount > 1 ? "s" : ""} actual${existingCount > 1 ? "es" : ""} se sustituirán tras la validación.`)}</p>}
           {(cameraError || importError) && <p role="alert" className="mirava-alert mt-5 flex gap-3 p-4 text-sm"><CircleAlert className="h-5 w-5 shrink-0" />{cameraError || importError}</p>}
-          <button onClick={() => void startCamera()} disabled={phase === "loading"} className="mirava-button mirava-button-primary mt-7 min-h-14 w-full gap-2 px-6 text-sm">
+          <button data-dialog-initial-focus onClick={() => void startCamera()} disabled={phase === "loading"} className="mirava-button mirava-button-primary mt-7 min-h-14 w-full gap-2 px-6 text-sm">
             {phase === "loading" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
             {phase === "loading" ? (locale === "fr" ? "Préparation du guide…" : "Preparando la guía…") : (locale === "fr" ? "Ouvrir la caméra" : "Abrir la cámara")}
           </button>
@@ -558,10 +605,9 @@ export function MiravaIdentityCapture({
               ? (locale === "fr" ? "Choisir une photo" : "Elegir una foto")
               : (locale === "fr" ? "Choisir 3 à 6 photos" : "Elegir de 3 a 6 fotos")}
           </button>
-          <input ref={libraryInputRef} className="sr-only" type="file" multiple={context !== "append"} accept="image/jpeg,image/png,image/webp" onChange={(event) => void importLibrary(event)} />
+          <input ref={libraryInputRef} hidden type="file" tabIndex={-1} aria-hidden="true" multiple={context !== "append"} accept="image/jpeg,image/png,image/webp" onChange={(event) => void importLibrary(event)} />
           <p className="mirava-muted mt-3 text-center text-[11px] leading-4">{locale === "fr" ? "JPEG, PNG ou WebP · 10 Mo maximum par photo" : "JPEG, PNG o WebP · máximo 10 MB por foto"}</p>
-          <button onClick={close} className="mirava-button mirava-button-quiet mt-2 min-h-12 w-full text-sm">{locale === "fr" ? "Plus tard" : "Más tarde"}</button>
-        </main>
+        </div>
         <video ref={videoRef} autoPlay muted playsInline className="hidden" />
       </div>
     )
@@ -569,13 +615,14 @@ export function MiravaIdentityCapture({
 
   if (phase === "review" && pendingFrame) {
     return (
-      <div className="mirava-theme mirava-capture-shell fixed inset-0 z-50 bg-mirava-canvas text-mirava-ink">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={dialogLabel} className="mirava-theme mirava-capture-shell fixed inset-0 z-50 bg-mirava-canvas text-mirava-ink">
+        <MiravaGrain />
         <header className="mirava-capture-safe-top flex items-center justify-between px-4">
           <button onClick={retake} className="mirava-button mirava-button-quiet gap-2 px-2 text-sm"><ArrowLeft className="h-4 w-4" />{locale === "fr" ? "Refaire" : "Repetir"}</button>
           <span className="font-jakarta text-xs font-semibold tracking-[.12em]">{activeStep + 1} / {steps.length}</span>
           <button onClick={close} aria-label={locale === "fr" ? "Fermer" : "Cerrar"} className="mirava-button mirava-button-secondary h-12 w-12"><X className="h-4 w-4" /></button>
         </header>
-        <main className="flex min-h-0 flex-1 flex-col px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+        <div className="flex min-h-0 flex-1 flex-col px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           <div className="mirava-image-frame relative min-h-0 flex-1 overflow-hidden bg-mirava-canvas-raised"><img src={pendingFrame.preview} alt={currentStep.title[locale]} className="h-full w-full object-cover" /></div>
           <div className="mx-auto w-full max-w-lg pt-5 text-center">
             <p className="font-jakarta text-2xl font-semibold tracking-[-.04em]">{locale === "fr" ? "Cette photo vous convient ?" : "¿Te gusta esta foto?"}</p>
@@ -585,20 +632,21 @@ export function MiravaIdentityCapture({
               <button onClick={keepPhoto} className="mirava-button mirava-button-primary min-h-14 gap-2 text-sm"><Check className="h-4 w-4" />{locale === "fr" ? "Garder" : "Guardar"}</button>
             </div>
           </div>
-        </main>
+        </div>
       </div>
     )
   }
 
   if (phase === "summary") {
     return (
-      <div className="mirava-theme mirava-capture-shell fixed inset-0 z-50 overflow-y-auto bg-mirava-canvas text-mirava-ink">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={dialogLabel} className="mirava-theme mirava-capture-shell fixed inset-0 z-50 overflow-y-auto bg-mirava-canvas text-mirava-ink">
+        <MiravaGrain />
         <header className="mirava-capture-safe-top sticky top-0 z-10 flex items-center justify-between bg-mirava-canvas/90 px-4 backdrop-blur-xl">
           <button onClick={() => { setActiveStep(firstMissingStep); void startCamera() }} className="mirava-button mirava-button-quiet gap-2 px-2 text-sm"><ArrowLeft className="h-4 w-4" />{locale === "fr" ? "Ajouter" : "Añadir"}</button>
           <span className="font-jakarta text-xs font-semibold tracking-[.16em]">MIRAVA / ID</span>
           <button onClick={close} aria-label={locale === "fr" ? "Fermer" : "Cerrar"} className="mirava-button mirava-button-secondary h-12 w-12"><X className="h-4 w-4" /></button>
         </header>
-        <main className="mx-auto w-full max-w-lg px-5 pb-[max(2rem,env(safe-area-inset-bottom))] pt-8">
+        <div className="mx-auto w-full max-w-lg px-5 pb-[max(2rem,env(safe-area-inset-bottom))] pt-8">
           <p className="mirava-label">{locale === "fr" ? "VOTRE PROFIL IDENTITÉ" : "TU PERFIL DE IDENTIDAD"}</p>
           <h1 className="mt-3 font-jakarta text-4xl font-semibold tracking-[-.055em]">{locale === "fr" ? "Prête à être vous, partout." : "Lista para ser tú, en todas partes."}</h1>
           <p className="mirava-copy mt-4 text-sm leading-6">{locale === "fr" ? "Vérifiez vos prises avant leur enregistrement privé." : "Revisa tus fotos antes de guardarlas de forma privada."}</p>
@@ -635,7 +683,7 @@ export function MiravaIdentityCapture({
                   </div>
                 ))}
               </div>
-              <input ref={repairInputRef} className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => void repairFromLibrary(event)} />
+              <input ref={repairInputRef} hidden type="file" tabIndex={-1} aria-hidden="true" accept="image/jpeg,image/png,image/webp" onChange={(event) => void repairFromLibrary(event)} />
             </section>
           )}
           <label className="mirava-notice mt-7 flex cursor-pointer gap-3 p-4 text-xs leading-5">
@@ -653,7 +701,7 @@ export function MiravaIdentityCapture({
             {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShieldCheck className="h-5 w-5" />}
             {submitting ? (locale === "fr" ? "Enregistrement privé…" : "Guardando de forma privada…") : context === "append" ? (locale === "fr" ? "Ajouter à mon profil" : "Añadir a mi perfil") : (locale === "fr" ? "Enregistrer mon profil" : "Guardar mi perfil")}
           </button>
-        </main>
+        </div>
       </div>
     )
   }
@@ -661,11 +709,12 @@ export function MiravaIdentityCapture({
   const instruction = visionIssue === "ready" && stableProgress > 0 ? issueCopy("hold-still", locale, currentStep) : issueCopy(visionIssue, locale, currentStep)
 
   return (
-    <div className="mirava-theme mirava-capture-shell fixed inset-0 z-50 overflow-hidden bg-black text-white">
+    <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={dialogLabel} className="mirava-theme mirava-capture-shell fixed inset-0 z-50 overflow-hidden bg-black text-white">
       <video ref={videoRef} autoPlay muted playsInline className="absolute inset-0 h-full w-full scale-x-[-1] object-cover object-center max-h-[100dvh]" />
       <canvas ref={analysisCanvasRef} className="hidden" />
       <div className="mirava-camera-shade absolute inset-0" />
       <AppleFaceIdOverlay
+        locale={locale}
         mode={currentStep.mode}
         visionIssue={visionIssue}
         stableProgress={stableProgress}
@@ -706,11 +755,13 @@ export function MiravaIdentityCapture({
 }
 
 function AppleFaceIdOverlay({
+  locale,
   mode,
   visionIssue,
   stableProgress,
   stepId,
 }: {
+  locale: Locale
   mode: MiravaVisionMode
   visionIssue: MiravaVisionIssue
   stableProgress: number
@@ -742,14 +793,14 @@ function AppleFaceIdOverlay({
             <div className="absolute inset-0 grid place-items-center text-[#30D158] animate-pulse">
               <div className="flex items-center gap-2 bg-black/60 px-4 py-2 rounded-2xl backdrop-blur-md border border-[#30D158]/40 shadow-2xl">
                 <span className="text-3xl font-light">←</span>
-                <span className="text-xs font-bold tracking-wider uppercase">Gauche</span>
+                <span className="text-xs font-bold tracking-wider uppercase">{locale === "fr" ? "Gauche" : "Izquierda"}</span>
               </div>
             </div>
           )}
           {stepId === "right" && !isPerfect && (
             <div className="absolute inset-0 grid place-items-center text-[#30D158] animate-pulse">
               <div className="flex items-center gap-2 bg-black/60 px-4 py-2 rounded-2xl backdrop-blur-md border border-[#30D158]/40 shadow-2xl">
-                <span className="text-xs font-bold tracking-wider uppercase">Droite</span>
+                <span className="text-xs font-bold tracking-wider uppercase">{locale === "fr" ? "Droite" : "Derecha"}</span>
                 <span className="text-3xl font-light">→</span>
               </div>
             </div>
@@ -799,10 +850,10 @@ function AppleFaceIdOverlay({
       <div className="mt-7 px-6 text-center max-w-xs">
         <p className="text-base font-medium text-white/90 tracking-tight leading-snug">
           {stepId === "left"
-            ? "Tournez la tête vers la gauche pour compléter le cercle."
+            ? (locale === "fr" ? "Tournez la tête vers la gauche pour compléter le cercle." : "Gira la cabeza hacia la izquierda para completar el círculo.")
             : stepId === "right"
-            ? "Tournez la tête vers la droite pour compléter le cercle."
-            : "Placez votre visage au centre du cercle."}
+            ? (locale === "fr" ? "Tournez la tête vers la droite pour compléter le cercle." : "Gira la cabeza hacia la derecha para completar el círculo.")
+            : (locale === "fr" ? "Placez votre visage au centre du cercle." : "Coloca tu rostro en el centro del círculo.")}
         </p>
       </div>
     </div>

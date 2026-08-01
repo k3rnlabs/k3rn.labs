@@ -4,7 +4,7 @@ import { db } from "@/lib/db"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 import { MIRAVA_ANALYSIS_MODEL, MIRAVA_IMAGE_MODEL } from "@/lib/mirava/server-config"
 import { MIRAVA_STRIPE_PRODUCT, getMiravaStudioPreset, type MiravaStudioPresetId } from "@/lib/mirava/brand"
-import { formatMiravaCreativeOptions } from "@/lib/mirava/creative-options"
+import { formatMiravaCreativeOptions, miravaCreativeOptionsSchema, type MiravaCreativeOptions } from "@/lib/mirava/creative-options"
 import { MIRAVA_MAX_IDENTITY_PHOTOS, MIRAVA_MIN_IDENTITY_PHOTOS, MIRAVA_RECOMMENDED_IDENTITY_PHOTOS } from "@/lib/mirava/identity-profile"
 import { type PhysicalTrait, formatPhysicalTraitsForPrompt, parsePhysicalTraits } from "@/lib/mirava/physical-traits"
 import { buildMiravaSeriesShotBrief, getMiravaSeriesSize } from "@/lib/mirava/series"
@@ -284,10 +284,18 @@ export async function createStudioCreation(args: {
   const identityProfile = await db.studioIdentityProfile.findUnique({ where: { userId: args.userId } })
   let studioProfileId: string | null = null
   if (preset && args.presetId) {
-    const profile = asProfile(await db.studioProfile.create({ data: {
-      userId: args.userId, presetId: args.presetId, name: profileName(args.presetId),
-      creativeDirectionSummary: null, masterPrompt: preset.masterPrompt, negativePrompt: preset.negativePrompt,
-    } }))
+    // Les univers signés deviennent un studio réutilisable dès la première séance.
+    // Ne pas encombrer la bibliothèque d'un nouveau doublon à chaque création.
+    const existingProfile = await db.studioProfile.findFirst({
+      where: { userId: args.userId, presetId: args.presetId, sourceCreationId: null },
+      orderBy: { createdAt: "asc" },
+    })
+    const profile = existingProfile
+      ? asProfile(existingProfile)
+      : asProfile(await db.studioProfile.create({ data: {
+          userId: args.userId, presetId: args.presetId, name: profileName(args.presetId),
+          creativeDirectionSummary: null, masterPrompt: preset.masterPrompt, negativePrompt: preset.negativePrompt,
+        } }))
     studioProfileId = profile.id
   }
   const creation = asCreation(await db.studioCreation.create({
@@ -340,12 +348,49 @@ export async function createCreationFromStudioProfile(args: { userId: string; st
   } }))
 }
 
+/**
+ * Applies client-approved creative choices to a creation before it enters the
+ * generation queue. This is deliberately separate from the private prompts:
+ * only the bounded client-facing choices are persisted here.
+ */
+export async function updateStudioCreationCreativeOptions(args: {
+  userId: string
+  creationId: string
+  creativeOptions: MiravaCreativeOptions
+}): Promise<StudioCreationPublic> {
+  const creation = await getStudioCreationForUser(args.userId, args.creationId)
+  const editableStatuses: StudioStatus[] = ["DRAFT", "ANALYSIS_QUEUED", "ANALYSING", "MASTER_PROMPT_READY"]
+  if (!editableStatuses.includes(creation.status)) {
+    throw new StudioError("La direction ne peut plus être modifiée après le lancement de la génération.", "INVALID_STATE")
+  }
+
+  const existingOptions = miravaCreativeOptionsSchema.strip().parse(creation.creativeOptions ?? {})
+  const updated = asCreation(await db.studioCreation.update({
+    where: { id: creation.id, userId: args.userId },
+    data: { creativeOptions: { ...existingOptions, ...args.creativeOptions } },
+  }))
+  return studioCreationPublic(updated)
+}
+
 export async function getIdentityProfilePublic(userId: string) {
   const profile = await db.studioIdentityProfile.findUnique({ where: { userId } })
   if (!profile) return null
-  const count = (await db.studioIdentityAsset.findMany({ where: { identityProfileId: profile.id } })).length
+  const assets = await db.studioIdentityAsset.findMany({
+    where: { identityProfileId: profile.id, userId },
+    orderBy: { createdAt: "asc" },
+  }) as StudioIdentityAssetRecord[]
+  const previews = await Promise.all(assets.map(async (asset) => {
+    const { data } = await supabaseAdmin.storage.from(STUDIO_BUCKET).createSignedUrl(asset.storagePath, 120)
+    return data?.signedUrl ? { id: asset.id, url: data.signedUrl, createdAt: asset.createdAt } : null
+  }))
   const physicalTraits = parsePhysicalTraits((profile as unknown as Record<string, unknown>).physicalTraits)
-  return { id: profile.id as string, assetCount: count, updatedAt: profile.updatedAt as string, physicalTraits }
+  return {
+    id: profile.id as string,
+    assetCount: assets.length,
+    updatedAt: profile.updatedAt as string,
+    physicalTraits,
+    previews: previews.filter((preview): preview is NonNullable<typeof preview> => preview !== null),
+  }
 }
 
 export async function updateIdentityProfilePhysicalTraits(userId: string, traits: PhysicalTrait[]): Promise<void> {

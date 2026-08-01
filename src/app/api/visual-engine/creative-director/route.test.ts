@@ -74,6 +74,10 @@ describe("POST /api/visual-engine/creative-director", () => {
     expect(JSON.parse(messages[1].content)).toEqual({
       language: "fr",
       universe: "escapade-solaire",
+      lockedCreativeWorld: {
+        name: "Escapade solaire",
+        direction: "Mer, pierre claire et lumière dorée.",
+      },
       approvedCreativeOptions: { beauty: "Peau lumineuse" },
       clientRequest: "Je veux une série plus solaire.",
     })
@@ -86,6 +90,15 @@ describe("POST /api/visual-engine/creative-director", () => {
 
     expect(response.status).toBe(429)
     await expect(response.json()).resolves.toEqual({ error: "Alma reçoit beaucoup de demandes. Réessayez dans un instant." })
+  })
+
+  it("keeps Alma recovery messages in the selected language", async () => {
+    mocks.callLLM.mockRejectedValue(new Error("OpenAI chat completion HTTP 429"))
+
+    const response = await POST(request({ locale: "es", message: "Más solar" }))
+
+    expect(response.status).toBe(429)
+    await expect(response.json()).resolves.toEqual({ error: "Alma está recibiendo muchas solicitudes. Inténtalo de nuevo en un momento." })
   })
 
   it("does not call the provider when Alma is not configured", async () => {

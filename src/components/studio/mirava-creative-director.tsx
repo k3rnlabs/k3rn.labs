@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react"
 import Image from "next/image"
 import { useReducedMotion } from "framer-motion"
 import { ArrowLeft, Briefcase, Camera, Check, CheckCircle2, Compass, Loader2, Send, Sliders, Sparkles } from "lucide-react"
+import * as DialogPrimitive from "@radix-ui/react-dialog"
+import { MiravaGrain } from "@/components/mirava/mirava-grain"
 import type { MiravaCreativeOptions } from "@/lib/mirava/creative-options"
 import { getMiravaCreativeDirectorChanges, getMiravaCreativeDirectorStarterActions } from "@/lib/mirava/creative-director"
 
@@ -22,12 +24,14 @@ export function MiravaCreativeDirector({
   universeId,
   options,
   onApply,
+  onOpenReference,
   onClose,
 }: {
   locale: Locale
   universeId?: string | null
   options: MiravaCreativeOptions
-  onApply: (suggestions: Partial<MiravaCreativeOptions>) => void
+  onApply: (suggestions: Partial<MiravaCreativeOptions>) => Promise<void>
+  onOpenReference: () => void
   onClose: () => void
 }) {
   const [messages, setMessages] = useState<Message[]>([
@@ -35,18 +39,22 @@ export function MiravaCreativeDirector({
       id: "welcome",
       role: "director",
       content: locale === "fr"
-        ? "Bonjour, je suis Alma, votre Directrice Créative. Je suis là pour traduire votre vision en une séance photo éditoriale Haute Couture ou Personal Branding. De quelle ambiance souhaitez-vous vous inspirer aujourd'hui ?"
-        : "Hola, soy Alma, tu Directora Creativa. Estoy aquí para traducir tu visión en una sesión fotográfica editorial de Alta Costura o Personal Branding. ¿En qué ambiente te gustaría inspirarte hoy?",
+        ? "Bonjour, je suis Alma. Décrivez l’ambiance, le lieu ou l’énergie que vous imaginez : je vous propose ensuite une direction à appliquer à votre séance."
+        : "Hola, soy Alma. Describe el ambiente, el lugar o la energía que imaginas: te propondré una dirección para aplicarla a tu sesión.",
     },
   ])
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [failedMessage, setFailedMessage] = useState<string | null>(null)
   const [appliedIds, setAppliedIds] = useState<Set<string>>(new Set())
+  const [applyingId, setApplyingId] = useState<string | null>(null)
+  const [showAllStarterActions, setShowAllStarterActions] = useState(false)
   const endRef = useRef<HTMLDivElement>(null)
   const reduceMotion = useReducedMotion()
   const starterActions = getMiravaCreativeDirectorStarterActions(locale, universeId)
   const isFirstExchange = messages.length === 1 && !loading
+  const showStarterActions = isFirstExchange || Boolean(failedMessage)
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth" })
@@ -57,6 +65,7 @@ export function MiravaCreativeDirector({
     if (!value || loading) return
     setInput("")
     setError(null)
+    setFailedMessage(null)
     setMessages((current) => [...current, { id: crypto.randomUUID(), role: "user", content: value }])
     setLoading(true)
     try {
@@ -70,6 +79,7 @@ export function MiravaCreativeDirector({
       if (!response.ok || !data.reply) throw new Error(data.error ?? "Unavailable")
       setMessages((current) => [...current, { id: crypto.randomUUID(), role: "director", content: data.reply!, suggestions: data.suggestions }])
     } catch (reason) {
+      setFailedMessage(value)
       setError(reason instanceof Error && reason.message !== "Unavailable"
         ? reason.message
         : (locale === "fr" ? "Alma est momentanément indisponible. Votre séance reste disponible." : "Alma no está disponible en este momento. Tu sesión sigue disponible."))
@@ -78,19 +88,38 @@ export function MiravaCreativeDirector({
     }
   }
 
-  const handleApplySuggestions = (msgId: string, suggestions: Partial<MiravaCreativeOptions>) => {
-    onApply(suggestions)
-    setAppliedIds((current) => new Set(current).add(msgId))
+  const handleApplySuggestions = async (msgId: string, suggestions: Partial<MiravaCreativeOptions>) => {
+    if (applyingId) return
+    setError(null)
+    setApplyingId(msgId)
+    try {
+      await onApply(suggestions)
+      setAppliedIds((current) => new Set(current).add(msgId))
+    } catch (reason) {
+      setError(reason instanceof Error
+        ? reason.message
+        : (locale === "fr" ? "La direction n’a pas pu être appliquée. Réessayez." : "No se pudo aplicar la dirección. Inténtalo de nuevo."))
+    } finally {
+      setApplyingId(null)
+    }
   }
 
   return (
-    <div className="mirava-theme fixed inset-0 z-50 flex h-[100dvh] w-screen flex-col overflow-hidden bg-mirava-canvas text-mirava-ink lg:grid lg:grid-cols-[1fr_minmax(24rem,38rem)_1fr]">
-      <button onClick={onClose} className="mirava-button mirava-button-secondary absolute left-4 top-[calc(var(--mirava-safe-top)+0.75rem)] z-20 gap-2 bg-mirava-canvas/80 px-4 text-sm backdrop-blur-xl lg:left-8 lg:top-8">
-        <ArrowLeft className="h-4 w-4" />
-        {locale === "fr" ? "Retour au studio" : "Volver al estudio"}
-      </button>
-      <section aria-label={locale === "fr" ? "Conversation avec Alma" : "Conversación con Alma"} className="mirava-director-shell col-start-2 flex h-full max-h-full min-h-0 flex-col overflow-hidden bg-mirava-surface lg:my-4 lg:max-h-[calc(100dvh-2rem)] lg:rounded-3xl lg:border lg:border-mirava-line/50">
-        <header className="shrink-0 border-b border-mirava-line/40 px-5 pb-4 pt-[calc(var(--mirava-safe-top)+3.5rem)] sm:px-7 lg:pt-6">
+    <DialogPrimitive.Root open onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-black/80" />
+        <DialogPrimitive.Content lang={locale} className="mirava-theme fixed inset-0 z-50 flex h-[100dvh] w-screen flex-col overflow-hidden bg-mirava-canvas text-mirava-ink outline-none lg:grid lg:grid-cols-[minmax(1rem,1fr)_minmax(40rem,52rem)_minmax(1rem,1fr)]">
+          <MiravaGrain />
+          <DialogPrimitive.Title className="sr-only">{locale === "fr" ? "Alma, Directrice créative MIRAVA" : "Alma, Directora creativa MIRAVA"}</DialogPrimitive.Title>
+          <DialogPrimitive.Description className="sr-only">
+            {locale === "fr" ? "Conversation facultative pour définir et appliquer une direction artistique à votre séance." : "Conversación opcional para definir y aplicar una dirección artística a tu sesión."}
+          </DialogPrimitive.Description>
+          <section aria-label={locale === "fr" ? "Conversation avec Alma" : "Conversación con Alma"} className="mirava-director-shell col-start-2 flex h-full max-h-full min-h-0 flex-col overflow-hidden bg-mirava-surface lg:my-4 lg:max-h-[calc(100dvh-2rem)] lg:rounded-3xl lg:border lg:border-mirava-line/50">
+        <header className="shrink-0 border-b border-mirava-line/40 px-5 pb-4 pt-[calc(var(--mirava-safe-top)+0.75rem)] sm:px-7 lg:pt-6">
+          <button onClick={onClose} className="mirava-button mirava-button-secondary mb-5 gap-2 px-4 text-sm lg:mb-4">
+            <ArrowLeft className="h-4 w-4" />
+            {locale === "fr" ? "Retour au studio" : "Volver al estudio"}
+          </button>
           <div className="flex min-w-0 items-center gap-3.5">
             <div className="relative shrink-0">
               <Image src="/visual-engine/alma-directrice.webp" alt="Alma" width={64} height={64} priority className="mirava-alma-avatar h-14 w-14 shrink-0 rounded-full object-cover ring-2 ring-mirava-accent/40 shadow-lg shadow-mirava-accent/15" />
@@ -101,25 +130,27 @@ export function MiravaCreativeDirector({
               <h1 className="mirava-section-title mt-1.5 text-2xl">Alma</h1>
               <p className="mirava-muted mt-0.5 text-xs flex items-center gap-1.5">
                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-mirava-accent" />
-                {locale === "fr" ? "Directrice créative IA · En ligne" : "Directora creativa IA · En línea"}
+                {locale === "fr" ? "Assistant créatif IA" : "Asistente creativo IA"}
               </p>
             </div>
           </div>
         </header>
 
-        <div className="flex-1 space-y-6 overflow-y-auto px-5 py-6 sm:px-7">
-          {/* Explanatory onboarding box */}
+        <div role="region" tabIndex={0} aria-label={locale === "fr" ? "Historique de conversation avec Alma" : "Historial de conversación con Alma"} className="flex-1 space-y-6 overflow-y-auto px-5 py-6 sm:px-7">
           <div className="mirava-notice rounded-2xl border border-mirava-accent/20 bg-gradient-to-br from-mirava-surface-raised/90 to-mirava-canvas-raised/80 space-y-3 p-4 sm:p-5 shadow-lg">
             <div className="flex items-center gap-2 font-jakarta text-sm font-semibold text-mirava-accent">
               <Sparkles className="h-4 w-4 shrink-0 text-mirava-accent" />
               {locale === "fr" ? "En quoi Alma vous aide dans votre séance ?" : "¿En qué te ayuda Alma en tu sesión?"}
             </div>
-            <p className="text-xs leading-5 text-mirava-ink-secondary">
+            <p className="text-xs leading-5 text-mirava-ink-secondary sm:hidden">
+              {locale === "fr" ? "Précisez votre décor, votre attitude ou votre lumière, puis appliquez la direction retenue." : "Precisa tu escenario, actitud o luz y aplica la dirección elegida."}
+            </p>
+            <p className="hidden text-xs leading-5 text-mirava-ink-secondary sm:block">
               {locale === "fr"
                 ? "Alma conçoit votre direction artistique sur-mesure. Échangez avec elle pour préciser le décor, l’attitude ou la lumière, puis appliquez directement ses recommandations à votre séance en 1 clic."
                 : "Alma diseña tu dirección artística a medida. Habla con ella para precisar el escenario, actitud o luz, y aplica sus recomendaciones directamente a tu sesión en 1 clic."}
             </p>
-            <div className="grid gap-2 pt-1 text-[11px] font-medium text-mirava-ink-secondary sm:grid-cols-3">
+            <div className="hidden gap-2 pt-1 text-[11px] font-medium text-mirava-ink-secondary sm:grid sm:grid-cols-3">
               <div className="flex items-center gap-1.5"><Check className="h-3.5 w-3.5 text-mirava-accent" />{locale === "fr" ? "Ambiance & Décor" : "Ambiente y Escenario"}</div>
               <div className="flex items-center gap-1.5"><Check className="h-3.5 w-3.5 text-mirava-accent" />{locale === "fr" ? "Cadrage & Série" : "Encuadre y Serie"}</div>
               <div className="flex items-center gap-1.5"><Check className="h-3.5 w-3.5 text-mirava-accent" />{locale === "fr" ? "Application 1-clic" : "Aplicación en 1 clic"}</div>
@@ -148,7 +179,7 @@ export function MiravaCreativeDirector({
                   <div className="rounded-2xl rounded-tl-sm border border-mirava-accent/25 bg-gradient-to-b from-mirava-surface-raised/95 to-mirava-surface-raised/85 p-4 text-sm leading-6 shadow-xl shadow-black/20 backdrop-blur-md">
                     <div className="mb-2 flex items-center justify-between border-b border-mirava-line/25 pb-1.5">
                       <span className="text-[10px] font-semibold tracking-wider text-mirava-accent uppercase">
-                        Alma · Directrice Créative
+                        Alma · {locale === "fr" ? "Directrice créative" : "Directora creativa"}
                       </span>
                       <span className="text-[9px] font-medium text-mirava-muted uppercase tracking-widest">
                         MIRAVA IA
@@ -177,7 +208,8 @@ export function MiravaCreativeDirector({
                         ))}
                       </div>
                       <button
-                        onClick={() => handleApplySuggestions(message.id, message.suggestions!)}
+                        onClick={() => void handleApplySuggestions(message.id, message.suggestions!)}
+                        disabled={applyingId === message.id}
                         className={
                           isApplied
                             ? "mirava-button mirava-button-secondary w-full gap-2 px-4 text-xs font-semibold text-mirava-success bg-mirava-success/10 border-mirava-success/30"
@@ -187,6 +219,8 @@ export function MiravaCreativeDirector({
                         {isApplied ? <CheckCircle2 className="h-4 w-4 text-mirava-success" /> : <Sparkles className="h-4 w-4" />}
                         {isApplied
                           ? (locale === "fr" ? "Direction appliquée à votre séance ✓" : "Dirección aplicada a tu sesión ✓")
+                          : applyingId === message.id
+                            ? (locale === "fr" ? "Application en cours…" : "Aplicando…")
                           : (locale === "fr" ? "Appliquer cette direction à ma séance" : "Aplicar esta dirección a mi sesión")}
                       </button>
                     </div>
@@ -204,23 +238,23 @@ export function MiravaCreativeDirector({
               </div>
             </div>
           )}
-          {error && <p role="alert" className="mirava-alert p-4 text-sm">{error}</p>}
+          {error && <div role="alert" className="mirava-alert flex flex-wrap items-center justify-between gap-3 p-4 text-sm"><span>{error}</span>{failedMessage && <button onClick={() => void send(failedMessage)} className="mirava-button mirava-button-secondary min-h-10 px-3 text-xs">{locale === "fr" ? "Réessayer" : "Reintentar"}</button>}</div>}
           <div ref={endRef} />
         </div>
 
         <footer className="shrink-0 border-t border-mirava-line/40 bg-mirava-canvas-raised p-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:p-5 shadow-2xl">
-          {isFirstExchange && (
+          {showStarterActions && (
             <div className="mb-4 space-y-2">
               <p className="px-1 text-[11px] font-semibold tracking-wider text-mirava-muted uppercase">
                 {locale === "fr" ? "Idées d’intentions créatives pour votre séance :" : "Ideas de intenciones creativas para tu sesión:"}
               </p>
               <div className="grid gap-2 sm:grid-cols-2">
-                {starterActions.map((action) => {
+                {(showAllStarterActions ? starterActions : starterActions.slice(0, 2)).map((action) => {
                   const IconComponent = iconMap[action.icon] ?? Sparkles
                   return (
                     <button
                       key={action.id}
-                      onClick={() => void send(action.message)}
+                      onClick={() => action.kind === "reference" ? onOpenReference() : void send(action.message)}
                       className="mirava-control group flex min-h-16 items-start gap-3 p-3.5 text-left transition-all hover:border-mirava-accent/50 hover:bg-mirava-surface-raised"
                     >
                       <div className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-mirava-surface-raised text-mirava-accent group-hover:bg-mirava-accent group-hover:text-mirava-canvas transition-colors">
@@ -234,10 +268,13 @@ export function MiravaCreativeDirector({
                   )
                 })}
               </div>
+              {!showAllStarterActions && starterActions.length > 2 && <button onClick={() => setShowAllStarterActions(true)} className="mirava-button mirava-button-quiet mt-1 w-full px-3 text-xs sm:hidden">{locale === "fr" ? "Voir les 2 autres idées" : "Ver las otras 2 ideas"}</button>}
             </div>
           )}
           <div className="mirava-input flex items-end gap-2 p-2 pl-4">
+            <label htmlFor="alma-intention" className="sr-only">{locale === "fr" ? "Votre intention créative" : "Tu intención creativa"}</label>
             <textarea
+              id="alma-intention"
               value={input}
               onChange={(event) => setInput(event.target.value)}
               onKeyDown={(event) => {
@@ -248,6 +285,7 @@ export function MiravaCreativeDirector({
               }}
               rows={1}
               maxLength={500}
+              aria-describedby="alma-composer-hint"
               placeholder={locale === "fr" ? "Ex: Je veux un shooting chic solaire à la lumière dorée…" : "Ej: Quiero una sesión chic solar con luz dorada…"}
               className="max-h-32 min-h-12 flex-1 resize-none bg-transparent py-3 text-sm text-mirava-ink outline-none placeholder:text-mirava-muted"
             />
@@ -255,8 +293,11 @@ export function MiravaCreativeDirector({
               <Send className="h-4 w-4" />
             </button>
           </div>
+          <p id="alma-composer-hint" className="sr-only">{locale === "fr" ? "Entrée envoie le message. Maj et Entrée ajoute une ligne." : "Intro envía el mensaje. Mayús e Intro añade una línea."}</p>
         </footer>
-      </section>
-    </div>
+          </section>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   )
 }

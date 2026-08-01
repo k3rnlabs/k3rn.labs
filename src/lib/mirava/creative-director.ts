@@ -18,11 +18,12 @@ const actionableKeys = [
 type ActionableKey = typeof actionableKeys[number]
 
 export type MiravaCreativeDirectorAction = {
-  id: "branding" | "editorial" | "series" | "guided"
+  id: "reference" | "campaign" | "series" | "guided"
   icon: "briefcase" | "sparkles" | "camera" | "compass"
   title: string
   subtitle: string
-  message: string
+  kind: "reference" | "message"
+  message?: string
 }
 
 export type MiravaCreativeDirectorChange = {
@@ -62,33 +63,36 @@ export function getMiravaCreativeDirectorStarterActions(locale: Locale, universe
   if (locale === "es") {
     return [
       {
-        id: "branding",
+        id: "reference",
         icon: "briefcase",
-        title: "Perfil Profesional y LinkedIn",
-        subtitle: "Retrato profesional moderno, confiado y natural",
-        message: "Deseo crear retratos profesionales limpios y elegantes para mi perfil LinkedIn y mis redes profesionales.",
+        title: "Crear desde mi inspiración",
+        subtitle: "Importa una imagen y crea un estudio personal reutilizable",
+        kind: "reference",
       },
       {
-        id: "editorial",
+        id: "campaign",
         icon: "sparkles",
-        title: "Sesión Moda y Redes Sociales",
-        subtitle: "Serie editorial estilo portada de revista con luz refinada",
+        title: "Campaña para mis redes",
+        subtitle: "Una dirección editorial diseñada para tu presencia social",
+        kind: "message",
         message: universeName
-          ? `Propón una dirección editorial de Alta Costura impactante para el universo ${universeName}.`
-          : "Propón una dirección editorial de Alta Costura impactante estilo portada de revista.",
+          ? `Propón una dirección editorial impactante para una campaña de redes dentro del universo ${universeName}.`
+          : "Propón una dirección editorial impactante para una campaña de redes sociales.",
       },
       {
         id: "series",
         icon: "camera",
-        title: "Serie de 3 fotos complementarias",
+        title: "Serie de 3 imágenes coherentes",
         subtitle: "3 encuadres variados (primer plano, plano medio y ambiente)",
+        kind: "message",
         message: "Estructura una serie de 3 imágenes complementarias variando encuadres y actitudes.",
       },
       {
         id: "guided",
         icon: "compass",
-        title: "Proponer un concepto a medida",
-        subtitle: "Alma elige la mejor dirección artística adaptada a tu perfil",
+        title: "Imaginar un concepto a medida",
+        subtitle: "Alma propone una dirección adaptada a tu intención",
+        kind: "message",
         message: "Propón un concepto creativo original y personalizado adaptado a mi sesión fotográfica.",
       },
     ]
@@ -96,33 +100,36 @@ export function getMiravaCreativeDirectorStarterActions(locale: Locale, universe
 
   return [
     {
-      id: "branding",
+      id: "reference",
       icon: "briefcase",
-      title: "Profil Pro & LinkedIn",
-      subtitle: "Portrait pro moderne, élégant, confiant & naturel",
-      message: "Je souhaite créer des portraits professionnels modernes et élégants pour mon profil LinkedIn et mon image pro.",
+      title: "Créer depuis mon inspiration",
+      subtitle: "Importez une image et créez un studio personnel réutilisable",
+      kind: "reference",
     },
     {
-      id: "editorial",
+      id: "campaign",
       icon: "sparkles",
-      title: "Shooting Mode & Réseaux",
-      subtitle: "Série éditoriale style magazine avec angles & décors déclinés",
+      title: "Campagne pour mes réseaux",
+      subtitle: "Une direction éditoriale pensée pour votre présence sociale",
+      kind: "message",
       message: universeName
-        ? `Propose une direction éditoriale Haute Couture percutante pour l'univers ${universeName}.`
-        : "Propose une direction éditoriale Haute Couture percutante style couverture de magazine.",
+        ? `Propose une direction éditoriale percutante pour une campagne réseaux dans l’univers ${universeName}.`
+        : "Propose une direction éditoriale percutante pour une campagne réseaux.",
     },
     {
       id: "series",
       icon: "camera",
-      title: "Série de 3 visuels déclinés",
+      title: "Série de 3 images cohérentes",
       subtitle: "3 vues complémentaires : portrait serré, plan moyen & vue d’ambiance",
+      kind: "message",
       message: "Structure une série de 3 visuels complémentaires en déclinant cadrages et attitudes.",
     },
     {
       id: "guided",
       icon: "compass",
       title: "Me proposer un concept sur-mesure",
-      subtitle: "Alma choisit la meilleure direction artistique selon votre profil",
+      subtitle: "Alma propose une direction adaptée à votre intention",
+      kind: "message",
       message: "Propose-moi un concept créatif original et sur-mesure adapté à ma séance photo.",
     },
   ]

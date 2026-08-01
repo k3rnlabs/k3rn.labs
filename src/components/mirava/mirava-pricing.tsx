@@ -30,10 +30,10 @@ export function MiravaPricing({ locale }: MiravaPricingProps) {
       showMorePlans: "Voir toutes les options de recharges & abonnements",
       showLessPlans: "Masquer les options secondaires",
       features: {
-        identity: "Profil Identité privé (3 à 6 photos)",
+        identity: "Profil privé : 3 vues essentielles + options",
         universes: "Accès illimité aux 7 Univers créatifs",
         alma: "Directrice créative Alma intégrée",
-        social: "Export multi-formats (4:5, 9:16, 1:1, 16:9)",
+        social: "Images signature verticales 4:5 dans votre galerie privée",
         custom: "Création de studio depuis photo de référence",
         priority: "Génération prioritaire & support VIP",
       },
@@ -59,10 +59,10 @@ export function MiravaPricing({ locale }: MiravaPricingProps) {
       showMorePlans: "Ver todas las opciones de recargas y suscripciones",
       showLessPlans: "Ocultar opciones secundarias",
       features: {
-        identity: "Perfil de Identidad privado (3 a 6 fotos)",
+        identity: "Perfil privado: 3 vistas esenciales + opciones",
         universes: "Acceso ilimitado a los 7 Universos",
         alma: "Directora creativa Alma integrada",
-        social: "Exportación multi-formato (4:5, 9:16, 1:1, 16:9)",
+        social: "Imágenes insignia verticales 4:5 en tu galería privada",
         custom: "Creación de estudio desde foto de referencia",
         priority: "Generación prioritaria y soporte VIP",
       },
@@ -230,7 +230,7 @@ export function MiravaPricing({ locale }: MiravaPricingProps) {
 
               <div className="mt-8 pt-4">
                 <Link
-                  href="/visual-engine/studio"
+                  href={`/visual-engine/studio?view=account&offer=${item.id}`}
                   onClick={() => handleCtaClick(item.id, item.name, item.price)}
                   className={`mirava-button w-full min-h-[44px] justify-center gap-2 px-5 py-3 text-xs font-semibold font-jakarta ${
                     item.popular
@@ -282,5 +282,3 @@ export function MiravaPricing({ locale }: MiravaPricingProps) {
     </div>
   )
 }
-
-

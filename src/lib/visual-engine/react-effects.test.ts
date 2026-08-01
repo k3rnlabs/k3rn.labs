@@ -16,6 +16,7 @@ describe("MIRAVA creative director component contracts", () => {
   it("keeps one explicit exit and delegates starter actions to the structured pipeline", () => {
     expect(creativeDirector).toContain('Retour au studio')
     expect(creativeDirector).not.toContain('aria-label={locale === "fr" ? "Fermer"')
+    expect(creativeDirector).toContain("DialogPrimitive.Content")
     expect(creativeDirector).toContain("getMiravaCreativeDirectorStarterActions")
     expect(creativeDirector).not.toContain("mirava-scroll-row")
   })

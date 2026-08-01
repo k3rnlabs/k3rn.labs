@@ -102,6 +102,8 @@ export function translateAuthError(
   if (
     lowerMsg.includes("invalid email") ||
     lowerMsg.includes("email address is invalid") ||
+    lowerMsg.includes("saisissez une adresse email valide") ||
+    lowerMsg.includes("introduce una dirección de email válida") ||
     lowerMsg.includes("l'adresse email saisie n'est pas valide") ||
     lowerMsg.includes("la dirección de correo ingresada no es válida")
   ) {

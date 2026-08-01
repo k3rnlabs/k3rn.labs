@@ -17,12 +17,12 @@ import { MiravaPricing } from "@/components/mirava/mirava-pricing"
 import { MIRAVA_UNIVERSES } from "@/lib/mirava/universes"
 
 const identityGuide = [
-  { src: "/visual-engine/identity-guide/01-face.webp", label: "Face neutre" },
-  { src: "/visual-engine/identity-guide/02-left.webp", label: "3/4 Gauche" },
-  { src: "/visual-engine/identity-guide/03-right.webp", label: "3/4 Droit" },
-  { src: "/visual-engine/identity-guide/04-hair.webp", label: "Cheveux & Port" },
-  { src: "/visual-engine/identity-guide/05-body-front.webp", label: "Silhouette face" },
-  { src: "/visual-engine/identity-guide/06-body-angle.webp", label: "Silhouette angle" },
+  { src: "/visual-engine/identity-guide/01-face.webp", label: { fr: "Face neutre", es: "Rostro de frente" } },
+  { src: "/visual-engine/identity-guide/02-left.webp", label: { fr: "3/4 Gauche", es: "Tres cuartos izquierdo" } },
+  { src: "/visual-engine/identity-guide/03-right.webp", label: { fr: "3/4 Droit", es: "Tres cuartos derecho" } },
+  { src: "/visual-engine/identity-guide/04-hair.webp", label: { fr: "Cheveux & Port", es: "Cabello y porte" } },
+  { src: "/visual-engine/identity-guide/05-body-front.webp", label: { fr: "Silhouette face", es: "Silueta de frente" } },
+  { src: "/visual-engine/identity-guide/06-body-angle.webp", label: { fr: "Silhouette angle", es: "Silueta de perfil" } },
 ]
 
 const copy = {
@@ -30,47 +30,52 @@ const copy = {
     open: "Créer",
     eyebrow: "ÉNERGIE ÉDITORIALE · IDENTITÉ PRÉSERVÉE",
     title: "Votre studio photo éditorial. Votre identité préservée.",
-    intro: "Fournissez 3 à 6 portraits guidés et choisissez votre direction artistique. MIRAVA compose vos séances photo Haute Couture tout en conservant fidèlement votre regard, votre carnation et la texture naturelle de votre peau.",
+    intro: "Commencez par 3 portraits guidés essentiels, puis ajoutez si vous le souhaitez vos cheveux et votre silhouette. MIRAVA compose vos séances photo tout en préservant fidèlement votre regard, votre carnation et la texture naturelle de votre peau.",
     cta: "Créer ma première séance",
     secondaryCta: "Explorer les 7 univers",
     offer: "3 créations offertes à l'activation · Sans carte de crédit · Profil 100% privé",
     heroSourceLabel: "PORTRAIT SOURCE (VOUS)",
+    heroSourceDescription: "Profil d'identité validé",
     heroResultLabel: "RENDU ÉDITORIAL · LUZ DE ORO",
+    heroUniverse: "ESCAPADE SOLAIRE",
     
     // Proof metrics
     metrics: [
       { number: "3", label: "Créations offertes à l'activation" },
       { number: "7", label: "Univers éditoriaux de référence" },
-      { number: "100%", label: "Traitement local & privé du visage" },
-      { number: "4:5 / 9:16", label: "Formats réseaux prêts à publier" },
+      { number: "Local", label: "Guide caméra et contrôle avant envoi" },
+      { number: "4:5", label: "Format vertical signature" },
     ],
 
     // Method steps
     methodBadge: "MÉCANISME ET PROCESSUS",
     methodTitle: "Une séance éditoriale complète en trois gestes simples.",
     steps: [
-      ["01", "Importez vos portraits", "Chargez 3 à 6 portraits guidés (face, 3/4, profil). Votre Profil Identité est analysé en local dans votre navigateur sans être diffusé."],
+      ["01", "Préparez votre Profil identité", "Capturez ou choisissez 3 portraits guidés essentiels : face, 3/4 gauche et 3/4 droit. Vous pouvez ensuite ajouter vos cheveux et jusqu’à deux vues silhouette. Le guide caméra et ses contrôles restent sur votre appareil ; seules les photos que vous validez sont envoyées dans votre espace privé."],
       ["02", "Sélectionnez votre univers", "Choisissez parmi 7 univers signés (Escapade Solaire, Éditorial Mode...) ou importez une photo d'inspiration pour créer votre propre studio."],
-      ["03", "Obtenez vos séances photo", "MIRAVA génère vos visuels Haute Couture déclinés dans tous les ratios sociaux (4:5, 9:16, 1:1), en conservant fidèlement vos traits d'origine."],
+      ["03", "Obtenez vos images", "Choisissez une image signature ou une série cohérente. Chaque résultat est livré en vertical 4:5, dans votre galerie privée, avec une direction conçue autour de votre identité."],
     ],
 
     // Custom studio from reference
     customBadge: "STUDIO SUR-MESURE",
     customTitle: "Votre photo d'inspiration devient votre studio permanent.",
-    customText: "Importez l'image d'un magazine, d'une campagne de mode ou d'un lieu qui vous inspire. L'IA analyse la lumière, le grain et le cadrage pour construire un studio réutilisable pour vos propres séances.",
-    customCta: "Créer depuis ma référence",
+    customText: "Importez l'image d'un magazine, d'une campagne de mode ou d'un lieu qui vous inspire. MIRAVA crée un studio réutilisable pour vos propres séances, sans jamais afficher sa direction interne.",
+    customCta: "Créer mon studio depuis une référence",
 
     // Identity profile
     identityBadge: "FIDÉLITÉ PRÉSERVÉE",
     identityTitle: "Vos traits et votre carnation préservés sur chaque décor.",
-    identityText: "Créez votre Profil Identité privé avec 3 à 6 portraits guidés. Notre moteur de rendu garantit une fidélité absolue à votre regard, votre texture de peau et vos expressions, sans l'aspect lissé ou générique des filtres habituels.",
+    identityText: "Créez votre Profil identité privé à partir de 3 portraits essentiels. Ajoutez vos cheveux ou votre silhouette si vous souhaitez renforcer la fidélité. MIRAVA préserve votre regard, votre carnation et la texture naturelle de votre peau, sans filtre générique.",
     camera: "Prévisualisation vidéo 100% locale",
     cameraText: "L'analyse vidéo s'effectue directement dans votre navigateur. Aucune image brute n'est transmise avant votre validation explicite.",
 
     // Confidentiality & Rights
     privacyBadge: "VOTRE VIE PRIVÉE",
     privacyTitle: "Vos photos sources restent strictement privées et effaçables en 1 clic.",
-    private: "Vos images de référence sont supprimées immédiatement après analyse. Votre Profil Identité reste strictement privé, chiffré et supprimable à tout moment.",
+    identityDataTitle: "Données d'identité protégées",
+    consentTitle: "Consentement & Majorité",
+    studioLogin: "Connexion Studio",
+    private: "Votre image de référence est supprimée après son analyse. Votre Profil identité reste dans un stockage privé et peut être supprimé à tout moment.",
     adult: "MIRAVA est exclusivement réservé aux personnes majeures détenant les droits et consentements sur les visages importés.",
 
     // Final CTA
@@ -82,47 +87,52 @@ const copy = {
     open: "Crear",
     eyebrow: "ENERGÍA EDITORIAL · IDENTIDAD PRESERVADA",
     title: "Tu estudio fotográfico editorial. Tu identidad preservada.",
-    intro: "Aporta de 3 a 6 retratos guiados y elige tu dirección artística. MIRAVA compone tus sesiones fotográficas de Alta Costura conservando fielmente tu mirada, tono y textura natural de piel.",
+    intro: "Empieza con 3 retratos guiados esenciales y, si lo deseas, añade tu cabello y tu silueta. MIRAVA compone tus sesiones conservando fielmente tu mirada, tono y textura natural de piel.",
     cta: "Crear mi primera sesión",
     secondaryCta: "Explorar los 7 universos",
     offer: "3 creaciones incluidas al activar · Sin tarjeta de crédito · Perfil 100% privado",
     heroSourceLabel: "RETRATO FUENTE (TÚ)",
+    heroSourceDescription: "Perfil de identidad validado",
     heroResultLabel: "RESULTADO EDITORIAL · LUZ DE ORO",
+    heroUniverse: "ESCAPADA SOLAR",
 
     // Proof metrics
     metrics: [
       { number: "3", label: "Creaciones incluidas al activar" },
       { number: "7", label: "Universos editoriales de autor" },
-      { number: "100%", label: "Procesamiento local y privado" },
-      { number: "4:5 / 9:16", label: "Formatos listos para redes" },
+      { number: "Local", label: "Guía de cámara y control antes del envío" },
+      { number: "4:5", label: "Formato vertical distintivo" },
     ],
 
     // Method steps
     methodBadge: "MECANISMO Y PROCESO",
     methodTitle: "Una sesión editorial completa en tres sencillos pasos.",
     steps: [
-      ["01", "Sube tus retratos", "Carga de 3 a 6 retratos guiados (frente, 3/4, perfil). Tu Perfil de Identidad se analiza localmente en tu navegador."],
-      ["02", "Selecciona tu universo", "Elige entre 7 universos autor (Escapada Solar, Editorial Moda...) o sube una foto de inspiración para crear tu propio estudio."],
-      ["03", "Obtén tus sesiones foto", "MIRAVA genera tus imágenes de Alta Costura adaptadas a todos los ratios sociales (4:5, 9:16, 1:1), conservando tus rasgos reales."],
+      ["01", "Prepara tu Perfil de identidad", "Captura o elige 3 retratos guiados esenciales: frente, tres cuartos izquierdo y derecho. Después puedes añadir tu cabello y hasta dos vistas de silueta. La guía de cámara y sus controles permanecen en tu dispositivo; solo las fotos que validas se envían a tu espacio privado."],
+      ["02", "Selecciona tu universo", "Elige entre 7 universos de autor (Escapada Solar, Editorial Moda...) o sube una foto de inspiración para crear tu propio estudio."],
+      ["03", "Obtén tus imágenes", "Elige una imagen insignia o una serie coherente. Cada resultado se entrega en vertical 4:5, en tu galería privada, con una dirección creada alrededor de tu identidad."],
     ],
 
     // Custom studio from reference
     customBadge: "ESTUDIO A MEDIDA",
     customTitle: "Tu foto de inspiración se convierte en tu estudio permanente.",
-    customText: "Sube la imagen de una revista, campaña o lugar que te inspire. La IA analiza la luz, el grano y el encuadre para construir un estudio reutilizable para tus propias sesiones.",
-    customCta: "Crear desde mi referencia",
+    customText: "Sube la imagen de una revista, campaña o lugar que te inspire. MIRAVA crea un estudio reutilizable para tus propias sesiones, sin mostrar nunca su dirección interna.",
+    customCta: "Crear mi estudio desde una referencia",
 
     // Identity profile
     identityBadge: "FIDELIDAD PRESERVADA",
     identityTitle: "Tus rasgos y tono de piel preservados en cada escenario.",
-    identityText: "Crea tu Perfil de Identidad privado con 3 a 6 retratos guiados. Nuestro motor garantiza una fidelidad absoluta a tu mirada, textura de piel y expresiones sin el efecto genérico de los filtros convencionales.",
+    identityText: "Crea tu Perfil de Identidad privado a partir de 3 retratos esenciales. Añade tu cabello o silueta si deseas reforzar la fidelidad. MIRAVA preserva tu mirada, tono de piel y textura natural sin filtros genéricos.",
     camera: "Vista previa de vídeo 100% local",
     cameraText: "El análisis de vídeo se ejecuta directamente en tu navegador. Ninguna imagen bruta se transmite sin tu validación explícita.",
 
     // Confidentiality & Rights
     privacyBadge: "TU PRIVACIDAD",
     privacyTitle: "Tus fotos fuente permanecen privadas y borrables en 1 clic.",
-    private: "Tus imágenes de referencia se eliminan tras el análisis. Tu Perfil de Identidad permanece privado, cifrado y eliminable en cualquier momento.",
+    identityDataTitle: "Datos de identidad protegidos",
+    consentTitle: "Consentimiento y mayoría de edad",
+    studioLogin: "Acceso al Studio",
+    private: "Tu imagen de referencia se elimina tras su análisis. Tu Perfil de identidad permanece en almacenamiento privado y puedes eliminarlo en cualquier momento.",
     adult: "MIRAVA está reservado a personas mayores de edad con los derechos y consentimientos sobre cada imagen.",
 
     // Final CTA
@@ -151,7 +161,7 @@ export default function MiravaLandingPage() {
       {/* 1. Header & Navigation */}
       <header className="relative z-20 border-b border-mirava-line/50 bg-mirava-canvas/80 backdrop-blur-md">
         <nav className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 sm:px-8">
-          <Link href="/visual-engine" aria-label="Accueil MIRAVA Studio">
+          <Link href="/visual-engine" aria-label={locale === "fr" ? "Accueil MIRAVA Studio" : "Inicio MIRAVA Studio"}>
             <MiravaWordmark />
           </Link>
           <div className="flex items-center gap-3">
@@ -230,7 +240,7 @@ export default function MiravaLandingPage() {
                   {t.heroSourceLabel}
                 </span>
                 <p className="text-[11px] text-mirava-ink-secondary mt-0.5 leading-snug">
-                  Profil d'identité validé
+                  {t.heroSourceDescription}
                 </p>
               </div>
             </div>
@@ -248,7 +258,7 @@ export default function MiravaLandingPage() {
               <div className="mirava-media-overlay absolute inset-0" />
               <div className="absolute inset-x-4 bottom-4 text-mirava-ink">
                 <span className="text-[8px] font-bold tracking-[.18em] text-mirava-ink/75 block">
-                  ESCAPADE SOLAIRE
+                  {t.heroUniverse}
                 </span>
                 <p className="mt-1 font-jakarta text-lg font-bold tracking-[-.02em] sm:text-2xl">
                   Luz de Oro
@@ -303,7 +313,7 @@ export default function MiravaLandingPage() {
         </div>
       </section>
 
-      {/* 5. Authentic Product Showcase — Alma Creative Director */}
+      {/* 5. Personal studio from a private reference */}
       <section className="relative border-y border-mirava-line bg-mirava-canvas-raised px-5 py-16 sm:px-8 sm:py-24">
         <MiravaAgentSimulator locale={locale} />
       </section>
@@ -335,7 +345,7 @@ export default function MiravaLandingPage() {
               >
                 <Image
                   src={item.src}
-                  alt={item.label}
+                  alt={item.label[locale]}
                   fill
                   sizes="(max-width: 640px) 45vw, 20vw"
                   className="object-cover transition-transform duration-500 group-hover:scale-105"
@@ -343,7 +353,7 @@ export default function MiravaLandingPage() {
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-80" />
                 <div className="absolute inset-x-2.5 bottom-2.5 flex items-center justify-between">
                   <span className="font-jakarta text-[9px] font-semibold text-white/90">
-                    {item.label}
+                    {item.label[locale]}
                   </span>
                   <span className="flex h-5 w-5 items-center justify-center rounded-full bg-mirava-accent text-mirava-canvas">
                     <Check className="h-3 w-3" />
@@ -375,14 +385,14 @@ export default function MiravaLandingPage() {
           <div className="mirava-notice flex items-start gap-4 p-6 rounded-xl border border-mirava-line bg-mirava-canvas-raised">
             <LockKeyhole className="mt-1 h-5 w-5 shrink-0 text-mirava-accent" />
             <div>
-              <h3 className="font-jakarta text-sm font-bold text-mirava-ink">Données d'identité protégées</h3>
+              <h3 className="font-jakarta text-sm font-bold text-mirava-ink">{t.identityDataTitle}</h3>
               <p className="mt-2 text-xs leading-6 text-mirava-ink-secondary">{t.private}</p>
             </div>
           </div>
           <div className="mirava-notice flex items-start gap-4 p-6 rounded-xl border border-mirava-line bg-mirava-canvas-raised">
             <ShieldCheck className="mt-1 h-5 w-5 shrink-0 text-mirava-accent" />
             <div>
-              <h3 className="font-jakarta text-sm font-bold text-mirava-ink">Consentement & Majorité</h3>
+              <h3 className="font-jakarta text-sm font-bold text-mirava-ink">{t.consentTitle}</h3>
               <p className="mt-2 text-xs leading-6 text-mirava-ink-secondary">{t.adult}</p>
             </div>
           </div>
@@ -427,7 +437,7 @@ export default function MiravaLandingPage() {
           <p className="text-[11px]">{t.foot}</p>
           <div className="flex gap-4 text-[11px]">
             <Link href="/visual-engine/studio/login" className="hover:text-mirava-ink transition-colors min-h-[44px] inline-flex items-center">
-              Connexion Studio
+              {t.studioLogin}
             </Link>
           </div>
         </div>
@@ -435,4 +445,3 @@ export default function MiravaLandingPage() {
     </main>
   )
 }
-

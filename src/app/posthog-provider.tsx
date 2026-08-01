@@ -27,7 +27,10 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
     const posthogKey = process.env.NEXT_PUBLIC_POSTHOG_KEY
     const posthogHost = process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com"
 
-    if (typeof window !== "undefined" && posthogKey) {
+    // React Strict Mode replays effects in development. PostHog is a singleton,
+    // so initializing it a second time only emits a warning and can duplicate
+    // page-level side effects.
+    if (typeof window !== "undefined" && posthogKey && !posthog.__loaded) {
       posthog.init(posthogKey, {
         api_host: posthogHost,
         person_profiles: "identified_only",

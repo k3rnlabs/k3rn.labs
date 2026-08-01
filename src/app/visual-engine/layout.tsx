@@ -3,6 +3,7 @@ import { MIRAVA } from "@/lib/mirava/brand"
 import { MiravaPwaRegistration } from "@/components/mirava/mirava-pwa"
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://k3rnlabs.com"),
   title: { default: "MIRAVA Studio — Direction qui vous ressemble", template: "%s — MIRAVA Studio" },
   description: "Portraits premium de personal branding, créés depuis votre direction visuelle et votre identité.",
   applicationName: MIRAVA.name,
@@ -44,11 +45,11 @@ export default function MiravaLayout({ children }: Readonly<{ children: React.Re
       "description": "3 créations offertes à l'activation",
     },
     "featureList": [
-      "Profil Identité sécurisé",
+      "Profil identité sécurisé",
       "7 Univers créatifs d'exception",
       "Directrice créative IA interactive",
       "Extraction automatique depuis photo de référence",
-      "Confidentialité garantie et suppression sous 24h",
+      "Profil identité privé et suppression à la demande",
     ],
   }
 

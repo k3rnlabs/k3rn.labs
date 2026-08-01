@@ -11,6 +11,16 @@ import { translateAuthError } from "@/lib/auth-errors"
 
 type Mode = "login" | "signup" | "forgot"
 
+function getStudioDestination(next: string | null) {
+  if (!next?.startsWith("/")) return "/visual-engine/studio"
+
+  // We only restore the Studio root plus its query/hash state. This keeps the
+  // chosen creation context (e.g. ?source=reference) without accepting a
+  // look-alike internal path such as /visual-engine/studio-anything.
+  const pathname = next.split(/[?#]/, 1)[0]
+  return pathname === "/visual-engine/studio" ? next : "/visual-engine/studio"
+}
+
 const copy = {
   fr: {
     login: "Connexion",
@@ -33,14 +43,11 @@ const copy = {
     loadingLogin: "Connexion…",
     loadingSignup: "Création…",
     loadingForgot: "Envoi…",
-    noAccount: "Pas encore de compte ?",
-    hasAccount: "Déjà un compte ?",
-    signupLink: "S'inscrire",
-    loginLink: "Se connecter",
     backToLogin: "← Retour à la connexion",
     signupSuccess: "Compte créé — vérifiez votre email pour confirmer.",
     passwordShort: "Le mot de passe doit contenir au moins 6 caractères.",
     passwordMismatch: "Les mots de passe ne correspondent pas.",
+    emailInvalid: "Saisissez une adresse email valide.",
     showPassword: "Afficher le mot de passe",
     hidePassword: "Masquer le mot de passe",
     offer: "3 créations offertes à l'activation",
@@ -70,14 +77,11 @@ const copy = {
     loadingLogin: "Conectando…",
     loadingSignup: "Creando…",
     loadingForgot: "Enviando…",
-    noAccount: "¿Aún no tienes cuenta?",
-    hasAccount: "¿Ya tienes cuenta?",
-    signupLink: "Registrarse",
-    loginLink: "Iniciar sesión",
     backToLogin: "← Volver al inicio de sesión",
     signupSuccess: "Cuenta creada — revisa tu correo para confirmar.",
     passwordShort: "La contraseña debe tener al menos 6 caracteres.",
     passwordMismatch: "Las contraseñas no coinciden.",
+    emailInvalid: "Introduce una dirección de email válida.",
     showPassword: "Mostrar contraseña",
     hidePassword: "Ocultar contraseña",
     offer: "3 creaciones incluidas al activar",
@@ -93,6 +97,7 @@ function MiravaLoginPageContent() {
   const t = copy[locale]
   const router = useRouter()
   const searchParams = useSearchParams()
+  const studioDestination = getStudioDestination(searchParams.get("next"))
 
   const [mode, setMode] = useState<Mode>("login")
   const [email, setEmail] = useState("")
@@ -161,9 +166,9 @@ function MiravaLoginPageContent() {
   // Redirect silently if already authenticated
   useEffect(() => {
     fetch("/api/visual-engine/account", { cache: "no-store" })
-      .then((res) => { if (res.ok) router.replace("/visual-engine/studio") })
+      .then((res) => { if (res.ok) router.replace(studioDestination) })
       .catch(() => { /* not logged in — stay on page */ })
-  }, [router])
+  }, [router, studioDestination])
 
   function reset() {
     setError(null)
@@ -178,6 +183,12 @@ function MiravaLoginPageContent() {
     setError(null)
     setSuccess(null)
 
+    const normalizedEmail = email.trim()
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      setError(t.emailInvalid)
+      return
+    }
+
     if (mode === "signup") {
       if (password.length < 6) { setError("passwordShort"); return }
       if (password !== confirmPassword) { setError("passwordMismatch"); return }
@@ -189,20 +200,20 @@ function MiravaLoginPageContent() {
         const res = await fetch("/api/auth/session", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify({ email: normalizedEmail, password }),
         })
         const data = await res.json().catch(() => null)
         if (!res.ok) {
           const errMsg = data?.error || data?.message || (typeof data?.details === "string" ? data.details : null) || "Échec de la connexion. Vérifiez vos identifiants."
           throw new Error(errMsg)
         }
-        router.push("/visual-engine/studio")
+        router.push(studioDestination)
         router.refresh()
       } else if (mode === "signup") {
         const res = await fetch("/api/auth/signup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify({ email: normalizedEmail, password }),
         })
         const data = await res.json().catch(() => null)
         if (!res.ok) {
@@ -210,7 +221,7 @@ function MiravaLoginPageContent() {
           throw new Error(errMsg)
         }
         if (data?.session || data?.autoConfirmed) {
-          router.push("/visual-engine/studio")
+          router.push(studioDestination)
           router.refresh()
           return
         }
@@ -222,7 +233,7 @@ function MiravaLoginPageContent() {
         const res = await fetch("/api/auth/forgot-password", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
+          body: JSON.stringify({ email: normalizedEmail }),
         })
         const data = await res.json().catch(() => null)
         if (!res.ok) {
@@ -248,7 +259,7 @@ function MiravaLoginPageContent() {
 
       {/* Top bar */}
       <nav className="relative z-20 flex items-center justify-between px-5 pt-[max(1rem,env(safe-area-inset-top,0px))] pb-4 sm:px-8">
-        <Link href="/visual-engine" aria-label="Accueil MIRAVA Studio">
+        <Link href="/visual-engine" aria-label={locale === "fr" ? "Accueil MIRAVA Studio" : "Inicio MIRAVA Studio"}>
           <MiravaWordmark />
         </Link>
         <button
@@ -351,9 +362,8 @@ function MiravaLoginPageContent() {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    tabIndex={-1}
                     aria-label={showPassword ? t.hidePassword : t.showPassword}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-mirava-ink-muted hover:text-mirava-ink transition-colors p-1"
+                    className="absolute right-2 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-lg text-mirava-ink-muted transition-colors hover:text-mirava-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mirava-accent"
                   >
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
@@ -387,9 +397,8 @@ function MiravaLoginPageContent() {
                   <button
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    tabIndex={-1}
                     aria-label={showConfirmPassword ? t.hidePassword : t.showPassword}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-mirava-ink-muted hover:text-mirava-ink transition-colors p-1"
+                    className="absolute right-2 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-lg text-mirava-ink-muted transition-colors hover:text-mirava-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mirava-accent"
                   >
                     {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
@@ -428,8 +437,8 @@ function MiravaLoginPageContent() {
             )}
           </form>
 
-          <div className="mt-6 border-t border-mirava-line pt-5 text-center text-xs text-mirava-ink-muted">
-            {mode === "forgot" ? (
+          {mode === "forgot" && (
+            <div className="mt-6 border-t border-mirava-line pt-5 text-center text-xs text-mirava-ink-muted">
               <button
                 type="button"
                 onClick={() => { setMode("login"); reset() }}
@@ -437,19 +446,8 @@ function MiravaLoginPageContent() {
               >
                 {t.backToLogin}
               </button>
-            ) : (
-              <>
-                {mode === "login" ? t.noAccount : t.hasAccount}{" "}
-                <button
-                  type="button"
-                  onClick={() => { setMode(mode === "login" ? "signup" : "login"); reset() }}
-                  className="font-semibold font-jakarta text-mirava-ink hover:text-mirava-accent transition-colors underline underline-offset-2"
-                >
-                  {mode === "login" ? t.signupLink : t.loginLink}
-                </button>
-              </>
-            )}
-          </div>
+            </div>
+          )}
 
           {mode === "signup" && (
             <p className="mt-4 text-center text-[11px] text-mirava-ink-muted">{t.offer}</p>

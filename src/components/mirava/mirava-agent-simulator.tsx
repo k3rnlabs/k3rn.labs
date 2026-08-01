@@ -4,7 +4,7 @@ import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
-import { ArrowRight, Cpu, Sliders, ShieldCheck, Sparkles, Check } from "lucide-react"
+import { ArrowRight, Check, CheckCircle2, Cpu, ShieldCheck } from "lucide-react"
 
 interface MiravaAgentSimulatorProps {
   locale: "fr" | "es"
@@ -16,48 +16,18 @@ const SIMULATED_REFERENCES = [
     title: { fr: "Soleil Méditerranéen & Pierre", es: "Sol Mediterráneo y Piedra" },
     tagline: { fr: "Chaleur dorée rasant le relief", es: "Calor dorado bordeando el relieve" },
     image: "/visual-engine/univers/escapade-solaire.webp",
-    analysis: {
-      light: { fr: "Soleil rasant 45° · Température 5400K", es: "Sol rasante 45° · Temperatura 5400K" },
-      palette: ["#D5C6B0", "#242626", "#8F8374", "#F1F1ED"],
-      composition: { fr: "Contre-plongée · Fond minéral déglacé", es: "Contrapicado · Fondo mineral desglosado" },
-      styling: { fr: "Tailoring ivoire · Or patiné", es: "Sastrería marfil · Oro envejecido" },
-      agentPrompt: {
-        fr: "Studio Privé construit · Directrice créative prête à composer sur votre Profil Identité",
-        es: "Estudio Privado construido · Directora creativa lista para componer sobre tu Perfil de Identidad",
-      },
-    },
   },
   {
     id: "couture-shadow",
     title: { fr: "Haute Couture & Ombres", es: "Alta Costura y Sombras" },
     tagline: { fr: "Sculpture géométrique des volumes", es: "Escultura geométrica de volúmenes" },
     image: "/visual-engine/univers/editorial-mode.webp",
-    analysis: {
-      light: { fr: "Faisceau latéral dur · Ombres nettes 90°", es: "Haz lateral duro · Sombras nítidas 90°" },
-      palette: ["#090A0A", "#747572", "#ABACA8", "#F1F1ED"],
-      composition: { fr: "Cadre vertical centré · Géométrie brutaliste", es: "Marco vertical centrado · Geometría brutalista" },
-      styling: { fr: "Silhouette sculpturale bordeaux / noir", es: "Silueta escultórica burdeos / negro" },
-      agentPrompt: {
-        fr: "Studio Privé construit · Adaptation immédiate à la teinte de peau & cheveux",
-        es: "Estudio Privado construido · Adaptación inmediata al tono de piel y cabello",
-      },
-    },
   },
   {
     id: "night-flash",
     title: { fr: "Glamour Flash 35mm", es: "Glamour Flash 35mm" },
     tagline: { fr: "Spontanéité nocturne VIP", es: "Espontaneidad nocturna VIP" },
     image: "/visual-engine/univers/night-glamour.webp",
-    analysis: {
-      light: { fr: "Flash direct frontal · Grain argentique 400 ISO", es: "Flash directo frontal · Grano foto 400 ISO" },
-      palette: ["#151717", "#D5C6B0", "#B8CDB8", "#F1F1ED"],
-      composition: { fr: "Plan moyen instantané · Arrière-plan feutré", es: "Plano medio instantáneo · Fondo íntimo" },
-      styling: { fr: "Velours noir · Bijoux d'oreilles précieux", es: "Terciopelo negro · Joyas de oreja preciosas" },
-      agentPrompt: {
-        fr: "Studio Privé construit · Confidentialité garantie & suppression après analyse",
-        es: "Estudio Privado construido · Confidencialidad garantizada y borrado tras análisis",
-      },
-    },
   },
 ]
 
@@ -67,32 +37,26 @@ export function MiravaAgentSimulator({ locale }: MiravaAgentSimulatorProps) {
 
   const copy = {
     fr: {
-      eyebrow: "AGENT MIRAVA · EXTRACTION ARTISTIQUE D'UN CLIC",
+      eyebrow: "STUDIO SUR-MESURE · DIRECTION PRIVÉE",
       title: "Votre référence devient votre studio.",
-      intro:
-        "Importez n'importe quelle photo de référence. L'agent IA MIRAVA en décompose les paramètres clés (lumière, palette, cadrage, texture) pour recréer un studio éditorial sur mesure articulé autour de votre visage.",
+      intro: "Une seule image suffit pour créer un studio qui vous ressemble. MIRAVA conserve cette direction de façon privée et l’applique à vos prochaines séances.",
       selectReference: "Sélectionnez un exemple d'inspiration :",
-      liveAnalysis: "Analyse Agent en direct",
-      lightParam: "Lumière & Température",
-      compParam: "Cadrage & Perspective",
-      styleParam: "Stylisme & Palette",
-      paletteParam: "Palette extraite",
-      privacyNotice: "Vos images de référence sont supprimées immédiatement après décomposition.",
-      cta: "Créer depuis ma référence",
+      studioReady: "Votre studio reste privé",
+      privateBadge: "PRIVÉ",
+      studioBenefits: ["Votre référence est supprimée après création du studio.", "Votre direction artistique n’est jamais affichée ni partagée.", "Chaque nouvelle image est livrée dans votre galerie privée au format 4:5."],
+      privacyNotice: "Votre image de référence est supprimée après création de votre studio.",
+      cta: "Créer mon studio depuis une référence",
     },
     es: {
-      eyebrow: "AGENTE MIRAVA · EXTRACCIÓN ARTÍSTICA EN UN CLIC",
+      eyebrow: "ESTUDIO A MEDIDA · DIRECCIÓN PRIVADA",
       title: "Tu referencia se convierte en tu estudio.",
-      intro:
-        "Sube cualquier foto de referencia. El agente IA MIRAVA descompone los parámetros clave (luz, paleta, encuadre, textura) para recrear un estudio editorial a medida articulado alrededor de tu rostro.",
+      intro: "Una sola imagen basta para crear un estudio que se parezca a ti. MIRAVA conserva esa dirección de forma privada y la aplica a tus próximas sesiones.",
       selectReference: "Selecciona un ejemplo de inspiración:",
-      liveAnalysis: "Análisis del Agente en directo",
-      lightParam: "Luz y Temperatura",
-      compParam: "Encuadre y Perspectiva",
-      styleParam: "Estilismo y Paleta",
-      paletteParam: "Paleta extraída",
-      privacyNotice: "Tus imágenes de referencia se eliminan inmediatamente tras la descomposición.",
-      cta: "Crear desde mi referencia",
+      studioReady: "Tu estudio permanece privado",
+      privateBadge: "PRIVADO",
+      studioBenefits: ["Tu referencia se elimina después de crear el estudio.", "Tu dirección artística nunca se muestra ni se comparte.", "Cada imagen nueva se entrega en tu galería privada en formato 4:5."],
+      privacyNotice: "Tu imagen de referencia se elimina después de crear tu estudio.",
+      cta: "Crear mi estudio desde una referencia",
     },
   }[locale]
 
@@ -142,7 +106,7 @@ export function MiravaAgentSimulator({ locale }: MiravaAgentSimulatorProps) {
           </p>
           <div className="mt-4">
             <Link
-              href="/visual-engine/studio"
+              href="/visual-engine/studio?source=reference"
               className="mirava-button mirava-button-primary min-h-12 gap-2 px-6 text-sm"
             >
               {copy.cta}
@@ -152,20 +116,20 @@ export function MiravaAgentSimulator({ locale }: MiravaAgentSimulatorProps) {
         </div>
       </div>
 
-      {/* Right Column: Simulated Live Agent Extraction Visualizer */}
+      {/* Right Column: private studio outcome — internal directions never reach the client */}
       <div className="relative border-t border-mirava-line bg-mirava-canvas-raised p-6 sm:p-8 lg:border-l lg:border-t-0">
         <div className="flex items-center justify-between border-b border-mirava-line pb-4">
           <div className="flex items-center gap-2 font-jakarta text-xs font-semibold uppercase tracking-widest text-mirava-accent">
-            <Sliders className="h-3.5 w-3.5" />
-            <span>{copy.liveAnalysis}</span>
+            <ShieldCheck className="h-3.5 w-3.5" />
+            <span>{copy.studioReady}</span>
           </div>
           <span className="inline-flex items-center gap-1.5 rounded-full bg-mirava-accent/15 px-2.5 py-1 text-[10px] font-bold tracking-wider text-mirava-accent border border-mirava-accent/30">
-            <Sparkles className="h-3 w-3 animate-pulse" />
-            AGENT READY
+            <Check className="h-3 w-3" />
+            {copy.privateBadge}
           </span>
         </div>
 
-        {/* Dynamic Image & Extraction Breakdown */}
+            {/* Example inspiration, without exposing its internal creative direction */}
         <AnimatePresence mode="wait">
           <motion.div
             key={activeRef.id}
@@ -195,44 +159,13 @@ export function MiravaAgentSimulator({ locale }: MiravaAgentSimulatorProps) {
               </div>
             </div>
 
-            {/* Extracted Parameters List */}
             <div className="grid gap-3 text-xs">
-              <div className="mirava-surface rounded-md p-3 border border-mirava-line">
-                <span className="font-jakarta text-[10px] font-bold uppercase tracking-wider text-mirava-accent">
-                  {copy.lightParam}
-                </span>
-                <p className="mt-1 font-mono text-xs text-mirava-ink">{activeRef.analysis.light[locale]}</p>
-              </div>
-
-              <div className="mirava-surface rounded-md p-3 border border-mirava-line">
-                <span className="font-jakarta text-[10px] font-bold uppercase tracking-wider text-mirava-accent">
-                  {copy.compParam}
-                </span>
-                <p className="mt-1 font-mono text-xs text-mirava-ink">{activeRef.analysis.composition[locale]}</p>
-              </div>
-
-              <div className="mirava-surface rounded-md p-3 border border-mirava-line">
-                <div className="flex items-center justify-between">
-                  <span className="font-jakarta text-[10px] font-bold uppercase tracking-wider text-mirava-accent">
-                    {copy.paletteParam}
-                  </span>
-                  <div className="flex gap-1.5">
-                    {activeRef.analysis.palette.map((color, idx) => (
-                      <span
-                        key={idx}
-                        className="h-3.5 w-3.5 rounded-full border border-white/20 shadow-inner"
-                        style={{ backgroundColor: color }}
-                        title={color}
-                      />
-                    ))}
-                  </div>
+              {copy.studioBenefits.map((benefit) => (
+                <div key={benefit} className="mirava-surface flex items-start gap-2.5 rounded-md border border-mirava-line p-3 text-mirava-ink-secondary">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-mirava-accent" />
+                  <span>{benefit}</span>
                 </div>
-              </div>
-
-              {/* Agent Output Badge */}
-              <div className="mt-1 rounded-md bg-mirava-accent/10 p-3 border border-mirava-accent/30 text-[11px] leading-relaxed text-mirava-accent">
-                ✨ {activeRef.analysis.agentPrompt[locale]}
-              </div>
+              ))}
             </div>
           </motion.div>
         </AnimatePresence>

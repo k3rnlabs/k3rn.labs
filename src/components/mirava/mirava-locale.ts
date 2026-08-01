@@ -7,14 +7,16 @@ const storageKey = "mirava:locale"
 
 export function useMiravaLocale() {
   const [locale, setLocaleState] = useState<MiravaLocale>("fr")
+  const [isReady, setIsReady] = useState(false)
 
   useEffect(() => {
     const remembered = window.localStorage.getItem(storageKey)
     if (remembered === "fr" || remembered === "es") {
       setLocaleState(remembered)
-      return
+    } else if (navigator.language.toLowerCase().startsWith("es")) {
+      setLocaleState("es")
     }
-    if (navigator.language.toLowerCase().startsWith("es")) setLocaleState("es")
+    setIsReady(true)
   }, [])
 
   useEffect(() => {
@@ -30,5 +32,5 @@ export function useMiravaLocale() {
     window.localStorage.setItem(storageKey, next)
   }
 
-  return { locale, setLocale }
+  return { locale, setLocale, isReady }
 }

@@ -1,0 +1,201 @@
+import { readFileSync } from "node:fs"
+import path from "node:path"
+import { describe, expect, it } from "vitest"
+
+describe("MIRAVA studio entry contracts", () => {
+  const studio = readFileSync(
+    path.resolve(process.cwd(), "src/components/studio/visual-engine-studio.tsx"),
+    "utf8",
+  )
+
+  it("keeps the universe selected on the landing page when the studio opens", () => {
+    expect(studio).toContain('getMiravaUniverse(params.get("preset"))')
+    expect(studio).toContain("setSelectedUniverseId(requestedUniverse.id)")
+  })
+
+  it("preserves a landing choice while an unauthenticated visitor goes through login", () => {
+    expect(studio).toContain('const authReturnPath = `${window.location.pathname}${window.location.search}`')
+    expect(studio).toContain('window.location.replace(`/visual-engine/studio/login?next=${encodeURIComponent(authReturnPath)}`)')
+    expect(studio).toContain("initialUniverseId={entryUniverseId}")
+    expect(studio).toContain('entryIntent === "reference"')
+    expect(studio).toContain("Votre studio commence avec votre photo d’inspiration")
+  })
+
+  it("keeps identity deletion behind an explicit, dismissible confirmation", () => {
+    expect(studio).toContain("<DialogPrimitive.Root open={deleteIdentityOpen}")
+    expect(studio).toContain("Supprimer votre Profil identité ?")
+    expect(studio).toContain("Vos photos d’identité privées seront supprimées immédiatement")
+    expect(studio).toContain("Garder mes photos")
+    expect(studio).toContain("Supprimer définitivement")
+    expect(studio).toContain("setDeleteIdentityError(null); setDeleteIdentityOpen(true)")
+    expect(studio).toContain("const deleteIdentityTriggerRef = useRef<HTMLButtonElement>(null)")
+    expect(studio).toContain("onCloseAutoFocus={(event) => { event.preventDefault(); deleteIdentityTriggerRef.current?.focus() }}")
+  })
+
+  it("validates an onboarding universe before making it the active studio universe", () => {
+    expect(studio).toContain("getMiravaUniverse(state.universeIds[0]) ?? MIRAVA_UNIVERSES[0]")
+    expect(studio).toContain("setSelectedUniverseId(preferredUniverse.id)")
+  })
+
+  it("uses each onboarding choice in the first studio rather than collecting decorative data", () => {
+    expect(studio).toContain("seriesSize: 1")
+    expect(studio).toContain("only after the client has explicitly")
+    expect(studio).toContain('if (state.identityIntent === "now") openCapture("onboarding")')
+    expect(studio).toContain('setMiravaFirstName(firstName)')
+    expect(studio).toContain('`${firstName}, où voulez-vous être vue ?`')
+  })
+
+  it("never preselects a paid multi-image series from an onboarding goal", () => {
+    expect(studio).not.toContain('state.goal === "presence" ? 1 : 3')
+    expect(studio).toContain("aria-pressed={options.seriesSize === item.value}")
+    expect(studio).toContain('"image" : "images"')
+  })
+
+  it("restores a returning client's saved universe without overriding an explicit landing choice", () => {
+    expect(studio).toContain("hasHydratedStudioPreferenceRef")
+    expect(studio).toContain("getMiravaUniverse(new URLSearchParams(window.location.search).get(\"preset\"))")
+    expect(studio).toContain("getMiravaUniverse(onboardingData.onboarding?.universeIds[0])")
+    expect(studio).toContain("const preferredUniverse = requestedUniverse ??")
+  })
+
+  it("confirms a personal reference without promoting its raw filename into the creative brief", () => {
+    expect(studio).toContain('"1 image sélectionnée · appuyez pour la remplacer"')
+    expect(studio).toContain('"Votre référence"')
+    expect(studio).not.toContain("referenceFile?.name")
+  })
+
+  it("does not distract a visitor who explicitly chose the personal-reference route", () => {
+    expect(studio).toContain('!referenceFile && entryIntent !== "reference"')
+    expect(studio).toContain('createStep === 0 && entryIntent === "reference" && !options.referenceMode')
+    expect(studio).toContain('const openReferenceFromAlma = () => {')
+    expect(studio).toContain('setEntryIntent("reference")')
+    expect(studio).toContain('const isReferenceRoute = step === 0 && entryIntent === "reference"')
+    expect(studio).toContain('quelle image vous inspire ?')
+  })
+
+  it("keeps the internal analysis state out of the client and continues directly to generation when identity is ready", () => {
+    expect(studio).not.toContain("MASTER_PROMPT")
+    const analysisIndex = studio.indexOf('await api(`/api/visual-engine/creations/${data.creation.id}/analyze`, { method: "POST" })')
+    const generationIndex = studio.indexOf('if (isMiravaIdentityProfileReady(identityProfile))')
+    expect(analysisIndex).toBeGreaterThan(-1)
+    expect(generationIndex).toBeGreaterThan(analysisIndex)
+  })
+
+  it("frames consent as the final creation action, not as a second studio entry", () => {
+    expect(studio).toContain('consent: "Avant de lancer votre création"')
+    expect(studio).toContain('enter: "Confirmer et lancer"')
+    expect(studio).toContain('consent: "Antes de crear tu sesión"')
+    expect(studio).toContain('enter: "Confirmar y crear"')
+  })
+
+  it("makes the underlying studio inert whenever a MIRAVA modal is open", () => {
+    expect(studio).toContain("const modalOpen = Boolean(captureContext) || directorOpen || consentTarget !== undefined")
+    expect(studio).toContain("background.inert = modalOpen")
+    expect(studio).toContain('ref={studioBackgroundRef} aria-hidden={modalOpen ? true : undefined}')
+  })
+
+  it("returns keyboard focus to the control that opened Alma", () => {
+    expect(studio).toContain("const directorTriggerRef = useRef<HTMLElement | null>(null)")
+    expect(studio).toContain("const closeDirector = () => {")
+    expect(studio).toContain("directorTriggerRef.current?.focus()")
+    expect(studio).toContain("onClose={closeDirector}")
+  })
+
+  it("returns keyboard focus to the control that opened identity capture", () => {
+    expect(studio).toContain("const captureTriggerRef = useRef<HTMLElement | null>(null)")
+    expect(studio).toContain("const closeCapture = () => {")
+    expect(studio).toContain("captureTriggerRef.current?.focus()")
+    expect(studio).toContain("onClose={closeCapture}")
+  })
+
+  it("makes billing cadence, tax and expiry explicit in every accessible offer name", () => {
+    expect(studio).toContain('const isSubscription = offer.kind === "subscription"')
+    expect(studio).toContain('const accessibleOfferLabel = locale === "fr"')
+    expect(studio).toContain('aria-label={mustManageSubscription')
+    expect(studio).toContain('"TTC · sans expiration"')
+    expect(studio).toContain('const displayName = offer.name.replace(/\\s+[—-]\\s+\\d+\\s*$/, "")')
+    expect(studio).toContain('offer.credits === 1 ? "creación" : "creaciones"')
+  })
+
+  it("calls the private identity profile by its purpose, not by an ambiguous model label", () => {
+    expect(studio).toContain('"PROFIL PRIVÉ"')
+    expect(studio).toContain('"Préparer mon identité"')
+    expect(studio).not.toContain('"Préparer mon modèle"')
+  })
+
+  it("does not imply that camera capture is the only way to create an identity profile", () => {
+    expect(studio).toContain('guided: "Préparer mon Profil identité"')
+    expect(studio).toContain('Facultatif · elles aident MIRAVA à préserver les détails qui comptent pour vous.')
+  })
+
+  it("refreshes distinctive details when the private identity profile is updated", () => {
+    expect(studio).toContain("setTraits(identityProfile?.physicalTraits ?? [])")
+    expect(studio).toContain("[identityProfile?.id, identityProfile?.updatedAt, identityProfile?.physicalTraits]")
+  })
+
+  it("returns Stripe checkout visitors to a clear account-state explanation", () => {
+    expect(studio).toContain('const checkoutState = params.get("checkout")')
+    expect(studio).toContain('setView("account")')
+    expect(studio).toContain("Retour de paiement reçu. Votre accès est actualisé dès la confirmation Stripe.")
+    expect(studio).toContain("Paiement annulé. Aucun changement n’a été apporté à votre accès.")
+    expect(studio).toContain('params.delete("checkout")')
+    expect(studio).toContain("if (!isLocaleReady) return")
+    expect(studio).toContain('clearNotice()\n    setHighlightedOfferId(null)\n    setView(next)')
+  })
+
+  it("keeps a public offer selection visible after authentication instead of starting payment implicitly", () => {
+    expect(studio).toContain('const requestedOfferId = params.get("offer")')
+    expect(studio).toContain('const authReturnPath = `${window.location.pathname}${window.location.search}`')
+    expect(studio).toContain('setHighlightedOfferId(requestedOfferId)')
+    expect(studio).toContain('"Votre offre est prête à être confirmée."')
+    expect(studio).toContain('highlightedOfferId={highlightedOfferId}')
+    expect(studio).toContain('isHighlighted && "border-mirava-accent/70')
+  })
+
+  it("does not let a client select a series that exceeds the available credit balance", () => {
+    expect(studio).toContain("const unavailable = item.value > availableCredits")
+    expect(studio).toContain("disabled={unavailable}")
+    expect(studio).toContain("Votre solde permet jusqu’à {availableCredits} photo")
+    expect(studio).toContain("options.seriesSize! <= (account?.credits ?? 0)")
+  })
+
+  it("names the final creation action after the selected number of images", () => {
+    expect(studio).toContain("const creationCount = options.seriesSize ?? 1")
+    expect(studio).toContain('creationCount === 1 ? "Créer mon image"')
+    expect(studio).toContain('creationCount === 1 ? "Crear mi imagen"')
+  })
+
+  it("makes an available credit lead to creation instead of an unnecessary purchase", () => {
+    expect(studio).toContain("const availableCredits = account?.credits ?? 0")
+    expect(studio).toContain('availableCredits > 0 ? (')
+    expect(studio).toContain('"Créer ma séance"')
+    expect(studio).toContain("onStartCreate={() => { setCurrent(null); setCreateStep(0); selectView(\"create\") }}")
+  })
+
+  it("does not block creation when identity previews are temporarily unavailable", () => {
+    expect(studio).toContain("if (!identityProfile?.previews?.length) return null")
+  })
+
+  it("does not ask a returning client to prepare an identity profile that is already ready", () => {
+    expect(studio).toContain('identityReadyTitle: "Votre Profil identité est prêt"')
+    expect(studio).toContain('identityReadyHint: "Votre identité est déjà liée à cette séance.')
+    expect(studio).toContain('"Ajouter une vue privée"')
+  })
+
+  it("gives every private gallery result a distinct accessible name", () => {
+    expect(studio).toContain('const statusLabel = t.status[creation.status] ??')
+    expect(studio).toContain("Ouvrir la création ${index + 1} : ${statusLabel}")
+    expect(studio).toContain("Abrir creación ${index + 1}: ${statusLabel}")
+    expect(studio).toContain('imagesTitle: "Vos images"')
+    expect(studio).toContain('<h2 className="mirava-section-title mt-12 text-2xl">{t.imagesTitle}</h2>')
+  })
+
+  it("resets a mobile destination to its beginning and announces non-error feedback", () => {
+    expect(studio).toContain('window.scrollTo({ top: 0, left: 0, behavior: "auto" })')
+    expect(studio).toContain('role="status" aria-live="polite" aria-atomic="true" className="mirava-notice')
+  })
+
+  it("marks the active studio language even though K3RN owns the outer document", () => {
+    expect(studio).toContain('<main lang={locale} className="mirava-theme mirava-app-shell')
+  })
+})

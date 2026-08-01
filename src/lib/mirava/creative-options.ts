@@ -22,7 +22,7 @@ export const miravaCreativeOptionsSchema = z.object({
   referenceMode: z.enum(["faithful", "variations"]).optional(),
   variationAxes: z.array(z.enum(["location", "styling", "light", "framing"])).max(4).optional(),
   note: z.string().trim().max(180).optional(),
-}).passthrough()
+}).strip()
 
 export type MiravaCreativeOptions = z.infer<typeof miravaCreativeOptionsSchema>
 

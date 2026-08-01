@@ -2,12 +2,13 @@ import { describe, expect, it } from "vitest"
 import { getMiravaCreativeDirectorChanges, getMiravaCreativeDirectorStarterActions, limitMiravaCreativeDirectorSuggestions } from "./creative-director"
 
 describe("MIRAVA creative director actions", () => {
-  it("offers concise starter actions that stay contextual to the selected universe", () => {
+  it("offers a reference-first action and contextual creative messages", () => {
     const actions = getMiravaCreativeDirectorStarterActions("fr", "escapade-solaire")
 
     expect(actions).toHaveLength(4)
-    expect(actions[0]).toMatchObject({ id: "branding", title: "Profil Pro & LinkedIn" })
+    expect(actions[0]).toMatchObject({ id: "reference", kind: "reference", title: "Créer depuis mon inspiration" })
     expect(actions[1].message).toContain("Escapade solaire")
+    expect(actions.some((action) => action.title.includes("LinkedIn"))).toBe(false)
   })
 
   it("keeps at most three server-approved changes for an explicit application", () => {

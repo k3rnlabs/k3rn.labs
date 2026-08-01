@@ -45,7 +45,10 @@ function closeTasks() {
 
 async function createFaceLandmarker(delegate: "GPU" | "CPU") {
   if (!vision) vision = await import("@mediapipe/tasks-vision")
-  const files = await vision.FilesetResolver.forVisionTasks("/visual-engine/vision/wasm")
+  // The worker itself is an ES module, so MediaPipe must use its module-aware
+  // WASM loader. The classic loader does not expose ModuleFactory to a module
+  // worker and makes identity validation fail before any photo is analysed.
+  const files = await vision.FilesetResolver.forVisionTasks("/visual-engine/vision/wasm", true)
   return vision.FaceLandmarker.createFromOptions(files, {
     baseOptions: {
       modelAssetPath: "/visual-engine/vision/models/face_landmarker.task",
@@ -63,7 +66,7 @@ async function createFaceLandmarker(delegate: "GPU" | "CPU") {
 
 async function createPoseLandmarker(delegate: "GPU" | "CPU") {
   if (!vision) vision = await import("@mediapipe/tasks-vision")
-  const files = await vision.FilesetResolver.forVisionTasks("/visual-engine/vision/wasm")
+  const files = await vision.FilesetResolver.forVisionTasks("/visual-engine/vision/wasm", true)
   return vision.PoseLandmarker.createFromOptions(files, {
     baseOptions: {
       modelAssetPath: "/visual-engine/vision/models/pose_landmarker_lite.task",

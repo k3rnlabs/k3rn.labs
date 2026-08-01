@@ -21,7 +21,7 @@ Ce document est la source de décision de la direction artistique. Les composant
 - Composition : grille nette, très grand espace négatif, titres éditoriaux et panneaux denses.
 - Formes : angles francs ou très faibles arrondis ; pas de composants pill par défaut.
 - Profondeur : traits structurels et anneaux d'élévation translucides, non des ombres lourdes.
-- Matière : un champ lumineux noir–argent et un grain monochrome fin, irrégulier et multi-fréquence sur les surfaces UI, jamais comme filtre sur les portraits ou créations. Un seul calque Canvas React local le génère pour chaque racine MIRAVA, sans SVG ni image distante.
+- Matière : un champ lumineux noir–argent et un grain monochrome fin, irrégulier et multi-fréquence sur les fonds UI, jamais comme filtre sur les portraits ou créations. Un seul calque Grainient React Bits, rendu localement par WebGL, le génère pour chaque racine MIRAVA, sans SVG ni image distante.
 - Onboarding : il reste dans la palette noir minéral afin de conserver une continuité de marque entre Moodboard, Séance, Modèle et Création.
 
 ## Tokens
@@ -50,11 +50,12 @@ Les tokens vivent sous le namespace `--mirava-*` dans `src/styles/mirava.css`, i
 
 - **Bouton primaire** : ivoire sur noir, 48 px minimum sur mobile, retour tactile limité à `scale(0.96)` hors soumission.
 - **Bouton secondaire** : transparent, contour minéral, sans effet de verre.
-- **Surface** : trois intensités centralisées — `subtle`, `mineral`, `spotlight` — combinent graphite et lumière diffuse ; le grain Canvas React commun apporte une matière fine, sans répétition par carte. Une image reçoit un contour blanc pur translucide mais aucun bruit superposé.
+- **Surface** : trois intensités centralisées — `subtle`, `mineral`, `spotlight` — combinent graphite et lumière diffuse ; le fond Grainient React Bits commun apporte une matière fine, sans répétition par carte. Une image reçoit un contour blanc pur translucide mais aucun bruit superposé.
 - **Choix et filtres** : rectangles compacts et non pastilles ; sélection par fond relevé, contour clair et coche.
 - **Entrées et uploads** : label visible, contour focus contrasté, états erreur et chargement explicites.
 - **Navigation basse** : capsule minérale contrôlée par l’état réel de l’application ; seul l’onglet actif développe son libellé, les quatre autres restent iconographiques, avec cinq cibles de 48 px minimum.
-- **Header Studio** : attaché aux bords supérieur et latéraux, arrondi uniquement en bas et composé dans la même matière que la navigation. Sur le parcours Studio, il contient la progression Moodboard → Séance → Modèle → Création ; l’étape active se développe et les étapes déjà visitées restent accessibles.
+- **Header Studio** : attaché aux bords supérieur et latéraux, arrondi uniquement en bas, plus architectural que la navigation basse. Sur le parcours Studio, il réunit Moodboard → Séance → Création et les actions Retour / Suivant ; l’étape active se développe et les étapes déjà visitées restent accessibles.
+- **Onboarding MIRAVA** : premier accès plein écran, sans navigation applicative concurrente. Une progression fine accompagne prénom, univers, intention et décision de préparer le Profil identité. Il ne réutilise jamais les visuels guides pour représenter l’utilisateur.
 - **Contrôles structurés** : `Collapsible` et `RadioGroup` shadcn/Radix portent respectivement les réglages facultatifs et les choix exclusifs, tandis que les classes MIRAVA conservent toute la DA.
 
 ## Composition
@@ -74,6 +75,7 @@ Les tokens vivent sous le namespace `--mirava-*` dans `src/styles/mirava.css`, i
 
 - Les interactions utilisent des transitions CSS interruptibles et ciblées ; jamais `transition: all`.
 - Framer Motion est réservé aux entrées de scène rares et aux changements de contexte. Il respecte `prefers-reduced-motion`.
+- BlurText de React Bits est réservé aux grands titres qui annoncent un espace ou une étape du flow Studio ; son entrée se fait mot par mot, une seule fois à l’apparition, et reste statique quand le mouvement réduit est demandé.
 - Une animation n'est jamais l'unique signal d'état.
 - Focus visible, contraste de texte d'au moins 4.5:1, ordre clavier logique et zones tactiles d'au moins 48 × 48 px.
 - Les états chargement, erreur, vide et succès restent explicites et n'effacent jamais une donnée déjà visible sans raison.
@@ -87,5 +89,5 @@ Les tokens vivent sous le namespace `--mirava-*` dans `src/styles/mirava.css`, i
 | Inter + Plus Jakarta Sans | Polices manuscrites ou techniques | Respecte les règles du projet tout en gardant une tension premium. |
 | Motion sobre avec Framer Motion existant | Nouvelle dépendance, animations systématiques | Préserve le bundle, la lisibilité et le contrôle utilisateur. |
 | Inspiration, pas duplication | Reproduction d'une identité tierce | MIRAVA reste identifiable, durable et originale. |
-| Grain Canvas React partagé | Texture SVG/CSS répétée, bitmap distante ou filtre posé sur toutes les images | Ajoute une matière premium sans réseau ni bandes de répétition, sans altérer la photographie et sans multiplier les canevas par carte. |
+| Fond Grainient React Bits partagé | Texture SVG/CSS répétée, bitmap distante ou filtre posé sur toutes les images | Ajoute une matière premium sans réseau ni bandes de répétition, sans altérer la photographie et sans multiplier les contextes WebGL par carte. |
 | Onboarding noir minéral continu | Exception ivoire | Évite une rupture de marque et laisse les photographies porter seules la chaleur visuelle. |

@@ -20,13 +20,19 @@ Conception validée et implémentée le 30 juillet 2026. Validation technique et
 - Cibles tactiles d’au moins 48 px et aucun contenu masqué par les barres fixes.
 - Inter reste la police d’interface et Plus Jakarta Sans la police de display.
 - Les textures restent locales, légères et sans dépendance réseau.
-- Le grain ne modifie jamais les textes, les contrôles tactiles ou les photographies ; il est généré par un calque Canvas React local distinct des contenus.
+- Le grain ne modifie jamais les textes, les contrôles tactiles ou les photographies ; il est généré par le fond Grainient React Bits, local et distinct des contenus.
 - L’absence de réglage facultatif ne bloque jamais la séance.
 - Les règles existantes de confidentialité, purge, consentement, crédits et génération restent inchangées.
 - Une image unique utilise normalement un décor principal.
 - Une série conserve un univers commun et peut varier les sous-lieux ou plusieurs décors compatibles.
 
 ## Parcours cible
+
+### 0. Premier accès MIRAVA
+
+Le premier accès après authentification ouvre un onboarding propre à MIRAVA, distinct de l’onboarding global de l’application. Il recueille le prénom, jusqu’à trois univers appréciés, l’intention initiale (présence, campagne ou portfolio), puis laisse le choix de préparer le Profil identité immédiatement ou plus tard.
+
+Les préférences sont enregistrées sous `preferences.miravaOnboarding` de l’utilisateur ; elles ne modifient pas les données d’onboarding des autres produits. Les preuves d’usage restent vérifiables : références privées et supprimables, et contrôle local des vues avant validation.
 
 ### 1. Moodboard
 
@@ -39,11 +45,11 @@ Retirer une référence restaure le dernier univers sélectionné.
 
 ### 2. Séance — tronc commun
 
-Le format est présenté en premier, sans choix silencieux : Image signature ou série de 2 à 6 photos. Chaque option affiche immédiatement son coût en crédits.
+Le format est présenté en premier : l’Image signature, à un crédit, est toujours sélectionnée par défaut. Une série de 2 à 6 photos ne peut être choisie qu’explicitement. Chaque option affiche immédiatement son coût en crédits.
 
 ### 3A. Séance depuis un univers
 
-Une synthèse « Direction proposée » expose les choix hérités :
+Un brief éditorial « Direction sélectionnée » expose les choix hérités :
 
 - décor principal ;
 - lumière ;
@@ -63,9 +69,13 @@ Pour une série, un choix supplémentaire apparaît :
 
 « Créer des variations » révèle les dimensions modifiables : décor, tenue, lumière et cadrage. Seules les dimensions explicitement choisies sont enregistrées comme dérogations.
 
-### 4. Modèle et Création
+### 4. Création et identité requise
 
-Le parcours du Profil identité reste inchangé. Le récapitulatif distingue clairement :
+Une séance ne contient que Moodboard → Séance → Création. Le Profil identité ne devient jamais une étape récurrente pour un profil déjà prêt.
+
+À la dernière étape, des aperçus privés à durée limitée peuvent être affichés pour contrôler les vraies références de l’utilisateur. Les images de guide MIRAVA ne sont jamais réemployées comme substitut du profil réel. Si l’identité manque, le parcours dédié est ouvert puis la personne revient à sa création.
+
+Le récapitulatif distingue clairement :
 
 - la direction héritée de MIRAVA ou de la référence ;
 - les ajustements volontaires de la personne ;
@@ -104,7 +114,7 @@ Les grandes surfaces utilisent des gradients noir–argent asymétriques, larges
 
 ### Grain
 
-Le grain est généré par `MiravaGrain`, un Canvas React local partagé par toute la racine MIRAVA. Il combine plusieurs fréquences monochromes à faible intensité sans SVG, ni image de bruit, ni tuile répétée. Les trois matières de surface modulent uniquement le champ lumineux :
+Le grain est généré par `Grainient`, un composant React Bits rendu localement par WebGL et partagé par toute la racine MIRAVA. Il combine plusieurs fréquences monochromes à faible intensité sans SVG, ni image de bruit, ni tuile répétée. Les trois matières de surface modulent uniquement le champ lumineux :
 
 - `subtle` pour les petites surfaces fonctionnelles ;
 - `mineral` pour les cartes éditoriales ;
@@ -138,7 +148,7 @@ Tous les paramètres de matière vivent dans les tokens `--mirava-*` et les vari
 - Univers incomplet utilisant sa direction par défaut.
 - Navigation clavier, focus visible et mouvement réduit.
 - Aucun débordement horizontal à 375, 768, 1024 et 1440 px.
-- Vérification que le grain Canvas reste non répétitif, performant, sans bande et absent des zones de lecture critiques.
+- Vérification que le fond Grainient reste non répétitif, performant, sans bande et absent des zones de lecture critiques.
 
 ## Journal de décisions
 
@@ -150,5 +160,5 @@ Tous les paramètres de matière vivent dans les tokens `--mirava-*` et les vari
 | Ajustements propres à chaque univers | Listes globales lieu/style/énergie | Empêche les incohérences telles qu’un bord de mer dans Glamour nocturne. |
 | Fidélité par défaut pour une référence | Réafficher tous les réglages | Respecte l’intention d’une personne qui apporte déjà une image précise. |
 | Alma comme soutien contextuel | Alma comme passage obligatoire | Préserve la rapidité tout en gardant une aide incarnée. |
-| Matière en trois couches + Canvas React partagé | Texture SVG/CSS de bruit uniforme | Reproduit la profondeur des références sans effet répétitif, bande visible ou rendu bon marché. |
+| Matière en trois couches + Grainient partagé | Texture SVG/CSS de bruit uniforme | Reproduit la profondeur des références sans effet répétitif, bande visible ou rendu bon marché. |
 | Tokens et variantes centralisés | Styles locaux par composant | Permet une évolution globale et maintenable de la DA. |

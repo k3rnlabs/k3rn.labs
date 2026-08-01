@@ -17,8 +17,8 @@ const FAQ_ITEMS = [
       es: "¿Las imágenes creadas se parecerán realmente a mí?",
     },
     answer: {
-      fr: "Absolument. MIRAVA construit votre Profil Identité privé à partir de trois à six photos sous des angles précis. Notre moteur de rendu préserve la forme exacte de votre visage, la texture de votre peau, vos yeux et vos traits distinctifs, tout en adaptant uniquement la lumière, la pose et le décor.",
-      es: "Absolutamente. MIRAVA construye tu Perfil de Identidad privado a partir de tres a seis fotos en ángulos precisos. Nuestro motor preserva la forma exacta de tu rostro, textura de piel y mirada, adaptando únicamente la luz, postura y escenario.",
+      fr: "Oui. MIRAVA crée votre Profil identité privé à partir de trois vues essentielles : face, trois-quarts gauche et trois-quarts droit. Vous pouvez aussi ajouter vos cheveux et votre silhouette. Le moteur adapte la lumière, la pose et le décor sans vous appliquer un filtre générique.",
+      es: "Sí. MIRAVA crea tu Perfil de Identidad privado a partir de tres vistas esenciales: frente, tres cuartos izquierdo y derecho. También puedes añadir tu cabello y silueta. El motor adapta la luz, postura y escenario sin aplicarte un filtro genérico.",
     },
   },
   {
@@ -28,8 +28,8 @@ const FAQ_ITEMS = [
       es: "¿Mis fotos de identidad y referencia permanecen confidenciales?",
     },
     answer: {
-      fr: "Oui, la confidentialité est notre engagement absolu. Vos images de référence créatives sont supprimées immédiatement après leur décomposition artistique. Votre Profil Identité est chiffré, strictement privé et sous votre contrôle total : vous pouvez le supprimer à n'importe quel moment en un clic.",
-      es: "Sí, la confidencialidad es nuestro compromiso absoluto. Tus imágenes de referencia creativas se eliminan inmediatamente tras su análisis. Tu Perfil de Identidad está cifrado, es estrictamente privado y puedes eliminarlo en un clic.",
+      fr: "Oui. Vos images de référence créatives sont supprimées après leur analyse. Votre Profil identité est stocké dans un espace privé et vous pouvez le supprimer à tout moment en un clic.",
+      es: "Sí. Tus imágenes de referencia creativas se eliminan después de su análisis. Tu Perfil de Identidad se guarda en un espacio privado y puedes eliminarlo en cualquier momento con un clic.",
     },
   },
   {
@@ -46,12 +46,12 @@ const FAQ_ITEMS = [
   {
     id: "rights",
     question: {
-      fr: "Ai-je la pleine propriété et tous les droits commerciaux sur les créations ?",
-      es: "¿Tengo la propiedad completa y derechos comerciales sobre las creaciones?",
+      fr: "Quels usages puis-je faire de mes créations ?",
+      es: "¿Qué usos puedo hacer de mis creaciones?",
     },
     answer: {
-      fr: "Oui. Vous disposez de l'exclusivité et des droits d'utilisation commerciale complets sur toutes les images générées dans MIRAVA Studio. Vous pouvez librement les publier sur votre site web, LinkedIn, Instagram, dossiers de presse ou campagnes d'acquisition.",
-      es: "Sí. Dispones de exclusividad y derechos comerciales completos sobre todas las imágenes generadas en MIRAVA Studio. Puedes publicarlas libremente en tu web, LinkedIn, Instagram, dossier de prensa o campañas.",
+      fr: "Vos images sont livrées dans votre galerie privée pour vos usages éditoriaux et sociaux. Les droits d’utilisation applicables sont précisés dans les conditions du service avant toute ouverture publique.",
+      es: "Tus imágenes se entregan en tu galería privada para tus usos editoriales y sociales. Los derechos de uso aplicables se detallan en las condiciones del servicio antes de cualquier apertura pública.",
     },
   },
 ]

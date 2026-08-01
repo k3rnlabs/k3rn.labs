@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest"
 
 describe("MIRAVA local vision privacy boundary", () => {
   const worker = readFileSync(path.resolve(process.cwd(), "src/components/studio/mirava-vision.worker.ts"), "utf8")
+  const emittedWorker = readFileSync(path.resolve(process.cwd(), "public/visual-engine/vision/mirava-vision.worker.js"), "utf8")
   const nextConfig = readFileSync(path.resolve(process.cwd(), "next.config.mjs"), "utf8")
 
   it("rejects every worker request outside the MIRAVA origin", () => {
@@ -19,8 +20,13 @@ describe("MIRAVA local vision privacy boundary", () => {
   })
 
   it("uses only self-hosted model and runtime paths", () => {
-    expect(worker).toContain('"/visual-engine/vision/wasm"')
+    expect(worker).toContain('forVisionTasks("/visual-engine/vision/wasm", true)')
     expect(worker).toContain('"/visual-engine/vision/models/face_landmarker.task"')
     expect(worker).toContain('"/visual-engine/vision/models/pose_landmarker_lite.task"')
+  })
+
+  it("ships the vision worker outside Next's page-only runtime", () => {
+    expect(emittedWorker.length).toBeGreaterThan(100_000)
+    expect(emittedWorker).not.toContain("_N_E")
   })
 })

@@ -1,264 +1,131 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import { useState } from "react"
+import Image from "next/image"
 import Link from "next/link"
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion"
-import { ArrowRight, Instagram, Linkedin, Globe, CheckCircle2 } from "lucide-react"
-import { InstagramMockup } from "./mockups/instagram-mockup"
-import { LinkedInMockup } from "./mockups/linkedin-mockup"
-import { CampaignMockup } from "./mockups/campaign-mockup"
+import { ArrowRight, CheckCircle2, ImageIcon, LayoutGrid, Sparkles } from "lucide-react"
 
 type Props = {
   locale: "fr" | "es"
 }
 
-type Channel = "instagram" | "linkedin" | "campaign"
+type UseCase = "feed" | "profile" | "campaign"
 
-export function MiravaChannelShowcase({ locale }: Props) {
-  const [activeTab, setActiveTab] = useState<Channel>("instagram")
-  const prefersReducedMotion = useReducedMotion()
-  const isFr = locale === "fr"
-
-  const sectionRef = React.useRef<HTMLElement>(null)
-  const hasTrackedView = React.useRef(false)
-
-  useEffect(() => {
-    const el = sectionRef.current
-    if (!el || hasTrackedView.current) return
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const [entry] = entries
-        if (entry.isIntersecting && !hasTrackedView.current) {
-          hasTrackedView.current = true
-          if (typeof window !== "undefined" && (window as any).posthog) {
-            ;(window as any).posthog.capture("channel_showcase_viewed", { locale })
-          }
-          observer.disconnect()
-        }
+const cases = {
+  fr: {
+    eyebrow: "UNE IMAGE SIGNATURE · VOTRE PRÉSENCE",
+    title: "Votre galerie devient votre base éditoriale.",
+    subtitle: "Chaque création est livrée dans votre galerie privée au format vertical 4:5. Votre studio personnel reste disponible pour la prochaine image.",
+    tabs: { feed: "Feed", profile: "Profil", campaign: "Série" },
+    content: {
+      feed: {
+        label: "PRÊTE À PUBLIER",
+        heading: "Une image verticale pensée pour votre feed.",
+        bullets: ["Un format signature 4:5", "Votre identité reste au centre de l’image", "Téléchargeable depuis votre galerie privée"],
+        image: "/visual-engine/univers/escapade-solaire.webp",
       },
-      { threshold: 0.2 }
-    )
-
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [locale])
-
-  const handleTabChange = (tab: Channel) => {
-    setActiveTab(tab)
-    if (typeof window !== "undefined" && (window as any).posthog) {
-      ;(window as any).posthog.capture("channel_selected", {
-        channel: tab,
-        locale,
-      })
-    }
-  }
-
-  const handleCtaClick = () => {
-    if (typeof window !== "undefined" && (window as any).posthog) {
-      ;(window as any).posthog.capture("channel_cta_clicked", {
-        channel: activeTab,
-        locale,
-      })
-    }
-  }
-
-  const content = {
-    fr: {
-      eyebrow: "DÉPLOIEMENT MULTI-CANAL",
-      title: "Une identité.\nTous vos espaces.",
-      subtitle:
-        "Transformez une même direction éditoriale en contenus prêts pour vos réseaux, votre profil professionnel et vos campagnes.",
-      tabs: {
-        instagram: "Instagram",
-        linkedin: "LinkedIn",
-        campaign: "Campagnes & Web",
+      profile: {
+        label: "IDENTITÉ COHÉRENTE",
+        heading: "Le même visage, dans chaque nouvelle direction.",
+        bullets: ["Votre Profil identité reste privé", "Votre studio personnel est réutilisable", "Une présence cohérente d’une séance à l’autre"],
+        image: "/visual-engine/univers/beauty-close-up.webp",
       },
-      narratives: {
-        instagram: {
-          tag: "Réseaux & Formats Verticaux",
-          heading: "Alimentez votre feed et vos réels sans retourner en studio.",
-          bullet1: "Publication Feed au format natif 4:5",
-          bullet2: "Couverture Reel & Story en vertical 9:16",
-          bullet3: "Grain et colorimétrie 100% cohérents",
-          cta: "Générer mon feed Instagram",
-        },
-        linkedin: {
-          tag: "Présence Professionnelle",
-          heading: "Construisez une présence cohérente, du portrait à la bannière.",
-          bullet1: "Photo de profil recadrée dynamiquement",
-          bullet2: "Bannière de marque construite en HTML/CSS",
-          bullet3: "Supports de publications d'expertise",
-          cta: "Créer ma bannière LinkedIn",
-        },
-        campaign: {
-          tag: "Site Web & Publicité",
-          heading: "Déployez votre direction visuelle sur vos annonces et votre site.",
-          bullet1: "Hero de site web en 16:9 haute définition",
-          bullet2: "Zone d'espace négatif réservée aux titres HTML",
-          bullet3: "Déclinaisons publicitaires Display & Macro",
-          cta: "Lancer une campagne",
-        },
+      campaign: {
+        label: "SÉRIE ÉDITORIALE",
+        heading: "Créez plusieurs images d’un même univers, à votre rythme.",
+        bullets: ["Un studio mémorisé pour vos prochaines séances", "Une nouvelle image utilise un crédit", "Chaque résultat rejoint votre galerie privée"],
+        image: "/visual-engine/univers/editorial-mode.webp",
       },
     },
-    es: {
-      eyebrow: "DESPLIEGUE MULTICANAL",
-      title: "Una identidad.\nTodos tus espacios.",
-      subtitle:
-        "Transforma una misma dirección editorial en contenidos listos para tus redes, tu perfil profesional y tus campañas.",
-      tabs: {
-        instagram: "Instagram",
-        linkedin: "LinkedIn",
-        campaign: "Campañas y Web",
+    cta: "Créer ma séance",
+    result: "RÉSULTAT MIRAVA · 4:5",
+  },
+  es: {
+    eyebrow: "UNA IMAGEN SIGNATURE · TU PRESENCIA",
+    title: "Tu galería se convierte en tu base editorial.",
+    subtitle: "Cada creación se entrega en tu galería privada en formato vertical 4:5. Tu estudio personal queda disponible para la próxima imagen.",
+    tabs: { feed: "Feed", profile: "Perfil", campaign: "Serie" },
+    content: {
+      feed: {
+        label: "LISTA PARA PUBLICAR",
+        heading: "Una imagen vertical pensada para tu feed.",
+        bullets: ["Un formato distintivo 4:5", "Tu identidad permanece en el centro", "Descargable desde tu galería privada"],
+        image: "/visual-engine/univers/escapade-solaire.webp",
       },
-      narratives: {
-        instagram: {
-          tag: "Redes y Formatos Verticales",
-          heading: "Alimenta tu feed y tus reels sin volver al estudio.",
-          bullet1: "Publicación Feed en formato nativo 4:5",
-          bullet2: "Portada Reel y Story en vertical 9:16",
-          bullet3: "Grano y colorimetría 100% coherentes",
-          cta: "Generar mi feed Instagram",
-        },
-        linkedin: {
-          tag: "Presencia Profesional",
-          heading: "Construye una presencia coherente, del retrato a la cabecera.",
-          bullet1: "Foto de perfil recortada dinámicamente",
-          bullet2: "Cabecera de marca construida en HTML/CSS",
-          bullet3: "Imágenes para publicaciones de experiencia",
-          cta: "Crear mi cabecera LinkedIn",
-        },
-        campaign: {
-          tag: "Sitio Web y Publicidad",
-          heading: "Despliega tu dirección visual en tus anuncios y tu web.",
-          bullet1: "Hero para sitio web en 16:9 de alta definición",
-          bullet2: "Zona de espacio negativo reservada para textos HTML",
-          bullet3: "Variaciones publicitarias Display y Macro",
-          cta: "Lanzar una campaña",
-        },
+      profile: {
+        label: "IDENTIDAD COHERENTE",
+        heading: "El mismo rostro, en cada nueva dirección.",
+        bullets: ["Tu Perfil de identidad permanece privado", "Tu estudio personal es reutilizable", "Una presencia coherente de una sesión a otra"],
+        image: "/visual-engine/univers/beauty-closeup.webp",
       },
-    }
-  }
+      campaign: {
+        label: "SERIE EDITORIAL",
+        heading: "Crea varias imágenes de un mismo universo, a tu ritmo.",
+        bullets: ["Un estudio memorizado para tus próximas sesiones", "Cada nueva imagen usa un crédito", "Cada resultado llega a tu galería privada"],
+        image: "/visual-engine/univers/editorial-mode.webp",
+      },
+    },
+    cta: "Crear mi sesión",
+    result: "RESULTADO MIRAVA · 4:5",
+  },
+} as const
 
-  const t = isFr ? content.fr : content.es
-  const activeNarrative = t.narratives[activeTab]
+export function MiravaChannelShowcase({ locale }: Props) {
+  const [activeCase, setActiveCase] = useState<UseCase>("feed")
+  const t = cases[locale]
+  const selected = t.content[activeCase]
 
   return (
-    <section ref={sectionRef} className="relative mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-24">
-      {/* Header Section */}
+    <section className="relative mx-auto max-w-7xl px-5 py-16 sm:px-8 sm:py-24">
       <div className="max-w-3xl">
         <span className="mirava-label">{t.eyebrow}</span>
-        <h2 className="mirava-section-title mt-4 whitespace-pre-line text-3xl sm:text-5xl">
-          {t.title}
-        </h2>
-        <p className="mirava-copy mt-4 text-base leading-7 sm:text-lg sm:leading-8">
-          {t.subtitle}
-        </p>
+        <h2 className="mirava-section-title mt-4 text-3xl sm:text-5xl">{t.title}</h2>
+        <p className="mirava-copy mt-4 text-base leading-7 sm:text-lg sm:leading-8">{t.subtitle}</p>
       </div>
 
-      {/* Accessible Tabs Navigation */}
-      <div
-        role="tablist"
-        aria-label={t.eyebrow}
-        className="mt-8 flex max-w-md items-center gap-1.5 rounded-xl border border-mirava-line bg-mirava-surface p-1.5 sm:max-w-lg"
-      >
-        {(["instagram", "linkedin", "campaign"] as const).map((tabKey) => {
-          const isActive = activeTab === tabKey
-          const label = t.tabs[tabKey]
-          const Icon =
-            tabKey === "instagram" ? Instagram : tabKey === "linkedin" ? Linkedin : Globe
-
+      <div role="tablist" aria-label={t.eyebrow} className="mt-8 inline-flex w-full max-w-md gap-1.5 rounded-xl border border-mirava-line bg-mirava-surface p-1.5">
+        {(["feed", "profile", "campaign"] as const).map((key) => {
+          const selectedTab = activeCase === key
+          const Icon = key === "feed" ? ImageIcon : key === "profile" ? Sparkles : LayoutGrid
           return (
             <button
-              key={tabKey}
+              key={key}
+              type="button"
               role="tab"
-              id={`tab-${tabKey}`}
-              aria-selected={isActive}
-              aria-controls={`panel-${tabKey}`}
-              onClick={() => handleTabChange(tabKey)}
-              className={`relative flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5 font-jakarta text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mirava-accent ${
-                isActive ? "text-mirava-canvas" : "text-mirava-ink-secondary hover:text-mirava-ink"
-              }`}
+              id={`mirava-presence-tab-${key}`}
+              aria-selected={selectedTab}
+              aria-controls={`mirava-presence-panel-${key}`}
+              onClick={() => setActiveCase(key)}
+              className={`flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2.5 font-jakarta text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mirava-accent ${selectedTab ? "bg-mirava-accent text-mirava-canvas" : "text-mirava-ink-secondary hover:text-mirava-ink"}`}
             >
-              {isActive && (
-                <motion.div
-                  layoutId="channelTabHighlight"
-                  className="absolute inset-0 rounded-lg bg-mirava-accent"
-                  transition={
-                    prefersReducedMotion
-                      ? { duration: 0 }
-                      : { type: "spring", stiffness: 400, damping: 30 }
-                  }
-                />
-              )}
-              <span className="relative z-10 flex items-center gap-1.5">
-                <Icon className="h-4 w-4" />
-                <span className="hidden sm:inline">{label}</span>
-                <span className="sm:hidden">
-                  {tabKey === "campaign" ? "Web" : label}
-                </span>
-              </span>
+              <Icon className="h-4 w-4" />
+              {t.tabs[key]}
             </button>
           )
         })}
       </div>
 
-      {/* Main Grid: Mockup (60%) vs Narrative (40%) */}
-      <div className="mt-10 grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
-        {/* Active Channel Mockup Panel */}
-        <div
-          role="tabpanel"
-          id={`panel-${activeTab}`}
-          aria-labelledby={`tab-${activeTab}`}
-          className="relative min-h-[420px] w-full"
-        >
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={prefersReducedMotion ? { opacity: 1 } : { opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
-              transition={{ duration: 0.25, ease: "easeOut" }}
-              className="w-full"
-            >
-              {activeTab === "instagram" && <InstagramMockup locale={locale} />}
-              {activeTab === "linkedin" && <LinkedInMockup locale={locale} />}
-              {activeTab === "campaign" && <CampaignMockup locale={locale} />}
-            </motion.div>
-          </AnimatePresence>
+      <div className="mt-10 grid gap-8 lg:grid-cols-[.85fr_1.15fr] lg:items-center">
+        <div className="mirava-image-frame relative mx-auto aspect-[4/5] w-full max-w-sm overflow-hidden rounded-2xl border border-mirava-line">
+          <Image src={selected.image} alt={selected.heading} fill sizes="(max-width: 1024px) 88vw, 36vw" className="object-cover" />
+          <div className="mirava-media-overlay absolute inset-0" />
+          <span className="absolute inset-x-5 bottom-5 font-jakarta text-[10px] font-bold tracking-[.18em] text-mirava-ink/90">{t.result}</span>
         </div>
 
-        {/* Narrative & Details Column */}
-        <div className="mirava-surface relative flex flex-col justify-between rounded-2xl border border-mirava-line p-6 sm:p-8">
-          <div>
-            <span className="font-jakarta text-xs font-bold uppercase tracking-wider text-mirava-accent">
-              {activeNarrative.tag}
-            </span>
-            <h3 className="mt-4 font-jakarta text-xl font-extrabold text-mirava-ink sm:text-2xl">
-              {activeNarrative.heading}
-            </h3>
-
-            <ul className="mt-6 space-y-3">
-              {[
-                activeNarrative.bullet1,
-                activeNarrative.bullet2,
-                activeNarrative.bullet3,
-              ].map((bullet, idx) => (
-                <li key={idx} className="flex items-start gap-2.5 text-xs text-mirava-ink-secondary">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-mirava-accent" />
-                  <span>{bullet}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="mt-8 pt-6 border-t border-mirava-line/60">
-            <Link
-              href="/visual-engine/studio"
-              onClick={handleCtaClick}
-              className="mirava-button mirava-button-primary inline-flex min-h-[44px] w-full items-center justify-center gap-2 px-6 text-xs font-semibold font-jakarta shadow-md sm:w-auto"
-            >
-              {activeNarrative.cta}
+        <div role="tabpanel" id={`mirava-presence-panel-${activeCase}`} aria-labelledby={`mirava-presence-tab-${activeCase}`} className="mirava-surface rounded-2xl border border-mirava-line p-6 sm:p-8">
+          <span className="font-jakarta text-xs font-bold uppercase tracking-wider text-mirava-accent">{selected.label}</span>
+          <h3 className="mt-4 font-jakarta text-2xl font-extrabold text-mirava-ink sm:text-3xl">{selected.heading}</h3>
+          <ul className="mt-6 space-y-3">
+            {selected.bullets.map((bullet) => (
+              <li key={bullet} className="flex items-start gap-2.5 text-sm leading-6 text-mirava-ink-secondary">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-mirava-accent" />
+                <span>{bullet}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-8 border-t border-mirava-line/60 pt-6">
+            <Link href="/visual-engine/studio" className="mirava-button mirava-button-primary inline-flex min-h-[48px] w-full items-center justify-center gap-2 px-6 text-sm font-semibold font-jakarta sm:w-auto">
+              {t.cta}
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>

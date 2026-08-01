@@ -79,7 +79,10 @@ async function createAnalysisBitmap(file: File) {
 }
 
 async function createImportAnalyzer(mode: MiravaVisionMode): Promise<ImportAnalyzer> {
-  const worker = new Worker(new URL("./mirava-vision.worker.ts", import.meta.url), { type: "module" })
+  // The vision worker is emitted as a standalone module. Next's app runtime cannot
+  // safely execute its webpack entry inside a browser Worker (it references the
+  // page-only `_N_E` runtime), so this path deliberately bypasses that runtime.
+  const worker = new Worker("/visual-engine/vision/mirava-vision.worker.js", { type: "module" })
   const pending = new Map<number, PendingAnalysis>()
   let requestId = 0
 

@@ -21,35 +21,32 @@ export async function POST(req: NextRequest) {
   if ("error" in parsed) return parsed.error
   const offer = getMiravaOffer(parsed.data.offerId)
   if (!offer) return apiError("Offre MIRAVA introuvable.", 400)
+  // MIRAVA is sold through the six catalogued Stripe prices only. Creating an
+  // ad-hoc fallback price here would bypass the product's Stripe Tax category
+  // and can make the checkout differ from the offer shown in the studio.
+  if (!offer.stripePriceId) return apiError("Cette offre MIRAVA est momentanément indisponible.", 503)
 
   const user = await db.user.findUnique({ where: { id: session.userId } })
   if (!user) return apiError("Utilisateur introuvable.", 404)
 
+  if (offer.kind === "subscription") {
+    const currentSubscription = await db.studioSubscription.findUnique({ where: { userId: session.userId } })
+    const activeSubscription = currentSubscription?.stripeSubscriptionId
+      && !["canceled", "incomplete_expired"].includes(currentSubscription.status ?? "")
+    if (activeSubscription) {
+      return apiError("Un abonnement MIRAVA est déjà actif. Gérez ou modifiez votre forfait depuis le portail d’abonnement.", 409)
+    }
+  }
+
   try {
     const stripe = getStripe()
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
-    const lineItem = offer.stripePriceId
-      ? { price: offer.stripePriceId, quantity: 1 }
-      : {
-        price_data: {
-          currency: "eur",
-          unit_amount: offer.priceEur * 100,
-          tax_behavior: "inclusive" as const,
-          product_data: {
-            name: offer.name,
-            description: offer.kind === "subscription"
-              ? `${offer.credits} créations MIRAVA Studio par mois`
-              : `${offer.credits} créations MIRAVA Studio sans expiration`,
-          },
-          ...(offer.kind === "subscription" ? { recurring: { interval: "month" as const } } : {}),
-        },
-        quantity: 1,
-      }
     const checkout = await stripe.checkout.sessions.create({
       mode: offer.kind === "subscription" ? "subscription" : "payment",
       payment_method_types: ["card"],
       billing_address_collection: "auto",
-      line_items: [lineItem],
+      automatic_tax: { enabled: true },
+      line_items: [{ price: offer.stripePriceId, quantity: 1 }],
       metadata: { product: MIRAVA_STRIPE_PRODUCT, userId: session.userId, offerId: offer.id, credits: String(offer.credits), offerKind: offer.kind },
       ...(user.stripeCustomerId ? { customer: user.stripeCustomerId } : { customer_email: user.email }),
       ...(offer.kind === "subscription" ? { subscription_data: { metadata: { product: MIRAVA_STRIPE_PRODUCT, userId: session.userId, offerId: offer.id } } } : {}),

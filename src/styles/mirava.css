@@ -11,7 +11,7 @@
   --mirava-surface-hover-rgb: 36 38 38;
   --mirava-ink-rgb: 241 241 237;
   --mirava-ink-secondary-rgb: 171 172 168;
-  --mirava-ink-muted-rgb: 116 117 114;
+  --mirava-ink-muted-rgb: 154 155 150;
   --mirava-accent-rgb: 213 198 176;
   --mirava-success-rgb: 184 205 184;
   --mirava-danger-rgb: 223 167 164;
@@ -101,12 +101,26 @@
 .mirava-react-grain {
   height: 100dvh;
   inset: 0;
-  mix-blend-mode: soft-light;
-  opacity: 0.24;
+  opacity: 0.5;
   pointer-events: none;
   position: fixed;
   width: 100vw;
+  z-index: 0;
+}
+
+.mirava-theme > :not(.mirava-react-grain) {
+  position: relative;
   z-index: 1;
+}
+
+.grainient-container {
+  overflow: hidden;
+}
+
+.grainient-canvas {
+  display: block;
+  height: 100%;
+  width: 100%;
 }
 
 .mirava-ambient {
@@ -137,8 +151,14 @@
   color: var(--mirava-ink);
   font-family: var(--font-jakarta), sans-serif;
   font-weight: 600;
-  letter-spacing: -0.055em;
+  letter-spacing: -0.035em;
   line-height: 1;
+}
+
+/* Long, title-case labels need a little more air than display headlines. */
+.mirava-universes-title {
+  letter-spacing: -0.035em;
+  word-spacing: 0.025em;
 }
 
 .mirava-copy {
@@ -205,7 +225,6 @@
   background-image: var(--mirava-light-spotlight);
 }
 
-.mirava-direction-card,
 .mirava-reference-direction,
 .mirava-refinement-shell {
   border: 1px solid var(--mirava-line);
@@ -253,8 +272,7 @@
   color: var(--mirava-ink-secondary);
 }
 
-.mirava-required-mark,
-.mirava-inherited-mark {
+.mirava-required-mark {
   border: 1px solid var(--mirava-line-strong);
   border-radius: var(--mirava-radius);
   color: var(--mirava-accent);
@@ -262,10 +280,6 @@
 
 .mirava-required-mark {
   padding: 0.55rem 0.65rem;
-}
-
-.mirava-inherited-mark {
-  background: rgb(var(--mirava-surface-raised-rgb) / 0.64);
 }
 
 .mirava-warning-copy {
@@ -304,6 +318,40 @@
   outline-offset: -1px;
 }
 
+/* A personal studio never exposes its private reference. When there is no
+   preset cover, give it a deliberately abstract, editorial cover instead of
+   leaving an empty media block. */
+.mirava-studio-cover-abstract {
+  background:
+    radial-gradient(ellipse 65% 135% at 18% 8%, rgb(211 184 138 / 0.65), transparent 62%),
+    radial-gradient(ellipse 80% 100% at 92% 104%, rgb(93 68 49 / 0.9), transparent 68%),
+    linear-gradient(132deg, #282522 0%, #151514 47%, #3c3027 100%);
+}
+
+.mirava-studio-cover-abstract::before,
+.mirava-studio-cover-abstract::after {
+  content: "";
+  position: absolute;
+  border: 1px solid rgb(244 234 214 / 0.25);
+  border-radius: 999px;
+  transform: rotate(-28deg);
+}
+
+.mirava-studio-cover-abstract::before {
+  width: 72%;
+  height: 155%;
+  left: 11%;
+  top: -28%;
+}
+
+.mirava-studio-cover-abstract::after {
+  width: 48%;
+  height: 128%;
+  left: 38%;
+  top: -17%;
+  border-color: rgb(244 234 214 / 0.12);
+}
+
 .mirava-media-overlay,
 .mirava-media-overlay-soft,
 .mirava-camera-shade {
@@ -331,12 +379,20 @@
 }
 
 .mirava-capture-shell {
+  position: fixed;
+  inset: 0;
   display: flex;
   flex-direction: column;
   height: 100dvh;
   min-height: 100dvh;
   overscroll-behavior: none;
   touch-action: manipulation;
+}
+
+/* The global grain stacking rule gives direct children a relative position.
+   Identity capture is a full-screen dialog and must keep its viewport anchor. */
+.mirava-theme > .mirava-capture-shell {
+  position: fixed;
 }
 
 .mirava-capture-safe-top {
@@ -544,24 +600,11 @@
   scroll-padding-bottom: calc(7.5rem + env(safe-area-inset-bottom));
 }
 
-.mirava-journey-actions {
-  background: rgb(var(--mirava-canvas-rgb) / 0.9);
-  border-radius: var(--mirava-radius);
-  bottom: calc(5.5rem + var(--mirava-safe-bottom));
-  box-shadow: 0 -16px 36px rgb(0 0 0 / 0.22);
-  padding: 0.5rem;
-  position: sticky;
-  z-index: 20;
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
-}
-
 .mirava-app-header {
-  background: var(--mirava-header-bg);
-  background-image: var(--mirava-light-subtle);
-  background-size: 100% 100%;
+  background: rgb(10 11 11 / 0.96);
+  border-bottom: 1px solid var(--mirava-line);
   border-radius: 0 0 var(--mirava-radius) var(--mirava-radius);
-  box-shadow: 0 18px 45px rgb(0 0 0 / 0.2), var(--mirava-shadow-line);
+  box-shadow: 0 12px 30px rgb(0 0 0 / 0.18);
   position: sticky;
   top: 0;
   transition: box-shadow 180ms ease-out, background-color 180ms ease-out;
@@ -572,7 +615,7 @@
 
 .mirava-app-header[data-scrolled="true"] {
   background-color: rgb(8 9 9 / 0.97);
-  box-shadow: 0 24px 60px rgb(0 0 0 / 0.38), var(--mirava-shadow-line);
+  box-shadow: 0 16px 38px rgb(0 0 0 / 0.32);
 }
 
 .mirava-app-header-inner {
@@ -585,13 +628,71 @@
   transition: padding-bottom 180ms ease-out;
 }
 
-.mirava-header-steps {
-  background: rgb(var(--mirava-canvas-raised-rgb) / 0.72);
-  border: 1px solid var(--mirava-line);
-  border-radius: var(--mirava-radius);
+.mirava-flowbar {
+  align-items: center;
+  display: grid;
+  gap: 0.45rem;
+  grid-template-columns: 3rem minmax(0, 1fr) auto;
+}
+
+.mirava-flowbar-back,
+.mirava-flowbar-next {
   display: flex;
-  gap: 0.25rem;
-  padding: 0.25rem;
+  min-width: 3rem;
+}
+
+.mirava-flowbar-next {
+  justify-content: flex-end;
+}
+
+.mirava-flow-button {
+  align-items: center;
+  background: transparent;
+  border: 1px solid var(--mirava-line);
+  border-radius: calc(var(--mirava-radius) - 2px);
+  color: var(--mirava-ink-secondary);
+  display: inline-flex;
+  gap: 0.4rem;
+  justify-content: center;
+  min-height: 3rem;
+  min-width: 3rem;
+  padding: 0 0.8rem;
+  transition: background-color 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out;
+}
+
+.mirava-flow-button:hover {
+  border-color: var(--mirava-line-strong);
+  color: var(--mirava-ink);
+}
+
+.mirava-flow-button-primary {
+  background: var(--mirava-ink);
+  border-color: var(--mirava-ink);
+  color: var(--mirava-canvas);
+  font-family: var(--font-jakarta), sans-serif;
+  font-size: 0.6875rem;
+  font-weight: 700;
+}
+
+.mirava-flow-button-primary:hover {
+  background: var(--mirava-ink);
+  border-color: var(--mirava-ink);
+  color: var(--mirava-canvas);
+}
+
+.mirava-flow-button-primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+.mirava-flow-button-copy {
+  display: none;
+}
+
+.mirava-header-steps {
+  display: flex;
+  gap: 0.1rem;
+  min-width: 0;
 }
 
 .mirava-header-steps > li {
@@ -607,12 +708,12 @@
   align-items: center;
   background: transparent;
   border: 0;
-  border-radius: var(--mirava-radius);
+  border-radius: calc(var(--mirava-radius) - 2px);
   color: var(--mirava-ink-muted);
   display: flex;
   gap: 0.45rem;
   justify-content: center;
-  min-height: 3rem;
+  min-height: 2.8rem;
   min-width: 0;
   padding: 0.35rem 0.45rem;
   transition: background-color 150ms ease-out, color 150ms ease-out, opacity 150ms ease-out;
@@ -625,9 +726,8 @@
 }
 
 .mirava-header-step[data-active="true"] {
-  background-color: var(--mirava-surface-raised);
-  background-image: var(--mirava-light-mineral);
-  box-shadow: inset 0 -2px 0 var(--mirava-nav-marker);
+  background: rgb(var(--mirava-surface-raised-rgb) / 0.55);
+  box-shadow: inset 0 -1px 0 var(--mirava-nav-marker);
   color: var(--mirava-ink);
 }
 
@@ -637,14 +737,14 @@
 
 .mirava-header-step-number {
   align-items: center;
-  border: 1px solid var(--mirava-line);
-  border-radius: calc(var(--mirava-radius) - 4px);
+  border: 0;
+  border-radius: 999px;
   display: flex;
   flex: 0 0 1.8rem;
   font-family: var(--font-jakarta), sans-serif;
   font-size: 0.5625rem;
   font-weight: 700;
-  height: 1.8rem;
+  height: 1.55rem;
   justify-content: center;
 }
 
@@ -655,8 +755,57 @@
 }
 
 .mirava-header-step[data-complete="true"] .mirava-header-step-number {
-  border-color: rgb(var(--mirava-accent-rgb) / 0.48);
   color: var(--mirava-accent);
+}
+
+.mirava-direction-brief {
+  border-bottom: 1px solid var(--mirava-line);
+  border-top: 1px solid var(--mirava-line);
+  color: var(--mirava-ink);
+  padding: 1.5rem 0;
+}
+
+.mirava-direction-source {
+  color: var(--mirava-accent);
+  font-family: var(--font-jakarta), sans-serif;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.mirava-direction-cues {
+  border-top: 1px solid var(--mirava-line);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.mirava-direction-cues > div {
+  min-width: 0;
+  padding: 1rem 0.75rem 0 0;
+}
+
+.mirava-direction-cues > div:nth-child(even) {
+  border-left: 1px solid var(--mirava-line);
+  padding-left: 0.75rem;
+  padding-right: 0;
+}
+
+.mirava-direction-cues dt {
+  color: var(--mirava-ink-muted);
+  font-family: var(--font-jakarta), sans-serif;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.mirava-direction-cues dd {
+  color: var(--mirava-ink);
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.35;
+  margin-top: 0.42rem;
 }
 
 .mirava-header-step-label {
@@ -836,52 +985,457 @@
   z-index: -1;
 }
 
-.mirava-identity-passport {
-  background-color: var(--mirava-surface);
-  background-image: var(--mirava-light-spotlight);
-  background-size: 100% 100%;
-  border-radius: var(--mirava-radius-lg);
-  box-shadow: var(--mirava-shadow-line), 0 30px 90px rgb(0 0 0 / 0.34);
-  display: grid;
-  gap: 1.5rem;
+.mirava-studio-loading {
+  border: 1px solid var(--mirava-line);
+  border-radius: 999px;
+  height: 0.25rem;
+  left: 50%;
   overflow: hidden;
-  padding: 1.25rem;
+  position: fixed;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(10rem, 42vw);
 }
 
-.mirava-identity-copy {
-  align-self: center;
-}
-
-.mirava-identity-contact-sheet {
-  display: grid;
-  gap: 0.35rem;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.mirava-identity-contact-frame {
-  background: var(--mirava-canvas-raised);
-  border: 1px solid var(--mirava-line-strong);
-  border-radius: var(--mirava-radius);
-  box-shadow: 0 12px 28px rgb(0 0 0 / 0.26);
-  min-height: 7rem;
-}
-
-.mirava-identity-contact-frame:nth-child(2),
-.mirava-identity-contact-frame:nth-child(5) {
-  transform: translateY(0.55rem);
-}
-
-.mirava-identity-contact-frame > span {
-  background: rgb(14 13 12 / 0.72);
-  bottom: 0.3rem;
-  color: white;
-  font-family: var(--font-jakarta), sans-serif;
-  font-size: 0.5rem;
-  left: 0.3rem;
-  letter-spacing: 0.08em;
-  padding: 0.15rem 0.25rem;
+.mirava-studio-loading::after {
+  animation: mirava-loading 1.1s ease-in-out infinite;
+  background: var(--mirava-accent);
+  content: "";
+  inset: 0 auto 0 0;
   position: absolute;
-  z-index: 2;
+  width: 42%;
+}
+
+.mirava-studio-onboarding {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  min-height: 100dvh;
+  padding: max(1.25rem, env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right)) max(1.25rem, env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left));
+  position: relative;
+}
+
+.mirava-studio-onboarding-top,
+.mirava-studio-onboarding-actions {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-inline: auto;
+  max-width: 72rem;
+  width: 100%;
+}
+
+.mirava-studio-onboarding-top .mirava-label {
+  color: var(--mirava-ink-muted);
+}
+
+.mirava-onboarding-progress {
+  background: var(--mirava-line);
+  height: 1px;
+  margin: 1.15rem auto 0;
+  max-width: 72rem;
+  overflow: hidden;
+  width: 100%;
+}
+
+.mirava-onboarding-progress > span {
+  background: var(--mirava-accent);
+  display: block;
+  height: 100%;
+  transition: width 260ms ease-out;
+}
+
+.mirava-studio-onboarding-content {
+  align-self: center;
+  margin: auto;
+  max-width: 72rem;
+  padding-block: 3.5rem;
+  width: 100%;
+}
+
+.mirava-onboarding-welcome {
+  align-items: center;
+  display: grid;
+  gap: clamp(2rem, 7vw, 7rem);
+  grid-template-columns: minmax(0, 0.9fr) minmax(16rem, 0.7fr);
+}
+
+.mirava-welcome-composition {
+  aspect-ratio: 4 / 5;
+  min-height: 20rem;
+  position: relative;
+}
+
+.mirava-welcome-composition::after {
+  background: linear-gradient(140deg, transparent 40%, rgb(var(--mirava-canvas-rgb) / 0.7));
+  content: "";
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.mirava-welcome-composition img {
+  border: 1px solid var(--mirava-line);
+  filter: saturate(0.78) contrast(1.04);
+  height: 58%;
+  object-fit: cover;
+  position: absolute;
+  width: 62%;
+}
+
+.mirava-welcome-composition img:nth-child(1) { left: 0; top: 0; }
+.mirava-welcome-composition img:nth-child(2) { right: 0; top: 19%; }
+.mirava-welcome-composition img:nth-child(3) { bottom: 0; left: 14%; }
+
+.mirava-onboarding-narrative { max-width: 68rem; }
+
+.mirava-promise-gallery {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.mirava-promise-gallery figure,
+.mirava-direction-board figure {
+  background: var(--mirava-surface-raised);
+  margin: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.mirava-promise-gallery figure:nth-child(odd) { margin-top: 2rem; }
+
+.mirava-promise-gallery img {
+  aspect-ratio: 0.68;
+  display: block;
+  filter: saturate(0.82);
+  object-fit: cover;
+  transition: transform 600ms cubic-bezier(0.22, 1, 0.36, 1), filter 300ms ease;
+  width: 100%;
+}
+
+.mirava-promise-gallery figure:hover img { filter: saturate(1); transform: scale(1.04); }
+
+.mirava-promise-gallery figcaption,
+.mirava-direction-board figcaption {
+  background: linear-gradient(transparent, rgb(var(--mirava-canvas-rgb) / 0.9));
+  bottom: 0;
+  color: var(--mirava-ink);
+  font-family: var(--font-jakarta), sans-serif;
+  font-size: 0.625rem;
+  font-weight: 700;
+  left: 0;
+  letter-spacing: 0.09em;
+  padding: 2.25rem 0.75rem 0.7rem;
+  position: absolute;
+  right: 0;
+  text-transform: uppercase;
+}
+
+.mirava-how-flow {
+  align-items: stretch;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: 1fr auto 1fr auto 1fr;
+  max-width: 62rem;
+}
+
+.mirava-how-flow > div,
+.mirava-direction-summary {
+  background: rgb(var(--mirava-surface-rgb) / 0.58);
+  border: 1px solid var(--mirava-line);
+  display: flex;
+  flex-direction: column;
+  min-height: 10rem;
+  padding: 1rem;
+}
+
+.mirava-how-flow > div > svg,
+.mirava-direction-summary > svg { color: var(--mirava-accent); height: 1.25rem; width: 1.25rem; }
+.mirava-how-flow > div > strong,
+.mirava-direction-summary > strong { color: var(--mirava-ink); font-family: var(--font-jakarta), sans-serif; font-size: 1rem; margin-top: auto; }
+.mirava-how-flow > div > span { color: var(--mirava-ink-muted); font-size: 0.75rem; line-height: 1.35; margin-top: 0.35rem; }
+.mirava-how-flow > svg { align-self: center; color: var(--mirava-accent); height: 1rem; width: 1rem; }
+
+.mirava-onboarding-control { align-items: center; color: var(--mirava-ink-secondary); display: flex; font-size: 0.8125rem; gap: 0.55rem; }
+.mirava-onboarding-control svg { color: var(--mirava-accent); flex: 0 0 auto; height: 1rem; width: 1rem; }
+
+.mirava-onboarding-input {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--mirava-line-strong);
+  border-radius: 0;
+  color: var(--mirava-ink);
+  font-family: var(--font-jakarta), sans-serif;
+  font-size: clamp(1.35rem, 4vw, 2rem);
+  letter-spacing: -0.04em;
+  outline: none;
+  padding: 0.8rem 0;
+  transition: border-color 150ms ease-out;
+  width: 100%;
+}
+
+.mirava-onboarding-input::placeholder {
+  color: var(--mirava-ink-muted);
+}
+
+.mirava-onboarding-input:focus {
+  border-color: var(--mirava-ink);
+}
+
+.mirava-onboarding-selection,
+.mirava-form-error {
+  color: var(--mirava-ink-muted);
+  font-family: var(--font-jakarta), sans-serif;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  min-height: 1rem;
+  text-transform: uppercase;
+}
+
+.mirava-form-error {
+  color: var(--mirava-danger);
+  margin-bottom: 0.5rem;
+}
+
+.mirava-onboarding-universe-grid {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 58rem;
+}
+
+.mirava-onboarding-universe,
+.mirava-onboarding-choice {
+  background: rgb(var(--mirava-surface-rgb) / 0.54);
+  border: 1px solid var(--mirava-line);
+  border-radius: calc(var(--mirava-radius) - 2px);
+  color: var(--mirava-ink-secondary);
+  cursor: pointer;
+  min-height: 6rem;
+  padding: 1rem;
+  position: relative;
+  text-align: left;
+  transition: background-color 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out;
+}
+
+.mirava-onboarding-universe {
+  min-height: 13.75rem;
+  overflow: hidden;
+  padding: 0;
+}
+
+.mirava-onboarding-universe::after {
+  background: linear-gradient(180deg, transparent 35%, rgb(var(--mirava-canvas-rgb) / 0.95));
+  content: "";
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.mirava-onboarding-universe > img {
+  filter: saturate(0.68);
+  height: 100%;
+  inset: 0;
+  object-fit: cover;
+  position: absolute;
+  transition: filter 220ms ease, transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+  width: 100%;
+}
+
+.mirava-onboarding-universe:hover > img,
+.mirava-onboarding-universe.is-selected > img { filter: saturate(1); transform: scale(1.035); }
+
+.mirava-onboarding-universe > span {
+  color: var(--mirava-ink-muted);
+  display: block;
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 1.25;
+  text-transform: uppercase;
+  left: 1rem;
+  position: absolute;
+  right: 1rem;
+  top: auto;
+  bottom: 2.7rem;
+  z-index: 1;
+}
+
+.mirava-onboarding-universe > strong,
+.mirava-onboarding-choice > strong {
+  color: inherit;
+  display: block;
+  font-family: var(--font-jakarta), sans-serif;
+  font-size: 0.95rem;
+  line-height: 1.2;
+  margin-top: 0.45rem;
+}
+
+.mirava-onboarding-universe > strong { bottom: 1rem; left: 1rem; position: absolute; z-index: 1; }
+
+.mirava-onboarding-universe > svg {
+  bottom: 0.75rem;
+  color: var(--mirava-accent);
+  position: absolute;
+  right: 0.75rem;
+  z-index: 1;
+}
+
+.mirava-onboarding-choice-grid {
+  display: grid;
+  gap: 0.5rem;
+  max-width: 52rem;
+}
+
+.mirava-onboarding-choice {
+  min-height: 0;
+}
+
+.mirava-onboarding-choice > span {
+  color: var(--mirava-ink-muted);
+  display: block;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  margin-top: 0.45rem;
+  max-width: 36rem;
+}
+
+.mirava-onboarding-universe:hover,
+.mirava-onboarding-choice:hover,
+.mirava-onboarding-universe.is-selected,
+.mirava-onboarding-choice.is-selected {
+  background: var(--mirava-surface-raised);
+  border-color: var(--mirava-line-strong);
+  color: var(--mirava-ink);
+}
+
+.mirava-onboarding-universe.is-selected,
+.mirava-onboarding-choice.is-selected {
+  box-shadow: inset 2px 0 0 var(--mirava-accent);
+}
+
+.mirava-onboarding-universe:focus-visible,
+.mirava-onboarding-choice:focus-visible,
+.mirava-onboarding-input:focus-visible {
+  outline: 2px solid var(--mirava-accent);
+  outline-offset: 3px;
+}
+
+.mirava-control:disabled {
+  cursor: not-allowed;
+  opacity: 0.46;
+}
+
+.mirava-onboarding-trust {
+  display: grid;
+  gap: 0.55rem;
+  max-width: 52rem;
+}
+
+.mirava-onboarding-trust p {
+  align-items: center;
+  color: var(--mirava-ink-secondary);
+  display: flex;
+  font-size: 0.8125rem;
+  gap: 0.55rem;
+}
+
+.mirava-onboarding-trust svg {
+  color: var(--mirava-accent);
+  flex: 0 0 auto;
+}
+
+.mirava-direction-board {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(13rem, 0.85fr);
+  max-width: 70rem;
+}
+
+.mirava-direction-board figure { min-height: 15rem; }
+.mirava-direction-board figure:nth-child(2) { margin-top: 2rem; }
+.mirava-direction-board img { height: 100%; min-height: 15rem; object-fit: cover; position: absolute; width: 100%; }
+.mirava-direction-summary { justify-content: flex-end; }
+.mirava-direction-summary > span { color: var(--mirava-ink-muted); font-size: 0.625rem; font-weight: 700; letter-spacing: 0.1em; margin-top: 1rem; text-transform: uppercase; }
+.mirava-direction-summary > small { color: var(--mirava-ink-secondary); font-size: 0.75rem; line-height: 1.45; margin-top: 0.75rem; }
+
+.mirava-ready-board {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(13rem, 0.9fr);
+  max-width: 68rem;
+}
+
+.mirava-ready-board img { aspect-ratio: 0.72; filter: saturate(0.8); object-fit: cover; width: 100%; }
+.mirava-ready-board > div { background: var(--mirava-surface-raised); border: 1px solid var(--mirava-line); display: flex; flex-direction: column; justify-content: flex-end; padding: 1rem; }
+.mirava-ready-board span { color: var(--mirava-ink-muted); font-size: 0.625rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+.mirava-ready-board strong { color: var(--mirava-ink); font-family: var(--font-jakarta), sans-serif; margin-top: 0.5rem; }
+
+@media (max-width: 30rem) {
+  .mirava-onboarding-universe-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 48rem) {
+  .mirava-studio-onboarding-content { padding-block: 2.25rem; }
+  .mirava-onboarding-welcome { grid-template-columns: 1fr; }
+  .mirava-welcome-composition { margin-inline: auto; max-width: 22rem; width: 78vw; }
+  .mirava-promise-gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mirava-promise-gallery figure:nth-child(odd) { margin-top: 0; }
+  .mirava-promise-gallery figure:nth-child(even) { margin-top: 1.5rem; }
+  .mirava-how-flow { grid-template-columns: 1fr; max-width: 26rem; }
+  .mirava-how-flow > svg { justify-self: center; transform: rotate(90deg); }
+  .mirava-direction-board, .mirava-ready-board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mirava-direction-summary, .mirava-ready-board > div { min-height: 10rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mirava-onboarding-progress > span,
+  .mirava-onboarding-universe,
+  .mirava-onboarding-choice {
+    transition: none;
+  }
+
+  .mirava-promise-gallery img,
+  .mirava-onboarding-universe > img { transition: none; }
+}
+
+.mirava-identity-review {
+  border-top: 1px solid var(--mirava-line);
+  padding-top: 0.85rem;
+}
+
+.mirava-identity-review-photos {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.mirava-identity-review-photo {
+  background: var(--mirava-surface-raised);
+  border: 1px solid var(--mirava-line);
+  border-radius: calc(var(--mirava-radius) - 4px);
+  height: 3.5rem;
+  overflow: hidden;
+  transition: border-color 150ms ease-out, transform 150ms ease-out;
+  width: 2.6rem;
+}
+
+.mirava-identity-review-photo:hover {
+  border-color: var(--mirava-line-strong);
+  transform: translateY(-1px);
+}
+
+.mirava-identity-review-photo img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+@keyframes mirava-loading {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(350%); }
 }
 
 .mirava-import-orbit {
@@ -956,6 +1510,15 @@
 }
 
 @media (min-width: 640px) {
+  .mirava-flowbar {
+    gap: 0.65rem;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .mirava-flow-button-copy {
+    display: inline;
+  }
+
   .mirava-header-steps > li,
   .mirava-header-steps > li[data-active="true"] {
     flex: 1 1 0;
@@ -972,10 +1535,6 @@
     min-height: 0;
   }
 
-  .mirava-identity-contact-sheet {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
-  }
-
   .mirava-repair-row {
     align-items: center;
     display: flex;
@@ -988,26 +1547,10 @@
     padding-bottom: 3rem;
   }
 
-  .mirava-journey-actions {
-    background: transparent;
-    bottom: auto;
-    box-shadow: none;
-    padding: 0;
-    position: static;
-  }
-
   .mirava-app-header-inner {
     padding-top: 0.75rem;
   }
 
-  .mirava-identity-passport {
-    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-    padding: 2rem;
-  }
-
-  .mirava-identity-contact-sheet {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
 }
 
 @media (hover: none) {

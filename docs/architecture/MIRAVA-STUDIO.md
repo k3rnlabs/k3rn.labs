@@ -14,12 +14,17 @@ MIRAVA Studio est l’expérience de personal branding autonome servie par `/vis
 
 ## Onboarding et guide caméra local
 
+- Le premier accès à MIRAVA ouvre un onboarding propre au studio : prénom, univers éditoriaux appréciés (un à trois), intention initiale et moment choisi pour préparer le Profil identité. Il ne modifie jamais l’onboarding global des autres produits.
+- La progression est sauvegardée après chaque réponse utile sous `preferences.miravaOnboarding` et peut être reprise. Les réponses ont un effet visible : le prénom personnalise l’entrée dans le studio, le premier univers pré-sélectionne le moodboard et le choix « maintenant » ouvre la capture après l’accueil. Le premier format reste toujours une image signature et un crédit ; une série ne peut être sélectionnée qu’explicitement par la personne.
+- Le choix « plus tard » n’empêche pas d’explorer le studio : le profil reste demandé uniquement au moment où il devient indispensable à la création d’une image. Aucun fichier, visage, réponse libre ou valeur de réponse n’est envoyé aux événements analytiques de l’onboarding.
+
 - Le Profil identité est une étape principale de l’onboarding MIRAVA. Il peut être créé avant toute séance; chaque nouvelle création le rattache automatiquement et ne le redemande pas tant qu’il contient les trois portraits requis.
 - Après l’onboarding, une cliente peut ajouter une vue dans la limite de six sans remplacer son profil; l’action « Refaire » reste séparée et remplace l’ensemble après une nouvelle validation.
 - Les prises requises sont face, 3/4 gauche et 3/4 droit. La vue cheveux naturels et les deux silhouettes face/3/4 sont facultatives. Compte permet de remplacer entièrement le profil ou de le supprimer immédiatement.
 - La permission caméra est demandée après un écran explicatif. La capture utilise un écran `100dvh` sans défilement, respecte les zones sûres, propose capture automatique après stabilité, déclenchement manuel, revue Garder/Refaire et validation finale avant téléversement.
-- `FaceLandmarker` et `PoseLandmarker` tournent dans un Web Worker. Les modèles TFLite et le runtime WASM sont servis depuis `/visual-engine/vision`; aucun CDN n’est utilisé à l’exécution.
+- `FaceLandmarker` et `PoseLandmarker` tournent dans un Web Worker ES module autonome, construit avant chaque build par `npm run build:mirava-vision`. Les modèles TFLite et les deux fichiers WASM module nécessaires sont servis depuis `/visual-engine/vision`; aucun CDN n’est utilisé à l’exécution.
 - Le worker remplace `fetch` avant le chargement de MediaPipe et rejette toute origine différente de MIRAVA. Une CSP dédiée à `/visual-engine/:path*` impose aussi `connect-src 'self'`, `worker-src 'self' blob:` et limite caméra à l’origine courante.
+- Les seuls fichiers publics de ce répertoire sont le runtime et les modèles de validation locale ; ils ne contiennent aucune photo ni donnée de compte. Le middleware les laisse passer sans session afin que le worker navigateur puisse les charger, mais tous les téléversements et médias utilisateur restent derrière les routes authentifiées.
 - Les frames vidéo réduites, landmarks, angles et scores de qualité restent en mémoire locale et ne sont ni envoyés, ni stockés, ni journalisés. Seules les photos explicitement conservées sont téléversées après consentement 18+, droits et rétention.
 - Sur appareil incompatible, le guide automatique se dégrade en capture manuelle et l’import classique reste disponible; le parcours ne devient pas un contrôle KYC ou de reconnaissance faciale.
 
@@ -74,9 +79,10 @@ Une création peut livrer une image signature ou une série de deux à six image
 
 1. Appliquer les migrations Visual Engine puis `202607290001_mirava_credit_lots.sql`, `202607290002_mirava_studio_security.sql` et `20260729150000_mirava_personal_studios.sql`. La dernière ajoute les studios personnels et profils identité, avec RLS et aucun accès navigateur direct.
 2. Ajouter les variables MIRAVA de `.env.example` dans l’environnement de production. Générer les clés VAPID hors du navigateur, puis fournir la clé publique via `NEXT_PUBLIC_MIRAVA_PUSH_PUBLIC_KEY`; `MIRAVA_PUSH_ENCRYPTION_KEY` doit être une clé aléatoire de 32 octets encodée en base64.
-3. Démarrer le worker durable : `pm2 start npm --name mirava-studio-worker -- run studio-worker`, puis `pm2 save`. Le worker récupère les jobs interrompus, purge les sources, expire les lots mensuels et envoie les notifications opt-in.
-4. Déployer l’application et vérifier, depuis un autre compte, qu’un résultat, une création et les médias ne sont pas accessibles. Vérifier aussi `Cache-Control: private, no-store` sur la route de résultat.
-5. Garder `MIRAVA_PUBLIC_LAUNCH_ENABLED=false` en production jusqu’à la validation de la marque, des consentements, du DPA OpenAI et de la politique de rétention. Le développement local reste ouvert pour les tests.
+3. Lancer `npm run build` : le hook `prebuild` construit `public/visual-engine/vision/mirava-vision.worker.js` avant la compilation Next. Vérifier que ce fichier, les modèles TFLite et les modules WASM sont inclus dans l’artefact ; ne pas les remplacer par une URL CDN.
+4. Démarrer le worker durable : `pm2 start npm --name mirava-studio-worker -- run studio-worker`, puis `pm2 save`. Le worker récupère les jobs interrompus, purge les sources, expire les lots mensuels et envoie les notifications opt-in.
+5. Déployer l’application et vérifier, depuis un autre compte, qu’un résultat, une création et les médias ne sont pas accessibles. Vérifier aussi `Cache-Control: private, no-store` sur la route de résultat et que `/visual-engine/vision/mirava-vision.worker.js` renvoie bien le fichier JavaScript, jamais une redirection de connexion.
+6. Garder `MIRAVA_PUBLIC_LAUNCH_ENABLED=false` en production jusqu’à la validation de la marque, des consentements, du DPA OpenAI et de la politique de rétention. Le développement local reste ouvert pour les tests.
 
 ## Stripe
 
@@ -103,3 +109,7 @@ Les produits historiques K3RN et leurs crédits ne sont jamais lus ni modifiés 
 ## Go-live
 
 L’ouverture publique reste bloquée tant que ne sont pas validés : marque et domaines, consentements et droits à l’image, politique de rétention, DPA OpenAI et informations réglementaires Stripe Tax. La configuration API standard d’OpenAI doit être expliquée dans les textes légaux si une rétention zéro n’est pas contractualisée.
+
+### Gate dépendances
+
+Au 1er août 2026, `npm audit --omit=dev --audit-level=high` remonte 30 vulnérabilités de production, dont 20 de sévérité élevée. Elles incluent notamment la version Next.js 14.2.35, ainsi que des dépendances transitives de génération d’image et d’import de tableurs. Ce constat n’est pas une preuve d’exploitabilité dans MIRAVA, mais interdit de déclarer le lancement public prêt. Traiter ces dépendances dans un lot dédié, avec tests de régression, plutôt que d’exécuter `npm audit fix --force` : la correction proposée pour Next est une migration majeure.

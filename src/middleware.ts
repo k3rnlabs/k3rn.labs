@@ -11,16 +11,21 @@ export async function middleware(request: NextRequest) {
   // pour éviter le MIDDLEWARE_INVOCATION_TIMEOUT ET les redirections parasites.
   //
   // /auth/callback → liens de confirmation d'email (token_hash ou code PKCE)
-  // /visual-engine/studio/* → app MIRAVA Studio, auth gérée par son propre système
+  // /visual-engine/studio/* et /api/visual-engine/* → app MIRAVA Studio,
+  // authentification et autorisations gérées par leurs propres routes.
   if (
     path === "/visual-engine" ||
     path.startsWith("/visual-engine/studio") ||
+    path.startsWith("/api/visual-engine/") ||
     path === "/auth/callback" ||
     path.startsWith("/auth/callback") ||
     path === "/visual-engine/manifest.webmanifest" ||
     path === "/visual-engine/sw.js" ||
     path === "/visual-engine/apple-icon" ||
-    path === "/visual-engine/offline"
+    path === "/visual-engine/offline" ||
+    // Self-hosted, non-personal MediaPipe runtime and model assets. These are
+    // required before a browser can validate a private identity photo locally.
+    path.startsWith("/visual-engine/vision/")
   ) {
     return NextResponse.next()
   }
