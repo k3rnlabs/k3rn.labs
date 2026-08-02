@@ -200,6 +200,17 @@ export interface PhotoSlotState {
   criteriaProgress: number // Number of green criteria checkmarks activated during live scan
 }
 
+export interface CaptureActionState {
+  label: string
+  icon?: "upload" | "next" | "submit" | "loading"
+  onClick: () => void
+  disabled?: boolean
+  secondaryAction?: {
+    label: string
+    onClick: () => void
+  }
+}
+
 export function MiravaIdentityCapture({
   locale,
   context = "onboarding",
@@ -208,6 +219,7 @@ export function MiravaIdentityCapture({
   inline = false,
   onClose,
   onComplete,
+  onActionStateChange,
 }: {
   locale: Locale
   context?: "onboarding" | "replace" | "append"
@@ -216,6 +228,7 @@ export function MiravaIdentityCapture({
   inline?: boolean
   onClose: () => void
   onComplete: (files: File[], consent: MiravaIdentityConsent) => Promise<void>
+  onActionStateChange?: (state: CaptureActionState) => void
 }) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -390,6 +403,66 @@ export function MiravaIdentityCapture({
       setSubmitting(false)
     }
   }
+
+  const currentActionState = useMemo<CaptureActionState>(() => {
+    if (showSummary) {
+      return {
+        label: locale === "fr" ? "Enregistrer mon profil et préparer ma séance" : "Guardar mi perfil y preparar mi sesión",
+        icon: submitting ? "loading" : "submit",
+        disabled: submitting || !legalAccepted || !requiredPhotosDone,
+        onClick: handleSubmitFinalProfile,
+      }
+    }
+
+    if (currentSlotState.status === "scanning") {
+      return {
+        label: locale === "fr" ? "Scan en cours…" : "Escaneando…",
+        icon: "loading",
+        disabled: true,
+        onClick: () => {},
+      }
+    }
+
+    if (currentSlotState.status === "scanned") {
+      return {
+        label: locale === "fr" ? "Valider et continuer" : "Validar y continuar",
+        icon: "next",
+        onClick: handleAdvanceToNext,
+        secondaryAction: {
+          label: locale === "fr" ? "Changer la photo" : "Cambiar la foto",
+          onClick: handleResetCurrentPhoto,
+        },
+      }
+    }
+
+    return {
+      label: locale === "fr" ? "Ajouter cette photo" : "Añadir esta foto",
+      icon: "upload",
+      onClick: () => fileInputRef.current?.click(),
+      secondaryAction: !currentSlot.required
+        ? {
+            label: locale === "fr" ? "Passer cette photo" : "Saltar esta foto",
+            onClick: handleSkipOptionalSlot,
+          }
+        : undefined,
+    }
+  }, [
+    currentSlot.required,
+    currentSlotState.status,
+    handleAdvanceToNext,
+    handleResetCurrentPhoto,
+    handleSkipOptionalSlot,
+    handleSubmitFinalProfile,
+    legalAccepted,
+    locale,
+    requiredPhotosDone,
+    showSummary,
+    submitting,
+  ])
+
+  useEffect(() => {
+    onActionStateChange?.(currentActionState)
+  }, [currentActionState, onActionStateChange])
 
   const phase: Phase = submitting ? "loading" : "capture"
 
@@ -576,14 +649,16 @@ export function MiravaIdentityCapture({
               <div className="space-y-3 pt-1">
                 {currentSlotState.status === "idle" && (
                   <>
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="group flex min-h-[52px] w-full items-center justify-center gap-2.5 rounded-2xl bg-[#ede8df] px-5 font-jakarta text-sm font-semibold text-[#0d0e0e] shadow-lg transition-all hover:bg-white active:scale-[0.98]"
-                    >
-                      <Upload className="h-5 w-5" />
-                      <span>{locale === "fr" ? "Ajouter cette photo" : "Añadir esta foto"}</span>
-                    </button>
+                    {!inline && (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="group flex min-h-[52px] w-full items-center justify-center gap-2.5 rounded-2xl bg-[#ede8df] px-5 font-jakarta text-sm font-semibold text-[#0d0e0e] shadow-lg transition-all hover:bg-white active:scale-[0.98]"
+                      >
+                        <Upload className="h-5 w-5" />
+                        <span>{locale === "fr" ? "Ajouter cette photo" : "Añadir esta foto"}</span>
+                      </button>
+                    )}
 
                     {!currentSlot.required && (
                       <button
@@ -599,14 +674,16 @@ export function MiravaIdentityCapture({
 
                 {currentSlotState.status === "scanned" && (
                   <div className="flex flex-col gap-2.5">
-                    <button
-                      type="button"
-                      onClick={handleAdvanceToNext}
-                      className="group flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-[#ede8df] px-5 font-jakarta text-sm font-semibold text-[#0d0e0e] shadow-lg transition-all hover:bg-white active:scale-[0.98]"
-                    >
-                      <span>{locale === "fr" ? "Valider et continuer" : "Validar y continuar"}</span>
-                      <ChevronRight className="h-5 w-5" />
-                    </button>
+                    {!inline && (
+                      <button
+                        type="button"
+                        onClick={handleAdvanceToNext}
+                        className="group flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-[#ede8df] px-5 font-jakarta text-sm font-semibold text-[#0d0e0e] shadow-lg transition-all hover:bg-white active:scale-[0.98]"
+                      >
+                        <span>{locale === "fr" ? "Valider et continuer" : "Validar y continuar"}</span>
+                        <ChevronRight className="h-5 w-5" />
+                      </button>
+                    )}
 
                     <button
                       type="button"
@@ -679,12 +756,24 @@ export function MiravaIdentityCapture({
               )}
 
               {/* FINAL SUBMIT BUTTON */}
-              <button
-                type="button"
-                disabled={phase === "loading" || !legalAccepted || !requiredPhotosDone}
-                onClick={handleSubmitFinalProfile}
-                className="group flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-[#ede8df] px-5 font-jakarta text-sm font-semibold text-[#0d0e0e] shadow-lg transition-all hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed"
-              >
+              {!inline && (
+                <button
+                  type="button"
+                  disabled={phase === "loading" || !legalAccepted || !requiredPhotosDone}
+                  onClick={handleSubmitFinalProfile}
+                  className="group flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-[#ede8df] px-5 font-jakarta text-sm font-semibold text-[#0d0e0e] shadow-lg transition-all hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {submitting ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <span>
+                      {locale === "fr"
+                        ? "Enregistrer mon profil et préparer ma séance"
+                        : "Guardar mi perfil y preparar mi sesión"}
+                    </span>
+                  )}
+                </button>
+              )}
                 {submitting ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
                 ) : (

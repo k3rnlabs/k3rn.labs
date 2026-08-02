@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
 import { GlassSurface } from "@/components/ui/glass-surface"
-import { ArrowLeft, ArrowRight, Camera, Check, Clock3, LockKeyhole, ShieldCheck, Sparkles, UserCheck } from "lucide-react"
+import { ArrowLeft, ArrowRight, Camera, Check, Clock3, Loader2, LockKeyhole, ShieldCheck, Sparkles, Upload, UserCheck } from "lucide-react"
 import posthog from "posthog-js"
 import { MiravaWordmark } from "@/components/mirava/mirava-wordmark"
 import { MIRAVA_ONBOARDING_STEPS, MIRAVA_ONBOARDING_VERSION, onboardingStepIndex, type MiravaOnboardingDirection, type MiravaOnboardingGoal, type MiravaOnboardingState, type MiravaOnboardingStepId } from "@/lib/mirava/onboarding"
@@ -17,7 +17,7 @@ import {
   UniverseCard,
   UniverseGrid,
 } from "./mirava-mobile-primitives"
-import MiravaIdentityCapture, { PHOTO_SLOTS } from "./mirava-identity-capture"
+import MiravaIdentityCapture, { PHOTO_SLOTS, type CaptureActionState } from "./mirava-identity-capture"
 
 type Locale = "fr" | "es"
 const GOALS: Record<Locale, Array<{ id: MiravaOnboardingGoal; title: string; session: string; reason: string }>> = {
@@ -57,6 +57,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
   const [identityConsentAccepted, setIdentityConsentAccepted] = useState(Boolean(initialState?.identityConsentAt))
   const [photosUploaded, setPhotosUploaded] = useState(0)
   const [identityPhase, setIdentityPhase] = useState<"intro" | "capture">("intro")
+  const [captureActionState, setCaptureActionState] = useState<CaptureActionState | null>(null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [universeLimitNotice, setUniverseLimitNotice] = useState<string | null>(null)
@@ -395,6 +396,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                     locale={locale}
                     initialConsentAccepted={identityConsentAccepted}
                     onClose={() => {}}
+                    onActionStateChange={setCaptureActionState}
                     onComplete={async (files) => {
                       setPhotosUploaded(files.length)
                       if (files.length > 0) {
@@ -551,8 +553,20 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                 <span className="sr-only">{labels.back}</span>
               </button>
 
-              {/* Capture phase: no dock CTA (MiravaIdentityCapture handles its own action buttons) */}
-              {!(stepId === "identity_permission" && identityPhase === "capture") && (
+              {/* Action Button: uses captureActionState during capture phase, otherwise standard next step button */}
+              {stepId === "identity_permission" && identityPhase === "capture" && captureActionState ? (
+                <button
+                  type="button"
+                  onClick={captureActionState.onClick}
+                  disabled={captureActionState.disabled || pending}
+                  className="group flex min-h-[52px] w-full flex-1 items-center justify-center gap-2 rounded-2xl bg-[#ede8df] px-5 font-jakarta text-sm font-semibold text-[#0d0e0e] shadow-[0_4px_20px_rgba(237,232,223,0.15)] transition-all duration-200 hover:bg-white active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-[#2c2d2e] disabled:text-white/30 disabled:shadow-none is-primary"
+                >
+                  {captureActionState.icon === "upload" && <Upload className="h-4 w-4" />}
+                  {captureActionState.icon === "loading" && <Loader2 className="h-4 w-4 animate-spin" />}
+                  <span className="truncate">{captureActionState.label}</span>
+                  {captureActionState.icon === "next" && <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />}
+                </button>
+              ) : (
                 <button
                   onClick={() => void next()}
                   disabled={!canContinue || pending}
