@@ -254,6 +254,70 @@ export const MIRAVA_UNIVERSES: MiravaUniverse[] = [
       },
     },
   },
+  {
+    id: "dubai-glamour",
+    name: { fr: "Glamour Dubaï", es: "Glamour Dubái" },
+    eyebrow: { fr: "DUBAÏ · OR · BURJ KHALIFA", es: "DUBÁI · ORO · BURJ KHALIFA" },
+    tagline: { fr: "L’élégance vibrante et envoûtante des nuits de Dubaï.", es: "La elegancia vibrante y cautivadora de las noches de Dubái." },
+    description: {
+      fr: "Soie noire, bijoux en or et flash direct sous la tour Burj Khalifa illuminée pour une campagne nocturne ultra glamour.",
+      es: "Seda negra, joyas de oro y flash directo bajo la torre Burj Khalifa iluminada para una campaña nocturna ultra glamour.",
+    },
+    image: "/visual-engine/univers/dubai-glamour.png",
+    keyElements: {
+      fr: ["Burj Khalifa illuminée", "Soie noire et bijoux en or", "Foulard en soie imprimé", "Flash nocturne et attitude audacieuse"],
+      es: ["Burj Khalifa iluminada", "Seda negra y joyas de oro", "Pañuelo de seda estampado", "Flash nocturno y actitud audaz"],
+    },
+    sampleBriefs: {
+      fr: ["Une nuit ultra glamour au pied du Burj Khalifa avec foulard de soie et bijoux or.", "Une silhouette en soie noire avec la skyline éclairée de Dubaï.", "Un portrait de nuit audacieux et magnétique sur une esplanade à Dubaï."],
+      es: ["Una noche muy glamour al pie del Burj Khalifa con pañuelo de seda y joyas doradas.", "Una silueta de seda negra con el skyline iluminado de Dubái.", "Un retrato nocturno audaz y magnético en una esplanada de Dubái."],
+    },
+    creativeDirection: {
+      location: { fr: "Esplanade privée avec vue sur le Burj Khalifa", es: "Esplanada privada con vista al Burj Khalifa" },
+      styling: { fr: "Top en soie noire, pantalon fluide et bijoux en or", es: "Top de seda negra, pantalón fluido y joyas de oro" },
+      energy: { fr: "Audacieuse, envoûtante et glamour", es: "Audaz, cautivadora y glamour" },
+      light: { fr: "Flash direct et éclairage nocturne d’architecture", es: "Flash directo e iluminación nocturna de arquitectura" },
+      photoStyle: { fr: "Portrait de nuit vibrant et éditorial jet-set", es: "Retrato nocturno vibrante y editorial jet-set" },
+      refinements: {
+        locations: { fr: ["Esplanade Burj Khalifa", "Rooftop avec vue skyline Dubaï", "Entrée de palace à Dubaï", "Promenade nocturne illuminée"], es: ["Esplanada Burj Khalifa", "Rooftop con vista skyline Dubái", "Entrada de palacio en Dubái", "Paseo nocturno iluminado"] },
+        stylings: { fr: ["Top en soie noire & foulard", "Tailoring de soirée bordeaux", "Robe du soir drapée"], es: ["Top de seda negra y pañuelo", "Sastrería de noche burdeos", "Vestido de noche drapeado"] },
+        energies: { fr: ["Audacieuse", "Envoûtante", "Magnétique"], es: ["Audaz", "Cautivadora", "Magnética"] },
+        lights: { fr: ["Flash direct nocturne", "Éclairage architectural d'or", "Reflets de gratte-ciel"], es: ["Flash directo nocturno", "Iluminación arquitectónica dorada", "Reflejos de rascacielos"] },
+      },
+    },
+  },
+  {
+    id: "athleisure-chic",
+    name: { fr: "Athleisure chic", es: "Athleisure chic" },
+    eyebrow: { fr: "FITNESS · INOX · CHIC", es: "FITNESS · ACERO · CHIC" },
+    tagline: { fr: "L’allure sportive et raffinée du quotidien.", es: "El estilo deportivo y refinado del día a día." },
+    description: {
+      fr: "Combinaison activewear mauve, cabas noir et miroir en acier inox : une esthétique fitness urbaine, naturelle et contemporaine.",
+      es: "Mono corto activewear morado, bolso negro y espejo de acero: una estética fitness urbana, natural y contemporánea.",
+    },
+    image: "/visual-engine/univers/athleisure-chic.png",
+    keyElements: {
+      fr: ["Combinaison activewear mauve", "Miroir inox contemporain", "Cabas de sport minimaliste", "Teint hâlé et posture fitness"],
+      es: ["Mono corto activewear morado", "Espejo de acero contemporáneo", "Bolso de deporte minimalista", "Piel bronceada y actitud fitness"],
+    },
+    sampleBriefs: {
+      fr: ["Un look athleisure chic en combi mauve dans un ascenseur inox.", "Une sortie du club de sport avec cabas noir et teint lumineux.", "Un selfie miroir tendance et sculpté avant une séance de training."],
+      es: ["Un look athleisure chic con mono morado en un ascensor de acero.", "Una salida del club de deporte con bolso negro y piel luminosa.", "Un selfie en espejo tendencia y esculpido antes de entrenar."],
+    },
+    creativeDirection: {
+      location: { fr: "Ascenseur en acier inox ou studio fitness premium", es: "Ascensor de acero inoxidable o estudio de fitness premium" },
+      styling: { fr: "Combi-short activewear mauve et cabas noir", es: "Mono corto activewear morado y bolso negro" },
+      energy: { fr: "Athlétique, fraîche et décontractée", es: "Atlética, fresca y relajada" },
+      light: { fr: "Éclairage néon doux et reflets métalliques", es: "Iluminación de neón suave y reflejos metálicos" },
+      photoStyle: { fr: "Selfie miroir haute définition et lifestyle athleisure", es: "Selfie en espejo de alta definición y lifestyle athleisure" },
+      refinements: {
+        locations: { fr: ["Ascenseur miroir inox", "Studio de pilates premium", "Lobby de club de sport", "Intérieur contemporain"], es: ["Ascensor con espejo de acero", "Estudio de pilates premium", "Lobby de club deportivo", "Interior contemporáneo"] },
+        stylings: { fr: ["Combi-short activewear mauve", "Set de sport sculptant neutre", "Ensemble legging & brassière"], es: ["Mono corto activewear morado", "Set de deporte moldeador neutro", "Conjunto legging y top"] },
+        energies: { fr: ["Athlétique", "Fraîche", "Décontractée"], es: ["Atlética", "Fresca", "Relajada"] },
+        lights: { fr: ["Néon doux d'ascenseur", "Reflets inox", "Lumière naturelle de studio"], es: ["Neón suave de ascensor", "Reflejos de acero", "Luz natural de estudio"] },
+      },
+    },
+  },
 ]
 
 export function getMiravaUniverse(id: string | null | undefined) {

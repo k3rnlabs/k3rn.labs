@@ -3,7 +3,7 @@ import { MIRAVA_UNIVERSES } from "@/lib/mirava/universes"
 
 describe("MIRAVA contextual creative directions", () => {
   it("gives every universe a complete bilingual direction and contextual refinements", () => {
-    expect(MIRAVA_UNIVERSES).toHaveLength(7)
+    expect(MIRAVA_UNIVERSES).toHaveLength(9)
 
     for (const universe of MIRAVA_UNIVERSES) {
       expect(universe.creativeDirection.location.fr).toBeTruthy()
