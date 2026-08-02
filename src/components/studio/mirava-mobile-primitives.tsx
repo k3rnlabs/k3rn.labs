@@ -51,7 +51,7 @@ export function MiravaMobileShell({ children, className, scrollable = false }: M
 
       <div
         className={cn(
-          "relative z-10 mx-auto flex h-dvh max-w-md flex-col px-4 pb-28 pt-24 sm:max-w-xl sm:px-6",
+          "relative z-10 mx-auto flex h-dvh max-w-md flex-col px-4 pb-28 pt-28 sm:max-w-xl sm:px-6 sm:pt-32",
           scrollable ? "overflow-y-auto" : "overflow-hidden justify-between"
         )}
       >
@@ -79,50 +79,52 @@ export function MobileProgressHeader({
   const currentStep = Math.min(totalSteps, Math.max(1, step + 1))
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 w-full">
-      <GlassSurface
-        width="100%"
-        height="auto"
-        borderRadius={20}
-        brightness={45}
-        opacity={0.95}
-        blur={14}
-        backgroundOpacity={0.2}
-        className="w-full rounded-b-2xl border-b border-white/15 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 shadow-2xl sm:px-8"
-      >
-        <div className="mx-auto w-full max-w-md sm:max-w-xl">
-          {/* 6 Step Nodes / Progress segments */}
-          <div className="flex items-center gap-1.5 py-1" role="progressbar" aria-valuemin={1} aria-valuemax={totalSteps} aria-valuenow={currentStep}>
-            {Array.from({ length: totalSteps }).map((_, index) => {
-              const isActive = index < currentStep
-              return (
-                <div key={index} className="relative h-[3.5px] flex-1 overflow-hidden rounded-full bg-white/15">
-                  <motion.div
-                    className="h-full bg-[#ede8df]"
-                    initial={{ width: 0 }}
-                    animate={{ width: isActive ? "100%" : "0%" }}
-                    transition={{ duration: 0.3, ease: "easeOut" }}
-                  />
-                </div>
-              )
-            })}
-          </div>
-
-          <div className="flex h-10 items-center justify-between py-1 text-xs">
-            {/* Compact Logo Icon */}
-            <div className="flex items-center gap-1.5 opacity-90">
-              <MiravaMark className="h-5 w-5 text-[#ede8df]" />
+    <header className="fixed top-3 left-0 right-0 z-50 px-4 sm:px-6 pointer-events-none">
+      <div className="mx-auto max-w-md sm:max-w-xl pointer-events-auto">
+        <GlassSurface
+          width="100%"
+          height="auto"
+          borderRadius={24}
+          brightness={45}
+          opacity={0.95}
+          blur={14}
+          backgroundOpacity={0.15}
+          className="w-full p-2.5 px-4 border border-white/15 shadow-[0_16px_40px_rgba(0,0,0,0.8)]"
+        >
+          <div className="w-full">
+            {/* 6 Step Nodes / Progress segments */}
+            <div className="flex items-center gap-1.5 py-0.5" role="progressbar" aria-valuemin={1} aria-valuemax={totalSteps} aria-valuenow={currentStep}>
+              {Array.from({ length: totalSteps }).map((_, index) => {
+                const isActive = index < currentStep
+                return (
+                  <div key={index} className="relative h-[3px] flex-1 overflow-hidden rounded-full bg-white/15">
+                    <motion.div
+                      className="h-full bg-[#ede8df]"
+                      initial={{ width: 0 }}
+                      animate={{ width: isActive ? "100%" : "0%" }}
+                      transition={{ duration: 0.3, ease: "easeOut" }}
+                    />
+                  </div>
+                )
+              })}
             </div>
 
-            {/* Language Badge Only */}
-            <div className="flex items-center">
-              <span className="rounded-md border border-white/15 bg-white/5 px-2 py-0.5 font-jakarta text-[9px] font-bold text-white/70 uppercase">
-                {locale.toUpperCase()}
-              </span>
+            <div className="flex h-8 items-center justify-between pt-1 text-xs">
+              {/* Compact Logo Icon */}
+              <div className="flex items-center gap-1.5 opacity-90">
+                <MiravaMark className="h-4 w-4 text-[#ede8df]" />
+              </div>
+
+              {/* Language Badge */}
+              <div className="flex items-center">
+                <span className="rounded-md border border-white/15 bg-white/5 px-2 py-0.5 font-jakarta text-[9px] font-bold text-white/70 uppercase">
+                  {locale.toUpperCase()}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
-      </GlassSurface>
+        </GlassSurface>
+      </div>
     </header>
   )
 }

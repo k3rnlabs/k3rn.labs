@@ -168,7 +168,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
             <motion.div ref={panelRef} key={stepId} tabIndex={-1} className="outline-none" initial={{ opacity: 0, y: reducedMotion ? 0 : 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25, ease: "easeOut" }}>
               {/* STEP 1: PROMISE NAME / STUDIO PERSONNEL */}
               {stepId === "promise_name" && (
-                <div className="space-y-6">
+                <div className="space-y-6 pt-2 sm:pt-3">
                   <div>
                     <span className="block font-jakarta text-[10px] font-bold tracking-[0.16em] text-[#d5c6b0] uppercase">
                       MIRAVA / STUDIO PERSONNEL
@@ -215,7 +215,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
 
               {/* STEP 2: OBJECTIVE */}
               {stepId === "objective" && (
-                <div className="space-y-6">
+                <div className="space-y-6 pt-2 sm:pt-3">
                   <div>
                     <span className="block font-jakarta text-[10px] font-bold tracking-[0.16em] text-[#d5c6b0] uppercase">
                       MIRAVA / OBJECTIF
@@ -242,7 +242,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
 
               {/* STEP 3: VISUAL UNIVERSES */}
               {stepId === "visual_universes" && (
-                <div className="space-y-5">
+                <div className="space-y-5 pt-2 sm:pt-3">
                   <div className="flex items-end justify-between gap-3">
                     <div>
                       <span className="block font-jakarta text-[10px] font-bold tracking-[0.16em] text-[#d5c6b0] uppercase">
@@ -279,7 +279,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
 
               {/* STEP 4: DIRECTION REVIEW */}
               {stepId === "direction_review" && direction && (
-                <div className="space-y-6">
+                <div className="space-y-6 pt-2 sm:pt-3">
                   <div>
                     <span className="block font-jakarta text-[10px] font-bold tracking-[0.16em] text-[#d5c6b0] uppercase">
                       MIRAVA / DIRECTION
@@ -344,7 +344,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
 
               {/* STEP 5: IDENTITY PERMISSION */}
               {stepId === "identity_permission" && (
-                <div className="space-y-6">
+                <div className="space-y-6 pt-2 sm:pt-3">
                   <div>
                     <span className="block font-jakarta text-[10px] font-bold tracking-[0.16em] text-[#d5c6b0] uppercase">
                       MIRAVA / IDENTITÉ ET CONTRÔLE
