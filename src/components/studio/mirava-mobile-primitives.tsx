@@ -71,21 +71,9 @@ export function MobileProgressHeader({
       </div>
 
       <div className="flex h-10 items-center justify-between py-1 text-xs">
-        {/* Back Button & Compact Logo Icon (No Brand Text) */}
-        <div className="flex items-center gap-2.5">
-          {canGoBack && onBack ? (
-            <button
-              type="button"
-              onClick={onBack}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/80 transition-all hover:bg-white/15 active:scale-95 shrink-0"
-              aria-label={locale === "fr" ? "Retour" : "Volver"}
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </button>
-          ) : null}
-          <div className="flex items-center gap-1.5 opacity-90">
-            <MiravaMark className="h-5 w-5 text-[#ede8df]" />
-          </div>
+        {/* Compact Logo Icon */}
+        <div className="flex items-center gap-1.5 opacity-90">
+          <MiravaMark className="h-5 w-5 text-[#ede8df]" />
         </div>
 
         {/* Language Badge Only (No redundant step number text) */}

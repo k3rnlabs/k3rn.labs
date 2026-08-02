@@ -517,7 +517,17 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
 
         {/* Action Bar (Preserving exact Vitest string contracts) */}
         <footer className="fixed bottom-0 left-0 right-0 z-40 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-          <div className="mx-auto flex max-w-md items-center rounded-[24px] border border-white/10 bg-black/80 p-2 shadow-[0_16px_40px_rgba(0,0,0,0.8)] backdrop-blur-xl sm:max-w-xl mirava-onboarding-v3-actions">
+          <div className="mx-auto flex max-w-md items-center gap-3 rounded-[24px] border border-white/10 bg-black/80 p-2 shadow-[0_16px_40px_rgba(0,0,0,0.8)] backdrop-blur-xl sm:max-w-xl mirava-onboarding-v3-actions">
+            <button
+              onClick={() => void back()}
+              disabled={step === 0 || pending}
+              aria-label={labels.back}
+              className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-black/40 text-white/80 transition-all hover:bg-white/10 hover:text-white active:scale-95 disabled:opacity-40"
+            >
+              <ArrowLeft className="h-5 w-5" />
+              <span className="sr-only">{labels.back}</span>
+            </button>
+
             <button
               onClick={() => void next()}
               disabled={!canContinue || pending}
