@@ -204,7 +204,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                           idx === 1 ? "scale-105 z-10 border-white/25 shadow-xl" : "opacity-80"
                         )}
                       >
-                        <img src={universe.image} alt="" className="h-full w-full object-cover" />
+                        <img src={universe.image} alt="" className="h-full w-full object-cover object-top" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
                       </div>
                     ))}
@@ -290,7 +290,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                   <div className="overflow-hidden rounded-[24px] border border-white/15 bg-[#121314]/90 shadow-2xl backdrop-blur-xl">
                     <div className="relative aspect-[16/9] w-full overflow-hidden bg-black">
                       {primaryUniverse && (
-                        <img src={primaryUniverse.image} alt={primaryUniverse.name[locale]} className="h-full w-full object-cover" />
+                        <img src={primaryUniverse.image} alt={primaryUniverse.name[locale]} className="h-full w-full object-cover object-top" />
                       )}
                       <div className="absolute inset-0 bg-gradient-to-t from-[#121314] via-black/40 to-transparent" />
                       <div className="absolute bottom-3 left-4 right-4 flex items-center justify-between">

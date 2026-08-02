@@ -212,7 +212,7 @@ export function UniverseCard({ universe, selected, locale, onToggle }: UniverseC
       whileTap={{ scale: 0.97 }}
       transition={{ duration: 0.15 }}
       className={cn(
-        "group relative flex aspect-[0.88] w-full flex-col justify-end overflow-hidden rounded-[22px] border text-left transition-all duration-200 focus-visible:outline-2 focus-visible:outline-[#d5c6b0]",
+        "group relative flex aspect-[0.82] w-full flex-col justify-end overflow-hidden rounded-[22px] border text-left transition-all duration-200 focus-visible:outline-2 focus-visible:outline-[#d5c6b0]",
         selected
           ? "border-[#ede8df] shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
           : "border-white/10 hover:border-white/25 shadow-lg"
@@ -222,7 +222,7 @@ export function UniverseCard({ universe, selected, locale, onToggle }: UniverseC
         src={universe.image}
         alt={universe.name[locale]}
         className={cn(
-          "absolute inset-0 h-full w-full object-cover transition-all duration-500 group-hover:scale-105",
+          "absolute inset-0 h-full w-full object-cover object-top transition-all duration-500 group-hover:scale-105",
           selected ? "scale-105 saturate-[1.05] brightness-[0.95]" : "saturate-[0.8] brightness-[0.85]"
         )}
       />

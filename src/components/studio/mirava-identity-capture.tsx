@@ -658,7 +658,7 @@ export function MiravaIdentityCapture({
           <button onClick={close} aria-label={locale === "fr" ? "Fermer" : "Cerrar"} className="mirava-button mirava-button-secondary h-12 w-12"><X className="h-4 w-4" /></button>
         </header>
         <div className="flex min-h-0 flex-1 flex-col px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-          <div className="mirava-image-frame relative min-h-0 flex-1 overflow-hidden bg-mirava-canvas-raised"><img src={pendingFrame.preview} alt={currentStep.title[locale]} className="h-full w-full object-cover" /></div>
+          <div className="mirava-image-frame relative min-h-0 flex-1 overflow-hidden bg-black grid place-items-center"><img src={pendingFrame.preview} alt={currentStep.title[locale]} className="h-full w-full object-contain" /></div>
           <div className="mx-auto w-full max-w-lg pt-5 text-center">
             <p className="font-jakarta text-2xl font-semibold tracking-[-.04em]">{locale === "fr" ? "Cette photo vous convient ?" : "¿Te gusta esta foto?"}</p>
             <p className="mirava-copy mt-2 text-sm">{currentStep.title[locale]}</p>
