@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
   replaceIdentityProfile: vi.fn(),
   appendIdentityProfile: vi.fn(),
   deleteIdentityProfile: vi.fn(),
-  updateIdentityProfilePhysicalTraits: vi.fn(),
   studioErrorResponse: vi.fn(),
   recordMiravaAudit: vi.fn(),
 }))
@@ -22,7 +21,6 @@ vi.mock("@/lib/visual-engine/core", () => ({
   replaceIdentityProfile: mocks.replaceIdentityProfile,
   appendIdentityProfile: mocks.appendIdentityProfile,
   deleteIdentityProfile: mocks.deleteIdentityProfile,
-  updateIdentityProfilePhysicalTraits: mocks.updateIdentityProfilePhysicalTraits,
   studioErrorResponse: mocks.studioErrorResponse,
 }))
 vi.mock("@/lib/visual-engine/audit", () => ({ recordMiravaAudit: mocks.recordMiravaAudit }))

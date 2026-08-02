@@ -20,4 +20,9 @@ describe("MIRAVA Stripe checkout contract", () => {
     expect(route).toContain('"Un abonnement MIRAVA est déjà actif. Gérez ou modifiez votre forfait depuis le portail d’abonnement."')
     expect(route).toContain('return apiError("Un abonnement MIRAVA est déjà actif. Gérez ou modifiez votre forfait depuis le portail d’abonnement.", 409)')
   })
+
+  it("does not return raw Stripe failures to the browser", () => {
+    expect(route).toContain('return apiError("Le paiement MIRAVA Studio est momentanément indisponible. Réessayez dans un instant.", 500)')
+    expect(route).not.toContain('return apiError(error instanceof Error ? error.message')
+  })
 })

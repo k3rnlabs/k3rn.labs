@@ -1,5 +1,5 @@
 import { verifySession } from "@/lib/auth"
-import { apiError, apiSuccess } from "@/lib/validate"
+import { miravaApiError as apiError, miravaApiSuccess as apiSuccess } from "@/lib/visual-engine/http"
 import { listStudioProfiles, studioErrorResponse } from "@/lib/visual-engine/core"
 
 export async function GET() {

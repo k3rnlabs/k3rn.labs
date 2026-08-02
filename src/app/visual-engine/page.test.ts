@@ -41,4 +41,15 @@ describe("MIRAVA public-product promises", () => {
   it("keeps a public pricing choice through the Studio entry route", () => {
     expect(pricing).toContain('href={`/visual-engine/studio?view=account&offer=${item.id}`}')
   })
+
+  it("keeps one unambiguous creation action in the mobile hero", () => {
+    expect(landing).toContain('hidden min-h-[44px] gap-2 px-5 text-xs font-semibold font-jakarta sm:inline-flex')
+    expect(landing).toContain('className="mirava-button mirava-button-primary min-h-[48px] gap-2 px-7')
+  })
+
+  it("keeps the mobile hero text inside its own layout boundary", () => {
+    expect(landing).toContain('min-h-dvh min-w-0 overflow-x-clip')
+    expect(landing).toContain('grid min-w-0 max-w-7xl')
+    expect(landing).toContain('max-w-2xl break-words')
+  })
 })

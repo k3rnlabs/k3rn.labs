@@ -23,12 +23,18 @@ self.addEventListener("fetch", (event) => {
 });
 
 self.addEventListener("push", (event) => {
-  const payload = event.data ? event.data.json() : { title: "MIRAVA Studio", body: "Votre création est prête", url: "/visual-engine/studio" };
-  event.waitUntil(self.registration.showNotification(payload.title || "MIRAVA Studio", {
-    body: payload.body || "Votre création est prête",
+  // Only an optional locale reaches the client. A notification must never
+  // expose a creation id, image, prompt or other private direction data.
+  let locale = "fr";
+  try {
+    const payload = event.data ? event.data.json() : null;
+    if (payload?.locale === "es") locale = "es";
+  } catch (_) {}
+  event.waitUntil(self.registration.showNotification("MIRAVA Studio", {
+    body: locale === "es" ? "Tu creación está lista" : "Votre création est prête",
     icon: "/visual-engine/icon.svg",
     badge: "/visual-engine/icon.svg",
-    data: { url: payload.url || "/visual-engine/studio" },
+    data: { url: "/visual-engine/studio" },
   }));
 });
 

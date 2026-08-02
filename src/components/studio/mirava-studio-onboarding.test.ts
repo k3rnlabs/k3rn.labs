@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs"
 import path from "node:path"
 import { describe, expect, it } from "vitest"
+import { MIRAVA_ONBOARDING_STEPS } from "@/lib/mirava/onboarding"
 
 describe("MIRAVA onboarding localization contracts", () => {
   const onboarding = readFileSync(
@@ -9,11 +10,11 @@ describe("MIRAVA onboarding localization contracts", () => {
   )
 
   it("localizes every visible onboarding section label", () => {
-    expect(onboarding).toContain('promise: "Une même identité. Plusieurs univers."')
-    expect(onboarding).toContain('promise: "Una misma identidad. Varios universos."')
-    expect(onboarding).toContain('direction: "Votre studio prend forme, {name}."')
-    expect(onboarding).toContain('direction: "Tu estudio toma forma, {name}."')
-    expect(onboarding).toContain('autoFocus autoComplete="given-name" aria-required="true" maxLength={48}')
+    expect(onboarding).toContain('promise: "Votre studio photo personnel, guidé de la direction au premier résultat."')
+    expect(onboarding).toContain('promise: "Tu estudio fotográfico personal, guiado desde la dirección hasta el primer resultado."')
+    expect(onboarding).toContain('objectiveCta: "Choisir mes univers"')
+    expect(onboarding).toContain('objectiveCta: "Elegir mis universos"')
+    expect(onboarding).toContain('autoFocus autoComplete="given-name"')
   })
 
   it("honors an editorial universe chosen before the onboarding begins", () => {
@@ -22,36 +23,69 @@ describe("MIRAVA onboarding localization contracts", () => {
   })
 
   it("makes both identity routes clear before the user chooses to create a profile", () => {
-    expect(onboarding).toContain("capture guidée ou import depuis votre galerie")
-    expect(onboarding).toContain("captura guiada o importación desde tu galería")
+    expect(onboarding).toContain("3 vues essentielles · environ 2 minutes")
+    expect(onboarding).toContain("3 vistas esenciales · unos 2 minutos")
+    expect(onboarding).toContain("remplacer ou les supprimer")
+    expect(onboarding).toContain("sustituirlas o eliminarlas")
   })
 
   it("saves meaningful progress and records only non-sensitive onboarding analytics", () => {
     expect(onboarding).toContain('action: "progress"')
-    expect(onboarding).toContain('onboarding_resumed')
-    expect(onboarding).toContain('onboarding_answer_submitted')
-    expect(onboarding).toContain('onboarding_completed')
-    expect(onboarding).toContain('MIRAVA_ONBOARDING_STEPS[step]')
+    expect(onboarding).toContain('objective_selected')
+    expect(onboarding).toContain('onboarding_step_viewed')
+    expect(onboarding).toContain('onboarding_activated')
+    expect(onboarding).toContain('MIRAVA_ONBOARDING_STEPS[Math.max(0, step - 1)]')
     expect(onboarding).toContain('useReducedMotion')
-    expect(onboarding).not.toContain('posthog.capture("onboarding_answer_selected", { firstName')
+    expect(onboarding).not.toContain('posthog.capture("objective_selected", { firstName')
     expect(onboarding).toContain('onCompleted(data.onboarding, name.trim())')
+  })
+
+  it("persists backward edits and uses the latest server state for activation", () => {
+    expect(onboarding).toContain("await persist(target)")
+    expect(onboarding).toContain("setOnboardingState(data.onboarding)")
+    expect(onboarding).toContain('onboardingState?.status === "session_ready"')
+    expect(onboarding).not.toContain('consequence.split(" · ")')
   })
 
   it("exposes the onboarding sequence as an actual progress indicator", () => {
     expect(onboarding).toContain('role="progressbar"')
     expect(onboarding).toContain('aria-valuemin={1}')
-    expect(onboarding).toContain('aria-valuemax={8}')
+    expect(onboarding).toContain('aria-valuemax={6}')
     expect(onboarding).toContain('aria-valuenow={step + 1}')
   })
 
   it("marks its content with the selected language for assistive technology", () => {
-    expect(onboarding).toContain('<section lang={locale} className="mirava-studio-onboarding"')
+    expect(onboarding).toContain('<section lang={locale} className="mirava-studio-onboarding-v3"')
   })
 
   it("moves each new onboarding step to the top and into keyboard focus", () => {
     expect(onboarding).toContain('window.scrollTo({ top: 0, left: 0, behavior: "auto" })')
-    expect(onboarding).toContain('const focusTimer = window.setTimeout(')
-    expect(onboarding).toContain('stepPanelRef.current?.focus({ preventScroll: true })')
-    expect(onboarding).toContain('role="region" aria-label={labels.phase[step]} tabIndex={-1}')
+    expect(onboarding).toContain('panelRef.current?.focus({ preventScroll: true })')
+    expect(onboarding).toContain('window.scrollTo({ top: 0, left: 0, behavior: "auto" })')
+    expect(onboarding).toContain('key={stepId} tabIndex={-1}')
+  })
+
+  it("confirms the goal, then auto-advances briefly while keeping back navigation", () => {
+    expect(onboarding).toContain('objectiveCta: "Choisir mes univers"')
+    expect(onboarding).toContain('objectiveCta: "Elegir mis universos"')
+    expect(onboarding).toContain('stepId === "objective" ? labels.objectiveCta')
+    expect(onboarding).toContain('stepId === "objective" ? Boolean(goal)')
+    expect(onboarding).toContain("window.setTimeout")
+    expect(onboarding).toContain("360")
+    expect(onboarding).toContain('void persist("visual_universes", { goal: choice })')
+  })
+
+  it("keeps direction, identity and activation in the actual production order", () => {
+    expect(MIRAVA_ONBOARDING_STEPS).toEqual([
+      "promise_name", "objective", "visual_universes", "direction_review", "identity_permission", "capture_activation",
+    ])
+    expect(onboarding).toContain('action: "activate"')
+  })
+
+  it("explains the three-universe limit instead of silently ignoring a fourth choice", () => {
+    expect(onboarding).toContain('universeLimit: "Trois univers maximum. Retirez-en un pour en choisir un autre."')
+    expect(onboarding).toContain('universeLimit: "Máximo tres universos. Elimina uno para elegir otro."')
+    expect(onboarding).toContain('setUniverseLimitNotice(labels.universeLimit)')
+    expect(onboarding).toContain('role="status">{universeLimitNotice}</p>')
   })
 })

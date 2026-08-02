@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server"
 import { verifySession } from "@/lib/auth"
 import { checkRateLimit } from "@/lib/rate-limit"
-import { apiError, apiSuccess } from "@/lib/validate"
+import { miravaApiError as apiError, miravaApiSuccess as apiSuccess } from "@/lib/visual-engine/http"
 import { studioErrorResponse, uploadStudioAsset } from "@/lib/visual-engine/core"
 import { recordMiravaAudit } from "@/lib/visual-engine/audit"
 

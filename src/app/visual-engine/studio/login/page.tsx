@@ -253,14 +253,14 @@ function MiravaLoginPageContent() {
   const subtitle = mode === "login" ? t.loginSubtitle : mode === "signup" ? t.signupSubtitle : t.forgotSubtitle
 
   return (
-    <main className="mirava-theme min-h-dvh bg-mirava-canvas text-mirava-ink flex flex-col">
+    <main className="mirava-theme flex min-h-dvh min-w-0 flex-col overflow-x-clip bg-mirava-canvas text-mirava-ink">
       <MiravaGrain />
       <div className="mirava-ambient pointer-events-none fixed inset-0" />
 
       {/* Top bar */}
-      <nav className="relative z-20 flex items-center justify-between px-5 pt-[max(1rem,env(safe-area-inset-top,0px))] pb-4 sm:px-8">
-        <Link href="/visual-engine" aria-label={locale === "fr" ? "Accueil MIRAVA Studio" : "Inicio MIRAVA Studio"}>
-          <MiravaWordmark />
+      <nav className="relative z-20 flex min-w-0 items-center justify-between gap-3 px-5 pb-4 pt-[max(1rem,env(safe-area-inset-top,0px))] sm:px-8">
+        <Link href="/visual-engine" aria-label={locale === "fr" ? "Accueil MIRAVA Studio" : "Inicio MIRAVA Studio"} className="min-w-0 shrink">
+          <MiravaWordmark className="max-w-full" />
         </Link>
         <button
           aria-label={locale === "fr" ? "Passer en espagnol" : "Cambiar al francés"}
@@ -272,8 +272,8 @@ function MiravaLoginPageContent() {
       </nav>
 
       {/* Centered form */}
-      <div className="relative z-10 flex flex-1 items-center justify-center px-5 pt-8 pb-28 sm:py-16">
-        <div className="w-full max-w-sm">
+      <div className="relative z-10 flex min-w-0 flex-1 items-center justify-center overflow-x-clip px-5 pb-28 pt-8 sm:py-16">
+        <div className="min-w-0 w-full max-w-sm [overflow-wrap:anywhere]">
 
           <p className="mirava-label mb-6 flex items-center gap-2">
             <Camera className="h-3.5 w-3.5" />
@@ -284,13 +284,13 @@ function MiravaLoginPageContent() {
           <p className="mirava-copy mt-3 text-sm leading-6">{subtitle}</p>
 
           {mode !== "forgot" && (
-            <div className="mt-8 flex items-center gap-1 rounded-[14px] border border-mirava-line bg-mirava-canvas-raised p-1">
+            <div className="mt-8 grid min-w-0 grid-cols-2 gap-1 rounded-[14px] border border-mirava-line bg-mirava-canvas-raised p-1">
               {(["login", "signup"] as Mode[]).map((m) => (
                 <button
                   key={m}
                   type="button"
                   onClick={() => { setMode(m); reset() }}
-                  className={`flex-1 rounded-[10px] py-2 text-xs font-semibold font-jakarta transition-all duration-150 ${
+                  className={`min-w-0 w-full rounded-[10px] px-2 py-2 text-center text-xs font-semibold font-jakarta transition-all duration-150 ${
                     mode === m
                       ? "bg-mirava-surface-raised text-mirava-ink"
                       : "text-mirava-ink-muted hover:text-mirava-ink-secondary"
@@ -327,7 +327,7 @@ function MiravaLoginPageContent() {
             {/* Password */}
             {mode !== "forgot" && (
               <div>
-                <div className="flex items-center justify-between mb-2">
+                <div className="mb-2 flex min-w-0 flex-col items-start gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-x-3">
                   <label htmlFor="mirava-password" className="text-xs font-semibold font-jakarta text-mirava-ink-secondary">
                     {t.password}
                   </label>
@@ -335,7 +335,7 @@ function MiravaLoginPageContent() {
                     <button
                       type="button"
                       onClick={() => { setMode("forgot"); reset() }}
-                      className="text-[11px] text-mirava-ink-muted hover:text-mirava-ink transition-colors"
+                      className="min-h-11 -ml-2 px-2 text-left text-[11px] text-mirava-ink-muted transition-colors hover:text-mirava-ink sm:min-h-0 sm:-mr-2 sm:ml-0"
                     >
                       {t.forgotLink}
                     </button>

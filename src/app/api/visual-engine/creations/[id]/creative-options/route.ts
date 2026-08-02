@@ -1,7 +1,8 @@
 import { NextRequest } from "next/server"
 import { verifySession } from "@/lib/auth"
 import { miravaCreativeOptionsSchema } from "@/lib/mirava/creative-options"
-import { apiError, apiSuccess, validateBody } from "@/lib/validate"
+import { validateBody } from "@/lib/validate"
+import { miravaApiError as apiError, miravaApiSuccess as apiSuccess, withMiravaPrivateHeaders } from "@/lib/visual-engine/http"
 import { studioErrorResponse, updateStudioCreationCreativeOptions } from "@/lib/visual-engine/core"
 import { recordMiravaAudit } from "@/lib/visual-engine/audit"
 
@@ -16,7 +17,7 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
   if (!session) return apiError("Unauthorized", 401)
 
   const parsed = await validateBody(requestSchema, req)
-  if ("error" in parsed) return parsed.error
+  if ("error" in parsed) return withMiravaPrivateHeaders(parsed.error)
 
   try {
     const creation = await updateStudioCreationCreativeOptions({

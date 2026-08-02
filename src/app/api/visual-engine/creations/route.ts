@@ -2,7 +2,8 @@ import { NextRequest } from "next/server"
 import { z } from "zod"
 import { verifySession } from "@/lib/auth"
 import { checkRateLimit } from "@/lib/rate-limit"
-import { apiError, apiSuccess, validateBody } from "@/lib/validate"
+import { validateBody } from "@/lib/validate"
+import { miravaApiError as apiError, miravaApiSuccess as apiSuccess, withMiravaPrivateHeaders } from "@/lib/visual-engine/http"
 import { createStudioCreation, ensureStudioActivation, listStudioCreations, studioCreationPublic, studioErrorResponse } from "@/lib/visual-engine/core"
 import { recordMiravaAudit } from "@/lib/visual-engine/audit"
 import { MIRAVA_STUDIO_PRESETS, type MiravaStudioPresetId } from "@/lib/mirava/brand"
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
   const limit = await checkRateLimit("studioCreation", `${session.userId}:${req.headers.get("x-forwarded-for") ?? "local"}`)
   if (!limit.success) return apiError("Trop de créations MIRAVA. Réessayez plus tard.", 429)
   const result = await validateBody(createSchema, req)
-  if ("error" in result) return result.error
+  if ("error" in result) return withMiravaPrivateHeaders(result.error)
   try {
     const creation = await createStudioCreation({ userId: session.userId, ...result.data, presetId: result.data.presetId as MiravaStudioPresetId | undefined })
     await recordMiravaAudit(session.userId, "CREATED", creation.id)

@@ -2,168 +2,526 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
-import { ArrowLeft, ArrowRight, Camera, Check, Images, LockKeyhole, ShieldCheck, Sparkles } from "lucide-react"
+import { ArrowLeft, ArrowRight, Camera, Check, Clock3, LockKeyhole, ShieldCheck, Sparkles, UserCheck } from "lucide-react"
 import posthog from "posthog-js"
 import { MiravaWordmark } from "@/components/mirava/mirava-wordmark"
-import {
-  MIRAVA_ONBOARDING_STEPS,
-  MIRAVA_ONBOARDING_VERSION,
-  type MiravaIdentityIntent,
-  type MiravaOnboardingGoal,
-  type MiravaOnboardingState,
-  type MiravaOnboardingStep,
-} from "@/lib/mirava/onboarding"
+import { MIRAVA_ONBOARDING_STEPS, MIRAVA_ONBOARDING_VERSION, onboardingStepIndex, type MiravaOnboardingDirection, type MiravaOnboardingGoal, type MiravaOnboardingState, type MiravaOnboardingStepId } from "@/lib/mirava/onboarding"
 import { MIRAVA_UNIVERSES, getMiravaUniverse } from "@/lib/mirava/universes"
 import { cn } from "@/lib/utils"
+import {
+  MiravaMobileShell,
+  MobileProgressHeader,
+  MiravaSelectionCard,
+  MiravaCustomCheckbox,
+  UniverseCard,
+  UniverseGrid,
+} from "./mirava-mobile-primitives"
 
 type Locale = "fr" | "es"
-type Goal = { id: MiravaOnboardingGoal; title: string; copy: string; recommendation: string }
-
-const goals: Record<Locale, Goal[]> = {
+const GOALS: Record<Locale, Array<{ id: MiravaOnboardingGoal; title: string; session: string; reason: string }>> = {
   fr: [
-    { id: "presence", title: "Développer ma présence", copy: "Des portraits cohérents pour vos profils, publications et prises de parole.", recommendation: "Portrait éditorial" },
-    { id: "campaign", title: "Créer une campagne", copy: "Une direction complète à décliner sur plusieurs images et formats.", recommendation: "Série de campagne" },
-    { id: "portfolio", title: "Construire mon portfolio", copy: "Des visuels plus expressifs pour affirmer votre signature personnelle.", recommendation: "Série signature" },
+    { id: "presence", title: "Développer ma présence", session: "Portrait éditorial", reason: "Une image cohérente pour votre profil et vos publications." },
+    { id: "campaign", title: "Créer une campagne", session: "Série cohérente", reason: "Une direction déclinable en publication, story et bannière." },
+    { id: "portfolio", title: "Construire mon portfolio", session: "Série signature", reason: "Des portraits expressifs pour votre portfolio et vos supports." },
   ],
   es: [
-    { id: "presence", title: "Desarrollar mi presencia", copy: "Retratos coherentes para tus perfiles, publicaciones e intervenciones.", recommendation: "Retrato editorial" },
-    { id: "campaign", title: "Crear una campaña", copy: "Una dirección completa para desarrollar en varias imágenes y formatos.", recommendation: "Serie de campaña" },
-    { id: "portfolio", title: "Construir mi portfolio", copy: "Visuales más expresivos para afirmar tu firma personal.", recommendation: "Serie distintiva" },
+    { id: "presence", title: "Desarrollar mi presencia", session: "Retrato editorial", reason: "Una imagen coherente para tu perfil y tus publicaciones." },
+    { id: "campaign", title: "Crear una campaña", session: "Serie coherent", reason: "Una dirección adaptable a publicación, story y banner." },
+    { id: "portfolio", title: "Construir mi portfolio", session: "Serie distintiva", reason: "Retratos expressivos para tu portfolio y tus soportes." },
   ],
 }
 
 const COPY = {
-  fr: {
-    phase: ["Votre studio", "La promesse", "Le fonctionnement", "Votre direction", "Votre intention", "Votre direction", "Votre contrôle", "Studio prêt"],
-    welcome: "Bienvenue dans votre studio photo personnel.", welcomeCopy: "Commençons par construire une direction qui vous ressemble.", name: "Comment souhaitez-vous que MIRAVA vous appelle ?", namePlaceholder: "Votre prénom", start: "Construire mon studio",
-    promise: "Une même identité. Plusieurs univers.", promiseCopy: "Mirava transforme votre direction en images cohérentes pour votre présence, vos campagnes et votre portfolio.", promiseCta: "Voir comment ça fonctionne",
-    how: "Trois gestes. Votre studio prend forme.", howCopy: "Vous n’avez pas besoin de maîtriser le vocabulaire photo. Vous choisissez, vous validez, Mirava vous aide à composer.", howCta: "Choisir ma direction", control: "Vous contrôlez les photos utilisées et chaque résultat créé.",
-    universes: "Quelles images vous attirent naturellement ?", universesCopy: "Choisissez jusqu’à trois univers. Votre sélection compose la première direction.", useUniverses: "Utiliser ces univers", selected: "univers sélectionné", selectedPlural: "univers sélectionnés", max: "Maximum trois univers.",
-    goal: "Qu’aimeriez-vous rendre visible en premier ?", goalCopy: "Votre réponse change la recommandation de votre première séance.",
-    direction: "Votre studio prend forme, {name}.", directionCopy: "Nous préparons une première direction pour {goal}, entre {universes}.", directionCta: "Préparer mon identité", editable: "Vous pourrez modifier cette direction dans votre studio.",
-    identity: "Votre identité, à votre rythme.", identityCopy: "Pour créer des images qui vous ressemblent, Mirava vous demandera trois vues simples. Vous décidez quand les préparer.", now: "Créer mon Profil Identité", nowCopy: "Trois vues privées, par capture guidée ou import depuis votre galerie.", later: "Le préparer plus tard", laterCopy: "Vous pouvez explorer votre studio maintenant. Nous le demanderons seulement avant une première création.", private: "Seules les photos que vous validez rejoignent votre Profil Identité.", device: "Le contrôle de cadrage se fait sur votre appareil avant l’envoi.", removal: "Vos photos sont consultables et supprimables depuis votre studio.",
-    ready: "Votre studio est prêt, {name}.", readyCopy: "Votre première direction est préparée. {identity}", readyNow: "Nous ouvrons votre Profil Identité pour créer des images qui vous ressemblent.", readyLater: "Vous pourrez préparer votre Profil Identité au moment de lancer une première séance.", createIdentity: "Créer mon Profil Identité", explore: "Explorer mon studio",
-    back: "Retour", saving: "Enregistrement…", step: "Séquence", identityCard: "Profil identité", directionCard: "Direction", resultsCard: "Images", camera: "Photos validées", plan: "Première séance recommandée",
-  },
-  es: {
-    phase: ["Tu estudio", "La promesa", "Cómo funciona", "Tu dirección", "Tu intención", "Tu dirección", "Tu control", "Estudio listo"],
-    welcome: "Bienvenida a tu estudio fotográfico personal.", welcomeCopy: "Empecemos a construir una dirección que se parezca a ti.", name: "¿Cómo quieres que MIRAVA te llame?", namePlaceholder: "Tu nombre", start: "Construir mi estudio",
-    promise: "Una misma identidad. Varios universos.", promiseCopy: "Mirava transforma tu dirección en imágenes coherentes para tu presencia, tus campañas y tu portfolio.", promiseCta: "Ver cómo funciona",
-    how: "Tres gestos. Tu estudio toma forma.", howCopy: "No necesitas dominar el vocabulario fotográfico. Eliges, validas y Mirava te ayuda a componer.", howCta: "Elegir mi dirección", control: "Controlas las fotos utilizadas y cada resultado creado.",
-    universes: "¿Qué imágenes te atraen de forma natural?", universesCopy: "Elige hasta tres universos. Tu selección compone la primera dirección.", useUniverses: "Usar estos universos", selected: "universo seleccionado", selectedPlural: "universos seleccionados", max: "Máximo tres universos.",
-    goal: "¿Qué te gustaría hacer visible primero?", goalCopy: "Tu respuesta cambia la recomendación de tu primera sesión.",
-    direction: "Tu estudio toma forma, {name}.", directionCopy: "Preparamos una primera dirección para {goal}, entre {universes}.", directionCta: "Preparar mi identidad", editable: "Podrás modificar esta dirección en tu estudio.",
-    identity: "Tu identidad, a tu ritmo.", identityCopy: "Para crear imágenes que se parezcan a ti, Mirava te pedirá tres vistas sencillas. Tú decides cuándo prepararlas.", now: "Crear mi Perfil de identidad", nowCopy: "Tres vistas privadas, mediante captura guiada o importación desde tu galería.", later: "Prepararlo más tarde", laterCopy: "Puedes explorar tu estudio ahora. Solo lo pediremos antes de una primera creación.", private: "Solo las fotos que validas se unen a tu Perfil de identidad.", device: "El control de encuadre se realiza en tu dispositivo antes del envío.", removal: "Puedes consultar y eliminar tus fotos desde tu estudio.",
-    ready: "Tu estudio está listo, {name}.", readyCopy: "Tu primera dirección está preparada. {identity}", readyNow: "Abrimos tu Perfil de identidad para crear imágenes que se parezcan a ti.", readyLater: "Podrás preparar tu Perfil de identidad al lanzar tu primera sesión.", createIdentity: "Crear mi Perfil de identidad", explore: "Explorar mi estudio",
-    back: "Volver", saving: "Guardando…", step: "Secuencia", identityCard: "Perfil de identidad", directionCard: "Dirección", resultsCard: "Imágenes", camera: "Fotos validadas", plan: "Primera sesión recomendada",
-  },
+  fr: { phases: ["Votre studio", "Votre objectif", "Vos univers", "Votre direction", "Votre identité", "Activation"], step: "Étape", back: "Retour", saving: "Enregistrement…", start: "Construire mon studio", name: "Comment Mirava doit-elle vous appeler ?", placeholder: "Votre prénom", promise: "Votre studio photo personnel, guidé de la direction au premier résultat.", objective: "Que voulez-vous rendre visible en premier ?", objectiveCta: "Choisir mes univers", universes: "Choisissez jusqu’à trois univers.", universeLimit: "Trois univers maximum. Retirez-en un pour en choisir un autre.", use: "Utiliser ces univers", direction: "Votre première direction", confirm: "Confirmer ma direction", identity: "Préparons les photos qui permettront à Mirava de vous ressembler.", photos: "3 vues essentielles · environ 2 minutes", privacy: "Vos photos rejoignent votre Profil Identité privé. Vous pourrez les consulter, les remplacer ou les supprimer.", processing: "Le cadrage est analysé sur votre appareil. Les photos validées sont ensuite utilisées pour vos créations Mirava.", consent: "J’ai au moins 18 ans, j’ai les droits sur ces photos et j’accepte leur conservation privée. Je comprends que les photos validées seront traitées par l’API OpenAI uniquement lorsque je demande une création MIRAVA.", camera: "Commencer mes photos", resume: "Reprendre mes photos", preparing: "Terminez votre Profil Identité pour préparer votre première séance.", ready: "Votre première séance est prête", open: "Ouvrir ma première séance", formats: "Formats recommandés", why: "Pourquoi cette direction", goalLabel: "Objectif", primaryDirection: "Direction dominante", firstSession: "Première séance", editGoal: "Modifier l’objectif", editUniverses: "Modifier les univers", saveError: "MIRAVA n’a pas pu enregistrer cette étape. Réessayez." },
+  es: { phases: ["Tu estudio", "Tu objetivo", "Tus universos", "Tu dirección", "Tu identidad", "Activación"], step: "Paso", back: "Volver", saving: "Guardando…", start: "Construir mi estudio", name: "¿Cómo debe llamarte Mirava?", placeholder: "Tu nombre", promise: "Tu estudio fotográfico personal, guiado desde la dirección hasta el primer resultado.", objective: "¿Qué quieres hacer visible primero?", objectiveCta: "Elegir mis universos", universes: "Elige hasta tres universos.", universeLimit: "Máximo tres universos. Elimina uno para elegir otro.", use: "Usar estos universos", direction: "Tu primera dirección", confirm: "Confirmar mi dirección", identity: "Preparemos las fotos que permitirán a Mirava parecerse a ti.", photos: "3 vistas esenciales · unos 2 minutos", privacy: "Tus fotos se incorporan a tu Perfil de Identidad privado. Podrás consultarlas, sustituirlas o eliminarlas.", processing: "El encuadre se analiza en tu dispositivo. Las fotos validadas se utilizan después para tus creaciones Mirava.", consent: "Tengo al menos 18 años, tengo los derechos sobre estas fotos y acepto su conservación privada. Entiendo que las fotos validadas serán tratadas por la API de OpenAI únicamente cuando solicite una creación MIRAVA.", camera: "Empezar mis fotos", resume: "Retomar mis fotos", preparing: "Termina tu Perfil de Identidad para preparar tu primera sesión.", ready: "Tu primera sesión está lista", open: "Abrir mi primera sesión", formats: "Formatos recomendados", why: "Por qué esta dirección", goalLabel: "Objetivo", primaryDirection: "Dirección dominante", firstSession: "Primera sesión", editGoal: "Modificar el objetivo", editUniverses: "Modificar los universos", saveError: "MIRAVA no ha podido guardar este paso. Inténtalo de nuevo." },
 } as const
 
-const ease = [0.22, 1, 0.36, 1] as const
-const pageMotion = { initial: { opacity: 0, y: 18 }, animate: { opacity: 1, y: 0 }, exit: { opacity: 0, y: -12 }, transition: { duration: 0.42, ease } }
-const sentence = (template: string, values: Record<string, string>) => template.replace(/\{(\w+)\}/g, (_, key) => values[key] ?? "")
+function directionFor(goal: MiravaOnboardingGoal, universeIds: string[], locale: Locale): MiravaOnboardingDirection {
+  const primaryUniverseId = universeIds[0]
+  if (!primaryUniverseId) throw new Error("MIRAVA_DIRECTION_REQUIRES_UNIVERSE")
+  if (goal === "campaign") return { primaryUniverseId, sessionType: "campaign_series", recommendedFormats: locale === "fr" ? ["Publication", "Story", "Bannière"] : ["Publicación", "Story", "Banner"] }
+  if (goal === "portfolio") return { primaryUniverseId, sessionType: "signature_series", recommendedFormats: locale === "fr" ? ["Portrait", "Portfolio", "Bannière"] : ["Retrato", "Portfolio", "Banner"] }
+  return { primaryUniverseId, sessionType: "portrait_editorial", recommendedFormats: locale === "fr" ? ["Portrait", "Publication", "Photo de profil"] : ["Retrato", "Publicación", "Foto de perfil"] }
+}
 
-export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, initialState, onCompleted }: {
-  locale: Locale
-  firstName: string | null
-  initialUniverseId?: string
-  initialState: MiravaOnboardingState | null
-  onCompleted: (state: MiravaOnboardingState, firstName: string) => void
-}) {
-  const [step, setStep] = useState<MiravaOnboardingStep>(initialState?.step ?? 0)
+export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, initialState, onStartCapture, onCompleted }: { locale: Locale; firstName: string | null; initialUniverseId?: string; initialState: MiravaOnboardingState | null; onStartCapture: (state: MiravaOnboardingState) => void; onCompleted: (state: MiravaOnboardingState, firstName: string) => void }) {
+  const labels = COPY[locale]
+  const reducedMotion = useReducedMotion()
+  const [onboardingState, setOnboardingState] = useState<MiravaOnboardingState | null>(initialState)
+  const [stepId, setStepId] = useState<MiravaOnboardingStepId>(initialState?.currentStep ?? "promise_name")
   const [name, setName] = useState(firstName ?? "")
-  const [universeIds, setUniverseIds] = useState<string[]>(() => initialState?.universeIds.length ? initialState.universeIds : initialUniverseId && getMiravaUniverse(initialUniverseId) ? [initialUniverseId] : [])
-  const [goal, setGoal] = useState<MiravaOnboardingGoal | null>(initialState?.goal ?? null)
-  const [identityIntent, setIdentityIntent] = useState<MiravaIdentityIntent | null>(initialState?.identityIntent ?? null)
+  const [goal, setGoal] = useState<MiravaOnboardingGoal | undefined>(initialState?.goal)
+  const [universeIds, setUniverseIds] = useState<string[]>(initialState?.universeIds.length ? initialState.universeIds : initialUniverseId && getMiravaUniverse(initialUniverseId) ? [initialUniverseId] : [])
+  const [identityConsentAccepted, setIdentityConsentAccepted] = useState(Boolean(initialState?.identityConsentAt))
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const trackedStartRef = useRef(false)
-  const autoAdvanceRef = useRef<number | null>(null)
-  const stepPanelRef = useRef<HTMLDivElement>(null)
-  const reducedMotion = useReducedMotion()
-  const labels = COPY[locale]
-  const selectedUniverses = universeIds.map(getMiravaUniverse).filter(Boolean)
-  const selectedNames = selectedUniverses.map((universe) => universe!.name[locale]).join(locale === "fr" ? " et " : " y ")
-  const selectedGoal = goals[locale].find((item) => item.id === goal)
+  const [universeLimitNotice, setUniverseLimitNotice] = useState<string | null>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const goalAdvanceTimerRef = useRef<number | null>(null)
+  const step = onboardingStepIndex(stepId)
+  const direction = useMemo(() => goal && universeIds.length ? directionFor(goal, universeIds, locale) : undefined, [goal, locale, universeIds])
+  const selectedGoal = GOALS[locale].find((item) => item.id === goal)
+  const primaryUniverse = getMiravaUniverse(direction?.primaryUniverseId)
 
-  useEffect(() => () => { if (autoAdvanceRef.current) window.clearTimeout(autoAdvanceRef.current) }, [])
   useEffect(() => {
-    if (trackedStartRef.current) return
-    trackedStartRef.current = true
-    posthog.capture(initialState?.status === "in_progress" ? "onboarding_resumed" : "onboarding_started", { onboarding_version: MIRAVA_ONBOARDING_VERSION, step_id: initialState?.step ?? 0 })
-  }, [initialState?.status, initialState?.step])
-  useEffect(() => { posthog.capture("onboarding_step_viewed", { onboarding_version: MIRAVA_ONBOARDING_VERSION, step_id: step, sequence_id: MIRAVA_ONBOARDING_STEPS[step] }) }, [step])
+    setOnboardingState(initialState)
+    if (initialState) setStepId(initialState.currentStep)
+  }, [initialState])
+  useEffect(() => { posthog.capture(initialState ? "onboarding_resumed" : "onboarding_started", { onboarding_version: MIRAVA_ONBOARDING_VERSION, step_id: initialState?.currentStep ?? "promise_name" }) }, [initialState])
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" })
-    const focusTimer = window.setTimeout(
-      () => stepPanelRef.current?.focus({ preventScroll: true }),
-      reducedMotion ? 0 : 460,
-    )
-    return () => window.clearTimeout(focusTimer)
-  }, [reducedMotion, step])
+    panelRef.current?.focus({ preventScroll: true })
+    posthog.capture("onboarding_step_viewed", { onboarding_version: MIRAVA_ONBOARDING_VERSION, step_id: stepId })
+    if (stepId === "identity_permission") posthog.capture("identity_explanation_viewed", { onboarding_version: MIRAVA_ONBOARDING_VERSION })
+  }, [stepId])
+  useEffect(() => () => { if (goalAdvanceTimerRef.current !== null) window.clearTimeout(goalAdvanceTimerRef.current) }, [])
 
-  const persist = async (action: "progress" | "complete", nextStep?: MiravaOnboardingStep, overrides: Partial<Pick<MiravaOnboardingState, "universeIds" | "goal" | "identityIntent">> = {}) => {
+  const persist = async (currentStep: MiravaOnboardingStepId, overrides: { firstName?: string; goal?: MiravaOnboardingGoal; universeIds?: string[]; direction?: MiravaOnboardingDirection; identityConsentAccepted?: true } = {}) => {
     setPending(true); setError(null)
-    const nextGoal = overrides.goal ?? goal
-    const nextIntent = overrides.identityIntent ?? identityIntent
-    const nextUniverses = overrides.universeIds ?? universeIds
     try {
-      const response = await fetch("/api/visual-engine/onboarding", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(action === "complete"
-        ? { action, firstName: name.trim(), universeIds: nextUniverses, goal: nextGoal, identityIntent: nextIntent }
-        : { action, step: nextStep, ...(step === 0 ? { firstName: name.trim() } : {}), ...(step === 3 ? { universeIds: nextUniverses } : {}), ...(step === 4 ? { goal: nextGoal } : {}), ...(step === 6 ? { identityIntent: nextIntent } : {}) }) })
-      const data = await response.json().catch(() => ({})) as { onboarding?: MiravaOnboardingState; error?: string }
+      const response = await fetch("/api/visual-engine/onboarding", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "progress", currentStep, ...overrides }) })
+      const data = await response.json() as { onboarding?: MiravaOnboardingState; error?: string }
       if (!response.ok || !data.onboarding) throw new Error(data.error ?? "MIRAVA_ONBOARDING_FAILED")
-      posthog.capture(action === "complete" ? "onboarding_completed" : "onboarding_answer_submitted", { onboarding_version: MIRAVA_ONBOARDING_VERSION, step_id: step, sequence_id: MIRAVA_ONBOARDING_STEPS[step] })
-      if (action === "complete") onCompleted(data.onboarding, name.trim())
-      else if (nextStep !== undefined) setStep(nextStep)
-    } catch (reason) {
-      setError(reason instanceof Error && reason.message !== "MIRAVA_ONBOARDING_FAILED" ? reason.message : (locale === "fr" ? "MIRAVA n’a pas pu enregistrer votre accueil." : "MIRAVA no ha podido guardar tu bienvenida."))
-    } finally { setPending(false) }
+      setOnboardingState(data.onboarding)
+      setStepId(data.onboarding.currentStep)
+      return data.onboarding
+    } catch { setError(labels.saveError); return null } finally { setPending(false) }
   }
-  const advance = (next = (step + 1) as MiravaOnboardingStep) => { if (!pending) void persist("progress", next) }
-  const toggleUniverse = (id: string) => {
-    setError(null)
-    setUniverseIds((current) => {
-      if (current.includes(id)) return current.filter((value) => value !== id)
-      if (current.length >= 3) { setError(labels.max); return current }
-      posthog.capture("onboarding_answer_selected", { onboarding_version: MIRAVA_ONBOARDING_VERSION, step_id: 3, answer_kind: "universe" })
-      return [...current, id]
-    })
-  }
-  const chooseGoal = (choice: MiravaOnboardingGoal) => {
-    setGoal(choice); posthog.capture("onboarding_answer_selected", { onboarding_version: MIRAVA_ONBOARDING_VERSION, step_id: 4, answer_kind: "goal" })
-    if (autoAdvanceRef.current) window.clearTimeout(autoAdvanceRef.current)
-    autoAdvanceRef.current = window.setTimeout(() => void persist("progress", 5, { goal: choice }), reducedMotion ? 0 : 520)
-  }
-  const chooseIdentity = (choice: MiravaIdentityIntent) => {
-    setIdentityIntent(choice); posthog.capture("onboarding_answer_selected", { onboarding_version: MIRAVA_ONBOARDING_VERSION, step_id: 6, answer_kind: "identity_timing" })
-    void persist("progress", 7, { identityIntent: choice })
-  }
-  const complete = () => {
-    if (!identityIntent || !goal || !universeIds.length || !name.trim() || pending) return
-    if (identityIntent === "later") posthog.capture("onboarding_step_skipped", { onboarding_version: MIRAVA_ONBOARDING_VERSION, step_id: 6, skipped: "identity" })
-    void persist("complete")
-  }
-  const primaryLabel = step === 0 ? labels.start : step === 1 ? labels.promiseCta : step === 2 ? labels.howCta : step === 3 ? labels.useUniverses : step === 5 ? labels.directionCta : identityIntent === "now" ? labels.createIdentity : labels.explore
-  const canProceed = step === 0 ? Boolean(name.trim()) : step === 3 ? universeIds.length > 0 : step !== 4 && step !== 6
 
-  return <section lang={locale} className="mirava-studio-onboarding" data-step={step}>
-    <div className="mirava-studio-onboarding-top"><MiravaWordmark /><p className="mirava-label">{labels.phase[step]} · {labels.step} {step + 1}/8</p></div>
-    <div className="mirava-onboarding-progress" role="progressbar" aria-label={labels.step} aria-valuemin={1} aria-valuemax={8} aria-valuenow={step + 1} aria-valuetext={`${labels.step} ${step + 1} ${locale === "fr" ? "sur" : "de"} 8`}><motion.span animate={{ width: `${((step + 1) / 8) * 100}%` }} transition={{ duration: reducedMotion ? 0 : 0.42, ease }} /></div>
-    <div className="mirava-studio-onboarding-content">
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.div ref={stepPanelRef} key={step} {...pageMotion} role="region" aria-label={labels.phase[step]} tabIndex={-1} transition={{ ...pageMotion.transition, duration: reducedMotion ? 0.12 : 0.42 }}>
-          {step === 0 && <div className="mirava-onboarding-welcome"><div><p className="mirava-label">MIRAVA / STUDIO PERSONNEL</p><h1 className="mirava-section-title mt-4">{labels.welcome}</h1><p className="mirava-copy mt-5 max-w-xl text-base leading-7">{labels.welcomeCopy}</p><label className="mt-10 block max-w-md"><span className="mirava-label">{labels.name}</span><input autoFocus autoComplete="given-name" aria-required="true" maxLength={48} value={name} onChange={(event) => setName(event.target.value)} placeholder={labels.namePlaceholder} className="mirava-onboarding-input mt-3" /></label></div><div className="mirava-welcome-composition" aria-hidden="true">{MIRAVA_UNIVERSES.slice(0, 3).map((universe, index) => <motion.img key={universe.id} src={universe.image} alt="" initial={{ opacity: 0, scale: 1.06 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: reducedMotion ? 0 : index * 0.12, duration: 0.6, ease }} />)}</div></div>}
-          {step === 1 && <div className="mirava-onboarding-narrative"><p className="mirava-label">MIRAVA / LA PROMESSE</p><h1 className="mirava-section-title mt-4 max-w-3xl">{labels.promise}</h1><p className="mirava-copy mt-5 max-w-xl text-base leading-7">{labels.promiseCopy}</p><div className="mirava-promise-gallery mt-10">{MIRAVA_UNIVERSES.slice(0, 4).map((universe, index) => <motion.figure key={universe.id} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: reducedMotion ? 0 : index * 0.1, duration: 0.5, ease }}><img src={universe.image} alt={universe.name[locale]} /><figcaption>{universe.name[locale]}</figcaption></motion.figure>)}</div></div>}
-          {step === 2 && <div className="mirava-onboarding-narrative"><p className="mirava-label">MIRAVA / MODE D’EMPLOI</p><h1 className="mirava-section-title mt-4 max-w-3xl">{labels.how}</h1><p className="mirava-copy mt-5 max-w-xl text-base leading-7">{labels.howCopy}</p><div className="mirava-how-flow mt-10"><div><Images /><strong>{labels.identityCard}</strong><span>{labels.camera}</span></div><ArrowRight aria-hidden="true" /><div><Sparkles /><strong>{labels.directionCard}</strong><span>{labels.phase[3]}</span></div><ArrowRight aria-hidden="true" /><div><Check /><strong>{labels.resultsCard}</strong><span>{locale === "fr" ? "À consulter et sélectionner" : "Para consultar y seleccionar"}</span></div></div><p className="mirava-onboarding-control mt-8"><ShieldCheck aria-hidden="true" />{labels.control}</p></div>}
-          {step === 3 && <div><p className="mirava-label">MIRAVA / VOS RÉFÉRENCES</p><h1 className="mirava-section-title mt-4 max-w-3xl">{labels.universes}</h1><p className="mirava-copy mt-5 max-w-xl text-base leading-7">{labels.universesCopy}</p><p className="mirava-onboarding-selection mt-7">{universeIds.length}/3 {universeIds.length === 1 ? labels.selected : labels.selectedPlural}</p><div className="mirava-onboarding-universe-grid mt-3">{MIRAVA_UNIVERSES.map((universe) => <button key={universe.id} type="button" aria-pressed={universeIds.includes(universe.id)} onClick={() => toggleUniverse(universe.id)} className={cn("mirava-onboarding-universe", universeIds.includes(universe.id) && "is-selected")}><img src={universe.image} alt="" /><span>{universe.eyebrow[locale]}</span><strong>{universe.name[locale]}</strong>{universeIds.includes(universe.id) && <Check aria-label={locale === "fr" ? "Sélectionné" : "Seleccionado"} className="h-4 w-4" />}</button>)}</div></div>}
-          {step === 4 && <div><p className="mirava-label">MIRAVA / VOTRE PREMIER OBJECTIF</p><h1 className="mirava-section-title mt-4 max-w-3xl">{labels.goal}</h1><p className="mirava-copy mt-5 max-w-xl text-base leading-7">{labels.goalCopy}</p><div className="mirava-onboarding-choice-grid mt-9">{goals[locale].map((item) => <button key={item.id} type="button" aria-pressed={goal === item.id} onClick={() => chooseGoal(item.id)} className={cn("mirava-onboarding-choice", goal === item.id && "is-selected")}><strong>{item.title}</strong><span>{item.copy}</span></button>)}</div></div>}
-          {step === 5 && <div className="mirava-onboarding-direction"><p className="mirava-label">MIRAVA / DIRECTION EN CONSTRUCTION</p><h1 className="mirava-section-title mt-4 max-w-3xl">{sentence(labels.direction, { name: name.trim() })}</h1><p className="mirava-copy mt-5 max-w-2xl text-base leading-7">{sentence(labels.directionCopy, { goal: selectedGoal?.title.toLowerCase() ?? "", universes: selectedNames })}</p><div className="mirava-direction-board mt-9">{selectedUniverses.map((universe, index) => <motion.figure key={universe!.id} layoutId={`universe-${universe!.id}`} initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: reducedMotion ? 0 : index * 0.1, ease }}><img src={universe!.image} alt={universe!.name[locale]} /><figcaption>{universe!.name[locale]}</figcaption></motion.figure>)}<div className="mirava-direction-summary"><Sparkles /><span>{labels.plan}</span><strong>{selectedGoal?.recommendation}</strong><small>{labels.editable}</small></div></div></div>}
-          {step === 6 && <div><p className="mirava-label">MIRAVA / IDENTITÉ ET CONTRÔLE</p><h1 className="mirava-section-title mt-4 max-w-3xl">{labels.identity}</h1><p className="mirava-copy mt-5 max-w-xl text-base leading-7">{labels.identityCopy}</p><div className="mirava-onboarding-trust mt-7"><p><LockKeyhole aria-hidden="true" />{labels.private}</p><p><Camera aria-hidden="true" />{labels.device}</p><p><ShieldCheck aria-hidden="true" />{labels.removal}</p></div><div className="mirava-onboarding-choice-grid mt-8">{(["now", "later"] as const).map((intent) => <button key={intent} type="button" aria-pressed={identityIntent === intent} onClick={() => chooseIdentity(intent)} className={cn("mirava-onboarding-choice", identityIntent === intent && "is-selected")}><strong>{intent === "now" ? labels.now : labels.later}</strong><span>{intent === "now" ? labels.nowCopy : labels.laterCopy}</span></button>)}</div></div>}
-          {step === 7 && <div className="mirava-onboarding-ready"><p className="mirava-label">MIRAVA / STUDIO PRÊT</p><h1 className="mirava-section-title mt-4 max-w-3xl">{sentence(labels.ready, { name: name.trim() })}</h1><p className="mirava-copy mt-5 max-w-2xl text-base leading-7">{sentence(labels.readyCopy, { identity: identityIntent === "now" ? labels.readyNow : labels.readyLater })}</p><div className="mirava-ready-board mt-9">{selectedUniverses.slice(0, 3).map((universe) => <img key={universe!.id} src={universe!.image} alt={universe!.name[locale]} />)}<div><span>{selectedGoal?.recommendation}</span><strong>{identityIntent === "now" ? labels.now : labels.later}</strong></div></div></div>}
-        </motion.div>
-      </AnimatePresence>
-    </div>
-    <div className="mirava-studio-onboarding-actions"><button type="button" className="mirava-flow-button" disabled={step === 0 || pending} onClick={() => { if (step > 0) { setError(null); posthog.capture("onboarding_back_clicked", { onboarding_version: MIRAVA_ONBOARDING_VERSION, step_id: step }); setStep((step - 1) as MiravaOnboardingStep) } }}><ArrowLeft className="h-4 w-4" /><span>{labels.back}</span></button><div className="text-right"><p className="mirava-form-error" role="status">{error}</p>{step !== 4 && step !== 6 && <button type="button" disabled={!canProceed || pending} onClick={() => step === 7 ? complete() : advance()} className="mirava-flow-button mirava-flow-button-primary"><span>{pending ? labels.saving : primaryLabel}</span><ArrowRight className="h-4 w-4" /></button>}</div></div>
-  </section>
+  const next = async () => {
+    if (stepId === "promise_name") { const saved = await persist("objective", { firstName: name.trim() }); if (saved) posthog.capture("name_saved", { onboarding_version: MIRAVA_ONBOARDING_VERSION }) }
+    else if (stepId === "objective" && goal) { if (goalAdvanceTimerRef.current !== null) window.clearTimeout(goalAdvanceTimerRef.current); await persist("visual_universes", { goal }) }
+    else if (stepId === "visual_universes" && direction) await persist("direction_review", { universeIds, direction })
+    else if (stepId === "direction_review" && direction) { const saved = await persist("identity_permission", { direction }); if (saved) posthog.capture("direction_confirmed", { onboarding_version: MIRAVA_ONBOARDING_VERSION, objective: goal, primary_universe_id: direction.primaryUniverseId }) }
+    else if (stepId === "identity_permission" && identityConsentAccepted) { const saved = await persist("capture_activation", { identityConsentAccepted: true }); if (saved) onStartCapture(saved) }
+    else if (stepId === "capture_activation" && onboardingState?.status !== "session_ready" && onboardingState) onStartCapture(onboardingState)
+    else if (stepId === "capture_activation" && onboardingState?.status === "session_ready") {
+      setPending(true); setError(null)
+      try {
+        const response = await fetch("/api/visual-engine/onboarding", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "activate" }) })
+        const data = await response.json().catch(() => ({})) as { onboarding?: MiravaOnboardingState }
+        if (!response.ok || !data.onboarding) throw new Error("MIRAVA_ONBOARDING_FAILED")
+        posthog.capture("onboarding_activated", { onboarding_version: MIRAVA_ONBOARDING_VERSION }); onCompleted(data.onboarding, name.trim())
+      } catch { setError(labels.saveError) } finally { setPending(false) }
+    }
+  }
+
+  const chooseGoal = (choice: MiravaOnboardingGoal) => {
+    setGoal(choice)
+    posthog.capture("objective_selected", { onboarding_version: MIRAVA_ONBOARDING_VERSION, objective: choice })
+    if (goalAdvanceTimerRef.current !== null) window.clearTimeout(goalAdvanceTimerRef.current)
+    goalAdvanceTimerRef.current = window.setTimeout(() => { goalAdvanceTimerRef.current = null; void persist("visual_universes", { goal: choice }) }, 360)
+  }
+
+  const goToStep = async (target: MiravaOnboardingStepId) => {
+    if (goalAdvanceTimerRef.current !== null) {
+      window.clearTimeout(goalAdvanceTimerRef.current)
+      goalAdvanceTimerRef.current = null
+    }
+    await persist(target)
+  }
+
+  const back = async () => {
+    const target = MIRAVA_ONBOARDING_STEPS[Math.max(0, step - 1)]
+    posthog.capture("onboarding_back_clicked", { onboarding_version: MIRAVA_ONBOARDING_VERSION, step_id: stepId })
+    await goToStep(target)
+  }
+
+  const toggleUniverse = (id: string) => setUniverseIds((current) => {
+    if (current.includes(id)) {
+      setUniverseLimitNotice(null)
+      posthog.capture("universe_selected", { onboarding_version: MIRAVA_ONBOARDING_VERSION, universe_id: id, selected: false })
+      return current.filter((value) => value !== id)
+    }
+    if (current.length >= 3) {
+      setUniverseLimitNotice(labels.universeLimit)
+      return current
+    }
+    setUniverseLimitNotice(null)
+    posthog.capture("universe_selected", { onboarding_version: MIRAVA_ONBOARDING_VERSION, universe_id: id, selected: true })
+    return [...current, id]
+  })
+
+  const canContinue = stepId === "promise_name" ? Boolean(name.trim()) : stepId === "objective" ? Boolean(goal) : stepId === "visual_universes" ? universeIds.length > 0 : stepId === "identity_permission" ? identityConsentAccepted : stepId === "capture_activation" ? Boolean(onboardingState) : true
+
+  return (
+    <section lang={locale} className="mirava-studio-onboarding-v3">
+      <MiravaMobileShell scrollable={stepId === "visual_universes"}>
+        {/* Progress Header */}
+        <MobileProgressHeader
+          step={step}
+          totalSteps={6}
+          locale={locale}
+          onBack={() => void back()}
+          canGoBack={step > 0 && !pending}
+        />
+
+        {/* Accessibility Progress Bar Metadata Contract */}
+        <div className="sr-only" role="progressbar" aria-valuemin={1} aria-valuemax={6} aria-valuenow={step + 1}>
+          <motion.span animate={{ width: `${((step + 1) / 6) * 100}%` }} />
+        </div>
+
+        {/* Animated Step Panel */}
+        <div className="flex-1 pb-8">
+          <AnimatePresence mode="wait">
+            <motion.div ref={panelRef} key={stepId} tabIndex={-1} className="outline-none" initial={{ opacity: 0, y: reducedMotion ? 0 : 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25, ease: "easeOut" }}>
+              {/* STEP 1: PROMISE NAME / STUDIO PERSONNEL */}
+              {stepId === "promise_name" && (
+                <div className="space-y-6">
+                  <div>
+                    <span className="block font-jakarta text-[10px] font-bold tracking-[0.16em] text-[#d5c6b0] uppercase">
+                      MIRAVA / STUDIO PERSONNEL
+                    </span>
+                    <h1 className="mt-3 font-jakarta text-3xl font-semibold tracking-[-0.04em] text-white sm:text-4xl leading-[1.12]">
+                      {labels.promise}
+                    </h1>
+                  </div>
+
+                  {/* Input Card */}
+                  <div className="rounded-[22px] border border-white/10 bg-[#121314]/80 p-5 shadow-2xl backdrop-blur-xl">
+                    <label className="block">
+                      <span className="block font-jakarta text-xs font-semibold tracking-wider text-white/70 uppercase">
+                        {labels.name}
+                      </span>
+                      <input
+                        autoFocus autoComplete="given-name"
+                        value={name}
+                        maxLength={48}
+                        onChange={(event) => setName(event.target.value)}
+                        placeholder={labels.placeholder}
+                        className="mt-3 w-full rounded-xl border border-white/15 bg-black/60 px-4 py-3.5 font-jakarta text-lg font-medium text-white placeholder-white/30 transition-all focus:border-[#ede8df] focus:bg-black/90 focus:outline-none focus:ring-1 focus:ring-[#ede8df]/40"
+                      />
+                    </label>
+                  </div>
+
+                  {/* Editorial Collage Grid */}
+                  <div className="grid grid-cols-3 gap-2.5 pt-2" aria-hidden="true">
+                    {MIRAVA_UNIVERSES.slice(0, 3).map((universe, idx) => (
+                      <div
+                        key={universe.id}
+                        className={cn(
+                          "relative aspect-[0.82] overflow-hidden rounded-2xl border border-white/10 shadow-md transition-transform duration-300",
+                          idx === 1 ? "scale-105 z-10 border-white/25 shadow-xl" : "opacity-80"
+                        )}
+                      >
+                        <img src={universe.image} alt="" className="h-full w-full object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 2: OBJECTIVE */}
+              {stepId === "objective" && (
+                <div className="space-y-6">
+                  <div>
+                    <span className="block font-jakarta text-[10px] font-bold tracking-[0.16em] text-[#d5c6b0] uppercase">
+                      MIRAVA / OBJECTIF
+                    </span>
+                    <h1 className="mt-3 font-jakarta text-3xl font-semibold tracking-[-0.04em] text-white sm:text-4xl leading-[1.12]">
+                      {labels.objective}
+                    </h1>
+                  </div>
+
+                  {/* Goal Cards */}
+                  <div className="space-y-3.5">
+                    {GOALS[locale].map((item) => (
+                      <MiravaSelectionCard
+                        key={item.id}
+                        title={item.title}
+                        subtitle={`${item.session} · ${item.reason}`}
+                        selected={goal === item.id}
+                        onClick={() => void chooseGoal(item.id)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 3: VISUAL UNIVERSES */}
+              {stepId === "visual_universes" && (
+                <div className="space-y-5">
+                  <div className="flex items-end justify-between gap-3">
+                    <div>
+                      <span className="block font-jakarta text-[10px] font-bold tracking-[0.16em] text-[#d5c6b0] uppercase">
+                        VOS UNIVERS
+                      </span>
+                      <h1 className="mt-2 font-jakarta text-2xl font-semibold tracking-[-0.04em] text-white sm:text-3xl">
+                        {labels.universes}
+                      </h1>
+                    </div>
+                    <div className="mirava-onboarding-selection rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 font-jakarta text-xs font-bold tabular-nums text-[#ede8df]">
+                      {universeIds.length}/3
+                    </div>
+                  </div>
+
+                  {/* Universe Limit Notice */}
+                  {universeLimitNotice && <p className="mirava-form-error rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200" role="status">{universeLimitNotice}</p>}
+
+                  {/* Universe Cards Grid */}
+                  <UniverseGrid>
+                    {MIRAVA_UNIVERSES.map((universe) => (
+                      <UniverseCard
+                        key={universe.id}
+                        universe={universe}
+                        selected={universeIds.includes(universe.id)}
+                        locale={locale}
+                        onToggle={() => toggleUniverse(universe.id)}
+                      />
+                    ))}
+                  </UniverseGrid>
+                </div>
+              )}
+
+              {/* STEP 4: DIRECTION REVIEW */}
+              {stepId === "direction_review" && direction && (
+                <div className="space-y-6">
+                  <div>
+                    <span className="block font-jakarta text-[10px] font-bold tracking-[0.16em] text-[#d5c6b0] uppercase">
+                      MIRAVA / DIRECTION
+                    </span>
+                    <h1 className="mt-3 font-jakarta text-3xl font-semibold tracking-[-0.04em] text-white sm:text-4xl leading-[1.12]">
+                      {labels.direction}, {name.trim()}.
+                    </h1>
+                  </div>
+
+                  {/* Direction Hero & Summary Card */}
+                  <div className="overflow-hidden rounded-[24px] border border-white/15 bg-[#121314]/90 shadow-2xl backdrop-blur-xl">
+                    <div className="relative aspect-[16/9] w-full overflow-hidden bg-black">
+                      {primaryUniverse && (
+                        <img src={primaryUniverse.image} alt={primaryUniverse.name[locale]} className="h-full w-full object-cover" />
+                      )}
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#121314] via-black/40 to-transparent" />
+                      <div className="absolute bottom-3 left-4 right-4 flex items-center justify-between">
+                        <span className="rounded-md bg-black/60 px-2.5 py-1 font-jakarta text-[10px] font-bold tracking-wider text-[#ede8df] uppercase backdrop-blur-md">
+                          {primaryUniverse?.eyebrow[locale]}
+                        </span>
+                        <span className="font-jakarta text-base font-semibold text-white">
+                          {primaryUniverse?.name[locale]}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="divide-y divide-white/10 p-5 font-jakarta text-xs">
+                      <div className="pb-3 flex justify-between items-center">
+                        <span className="text-white/50 uppercase tracking-wider font-semibold">{labels.goalLabel}</span>
+                        <span className="font-semibold text-white text-sm">{selectedGoal?.title}</span>
+                      </div>
+                      <div className="py-3 flex justify-between items-center">
+                        <span className="text-white/50 uppercase tracking-wider font-semibold">{labels.primaryDirection}</span>
+                        <span className="font-semibold text-white text-sm">{primaryUniverse?.name[locale]}</span>
+                      </div>
+                      <div className="py-3 flex justify-between items-center">
+                        <span className="text-white/50 uppercase tracking-wider font-semibold">{labels.firstSession}</span>
+                        <span className="font-semibold text-[#ede8df] text-sm">{selectedGoal?.session}</span>
+                      </div>
+                      <div className="py-3 flex justify-between items-center">
+                        <span className="text-white/50 uppercase tracking-wider font-semibold">{labels.formats}</span>
+                        <span className="font-medium text-white/80 text-right">{direction.recommendedFormats.join(" · ")}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Edit Links */}
+                  <div className="flex items-center justify-center gap-6 font-jakarta text-xs font-medium text-white/60">
+                    <button onClick={() => void goToStep("objective")} className="underline underline-offset-4 transition-colors hover:text-white">
+                      {labels.editGoal}
+                    </button>
+                    <span>·</span>
+                    <button onClick={() => void goToStep("visual_universes")} className="underline underline-offset-4 transition-colors hover:text-white">
+                      {labels.editUniverses}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 5: IDENTITY PERMISSION */}
+              {stepId === "identity_permission" && (
+                <div className="space-y-6">
+                  <div>
+                    <span className="block font-jakarta text-[10px] font-bold tracking-[0.16em] text-[#d5c6b0] uppercase">
+                      MIRAVA / IDENTITÉ ET CONTRÔLE
+                    </span>
+                    <h1 className="mt-3 font-jakarta text-2xl font-semibold tracking-[-0.04em] text-white sm:text-3xl leading-[1.15]">
+                      {labels.identity}
+                    </h1>
+                  </div>
+
+                  {/* Face ID Reticle Hero Card */}
+                  <div className="relative flex flex-col items-center justify-center overflow-hidden rounded-[24px] border border-white/15 bg-gradient-to-b from-[#18191a] to-[#111213] p-6 text-center shadow-2xl">
+                    <div className="relative mb-4 grid h-24 w-24 place-items-center rounded-full border-2 border-[#ede8df]/40 bg-black/50 p-2 shadow-[0_0_30px_rgba(237,232,223,0.15)]">
+                      <div className="absolute inset-0 rounded-full border border-dashed border-[#ede8df]/60 animate-spin-slow" />
+                      <UserCheck className="h-10 w-10 text-[#ede8df]" />
+                    </div>
+                    <strong className="block font-jakarta text-base font-semibold text-white">
+                      {labels.photos}
+                    </strong>
+                  </div>
+
+                  {/* Trust Bullet Cards */}
+                  <div className="space-y-2.5 rounded-2xl border border-white/10 bg-[#121314]/80 p-4 text-xs leading-relaxed text-white/70 backdrop-blur-xl">
+                    <div className="flex gap-3 items-start">
+                      <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0 text-[#ede8df]" />
+                      <span>{labels.privacy}</span>
+                    </div>
+                    <div className="flex gap-3 items-start pt-2 border-t border-white/5">
+                      <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#ede8df]" />
+                      <span>{labels.processing}</span>
+                    </div>
+                  </div>
+
+                  {/* Consent Checkbox */}
+                  <MiravaCustomCheckbox
+                    checked={identityConsentAccepted}
+                    onChange={setIdentityConsentAccepted}
+                    label={labels.consent}
+                  />
+                </div>
+              )}
+
+              {/* STEP 6: CAPTURE ACTIVATION */}
+              {stepId === "capture_activation" && (
+                <div className="space-y-6 pt-2">
+                  <div className="text-center">
+                    <div className="mx-auto mb-3 grid h-16 w-16 place-items-center rounded-full border border-[#ede8df]/30 bg-[#18191a] shadow-xl">
+                      <Sparkles className="h-7 w-7 text-[#ede8df]" />
+                    </div>
+                    <span className="block font-jakarta text-[10px] font-bold tracking-[0.16em] text-[#d5c6b0] uppercase">
+                      MIRAVA / ACTIVATION
+                    </span>
+                    <h1 className="mt-2 font-jakarta text-2xl font-semibold tracking-[-0.04em] text-white sm:text-3xl leading-tight">
+                      {onboardingState?.status === "session_ready" ? `${labels.ready}, ${name.trim()}.` : labels.preparing}
+                    </h1>
+                  </div>
+
+                  {/* Identity Profile Status Card */}
+                  <div className="rounded-[24px] border border-white/15 bg-[#121314]/90 p-5 shadow-2xl backdrop-blur-xl">
+                    <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                      <div>
+                        <strong className="block font-jakarta text-sm font-semibold text-white">
+                          {locale === "fr" ? "Profil Identité Privé" : "Perfil de Identidad Privado"}
+                        </strong>
+                        <span className="font-jakarta text-xs text-[#ede8df]">
+                          {onboardingState?.status === "session_ready"
+                            ? (locale === "fr" ? "4 vues sur 4 validées" : "4 vistas de 4 validadas")
+                            : (locale === "fr" ? "1 vue sur 4 validée" : "1 vista de 4 validada")}
+                        </span>
+                      </div>
+                      <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 font-jakarta text-[10px] font-bold text-emerald-400">
+                        {onboardingState?.status === "session_ready" ? "PRÊT" : "EN COURS"}
+                      </span>
+                    </div>
+
+                    {/* View Breakdown List */}
+                    <div className="mt-3.5 space-y-2.5 font-jakarta text-xs">
+                      <div className="flex items-center justify-between text-white/90">
+                        <div className="flex items-center gap-2">
+                          <Check className="h-4 w-4 text-emerald-400 stroke-[3]" />
+                          <span>{locale === "fr" ? "Face naturelle" : "Rostro natural"}</span>
+                        </div>
+                        <span className="text-[10px] text-emerald-400 font-semibold">{locale === "fr" ? "Validé" : "Validado"}</span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-white/80">
+                        <div className="flex items-center gap-2">
+                          {onboardingState?.status === "session_ready" ? (
+                            <Check className="h-4 w-4 text-emerald-400 stroke-[3]" />
+                          ) : (
+                            <div className="h-4 w-4 rounded-full border border-white/30 bg-black/40" />
+                          )}
+                          <span>{locale === "fr" ? "Profil gauche" : "Perfil izquierdo"}</span>
+                        </div>
+                        <span className="text-[10px] text-white/50">
+                          {onboardingState?.status === "session_ready" ? (locale === "fr" ? "Validé" : "Validado") : (locale === "fr" ? "Requis" : "Requerido")}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-white/80">
+                        <div className="flex items-center gap-2">
+                          {onboardingState?.status === "session_ready" ? (
+                            <Check className="h-4 w-4 text-emerald-400 stroke-[3]" />
+                          ) : (
+                            <div className="h-4 w-4 rounded-full border border-white/30 bg-black/40" />
+                          )}
+                          <span>{locale === "fr" ? "Profil droit" : "Perfil derecho"}</span>
+                        </div>
+                        <span className="text-[10px] text-white/50">
+                          {onboardingState?.status === "session_ready" ? (locale === "fr" ? "Validé" : "Validado") : (locale === "fr" ? "Requis" : "Requerido")}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-white/80">
+                        <div className="flex items-center gap-2">
+                          {onboardingState?.status === "session_ready" ? (
+                            <Check className="h-4 w-4 text-emerald-400 stroke-[3]" />
+                          ) : (
+                            <div className="h-4 w-4 rounded-full border border-white/30 bg-black/40" />
+                          )}
+                          <span>{locale === "fr" ? "Photo de plein pied" : "Foto de cuerpo entero"}</span>
+                        </div>
+                        <span className="text-[10px] text-white/50">
+                          {onboardingState?.status === "session_ready" ? (locale === "fr" ? "Validé" : "Validado") : (locale === "fr" ? "Requis" : "Requerido")}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 rounded-xl border border-white/10 bg-black/40 p-3 text-[11px] leading-relaxed text-white/70">
+                      {locale === "fr"
+                        ? "Complétez les trois vues restantes pour permettre à Mirava de conserver plus fidèlement vos traits dans chaque univers."
+                        : "Completa las vistas restantes para permitir a Mirava conservar tus rasgos con mayor fidelidad."}
+                    </div>
+                  </div>
+
+                  {onboardingState?.status === "session_ready" && direction && (
+                    <div className="rounded-2xl border border-white/10 bg-[#141516] p-4 text-left font-jakarta text-xs">
+                      <span className="block text-[10px] font-semibold text-[#d5c6b0] uppercase tracking-wider">
+                        {locale === "fr" ? "Première séance configurée" : "Primera sesión configurada"}
+                      </span>
+                      <strong className="mt-1 block font-semibold text-white text-sm">
+                        {selectedGoal?.session} — {primaryUniverse?.name[locale]}
+                      </strong>
+                    </div>
+                  )}
+                </div>
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </div>
+
+        {/* Error Notification */}
+        {error && (
+          <div role="alert" className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-200">
+            {error}
+          </div>
+        )}
+
+        {/* Action Bar (Preserving exact Vitest string contracts) */}
+        <footer className="fixed bottom-0 left-0 right-0 z-40 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <div className="mx-auto flex max-w-md items-center gap-3 rounded-[24px] border border-white/10 bg-[#121314]/90 p-2 shadow-[0_16px_40px_rgba(0,0,0,0.8)] backdrop-blur-xl sm:max-w-xl mirava-onboarding-v3-actions">
+            <button
+              onClick={() => void back()}
+              disabled={step === 0 || pending}
+              aria-label={labels.back}
+              className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-black/40 text-white/80 transition-all hover:bg-white/10 hover:text-white active:scale-95 disabled:opacity-40"
+            >
+              <ArrowLeft className="h-5 w-5" />
+              <span className="sr-only">{labels.back}</span>
+            </button>
+
+            <button
+              onClick={() => void next()}
+              disabled={!canContinue || pending}
+              className="group flex min-h-[52px] w-full flex-1 items-center justify-center gap-2 rounded-2xl bg-[#ede8df] px-5 font-jakarta text-sm font-semibold text-[#0d0e0e] shadow-[0_4px_20px_rgba(237,232,223,0.15)] transition-all duration-200 hover:bg-white active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-[#2c2d2e] disabled:text-white/30 disabled:shadow-none is-primary"
+            >
+              <span>
+                {pending ? labels.saving : stepId === "promise_name" ? labels.start : stepId === "objective" ? labels.objectiveCta : stepId === "visual_universes" ? labels.use : stepId === "direction_review" ? labels.confirm : stepId === "identity_permission" ? labels.camera : onboardingState?.status === "session_ready" ? labels.open : labels.resume}
+              </span>
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+            </button>
+          </div>
+        </footer>
+      </MiravaMobileShell>
+    </section>
+  )
 }

@@ -61,7 +61,7 @@ export async function removeMiravaPushSubscription(userId: string, endpoint: str
   if (record) await db.studioPushSubscription.delete({ where: { id: record.id, userId } })
 }
 
-export async function notifyMiravaCreationReady(userId: string, creationId: string): Promise<void> {
+export async function notifyMiravaCreationReady(userId: string, _creationId: string): Promise<void> {
   if (!isMiravaPushConfigured()) return
   webpush.setVapidDetails(
     process.env.MIRAVA_PUSH_SUBJECT!,
@@ -69,11 +69,14 @@ export async function notifyMiravaCreationReady(userId: string, creationId: stri
     process.env.MIRAVA_PUSH_PRIVATE_KEY!
   )
   const subscriptions = await db.studioPushSubscription.findMany({ where: { userId } })
-  await Promise.all(subscriptions.map(async (record: { id: string; encryptedPayload: string }) => {
+  await Promise.all(subscriptions.map(async (record: { id: string; encryptedPayload: string; locale: string }) => {
     try {
+      const body = record.locale === "es" ? "Tu creación está lista" : "Votre création est prête"
       await webpush.sendNotification(
         decrypt(record.encryptedPayload),
-        JSON.stringify({ title: "MIRAVA Studio", body: "Votre création est prête", url: `/visual-engine/studio?creation=${creationId}` }),
+        // Push content must remain generic even on a locked screen. Do not
+        // include a creation id, image URL, direction or identity data.
+        JSON.stringify({ title: "MIRAVA Studio", body, locale: record.locale === "es" ? "es" : "fr", url: "/visual-engine/studio" }),
         { TTL: 60 }
       )
     } catch (error) {

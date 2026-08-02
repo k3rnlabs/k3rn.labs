@@ -4,7 +4,8 @@ import { verifySession } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { getStripe, isStripeConfigured } from "@/lib/stripe"
-import { apiError, apiSuccess, validateBody } from "@/lib/validate"
+import { validateBody } from "@/lib/validate"
+import { miravaApiError as apiError, miravaApiSuccess as apiSuccess, withMiravaPrivateHeaders } from "@/lib/visual-engine/http"
 import { getMiravaOffer, MIRAVA_STRIPE_PRODUCT } from "@/lib/mirava/brand"
 import { isMiravaPublicLaunchEnabled } from "@/lib/mirava/server-config"
 
@@ -18,7 +19,7 @@ export async function POST(req: NextRequest) {
   const limit = await checkRateLimit("studioBilling", `${session.userId}:${req.headers.get("x-forwarded-for") ?? "local"}`)
   if (!limit.success) return apiError("Trop de demandes de paiement. Réessayez plus tard.", 429)
   const parsed = await validateBody(schema, req)
-  if ("error" in parsed) return parsed.error
+  if ("error" in parsed) return withMiravaPrivateHeaders(parsed.error)
   const offer = getMiravaOffer(parsed.data.offerId)
   if (!offer) return apiError("Offre MIRAVA introuvable.", 400)
   // MIRAVA is sold through the six catalogued Stripe prices only. Creating an
@@ -57,6 +58,6 @@ export async function POST(req: NextRequest) {
     return apiSuccess({ url: checkout.url })
   } catch (error) {
     console.error("[billing] checkout error:", error)
-    return apiError(error instanceof Error ? error.message : "Le paiement MIRAVA Studio est indisponible.", 500)
+    return apiError("Le paiement MIRAVA Studio est momentanément indisponible. Réessayez dans un instant.", 500)
   }
 }

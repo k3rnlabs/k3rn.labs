@@ -154,7 +154,7 @@ export default function MiravaLandingPage() {
   }
 
   return (
-    <main className="mirava-theme min-h-dvh overflow-hidden bg-mirava-canvas text-mirava-ink">
+    <main className="mirava-theme min-h-dvh min-w-0 overflow-x-clip bg-mirava-canvas text-mirava-ink">
       <MiravaGrain />
       <div className="mirava-ambient pointer-events-none fixed inset-0" />
 
@@ -176,7 +176,7 @@ export default function MiravaLandingPage() {
             <Link
               href="/visual-engine/studio"
               onClick={trackHeroCta}
-              className="mirava-button mirava-button-primary min-h-[44px] gap-2 px-5 text-xs font-semibold font-jakarta"
+              className="mirava-button mirava-button-primary hidden min-h-[44px] gap-2 px-5 text-xs font-semibold font-jakarta sm:inline-flex"
             >
               {t.open}
               <ArrowRight className="h-4 w-4" />
@@ -186,16 +186,16 @@ export default function MiravaLandingPage() {
       </header>
 
       {/* 2. Hero with Authentic Input/Output Demo */}
-      <section className="relative mx-auto grid max-w-7xl gap-10 px-5 pb-16 pt-10 sm:px-8 sm:pb-24 sm:pt-16 lg:grid-cols-[.9fr_1.1fr] lg:items-center">
-        <div className="relative z-10">
+      <section className="relative mx-auto grid min-w-0 max-w-7xl gap-10 px-5 pb-16 pt-10 sm:px-8 sm:pb-24 sm:pt-16 lg:grid-cols-[.9fr_1.1fr] lg:items-center">
+        <div className="relative z-10 min-w-0">
           <p className="mirava-meta inline-flex items-center gap-2 px-3.5 py-2 font-jakarta text-[10px] font-semibold tracking-[.18em]">
             <Camera className="h-3.5 w-3.5 text-mirava-accent" />
             {t.eyebrow}
           </p>
-          <h1 className="mirava-title mt-6 max-w-2xl text-[2.75rem] leading-[1.08] sm:text-6xl lg:text-[4.5rem]">
+          <h1 className="mirava-title mt-6 max-w-2xl break-words text-[2.75rem] leading-[1.08] sm:text-6xl lg:text-[4.5rem]">
             {t.title}
           </h1>
-          <p className="mirava-copy mt-6 max-w-xl text-base leading-7 sm:text-lg sm:leading-8">
+          <p className="mirava-copy mt-6 max-w-xl break-words text-base leading-7 sm:text-lg sm:leading-8">
             {t.intro}
           </p>
           <div className="mt-8 flex flex-wrap items-center gap-4">

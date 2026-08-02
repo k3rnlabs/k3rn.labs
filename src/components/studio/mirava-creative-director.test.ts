@@ -8,8 +8,8 @@ describe("MIRAVA Alma dialog contracts", () => {
     "utf8",
   )
 
-  it("keeps its message history keyboard-reachable and named", () => {
-    expect(director).toContain('role="region" tabIndex={0} aria-label={locale === "fr" ? "Historique de conversation avec Alma"')
+  it("keeps its message history keyboard-reachable, named and announced", () => {
+    expect(director).toContain('role="log" tabIndex={0} aria-live="polite" aria-relevant="additions text" aria-label={locale === "fr" ? "Historique de conversation avec Alma"')
   })
 
   it("lets Radix connect the description without overriding its generated id", () => {

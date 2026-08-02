@@ -1,5 +1,5 @@
 import { verifySession } from "@/lib/auth"
-import { apiError, apiSuccess } from "@/lib/validate"
+import { miravaApiError as apiError, miravaApiSuccess as apiSuccess } from "@/lib/visual-engine/http"
 import { deleteStudioCreation, studioCreationDTO, studioErrorResponse } from "@/lib/visual-engine/core"
 import { recordMiravaAudit } from "@/lib/visual-engine/audit"
 

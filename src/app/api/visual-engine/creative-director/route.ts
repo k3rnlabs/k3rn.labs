@@ -7,7 +7,8 @@ import { miravaCreativeOptionsSchema } from "@/lib/mirava/creative-options"
 import { limitMiravaCreativeDirectorSuggestions } from "@/lib/mirava/creative-director"
 import { getMiravaStudioPreset, MIRAVA_STUDIO_PRESETS } from "@/lib/mirava/brand"
 import { checkRateLimit } from "@/lib/rate-limit"
-import { apiError, apiSuccess, validateBody } from "@/lib/validate"
+import { validateBody } from "@/lib/validate"
+import { miravaApiError as apiError, miravaApiSuccess as apiSuccess, withMiravaPrivateHeaders } from "@/lib/visual-engine/http"
 
 const requestSchema = z.object({
   locale: z.enum(["fr", "es"]),
@@ -51,7 +52,7 @@ export async function POST(req: NextRequest) {
   if (!session) return apiError("Unauthorized", 401)
 
   const parsed = await validateBody(requestSchema, req)
-  if ("error" in parsed) return parsed.error
+  if ("error" in parsed) return withMiravaPrivateHeaders(parsed.error)
 
   const limit = await checkRateLimit("studioDirector", `${session.userId}:${req.headers.get("x-forwarded-for") ?? "local"}`)
   if (!limit.success) return apiError(parsed.data.locale === "fr" ? "La Directrice créative est momentanément indisponible." : "La Directora creativa no está disponible en este momento.", 429)

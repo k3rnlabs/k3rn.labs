@@ -81,6 +81,7 @@ describe("MIRAVA creations route", () => {
     const response = await POST(request({ ...validCreation, rightsConfirmed: false }))
 
     expect(response.status).toBe(400)
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store, max-age=0")
     expect(mocks.createStudioCreation).not.toHaveBeenCalled()
   })
 

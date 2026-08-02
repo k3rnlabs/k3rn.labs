@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import posthog from "posthog-js"
 import { MiravaGrain } from "@/components/mirava/mirava-grain"
 import { MIRAVA_MIN_IDENTITY_PHOTOS } from "@/lib/mirava/identity-profile"
 import type {
@@ -33,6 +34,13 @@ import {
 
 type Locale = "fr" | "es"
 type Phase = "intro" | "loading" | "importing" | "capture" | "review" | "summary"
+export type MiravaIdentityConsent = {
+  ageConfirmed: true
+  rightsConfirmed: true
+  retentionAccepted: true
+  privacyAccepted: true
+  openaiDisclosureAccepted: true
+}
 
 type CaptureStep = {
   id: MiravaVisionStep
@@ -70,9 +78,9 @@ const steps: CaptureStep[] = [
   },
   {
     id: "body-front",
-    title: { fr: "Silhouette face", es: "Silueta frontal" },
-    instruction: { fr: "Optionnel · Posez le téléphone et reculez jusqu’à voir vos pieds.", es: "Opcional · Apoya el teléfono y retrocede hasta ver tus pies." },
-    optional: true,
+    title: { fr: "Photo de plein pied", es: "Foto de cuerpo entero" },
+    instruction: { fr: "Reculez le téléphone jusqu’à faire apparaître l’ensemble de votre silhouette.", es: "Retrocede el teléfono hasta mostrar toda tu silueta." },
+    optional: false,
     mode: "pose",
   },
   {
@@ -86,7 +94,7 @@ const steps: CaptureStep[] = [
 
 type CapturedFrame = { stepId: MiravaVisionStep; file: File; preview: string }
 
-const STABLE_CAPTURE_MS = 250
+const STABLE_CAPTURE_MS = 1000
 
 function issueCopy(issue: MiravaVisionIssue, locale: Locale, step: CaptureStep) {
   const copy: Record<MiravaVisionIssue, Record<Locale, string>> = {
@@ -127,14 +135,16 @@ export function MiravaIdentityCapture({
   locale,
   context = "onboarding",
   existingCount = 0,
+  initialConsentAccepted = false,
   onClose,
   onComplete,
 }: {
   locale: Locale
   context?: "onboarding" | "replace" | "append"
   existingCount?: number
+  initialConsentAccepted?: boolean
   onClose: () => void
-  onComplete: (files: File[], consent: { ageConfirmed: true; rightsConfirmed: true; retentionAccepted: true }) => Promise<void>
+  onComplete: (files: File[], consent: MiravaIdentityConsent) => Promise<void>
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const analysisCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -164,7 +174,7 @@ export function MiravaIdentityCapture({
   const [stableProgress, setStableProgress] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const [legalAccepted, setLegalAccepted] = useState(false)
+  const [legalAccepted, setLegalAccepted] = useState(initialConsentAccepted)
   const [importRejected, setImportRejected] = useState<MiravaImportRejection[]>([])
   const [repairStep, setRepairStep] = useState<number | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
@@ -264,8 +274,10 @@ export function MiravaIdentityCapture({
   }, [handleVisionResult, stopWorker])
 
   const startCamera = useCallback(async () => {
+    if (!legalAccepted) return
     setCameraError(null)
     setPhase("loading")
+    posthog.capture("camera_permission_requested", { onboarding_context: context })
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "user", width: { ideal: 1920 }, height: { ideal: 1080 } },
@@ -278,12 +290,15 @@ export function MiravaIdentityCapture({
       }
       initialiseWorker(currentStep.mode)
       setPhase("capture")
+      posthog.capture("camera_permission_granted", { onboarding_context: context })
+      posthog.capture("identity_capture_started", { onboarding_context: context, view_id: currentStep.id })
     } catch {
       stopCamera()
       setCameraError(locale === "fr" ? "MIRAVA n’a pas accès à la caméra. Autorisez-la dans les réglages ou importez vos photos." : "MIRAVA no puede acceder a la cámara. Autorízala en los ajustes o sube tus fotos.")
       setPhase("intro")
+      posthog.capture("camera_permission_denied", { onboarding_context: context })
     }
-  }, [currentStep.mode, initialiseWorker, locale, stopCamera])
+  }, [context, currentStep.id, currentStep.mode, initialiseWorker, legalAccepted, locale, stopCamera])
 
   useEffect(() => {
     if (phase !== "capture") return
@@ -356,8 +371,9 @@ export function MiravaIdentityCapture({
     const frame = { stepId: currentStep.id, file, preview: URL.createObjectURL(file) }
     setPendingFrame(frame)
     setPhase("review")
+    posthog.capture("identity_photo_captured", { onboarding_context: context, view_id: currentStep.id })
     if (typeof navigator.vibrate === "function") navigator.vibrate(35)
-  }, [currentStep.id, phase])
+  }, [context, currentStep.id, phase])
 
   useEffect(() => { captureRef.current = capture }, [capture])
 
@@ -390,6 +406,7 @@ export function MiravaIdentityCapture({
       return [...current.filter((frame) => frame.stepId !== pendingFrame.stepId), pendingFrame]
     })
     setPendingFrame(null)
+    posthog.capture("identity_photo_validated", { onboarding_context: context, view_id: pendingFrame.stepId })
     if (activeStep === steps.length - 1) {
       stopCamera()
       setPhase("summary")
@@ -401,6 +418,7 @@ export function MiravaIdentityCapture({
 
   const retake = () => {
     if (pendingFrame) URL.revokeObjectURL(pendingFrame.preview)
+    if (pendingFrame) posthog.capture("identity_photo_rejected", { onboarding_context: context, view_id: pendingFrame.stepId, reason: "user_retake" })
     setPendingFrame(null)
     autoCaptureStepRef.current = null
     setPhase("capture")
@@ -424,6 +442,7 @@ export function MiravaIdentityCapture({
   }, [])
 
   const importLibrary = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!legalAccepted) return
     const selected = Array.from(event.target.files ?? []).slice(0, 6)
     event.target.value = ""
     if (!selected.length) return
@@ -433,12 +452,14 @@ export function MiravaIdentityCapture({
     setImportError(null)
     setImportRejected([])
     setPhase("importing")
+    posthog.capture("identity_library_selected", { onboarding_context: context, file_count: selected.length })
     try {
       if (context === "append") {
         const result = await validateMiravaImportedFileForStep(selected[0], currentStep.id)
         if (operation !== importOperationRef.current) return
         if (!result.valid) {
           setImportRejected([{ fileName: selected[0].name, issue: result.issue }])
+          posthog.capture("identity_photo_rejected", { onboarding_context: context, reason: result.issue })
           setPhase("summary")
           return
         }
@@ -470,6 +491,7 @@ export function MiravaIdentityCapture({
       if (operation !== importOperationRef.current) return
       if (!result.valid) {
         setImportRejected((current) => [...current, { fileName: file.name, issue: result.issue }])
+        posthog.capture("identity_photo_rejected", { onboarding_context: context, reason: result.issue })
         setPhase("summary")
         return
       }
@@ -493,7 +515,14 @@ export function MiravaIdentityCapture({
     setSubmitting(true)
     try {
       const ordered = steps.flatMap((step) => frames.filter((frame) => frame.stepId === step.id)).map((frame) => frame.file)
-      await onComplete(ordered, { ageConfirmed: true, rightsConfirmed: true, retentionAccepted: true })
+      await onComplete(ordered, {
+        ageConfirmed: true,
+        rightsConfirmed: true,
+        retentionAccepted: true,
+        privacyAccepted: true,
+        openaiDisclosureAccepted: true,
+      })
+      posthog.capture("identity_profile_completed", { onboarding_context: context, photo_count: ordered.length })
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : (locale === "fr" ? "L’enregistrement a échoué. Veuillez réessayer." : "Error al guardar. Por favor, inténtalo de nuevo."))
     } finally {
@@ -591,15 +620,21 @@ export function MiravaIdentityCapture({
             <p className="flex gap-3"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-mirava-accent" />{locale === "fr" ? "L’analyse reste sur cet appareil. Aucune vidéo ni mesure du visage n’est envoyée." : "El análisis permanece en este dispositivo. No se envía ningún vídeo ni medida del rostro."}</p>
             <p className="flex gap-3"><LockKeyhole className="mt-0.5 h-4 w-4 shrink-0 text-mirava-accent" />{locale === "fr" ? "Seules les photos que vous validez rejoignent votre Profil identité privé." : "Solo las fotos que validas se añaden a tu Perfil de identidad privado."}</p>
           </div>
+          <label className="mirava-notice mt-4 flex cursor-pointer gap-3 p-4 text-xs leading-5">
+            <input type="checkbox" checked={legalAccepted} onChange={(event) => setLegalAccepted(event.target.checked)} className="mt-1 h-5 w-5 shrink-0 accent-white" />
+            <span>{context === "onboarding"
+              ? (locale === "fr" ? "Je confirme avoir au moins 18 ans, disposer des droits sur ces photos, accepter leur conservation privée jusqu’à leur suppression et leur traitement par OpenAI pour préparer ma première séance." : "Confirmo que tengo al menos 18 años, dispongo de los derechos sobre estas fotos, acepto su conservación privada hasta que las elimine y su tratamiento por OpenAI para preparar mi primera sesión.")
+              : (locale === "fr" ? "Je confirme avoir au moins 18 ans, disposer des droits sur ces photos et accepter leur conservation privée jusqu’à leur suppression. Je comprends que les photos validées seront traitées par l’API OpenAI uniquement lorsque je demanderai une création MIRAVA." : "Confirmo que tengo al menos 18 años, dispongo de los derechos sobre estas fotos y acepto su conservación privada hasta que las elimine. Entiendo que las fotos validadas serán tratadas por la API de OpenAI únicamente cuando solicite una creación MIRAVA.")}</span>
+          </label>
           {existingCount > 0 && <p className="mirava-muted mt-4 text-center text-xs">{context === "append"
             ? (locale === "fr" ? `${existingCount}/6 photos déjà enregistrées restent intactes.` : `${existingCount}/6 fotos ya guardadas permanecen intactas.`)
             : (locale === "fr" ? `${existingCount} photo${existingCount > 1 ? "s" : ""} actuelle${existingCount > 1 ? "s" : ""} seront remplacées après validation.` : `${existingCount} foto${existingCount > 1 ? "s" : ""} actual${existingCount > 1 ? "es" : ""} se sustituirán tras la validación.`)}</p>}
           {(cameraError || importError) && <p role="alert" className="mirava-alert mt-5 flex gap-3 p-4 text-sm"><CircleAlert className="h-5 w-5 shrink-0" />{cameraError || importError}</p>}
-          <button data-dialog-initial-focus onClick={() => void startCamera()} disabled={phase === "loading"} className="mirava-button mirava-button-primary mt-7 min-h-14 w-full gap-2 px-6 text-sm">
+          <button data-dialog-initial-focus onClick={() => void startCamera()} disabled={phase === "loading" || !legalAccepted} className="mirava-button mirava-button-primary mt-5 min-h-14 w-full gap-2 px-6 text-sm">
             {phase === "loading" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Camera className="h-5 w-5" />}
             {phase === "loading" ? (locale === "fr" ? "Préparation du guide…" : "Preparando la guía…") : (locale === "fr" ? "Ouvrir la caméra" : "Abrir la cámara")}
           </button>
-          <button onClick={() => libraryInputRef.current?.click()} disabled={phase === "loading"} className="mirava-button mirava-button-secondary mt-3 min-h-14 w-full gap-2 px-6 text-sm">
+          <button onClick={() => libraryInputRef.current?.click()} disabled={phase === "loading" || !legalAccepted} className="mirava-button mirava-button-secondary mt-3 min-h-14 w-full gap-2 px-6 text-sm">
             <ImagePlus className="h-5 w-5" />
             {context === "append"
               ? (locale === "fr" ? "Choisir une photo" : "Elegir una foto")
@@ -686,10 +721,6 @@ export function MiravaIdentityCapture({
               <input ref={repairInputRef} hidden type="file" tabIndex={-1} aria-hidden="true" accept="image/jpeg,image/png,image/webp" onChange={(event) => void repairFromLibrary(event)} />
             </section>
           )}
-          <label className="mirava-notice mt-7 flex cursor-pointer gap-3 p-4 text-xs leading-5">
-            <input type="checkbox" checked={legalAccepted} onChange={(event) => setLegalAccepted(event.target.checked)} className="mt-1 h-5 w-5 shrink-0 accent-white" />
-            <span>{locale === "fr" ? "Je confirme avoir au moins 18 ans, disposer des droits sur ces photos et accepter leur conservation privée jusqu’à leur suppression depuis mon compte." : "Confirmo que tengo al menos 18 años, dispongo de los derechos sobre estas fotos y acepto su conservación privada hasta que las elimine desde mi cuenta."}</span>
-          </label>
           {!identityViewsReady && <p role="alert" className="mirava-alert mt-4 p-4 text-sm">{context === "append" ? (locale === "fr" ? "Ajoutez au moins une nouvelle vue pour continuer." : "Añade al menos una vista nueva para continuar.") : (locale === "fr" ? "Ajoutez les vues de face, 3/4 gauche et 3/4 droit pour continuer." : "Añade las vistas frontal, tres cuartos izquierdo y derecho para continuar.")}</p>}
           {submitError && (
             <div role="alert" className="mirava-alert mt-4 flex gap-3 p-4 text-sm">
@@ -699,7 +730,7 @@ export function MiravaIdentityCapture({
           )}
           <button onClick={() => void complete()} disabled={!identityViewsReady || !legalAccepted || submitting} className="mirava-button mirava-button-primary mt-5 min-h-14 w-full gap-2 px-6 text-sm">
             {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShieldCheck className="h-5 w-5" />}
-            {submitting ? (locale === "fr" ? "Enregistrement privé…" : "Guardando de forma privada…") : context === "append" ? (locale === "fr" ? "Ajouter à mon profil" : "Añadir a mi perfil") : (locale === "fr" ? "Enregistrer mon profil" : "Guardar mi perfil")}
+            {submitting ? (locale === "fr" ? "Enregistrement privé…" : "Guardando de forma privada…") : context === "append" ? (locale === "fr" ? "Ajouter à mon profil" : "Añadir a mi perfil") : context === "onboarding" ? (locale === "fr" ? "Enregistrer mon profil et préparer ma séance" : "Guardar mi perfil y preparar mi sesión") : (locale === "fr" ? "Enregistrer mon profil" : "Guardar mi perfil")}
           </button>
         </div>
       </div>
@@ -709,10 +740,10 @@ export function MiravaIdentityCapture({
   const instruction = visionIssue === "ready" && stableProgress > 0 ? issueCopy("hold-still", locale, currentStep) : issueCopy(visionIssue, locale, currentStep)
 
   return (
-    <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={dialogLabel} className="mirava-theme mirava-capture-shell fixed inset-0 z-50 overflow-hidden bg-black text-white">
-      <video ref={videoRef} autoPlay muted playsInline className="absolute inset-0 h-full w-full scale-x-[-1] object-cover object-center max-h-[100dvh]" />
+    <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={dialogLabel} className="mirava-theme mirava-capture-shell fixed inset-0 z-50 overflow-hidden bg-black text-white isolate h-full w-full">
+      <video ref={videoRef} autoPlay muted playsInline className="absolute inset-0 h-full w-full min-h-full min-w-full scale-x-[-1] object-cover object-center bg-black z-0" />
       <canvas ref={analysisCanvasRef} className="hidden" />
-      <div className="mirava-camera-shade absolute inset-0" />
+      <div className="mirava-camera-shade absolute inset-0 z-0 pointer-events-none bg-gradient-to-b from-black/60 via-transparent to-black/80" />
       <AppleFaceIdOverlay
         locale={locale}
         mode={currentStep.mode}
@@ -721,7 +752,7 @@ export function MiravaIdentityCapture({
         stepId={currentStep.id}
       />
 
-      <header className="mirava-capture-safe-top absolute inset-x-0 top-0 z-10 flex items-center justify-between px-4">
+      <header className="absolute top-0 inset-x-0 z-30 flex items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3">
         <button onClick={close} aria-label={locale === "fr" ? "Fermer" : "Cerrar"} className="mirava-capture-round-control"><X className="h-5 w-5" /></button>
         <div className="flex items-center gap-1.5" aria-label={`${activeStep + 1} / ${steps.length}`}>
           {steps.map((step, index) => <span key={step.id} className={cn("h-1.5 rounded-full transition-[width,background-color]", index === activeStep ? "w-7 bg-white" : frames.some((frame) => frame.stepId === step.id) ? "w-2 bg-mirava-success" : "w-2 bg-white/35")} />)}
@@ -729,16 +760,16 @@ export function MiravaIdentityCapture({
         <button onClick={() => { stopCamera(); setPhase("summary") }} disabled={!identityViewsReady} className="mirava-capture-round-control" aria-label={locale === "fr" ? "Voir le récapitulatif" : "Ver el resumen"}><Images className="h-5 w-5" /></button>
       </header>
 
-      <div className="absolute inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-10 mx-auto max-w-md rounded-[var(--mirava-radius)] border border-white/15 bg-black/75 px-4 py-3 text-center shadow-2xl backdrop-blur-xl">
-        <div aria-live="polite" aria-atomic="true" className={cn("mx-auto inline-flex min-h-7 items-center gap-1.5 rounded-[var(--mirava-radius)] border px-2.5 py-1 text-[11px] font-semibold transition-all duration-200", visionIssue === "ready" ? "border-emerald-500/60 bg-emerald-500/20 text-emerald-400 shadow-[0_0_16px_rgba(16,185,129,0.35)]" : "border-white/15 bg-white/8 text-white")}>
+      <div className="absolute inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30 mx-auto max-w-md rounded-[24px] border border-white/15 bg-black/85 px-4 py-3.5 text-center shadow-2xl backdrop-blur-2xl">
+        <div aria-live="polite" aria-atomic="true" className={cn("mx-auto inline-flex min-h-7 items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold transition-all duration-200", visionIssue === "ready" ? "border-emerald-500/60 bg-emerald-500/20 text-emerald-400 shadow-[0_0_16px_rgba(16,185,129,0.35)]" : "border-white/15 bg-white/10 text-white")}>
           {visionIssue === "loading" ? <Loader2 className="h-3 w-3 animate-spin" /> : visionIssue === "ready" ? <Check className="h-3.5 w-3.5 text-emerald-400 stroke-[3]" /> : null}
           {instruction}
         </div>
         <p className="mt-1.5 font-jakarta text-lg font-semibold tracking-[-.035em]">{currentStep.title[locale]}</p>
-        <p className="mx-auto mt-0.5 max-w-xs text-[11px] leading-4 text-white/68">{currentStep.instruction[locale]}</p>
-        <div className="mt-2.5 flex items-center justify-between px-2">
+        <p className="mx-auto mt-0.5 max-w-xs text-[11px] leading-4 text-white/70">{currentStep.instruction[locale]}</p>
+        <div className="mt-3 flex items-center justify-between px-2">
           {currentStep.optional ? (
-            <button onClick={skip} className="w-12 text-left text-xs font-semibold text-white/72 hover:text-white">{locale === "fr" ? "Passer" : "Omitir"}</button>
+            <button onClick={skip} className="min-h-12 w-12 text-left text-xs font-semibold text-white/72 hover:text-white">{locale === "fr" ? "Passer" : "Omitir"}</button>
           ) : (
             <span className="w-12" />
           )}
@@ -747,7 +778,7 @@ export function MiravaIdentityCapture({
             <span className="absolute inset-0 rounded-full" style={{ background: `conic-gradient(#10B981 ${stableProgress * 360}deg, transparent 0)` }} />
             <span className={cn("relative grid h-11 w-11 place-items-center rounded-full transition-colors", visionIssue === "ready" ? "bg-emerald-400 text-black shadow-[0_0_16px_rgba(16,185,129,0.8)]" : "bg-white text-black")}><Camera className="h-5 w-5" /></span>
           </button>
-          <span className="w-12 text-right text-xs font-semibold text-white/55">{activeStep + 1}/{steps.length}</span>
+          <span className="w-12 text-right text-xs font-semibold text-white/60">{activeStep + 1}/{steps.length}</span>
         </div>
       </div>
     </div>
@@ -768,40 +799,39 @@ function AppleFaceIdOverlay({
   stepId: MiravaVisionStep
 }) {
   const isPerfect = visionIssue === "ready"
-  const isReady = visionIssue === "ready" || visionIssue === "hold-still"
 
   // 60 tick marks around the circle like iOS Face ID setup
   const TICK_COUNT = 60
 
   return (
-    <div className="pointer-events-none absolute left-1/2 top-[40%] -translate-x-1/2 -translate-y-1/2 z-10 flex flex-col items-center justify-center">
+    <div className="pointer-events-none absolute left-1/2 top-[28%] -translate-x-1/2 -translate-y-1/2 z-10 flex flex-col items-center justify-center">
       <div className="relative flex items-center justify-center">
         {/* Circle viewport mask outline */}
         <div
           className={cn(
-            "relative grid place-items-center transition-all duration-300 shadow-[0_0_0_9999px_rgba(0,0,0,0.85)]",
+            "relative grid place-items-center transition-all duration-300 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]",
             mode === "pose"
-              ? "h-[58vh] w-[46vw] max-w-[220px] max-h-[350px] rounded-3xl"
-              : "h-[68vw] w-[68vw] max-w-[270px] max-h-[270px] rounded-full",
+              ? "h-[45vh] w-[38vw] max-w-[180px] max-h-[290px] rounded-3xl"
+              : "h-[48vw] w-[48vw] max-w-[200px] max-h-[200px] rounded-full",
             isPerfect
-              ? "ring-4 ring-[#30D158] shadow-[0_0_40px_rgba(48,209,88,0.5),0_0_0_9999px_rgba(0,0,0,0.85)] scale-[1.02]"
+              ? "ring-4 ring-[#30D158] shadow-[0_0_30px_rgba(48,209,88,0.5),0_0_0_9999px_rgba(0,0,0,0.45)] scale-[1.02]"
               : "ring-2 ring-white/20"
           )}
         >
-          {/* Directional 3D Arrow inside circle for turn steps (Face ID Style) */}
+          {/* Directional 3D Arrow inside circle for turn steps */}
           {stepId === "left" && !isPerfect && (
             <div className="absolute inset-0 grid place-items-center text-[#30D158] animate-pulse">
-              <div className="flex items-center gap-2 bg-black/60 px-4 py-2 rounded-2xl backdrop-blur-md border border-[#30D158]/40 shadow-2xl">
-                <span className="text-3xl font-light">←</span>
-                <span className="text-xs font-bold tracking-wider uppercase">{locale === "fr" ? "Gauche" : "Izquierda"}</span>
+              <div className="flex items-center gap-2 bg-black/60 px-3.5 py-1.5 rounded-2xl backdrop-blur-md border border-[#30D158]/40 shadow-2xl">
+                <span className="text-2xl font-light">←</span>
+                <span className="text-[10px] font-bold tracking-wider uppercase">{locale === "fr" ? "Gauche" : "Izquierda"}</span>
               </div>
             </div>
           )}
           {stepId === "right" && !isPerfect && (
             <div className="absolute inset-0 grid place-items-center text-[#30D158] animate-pulse">
-              <div className="flex items-center gap-2 bg-black/60 px-4 py-2 rounded-2xl backdrop-blur-md border border-[#30D158]/40 shadow-2xl">
-                <span className="text-xs font-bold tracking-wider uppercase">{locale === "fr" ? "Droite" : "Derecha"}</span>
-                <span className="text-3xl font-light">→</span>
+              <div className="flex items-center gap-2 bg-black/60 px-3.5 py-1.5 rounded-2xl backdrop-blur-md border border-[#30D158]/40 shadow-2xl">
+                <span className="text-[10px] font-bold tracking-wider uppercase">{locale === "fr" ? "Droite" : "Derecha"}</span>
+                <span className="text-2xl font-light">→</span>
               </div>
             </div>
           )}
@@ -809,14 +839,13 @@ function AppleFaceIdOverlay({
 
         {/* 60 Radial Ticks Ring around the Circle (Apple Face ID Ring) */}
         <svg
-          className="absolute -inset-8 h-[calc(100%+4rem)] w-[calc(100%+4rem)] overflow-visible pointer-events-none"
+          className="absolute -inset-4 h-[calc(100%+2rem)] w-[calc(100%+2rem)] overflow-visible pointer-events-none"
           viewBox="0 0 100 100"
           preserveAspectRatio="none"
         >
           {Array.from({ length: TICK_COUNT }).map((_, index) => {
             const angle = (index * 360) / TICK_COUNT - 90
             const rad = (angle * Math.PI) / 180
-            const tickProgress = (index + 1) / TICK_COUNT
             const isFilled = isPerfect || (stableProgress > 0 && index / TICK_COUNT <= stableProgress)
 
             const rxInner = 48
@@ -847,8 +876,8 @@ function AppleFaceIdOverlay({
       </div>
 
       {/* Main Guidance Text under Circle */}
-      <div className="mt-7 px-6 text-center max-w-xs">
-        <p className="text-base font-medium text-white/90 tracking-tight leading-snug">
+      <div className="mt-3 px-6 text-center max-w-xs">
+        <p className="text-xs font-semibold text-white/90 tracking-tight leading-snug">
           {stepId === "left"
             ? (locale === "fr" ? "Tournez la tête vers la gauche pour compléter le cercle." : "Gira la cabeza hacia la izquierda para completar el círculo.")
             : stepId === "right"

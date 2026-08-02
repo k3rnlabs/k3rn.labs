@@ -1,5 +1,5 @@
 import { verifySession } from "@/lib/auth"
-import { apiError, apiSuccess } from "@/lib/validate"
+import { miravaApiError as apiError, miravaApiSuccess as apiSuccess } from "@/lib/visual-engine/http"
 import { MIRAVA_CREDIT_PACKS, MIRAVA_SUBSCRIPTION_PLANS } from "@/lib/mirava/brand"
 import { ensureMiravaActivation, getMiravaAccount } from "@/lib/visual-engine/credits"
 

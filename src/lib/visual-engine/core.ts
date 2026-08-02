@@ -25,6 +25,14 @@ export const MIN_IDENTITY_ASSETS = MIRAVA_MIN_IDENTITY_PHOTOS
 export const RECOMMENDED_IDENTITY_ASSETS = MIRAVA_RECOMMENDED_IDENTITY_PHOTOS
 export const MAX_IDENTITY_ASSETS = MIRAVA_MAX_IDENTITY_PHOTOS
 
+export function canAutoGenerateMiravaCreation(identityAssetCount: number): boolean {
+  return identityAssetCount >= MIN_IDENTITY_ASSETS && identityAssetCount <= MAX_IDENTITY_ASSETS
+}
+
+export function isMiravaGenerationAlreadyDurable(status: StudioStatus): boolean {
+  return status === "GENERATION_QUEUED" || status === "GENERATING" || status === "COMPLETED"
+}
+
 export type StudioCreationRecord = {
   id: string
   userId: string
@@ -383,20 +391,12 @@ export async function getIdentityProfilePublic(userId: string) {
     const { data } = await supabaseAdmin.storage.from(STUDIO_BUCKET).createSignedUrl(asset.storagePath, 120)
     return data?.signedUrl ? { id: asset.id, url: data.signedUrl, createdAt: asset.createdAt } : null
   }))
-  const physicalTraits = parsePhysicalTraits((profile as unknown as Record<string, unknown>).physicalTraits)
   return {
     id: profile.id as string,
     assetCount: assets.length,
     updatedAt: profile.updatedAt as string,
-    physicalTraits,
     previews: previews.filter((preview): preview is NonNullable<typeof preview> => preview !== null),
   }
-}
-
-export async function updateIdentityProfilePhysicalTraits(userId: string, traits: PhysicalTrait[]): Promise<void> {
-  const profile = await db.studioIdentityProfile.findUnique({ where: { userId } })
-  if (!profile) throw new StudioError("Profil identité introuvable.", "NOT_FOUND")
-  await db.studioIdentityProfile.update({ where: { id: profile.id, userId }, data: { physicalTraits: { items: traits } } })
 }
 
 export async function replaceIdentityProfile(args: {
@@ -435,7 +435,19 @@ export async function replaceIdentityProfile(args: {
     await db.studioIdentityAsset.create({ data: { id, identityProfileId: profile.id, userId: args.userId, storagePath, mimeType: file.mimeType, bytes: file.buffer.length } })
   }
   if (args.creationId) {
-    await db.studioCreation.update({ where: { id: args.creationId, userId: args.userId }, data: { identityProfileId: profile.id } })
+    const linkedCreation = asCreation(await db.studioCreation.update({ where: { id: args.creationId, userId: args.userId }, data: { identityProfileId: profile.id } }))
+    // A personal-reference analysis may have completed while the client was
+    // preparing their identity profile. The final required input is now here,
+    // so continue the already approved creation without asking for a second
+    // "generate" click.
+    if (linkedCreation.status === "MASTER_PROMPT_READY" && canAutoGenerateMiravaCreation(args.files.length)) {
+      try {
+        await queueStudioGeneration({ userId: args.userId, creationId: linkedCreation.id })
+      } catch {
+        // The creation remains ready and recoverable from its normal screen if
+        // a transient queue failure occurs; never fail a completed identity upload.
+      }
+    }
   }
   return getIdentityProfilePublic(args.userId)
 }
@@ -583,6 +595,10 @@ export async function queueStudioAnalysis(userId: string, creationId: string): P
 
 export async function queueStudioGeneration(args: { userId: string; creationId: string }): Promise<void> {
   const creation = await getStudioCreationForUser(args.userId, args.creationId)
+  // The browser can resume after a lost response, and the worker can continue
+  // a reference once identity is complete. Treat an already durable generation
+  // as success so neither path can create a second job or second debit.
+  if (isMiravaGenerationAlreadyDurable(creation.status)) return
   if (creation.status !== "MASTER_PROMPT_READY") throw new StudioError("L’analyse artistique doit être terminée avant la génération.", "INVALID_STATE")
   const masterPrompt = creation.masterPrompt?.trim()
   if (!masterPrompt || masterPrompt.length < 80 || masterPrompt.length > 12000) throw new StudioError("La direction artistique enregistrée est invalide.", "INVALID_PROMPT")
@@ -852,10 +868,19 @@ async function processStudioJob(job: StudioJobRecord): Promise<void> {
       const profile = existingProfile
         ? await db.studioProfile.update({ where: { id: existingProfile.id, userId: creation.userId }, data: { creativeDirectionSummary: extracted.creativeDirectionSummary, masterPrompt: extracted.masterPrompt, negativePrompt: extracted.negativePrompt } })
         : await db.studioProfile.create({ data: { userId: creation.userId, sourceCreationId: creation.id, name: profileName(), creativeDirectionSummary: extracted.creativeDirectionSummary, masterPrompt: extracted.masterPrompt, negativePrompt: extracted.negativePrompt } })
-      await db.studioCreation.update({ where: { id: creation.id }, data: { status: "MASTER_PROMPT_READY", studioProfileId: profile.id, creativeDirectionSummary: extracted.creativeDirectionSummary, masterPrompt: extracted.masterPrompt, negativePrompt: extracted.negativePrompt } })
+      const analysedCreation = asCreation(await db.studioCreation.update({ where: { id: creation.id }, data: { status: "MASTER_PROMPT_READY", studioProfileId: profile.id, creativeDirectionSummary: extracted.creativeDirectionSummary, masterPrompt: extracted.masterPrompt, negativePrompt: extracted.negativePrompt } }))
       await supabaseAdmin.storage.from(STUDIO_BUCKET).remove([reference.storagePath])
       await db.studioAsset.update({ where: { id: reference.id, creationId: creation.id }, data: { deletedAt: new Date().toISOString() } })
       await debitMiravaCreditReservation(creation.userId, creation.id, studioKey("studio-analysis-debit", creation.id))
+      const identityAssets = await getIdentityAssetsForCreation(analysedCreation)
+      if (canAutoGenerateMiravaCreation(identityAssets.length)) {
+        try {
+          await queueStudioGeneration({ userId: creation.userId, creationId: creation.id })
+        } catch {
+          // The finished art direction is still usable from the normal creation
+          // screen. A later retry must not invalidate the completed analysis.
+        }
+      }
     } else if (job.kind === "GENERATE") {
       const requestedResultCount = getMiravaSeriesSize(creation.creativeOptions)
       const existingResults = await getStudioAssets(creation.id, "RESULT")

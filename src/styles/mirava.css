@@ -371,7 +371,7 @@
 }
 
 .mirava-camera-shade {
-  background: linear-gradient(to bottom, rgb(0 0 0 / 0.16), transparent 35%, rgb(0 0 0 / 0.62));
+  background: linear-gradient(to bottom, rgb(0 0 0 / 0.08), transparent 38%, rgb(0 0 0 / 0.42));
 }
 
 .mirava-camera-mask {
@@ -1012,6 +1012,266 @@
   min-height: 100dvh;
   padding: max(1.25rem, env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right)) max(1.25rem, env(safe-area-inset-bottom)) max(1.25rem, env(safe-area-inset-left));
   position: relative;
+}
+
+/* MIRAVA onboarding V3: one viewport, one scroll region, persistent actions. */
+.mirava-studio-onboarding-v3 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+  padding-inline: max(1rem, env(safe-area-inset-left)) max(1rem, env(safe-area-inset-right));
+}
+
+.mirava-studio-onboarding-v3 > * { min-width: 0; }
+
+.mirava-onboarding-v3-header {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  min-height: calc(3.5rem + env(safe-area-inset-top));
+  padding-top: env(safe-area-inset-top);
+}
+
+.mirava-onboarding-v3-header span {
+  color: var(--mirava-ink-secondary);
+  font-family: var(--font-jakarta), sans-serif;
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  line-height: 1.25;
+  max-width: 10rem;
+  text-align: right;
+  text-transform: uppercase;
+}
+
+.mirava-studio-onboarding-v3 > .mirava-onboarding-progress { margin-top: 0; }
+
+.mirava-onboarding-v3-scroll {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding: clamp(1.25rem, 4vh, 2.5rem) 0 1.5rem;
+  scrollbar-gutter: stable;
+}
+
+.mirava-onboarding-v3-panel {
+  margin: 0 auto;
+  max-width: 64rem;
+  outline: none;
+}
+
+.mirava-onboarding-v3-panel h1 {
+  color: var(--mirava-ink);
+  font-family: var(--font-jakarta), sans-serif;
+  font-size: clamp(1.65rem, 7vw, 3.4rem);
+  font-weight: 600;
+  letter-spacing: -0.055em;
+  line-height: 1.08;
+  margin-top: 0.75rem;
+  max-width: 48rem;
+}
+
+.mirava-onboarding-v3-intro {
+  align-items: center;
+  display: grid;
+  gap: clamp(1.25rem, 5vw, 4rem);
+  grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.8fr);
+}
+
+.mirava-onboarding-v3-intro label {
+  color: var(--mirava-accent);
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  margin-top: 2rem;
+  text-transform: uppercase;
+}
+
+.mirava-onboarding-v3-intro input {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--mirava-line-strong);
+  border-radius: 0;
+  color: var(--mirava-ink);
+  display: block;
+  font: 500 clamp(1.5rem, 7vw, 2.4rem)/1.2 var(--font-jakarta), sans-serif;
+  margin-top: 0.6rem;
+  outline: 0;
+  padding: 0.7rem 0;
+  width: 100%;
+}
+
+.mirava-onboarding-v3-intro input:focus { border-color: var(--mirava-ink); }
+.mirava-onboarding-v3-intro input::placeholder { color: var(--mirava-ink-muted); }
+
+.mirava-onboarding-v3-collage { aspect-ratio: 4 / 3; position: relative; }
+.mirava-onboarding-v3-collage img { border: 1px solid var(--mirava-line); height: 72%; object-fit: cover; position: absolute; width: 50%; }
+.mirava-onboarding-v3-collage img:nth-child(1) { left: 0; top: 0; }
+.mirava-onboarding-v3-collage img:nth-child(2) { right: 0; top: 12%; }
+.mirava-onboarding-v3-collage img:nth-child(3) { bottom: 0; left: 25%; }
+
+.mirava-onboarding-v3-choices { display: grid; gap: 0.65rem; margin-top: 1.5rem; max-width: 48rem; }
+.mirava-onboarding-v3-choices button {
+  align-items: center;
+  background: rgb(var(--mirava-surface-rgb) / 0.68);
+  border: 1px solid var(--mirava-line);
+  border-radius: var(--mirava-radius);
+  color: var(--mirava-ink-secondary);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 5rem;
+  padding: 1rem;
+  text-align: left;
+}
+.mirava-onboarding-v3-choices button strong { color: var(--mirava-ink); font: 600 1rem/1.2 var(--font-jakarta), sans-serif; }
+.mirava-onboarding-v3-choices button span { font-size: 0.75rem; grid-column: 1; line-height: 1.45; margin-top: 0.35rem; }
+.mirava-onboarding-v3-choices button svg { color: var(--mirava-accent); grid-column: 2; grid-row: 1 / 3; height: 1.25rem; width: 1.25rem; }
+
+.mirava-onboarding-v3-universes {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 0.75rem;
+}
+.mirava-onboarding-v3-universes button {
+  aspect-ratio: 0.88;
+  background: var(--mirava-surface-raised);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 22px;
+  color: var(--mirava-ink);
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+  text-align: left;
+  transition: transform 180ms ease-out, border-color 180ms ease-out, box-shadow 180ms ease-out;
+}
+.mirava-onboarding-v3-universes button:active {
+  transform: scale(0.97);
+}
+.mirava-onboarding-v3-universes button::after {
+  background: linear-gradient(180deg, transparent 35%, rgba(5, 6, 6, 0.95) 90%);
+  content: "";
+  inset: 0;
+  position: absolute;
+  pointer-events: none;
+}
+.mirava-onboarding-v3-universes img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+  transition: transform 400ms cubic-bezier(0.22, 1, 0.36, 1), filter 300ms ease;
+  filter: saturate(0.8) brightness(0.88);
+}
+.mirava-onboarding-v3-universes button:hover img,
+.mirava-onboarding-v3-universes button.is-selected img {
+  filter: saturate(1.05) brightness(0.98);
+  transform: scale(1.04);
+}
+.mirava-onboarding-v3-universes span, .mirava-onboarding-v3-universes strong {
+  bottom: 2.2rem;
+  font-size: 0.52rem;
+  left: 0.85rem;
+  letter-spacing: 0.12em;
+  position: absolute;
+  right: 0.85rem;
+  text-transform: uppercase;
+  z-index: 1;
+  color: rgba(255, 255, 255, 0.72);
+}
+.mirava-onboarding-v3-universes strong {
+  bottom: 0.85rem;
+  font: 600 0.92rem/1.2 var(--font-jakarta), sans-serif;
+  letter-spacing: -0.02em;
+  text-transform: none;
+  color: var(--mirava-ink);
+}
+.mirava-onboarding-v3-universes svg {
+  background: #ede8df;
+  border-radius: 999px;
+  color: #0d0e0e;
+  height: 1.45rem;
+  padding: 0.25rem;
+  position: absolute;
+  right: 0.65rem;
+  top: 0.65rem;
+  width: 1.45rem;
+  z-index: 2;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+.mirava-onboarding-v3-choices button.is-selected {
+  border-color: var(--mirava-accent);
+  box-shadow: 0 0 0 2px rgb(var(--mirava-accent-rgb) / 0.2);
+}
+.mirava-onboarding-v3-universes button.is-selected {
+  border-color: #ede8df;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(237, 232, 223, 0.3);
+}
+
+.mirava-onboarding-v3-summary { display: grid; gap: 1rem; grid-template-columns: minmax(10rem, 0.65fr) minmax(0, 1fr); margin-top: 1.5rem; max-width: 54rem; }
+.mirava-onboarding-v3-summary > img { aspect-ratio: 4 / 5; height: 100%; object-fit: cover; width: 100%; }
+.mirava-onboarding-v3-summary dl { background: rgb(var(--mirava-surface-rgb) / 0.68); border: 1px solid var(--mirava-line); margin: 0; padding: 1rem; }
+.mirava-onboarding-v3-summary dl div + div { border-top: 1px solid var(--mirava-line); margin-top: 0.75rem; padding-top: 0.75rem; }
+.mirava-onboarding-v3-summary dt { color: var(--mirava-ink-muted); font-size: 0.58rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+.mirava-onboarding-v3-summary dd { color: var(--mirava-ink); font: 600 0.9rem/1.4 var(--font-jakarta), sans-serif; margin: 0.25rem 0 0; }
+.mirava-onboarding-v3-edit { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; margin-top: 0.75rem; }
+.mirava-onboarding-v3-edit button { align-items: center; color: var(--mirava-ink-secondary); display: inline-flex; font-size: 0.75rem; min-height: 2.75rem; padding: 0.5rem 0; text-decoration: underline; text-underline-offset: 0.2rem; }
+
+.mirava-onboarding-v3-trust { display: grid; gap: 0.65rem; margin-top: 1.5rem; max-width: 46rem; }
+.mirava-onboarding-v3-trust p { align-items: flex-start; background: rgb(var(--mirava-surface-rgb) / 0.62); border: 1px solid var(--mirava-line); color: var(--mirava-ink-secondary); display: flex; font-size: 0.8rem; gap: 0.75rem; line-height: 1.5; margin: 0; padding: 0.9rem; }
+.mirava-onboarding-v3-trust svg { color: var(--mirava-accent); flex: 0 0 auto; height: 1.15rem; margin-top: 0.1rem; width: 1.15rem; }
+.mirava-onboarding-v3-consent { align-items: flex-start; border: 1px solid var(--mirava-line-strong); color: var(--mirava-ink-secondary); cursor: pointer; display: flex; font-size: 0.72rem; gap: 0.75rem; line-height: 1.5; margin-top: 0.75rem; max-width: 46rem; padding: 0.9rem; }
+.mirava-onboarding-v3-consent input { accent-color: var(--mirava-accent); flex: 0 0 auto; height: 1.15rem; margin-top: 0.1rem; width: 1.15rem; }
+.mirava-onboarding-v3-activation { background: var(--mirava-surface-raised); border: 1px solid var(--mirava-line); display: flex; flex-direction: column; gap: 0.5rem; margin-top: 1.5rem; max-width: 40rem; padding: 1.25rem; }
+.mirava-onboarding-v3-activation strong { font: 600 1.2rem/1.3 var(--font-jakarta), sans-serif; }
+.mirava-onboarding-v3-activation span { color: var(--mirava-ink-secondary); font-size: 0.8rem; }
+
+.mirava-onboarding-v3-actions {
+  align-items: center;
+  background: linear-gradient(180deg, rgb(var(--mirava-canvas-rgb) / 0.8), var(--mirava-canvas) 24%);
+  display: flex;
+  gap: 0.6rem;
+  justify-content: space-between;
+  min-height: calc(4.5rem + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  position: relative;
+}
+.mirava-onboarding-v3-actions > button { align-items: center; border: 1px solid var(--mirava-line-strong); border-radius: var(--mirava-radius); color: var(--mirava-ink-secondary); display: inline-flex; gap: 0.5rem; justify-content: center; min-height: 3.25rem; padding: 0.75rem 1rem; }
+.mirava-onboarding-v3-actions > button.is-primary { background: var(--mirava-ink); border-color: var(--mirava-ink); color: var(--mirava-canvas); font-weight: 700; margin-left: auto; }
+.mirava-onboarding-v3-actions > button:disabled { cursor: not-allowed; opacity: 0.4; }
+.mirava-onboarding-v3-actions svg { height: 1.1rem; width: 1.1rem; }
+.mirava-onboarding-v3-actions > p { bottom: 100%; color: var(--mirava-danger); font-size: 0.7rem; margin: 0; position: absolute; right: 0; }
+
+@media (max-width: 48rem) {
+  .mirava-onboarding-v3-header { gap: 8px; }
+  .mirava-onboarding-v3-header > span:last-child { max-width: 120px; }
+  .mirava-onboarding-v3-wordmark { font-size: 0.875rem; gap: 8px; }
+  .mirava-onboarding-v3-intro { grid-template-columns: 1fr; }
+  .mirava-onboarding-v3-collage { margin: 0 auto; max-height: 12rem; width: min(100%, 21rem); }
+  .mirava-onboarding-v3-universes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mirava-onboarding-v3-summary { grid-template-columns: minmax(7rem, 0.52fr) minmax(0, 1fr); }
+  .mirava-onboarding-v3-actions { gap: 8px; }
+  .mirava-onboarding-v3-actions > button { min-width: 0; padding-inline: 12px; }
+  .mirava-onboarding-v3-actions > button:first-of-type { flex: 0 0 52px; padding-inline: 8px; }
+  .mirava-onboarding-v3-actions > button:first-of-type span { display: none; }
+  .mirava-onboarding-v3-actions > button.is-primary { flex: 1 1 0; margin-left: 0; }
+  .mirava-onboarding-v3-actions > button span { min-width: 0; overflow-wrap: anywhere; }
+}
+
+@media (max-width: 24rem), (max-height: 43rem) {
+  .mirava-onboarding-v3-header { min-height: calc(3rem + env(safe-area-inset-top)); }
+  .mirava-onboarding-v3-scroll { padding-top: 1rem; }
+  .mirava-onboarding-v3-panel h1 { font-size: 1.55rem; }
+  .mirava-onboarding-v3-collage { max-height: 8.5rem; }
+  .mirava-onboarding-v3-choices { gap: 0.45rem; margin-top: 1rem; }
+  .mirava-onboarding-v3-choices button { min-height: 4.2rem; padding: 0.75rem; }
+  .mirava-onboarding-v3-universes button { aspect-ratio: 16 / 10; }
+  .mirava-onboarding-v3-actions > button { min-height: 3rem; padding: 0.65rem 0.8rem; }
 }
 
 .mirava-studio-onboarding-top,

@@ -24,10 +24,8 @@ import {
   CircleAlert,
   Download,
   Images,
-  LayoutGrid,
   Loader2,
   MessageCircle,
-  Plus,
   RotateCcw,
   ShieldCheck,
   Trash2,
@@ -40,7 +38,7 @@ import { BlurText } from "@/components/mirava/blur-text"
 import { enableMiravaPush, MiravaInstallButton } from "@/components/mirava/mirava-pwa"
 import { useMiravaLocale } from "@/components/mirava/mirava-locale"
 import { MiravaCreativeDirector } from "@/components/studio/mirava-creative-director"
-import { MiravaIdentityCapture } from "@/components/studio/mirava-identity-capture"
+import { MiravaIdentityCapture, type MiravaIdentityConsent } from "@/components/studio/mirava-identity-capture"
 import { MiravaStudioOnboarding } from "@/components/studio/mirava-studio-onboarding"
 import { BottomNavBar, type BottomNavItem } from "@/components/ui/bottom-nav-bar"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -49,9 +47,9 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import type { MiravaCreativeOptions } from "@/lib/mirava/creative-options"
 import { isMiravaOnboardingCompleted, type MiravaOnboardingState } from "@/lib/mirava/onboarding"
 import { isMiravaIdentityProfileReady, MIRAVA_MAX_IDENTITY_PHOTOS, MIRAVA_MIN_IDENTITY_PHOTOS } from "@/lib/mirava/identity-profile"
-import { BODY_ZONE_LABELS, MAX_DESCRIPTION_LENGTH, MAX_TRAITS, TRAIT_KIND_EMOJIS, TRAIT_KIND_LABELS, BODY_ZONES, TRAIT_KINDS, type BodyZone, type PhysicalTrait, type TraitKind } from "@/lib/mirava/physical-traits"
 import { MIRAVA_UNIVERSES, getMiravaUniverse, type MiravaUniverse } from "@/lib/mirava/universes"
 import { cn } from "@/lib/utils"
+import posthog from "posthog-js"
 
 type Locale = "fr" | "es"
 type Status = "DRAFT" | "ANALYSIS_QUEUED" | "ANALYSING" | "IDENTITY_READY" | "GENERATION_QUEUED" | "GENERATING" | "COMPLETED" | "FAILED" | "CANCELLED"
@@ -72,7 +70,7 @@ type Creation = {
 }
 type Detail = { creation: Creation; assets: Asset[]; resultUrl: string | null; resultUrls: string[]; completedResultCount: number; studioCredits: number }
 type Studio = { id: string; name: string; presetId: string | null; createdAt: string; updatedAt: string }
-type IdentityProfile = { id: string; assetCount: number; updatedAt: string; physicalTraits: PhysicalTrait[]; previews: Array<{ id: string; url: string; createdAt: string }> } | null
+type IdentityProfile = { id: string; assetCount: number; updatedAt: string; previews: Array<{ id: string; url: string; createdAt: string }> } | null
 type Offer = { id: string; name: string; credits: number; priceEur: number; kind: "pack" | "subscription" }
 type Account = { credits: number; subscription: { planId: string | null; status: string | null; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean } | null; plans: Offer[]; packs: Offer[] }
 type Consents = { adult: boolean; rights: boolean; privacy: boolean; provider: boolean }
@@ -510,7 +508,9 @@ export function VisualEngineStudio() {
         await api(`/api/visual-engine/creations/${data.creation.id}/assets`, { method: "POST", body: form })
         await api(`/api/visual-engine/creations/${data.creation.id}/analyze`, { method: "POST" })
       }
-      if (isMiravaIdentityProfileReady(identityProfile)) {
+      // A preset is immediately ready; a personal reference first enters the
+      // durable analysis job and the worker queues its generation afterwards.
+      if (presetId && isMiravaIdentityProfileReady(identityProfile)) {
         await api(`/api/visual-engine/creations/${data.creation.id}/generate`, { method: "POST" })
       }
       await refresh(data.creation.id)
@@ -539,16 +539,82 @@ export function VisualEngineStudio() {
     })
   }
 
+  const prepareOnboardingSession = async (onboarding: MiravaOnboardingState, consent: MiravaIdentityConsent) => {
+    const presetId = onboarding.direction?.primaryUniverseId ?? onboarding.universeIds[0]
+    if (!presetId || !onboarding.identityConsentAt) throw new Error(locale === "fr" ? "Confirmez d’abord l’utilisation de vos photos." : "Confirma primero el uso de tus fotos.")
+
+    // A network response can disappear after the server has recorded the first
+    // session. Read the durable onboarding state before creating anything so a
+    // retry resumes that exact session rather than leaving a second draft.
+    const latestOnboarding = await api<{ onboarding: MiravaOnboardingState | null }>("/api/visual-engine/onboarding")
+    if (latestOnboarding.onboarding?.status === "session_ready" && latestOnboarding.onboarding.firstSessionId) {
+      setMiravaOnboarding(latestOnboarding.onboarding)
+      // This call is intentionally idempotent server-side. It recovers the
+      // narrow case where the session was saved but the first queue response
+      // was lost before the browser could receive it.
+      await api(`/api/visual-engine/creations/${latestOnboarding.onboarding.firstSessionId}/generate`, { method: "POST" })
+      setCurrent(await api<Detail>(`/api/visual-engine/creations/${latestOnboarding.onboarding.firstSessionId}`))
+      return latestOnboarding.onboarding.firstSessionId
+    }
+
+    const session = await api<{ creation: Creation }>("/api/visual-engine/creations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ageConfirmed: consent.ageConfirmed,
+        rightsConfirmed: consent.rightsConfirmed,
+        privacyAccepted: consent.privacyAccepted,
+        openaiDisclosureAccepted: consent.openaiDisclosureAccepted,
+        presetId,
+        creativeOptions: { seriesSize: 1, note: onboarding.goal ? `onboarding:${onboarding.goal}` : "onboarding" },
+      }),
+    })
+    const activation = await api<{ onboarding: MiravaOnboardingState }>("/api/visual-engine/onboarding", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "session_ready", firstSessionId: session.creation.id }),
+    })
+    posthog.capture("first_session_created", { onboarding_version: onboarding.version, objective: onboarding.goal, primary_universe_id: presetId })
+    // The onboarding direction is a preset and the private identity profile is
+    // already complete. Queue the first image while the client confirms the
+    // final activation, so there is no additional production choice to make.
+    await api(`/api/visual-engine/creations/${session.creation.id}/generate`, { method: "POST" })
+    setMiravaOnboarding(activation.onboarding)
+    setCurrent(await api<Detail>(`/api/visual-engine/creations/${session.creation.id}`))
+    return session.creation.id
+  }
+
+  const startOrResumeOnboarding = async (onboarding: MiravaOnboardingState) => {
+    setMiravaOnboarding(onboarding)
+    if (!isMiravaIdentityProfileReady(identityProfile)) {
+      openCapture("onboarding")
+      return
+    }
+    setPending("onboarding-activation")
+    setError(null)
+    try {
+      const creationId = await prepareOnboardingSession(onboarding, {
+        ageConfirmed: true, rightsConfirmed: true, retentionAccepted: true,
+        privacyAccepted: true, openaiDisclosureAccepted: true,
+      })
+      await refresh(creationId)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : (locale === "fr" ? "La première séance n’a pas pu être préparée." : "No se ha podido preparar la primera sesión."))
+    } finally {
+      setPending(null)
+    }
+  }
+
   const uploadIdentityFiles = async (
     files: File[],
-    consent?: { ageConfirmed: true; rightsConfirmed: true; retentionAccepted: true },
+    consent?: MiravaIdentityConsent,
     mode: "replace" | "append" = "replace",
   ) => {
     const remaining = MIRAVA_MAX_IDENTITY_PHOTOS - (identityProfile?.assetCount ?? 0)
     const invalidCount = mode === "append"
       ? files.length < 1 || files.length > remaining
       : files.length < MIRAVA_MIN_IDENTITY_PHOTOS || files.length > MIRAVA_MAX_IDENTITY_PHOTOS
-    if (invalidCount || (!current && !consent)) {
+    if (invalidCount || (!current && !consent) || (captureContext === "onboarding" && (!consent?.privacyAccepted || !consent.openaiDisclosureAccepted))) {
       const msg = mode === "append"
         ? (locale === "fr" ? `Ajoutez entre une et ${Math.max(1, remaining)} photo(s).` : `Añade entre una y ${Math.max(1, remaining)} foto(s).`)
         : (locale === "fr" ? "Sélectionnez entre trois et six photos." : "Selecciona entre tres y seis fotos.")
@@ -559,6 +625,7 @@ export function VisualEngineStudio() {
     setError(null)
     clearNotice()
     try {
+      let refreshCreationId = current?.creation.id
       const form = new FormData()
       form.set("mode", mode)
       if (current) form.set("creationId", current.creation.id)
@@ -569,8 +636,12 @@ export function VisualEngineStudio() {
       }
       files.forEach((file) => form.append("file", file))
       await api("/api/visual-engine/identity-profile", { method: "POST", body: form })
+      if (captureContext === "onboarding" && miravaOnboarding && !isMiravaOnboardingCompleted(miravaOnboarding)) {
+        if (!consent) throw new Error(locale === "fr" ? "Le consentement est requis avant de préparer la séance." : "Se requiere el consentimiento antes de preparar la sesión.")
+        refreshCreationId = await prepareOnboardingSession(miravaOnboarding, consent)
+      }
       closeCapture()
-      await refresh(current?.creation.id)
+      await refresh(refreshCreationId)
     } catch (reason) {
       const msg = reason instanceof Error && reason.message !== "MIRAVA_REQUEST_FAILED" ? reason.message : (locale === "fr" ? "MIRAVA n’a pas pu enregistrer le profil." : "MIRAVA no ha podido guardar el perfil.")
       setError(msg)
@@ -588,9 +659,10 @@ export function VisualEngineStudio() {
     await refresh(data.creation.id)
   })
   const applyAlmaDirection = async (suggestions: Partial<MiravaCreativeOptions>) => {
-    if (!current) {
+    const canApplyToCurrent = current && ["DRAFT", "ANALYSIS_QUEUED", "ANALYSING", "IDENTITY_READY"].includes(current.creation.status)
+    if (!canApplyToCurrent) {
       setOptions((value) => ({ ...value, ...suggestions }))
-      showNotice(locale === "fr" ? "Direction Alma ajoutée à votre prochaine séance." : "Dirección de Alma añadida a tu próxima sesión.")
+      showNotice(locale === "fr" ? "Direction Alma prête pour votre prochaine séance. Votre création en cours reste inchangée." : "La dirección de Alma está lista para tu próxima sesión. Tu creación en curso no cambia.")
       return
     }
 
@@ -605,32 +677,29 @@ export function VisualEngineStudio() {
   }
   const openReferenceFromAlma = () => {
     setDirectorOpen(false)
-    if (current) {
-      showNotice(locale === "fr" ? "Ajoutez votre inspiration dans la création ouverte avant de lancer la génération." : "Añade tu inspiración a la creación abierta antes de iniciar la generación.")
-      return
-    }
+    // A reference defines a new reusable studio. Once a creation has an art
+    // direction, it deliberately cannot accept a second reference; preserve it
+    // in the gallery and start a clean, explicit custom-studio route instead.
+    setCurrent(null)
     setEntryIntent("reference")
     setCreateStep(0)
     selectView("create")
-    showNotice(locale === "fr" ? "Importez votre inspiration pour créer un studio personnel." : "Importa tu inspiración para crear un estudio personal.")
+    showNotice(locale === "fr" ? "Votre séance en cours reste dans votre galerie. Importez maintenant une inspiration pour créer un nouveau studio personnel." : "Tu sesión actual permanece en tu galería. Ahora importa una inspiración para crear un nuevo estudio personal.")
   }
   const removeCreation = () => current && run("delete", async () => { await api(`/api/visual-engine/creations/${current.creation.id}`, { method: "DELETE" }); setCurrent(null); await refresh() })
   const removeIdentity = () => run("identity-delete", async () => { await api("/api/visual-engine/identity-profile", { method: "DELETE" }); await refresh() })
   const checkout = (offerId: string) => run(`offer-${offerId}`, async () => { const data = await api<{ url: string }>("/api/visual-engine/billing/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ offerId }) }); window.location.assign(data.url) })
   const portal = () => run("portal", async () => { const data = await api<{ url: string }>("/api/visual-engine/billing/portal", { method: "POST" }); window.location.assign(data.url) })
+  // Mobile navigation deliberately contains destinations only. Universes and
+  // Alma remain available in the creation flow, where their result can be
+  // applied immediately instead of moving the client to a separate section.
   const bottomNavItems: BottomNavItem[] = [
     { id: "create", label: t.create, icon: <Camera /> },
-    { id: "universes", label: t.universesNav, icon: <LayoutGrid /> },
     { id: "library", label: t.library, icon: <Images /> },
-    { id: "alma", label: t.directorNav, icon: <Image src="/visual-engine/alma-directrice.webp" alt="" width={24} height={24} /> },
     { id: "account", label: t.account, icon: <CircleUserRound /> },
   ]
   const selectBottomNav = (id: string) => {
-    if (id === "alma") {
-      openDirector()
-      return
-    }
-    if (id === "create" || id === "universes" || id === "library" || id === "account") {
+    if (id === "create" || id === "library" || id === "account") {
       setDirectorOpen(false)
       selectView(id)
     }
@@ -650,7 +719,10 @@ export function VisualEngineStudio() {
     })
     setCreateStepValue(0)
     setFurthestCreateStep(0)
-    if (state.identityIntent === "now") openCapture("onboarding")
+    if (state.firstSessionId) {
+      posthog.capture("first_session_opened", { onboarding_version: state.version, objective: state.goal, primary_universe_id: state.direction?.primaryUniverseId })
+      void refresh(state.firstSessionId)
+    }
   }
 
   if (miravaOnboarding === undefined) {
@@ -663,9 +735,9 @@ export function VisualEngineStudio() {
         <MiravaGrain />
         <div className="mirava-ambient pointer-events-none fixed inset-0" />
         <div ref={studioBackgroundRef} aria-hidden={modalOpen ? true : undefined}>
-          <MiravaStudioOnboarding locale={locale} firstName={miravaFirstName} initialUniverseId={entryUniverseId} initialState={miravaOnboarding} onCompleted={completeMiravaOnboarding} />
+          <MiravaStudioOnboarding key={miravaOnboarding?.updatedAt ?? "new"} locale={locale} firstName={miravaFirstName} initialUniverseId={entryUniverseId} initialState={miravaOnboarding} onStartCapture={(state) => void startOrResumeOnboarding(state)} onCompleted={completeMiravaOnboarding} />
         </div>
-        {captureContext && <MiravaIdentityCapture locale={locale} context={captureContext} existingCount={0} onClose={closeCapture} onComplete={(files, consent) => uploadIdentityFiles(files, consent)} />}
+        {captureContext && <MiravaIdentityCapture locale={locale} context={captureContext} existingCount={0} initialConsentAccepted={Boolean(miravaOnboarding?.identityConsentAt)} onClose={closeCapture} onComplete={(files, consent) => uploadIdentityFiles(files, consent)} />}
       </main>
     )
   }
@@ -708,12 +780,12 @@ export function VisualEngineStudio() {
           ? <StartView locale={locale} t={t} firstName={miravaFirstName} step={createStep} selectedUniverseId={selectedUniverseId} setSelectedUniverseId={setSelectedUniverseId} options={options} setOptions={setOptions} identityProfile={identityProfile} availableCredits={account?.credits ?? 0} pending={pending} entryIntent={entryIntent} onCreate={requestCreate} onDirector={() => openDirector()} onOpenAccount={() => selectView("account")} onOpenCapture={() => openCapture(identityProfile ? (identityProfile.assetCount < MIRAVA_MAX_IDENTITY_PHOTOS ? "append" : "replace") : "onboarding")} />
           : <CreationView locale={locale} t={t} current={current} identityProfile={identityProfile} pending={pending} onUploadReference={uploadReference} onAnalyze={analyze} onOpenCapture={() => openCapture(identityProfile ? (identityProfile.assetCount < MIRAVA_MAX_IDENTITY_PHOTOS ? "append" : "replace") : "onboarding")} onGenerate={generate} onDelete={removeCreation} onContinue={(studioId) => void reuse(studioId)} />)}
         {view === "universes" && <UniversesView locale={locale} t={t} selectedUniverseId={selectedUniverseId} setSelectedUniverseId={setSelectedUniverseId} onChoose={(brief) => { setOptions((value) => ({ ...(value.seriesSize ? { seriesSize: value.seriesSize } : {}), ...(value.seriesSize && value.seriesSize > 1 && value.seriesStrategy ? { seriesStrategy: value.seriesStrategy } : {}), ...(brief ? { note: brief } : {}) })); setCreateStep(1); selectView("create") }} />}
-        {view === "library" && <LibraryView locale={locale} t={t} studios={studios} creations={creations} onReuse={(id) => void reuse(id)} onSelect={(id) => void run("select", async () => { setCurrent(await api<Detail>(`/api/visual-engine/creations/${id}`)); selectView("create") })} />}
+        {view === "library" && <LibraryView locale={locale} t={t} studios={studios} creations={creations} onStartCreate={() => { setCurrent(null); setCreateStep(0); selectView("create") }} onReuse={(id) => void reuse(id)} onSelect={(id) => void run("select", async () => { setCurrent(await api<Detail>(`/api/visual-engine/creations/${id}`)); selectView("create") })} />}
         {view === "account" && <AccountView locale={locale} t={t} account={account} identityProfile={identityProfile} highlightedOfferId={highlightedOfferId} pending={pending} onCheckout={checkout} onPortal={portal} onStartCreate={() => { setCurrent(null); setCreateStep(0); selectView("create") }} onOpenCapture={() => openCapture(identityProfile ? "append" : "onboarding")} onReplaceIdentity={() => openCapture("replace")} onDeleteIdentity={removeIdentity} />}
       </div>
 
       <BottomNavBar
-        activeId={directorOpen ? "alma" : view}
+        activeId={view}
         items={bottomNavItems}
         onValueChange={selectBottomNav}
         navigationLabel={locale === "fr" ? "Navigation MIRAVA" : "Navegación MIRAVA"}
@@ -1296,7 +1368,7 @@ function UniversesView({ locale, t, selectedUniverseId, setSelectedUniverseId, o
   )
 }
 
-function LibraryView({ locale, t, studios, creations, onReuse, onSelect }: { locale: Locale; t: Copy; studios: Studio[]; creations: Creation[]; onReuse: (id: string) => void; onSelect: (id: string) => void }) {
+function LibraryView({ locale, t, studios, creations, onStartCreate, onReuse, onSelect }: { locale: Locale; t: Copy; studios: Studio[]; creations: Creation[]; onStartCreate: () => void; onReuse: (id: string) => void; onSelect: (id: string) => void }) {
   return (
     <section className="py-8 sm:py-14">
       <p className="mirava-label">MIRAVA / {locale === "fr" ? "ARCHIVE PRIVÉE" : "ARCHIVO PRIVADO"}</p>
@@ -1308,13 +1380,16 @@ function LibraryView({ locale, t, studios, creations, onReuse, onSelect }: { loc
           return <article key={studio.id} className="mirava-surface overflow-hidden">
             <div className="mirava-studio-cover relative aspect-[16/10] overflow-hidden bg-mirava-canvas-raised">
               {universe
-                ? <Image src={universe.image} alt="" fill sizes="33vw" className="object-cover" />
+                ? <Image src={universe.image} alt="" fill sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" className="object-cover" />
                 : <div aria-hidden="true" className="mirava-studio-cover-abstract absolute inset-0" />}
             </div>
             <div className="p-5"><p className="font-jakarta text-lg font-semibold">{studio.name}</p><p className="mirava-copy mt-2 text-xs">{universe?.tagline[locale] ?? (locale === "fr" ? "Direction personnelle privée" : "Dirección personal privada")}</p><button onClick={() => onReuse(studio.id)} className="mirava-button mirava-button-primary mt-5 min-h-12 px-4 text-xs">{t.reuse}<ChevronRight className="ml-1 h-4 w-4" /></button></div>
           </article>
         })}
-        {!studios.length && <p className="mirava-copy text-sm">{t.empty}</p>}
+        {!studios.length && <Surface className="sm:col-span-2 lg:col-span-3">
+          <p className="mirava-copy text-sm leading-6">{locale === "fr" ? "Votre premier studio apparaîtra ici après votre première séance." : "Tu primer estudio aparecerá aquí después de tu primera sesión."}</p>
+          <button onClick={onStartCreate} className="mirava-button mirava-button-primary mt-4 min-h-12 px-4 text-sm"><Camera className="mr-2 h-4 w-4" />{locale === "fr" ? "Créer ma première séance" : "Crear mi primera sesión"}</button>
+        </Surface>}
       </div>
       <h2 className="mirava-section-title mt-12 text-2xl">{t.imagesTitle}</h2>
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
@@ -1327,6 +1402,10 @@ function LibraryView({ locale, t, studios, creations, onReuse, onSelect }: { loc
             </button>
           )
         })}
+        {!creations.length && <Surface className="col-span-full">
+          <p className="mirava-copy text-sm leading-6">{locale === "fr" ? "Votre galerie reste privée et vide jusqu’à votre première image." : "Tu galería es privada y permanece vacía hasta tu primera imagen."}</p>
+          <button onClick={onStartCreate} className="mirava-button mirava-button-secondary mt-4 min-h-12 px-4 text-sm"><Camera className="mr-2 h-4 w-4" />{locale === "fr" ? "Commencer une séance" : "Empezar una sesión"}</button>
+        </Surface>}
       </div>
     </section>
   )
@@ -1366,56 +1445,9 @@ function AccountView({
   const [pushNotice, setPushNotice] = useState<string | null>(null)
   const [pushError, setPushError] = useState<string | null>(null)
 
-  // Physical traits state
-  const [traits, setTraits] = useState<PhysicalTrait[]>(identityProfile?.physicalTraits ?? [])
-  const [traitsOpen, setTraitsOpen] = useState(false)
-  const [traitKind, setTraitKind] = useState<TraitKind>("tattoo")
-  const [traitZone, setTraitZone] = useState<BodyZone>("left-forearm")
-  const [traitDesc, setTraitDesc] = useState("")
-  const [traitsSaving, setTraitsSaving] = useState(false)
-  const [traitsError, setTraitsError] = useState<string | null>(null)
   const [deleteIdentityOpen, setDeleteIdentityOpen] = useState(false)
   const [deleteIdentityError, setDeleteIdentityError] = useState<string | null>(null)
   const deleteIdentityTriggerRef = useRef<HTMLButtonElement>(null)
-
-  // Une capture, un ajout ou une reprise depuis le serveur peut actualiser le Profil
-  // sans remonter l'AccountView. Les détails affichés doivent alors rester alignés.
-  useEffect(() => {
-    setTraits(identityProfile?.physicalTraits ?? [])
-  }, [identityProfile?.id, identityProfile?.updatedAt, identityProfile?.physicalTraits])
-
-  const saveTraits = async (next: PhysicalTrait[]) => {
-    setTraitsSaving(true)
-    setTraitsError(null)
-    try {
-      await fetch("/api/visual-engine/identity-profile", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ traits: next }),
-        credentials: "same-origin",
-      }).then(async (r) => { if (!r.ok) { const d = await r.json() as { error?: string }; throw new Error(d.error ?? "Erreur") } })
-      setTraits(next)
-    } catch (e) {
-      setTraitsError(e instanceof Error ? e.message : "Impossible de sauvegarder.")
-    } finally {
-      setTraitsSaving(false)
-    }
-  }
-
-  const addTrait = async () => {
-    const desc = traitDesc.trim()
-    if (!desc) return
-    if (traits.length >= MAX_TRAITS) return
-    const next: PhysicalTrait[] = [...traits, { id: crypto.randomUUID(), kind: traitKind, zone: traitZone, description: desc }]
-    await saveTraits(next)
-    setTraitDesc("")
-    setTraitsOpen(false)
-  }
-
-  const removeTrait = async (id: string) => {
-    const next = traits.filter((t) => t.id !== id)
-    await saveTraits(next)
-  }
 
   const handleNotify = async () => {
     setPushLoading(true)
@@ -1521,134 +1553,6 @@ function AccountView({
           </div>
         </Surface>
       </div>
-
-      {/* ── Physical Traits Panel ── */}
-      {identityProfile && (
-        <Surface className="mt-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="mirava-label">{locale === "fr" ? "CARACTÉRISTIQUES DISTINCTIVES" : "CARACTERÍSTICAS DISTINTIVAS"}</p>
-              <h2 className="mirava-section-title mt-2 text-xl">
-                {locale === "fr" ? "Tatouages, cicatrices & autres" : "Tatuajes, cicatrices y otras"}
-              </h2>
-            </div>
-            {traits.length < MAX_TRAITS && (
-              <button
-                onClick={() => setTraitsOpen((o) => !o)}
-                className="mirava-button mirava-button-secondary shrink-0 px-3 text-sm font-semibold"
-                aria-label={locale === "fr" ? "Ajouter une caractéristique distinctive" : "Añadir una característica distintiva"}
-              >
-                <Plus className="h-4 w-4" />
-              </button>
-            )}
-          </div>
-          <p className="mirava-copy mt-2 text-xs leading-5">
-            {locale === "fr"
-              ? "Facultatif · elles aident MIRAVA à préserver les détails qui comptent pour vous."
-              : "Opcional · ayudan a MIRAVA a preservar los detalles que son importantes para ti."}
-          </p>
-
-          {/* Chip list */}
-          {traits.length > 0 && (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {traits.map((trait) => (
-                <span
-                  key={trait.id}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium"
-                >
-                  <span>{TRAIT_KIND_EMOJIS[trait.kind]}</span>
-                  <span className="opacity-60">{BODY_ZONE_LABELS[trait.zone][locale]}</span>
-                  <span>·</span>
-                  <span className="max-w-[120px] truncate">{trait.description}</span>
-                  <button
-                    onClick={() => void removeTrait(trait.id)}
-                    disabled={traitsSaving}
-                    className="ml-1 rounded-full p-0.5 opacity-40 transition-opacity hover:opacity-100"
-                    aria-label={locale === "fr" ? "Supprimer" : "Eliminar"}
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
-
-          {/* Add form */}
-          {traitsOpen && (
-            <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-4">
-              <p className="mirava-label mb-3">{locale === "fr" ? "AJOUTER UNE CARACTÉRISTIQUE" : "AÑADIR CARACTERÍSTICA"}</p>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="mirava-trait-kind" className="mirava-copy mb-1 block text-[11px] font-semibold uppercase tracking-wider opacity-60">
-                    {locale === "fr" ? "Type" : "Tipo"}
-                  </label>
-                  <select
-                    id="mirava-trait-kind"
-                    value={traitKind}
-                    onChange={(e) => setTraitKind(e.target.value as TraitKind)}
-                    className="mirava-input w-full text-sm"
-                  >
-                    {TRAIT_KINDS.map((k) => (
-                      <option key={k} value={k}>{TRAIT_KIND_EMOJIS[k]} {TRAIT_KIND_LABELS[k][locale]}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor="mirava-trait-zone" className="mirava-copy mb-1 block text-[11px] font-semibold uppercase tracking-wider opacity-60">
-                    {locale === "fr" ? "Zone" : "Zona"}
-                  </label>
-                  <select
-                    id="mirava-trait-zone"
-                    value={traitZone}
-                    onChange={(e) => setTraitZone(e.target.value as BodyZone)}
-                    className="mirava-input w-full text-sm"
-                  >
-                    {BODY_ZONES.map((z) => (
-                      <option key={z} value={z}>{BODY_ZONE_LABELS[z][locale]}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="mt-3">
-                <label htmlFor="mirava-trait-description" className="mirava-copy mb-1 block text-[11px] font-semibold uppercase tracking-wider opacity-60">
-                  {locale === "fr" ? "Description (ex: rose noire sur le poignet gauche)" : "Descripción (ej: rosa negra en la muñeca izquierda)"}
-                </label>
-                <textarea
-                  id="mirava-trait-description"
-                  value={traitDesc}
-                  onChange={(e) => setTraitDesc(e.target.value.slice(0, MAX_DESCRIPTION_LENGTH))}
-                  rows={2}
-                  placeholder={locale === "fr" ? "Rose noire avec des épines, style old school…" : "Rosa negra con espinas, estilo old school…"}
-                  className="mirava-input w-full resize-none text-sm"
-                />
-                <p className="mirava-meta mt-1 text-right text-[10px] tabular-nums opacity-40">{traitDesc.length}/{MAX_DESCRIPTION_LENGTH}</p>
-              </div>
-              {traitsError && (
-                <p className="mt-2 text-xs text-red-400">{traitsError}</p>
-              )}
-              <div className="mt-4 flex justify-end gap-3">
-                <button onClick={() => setTraitsOpen(false)} className="mirava-button mirava-button-secondary px-4 text-sm font-semibold">
-                  {locale === "fr" ? "Annuler" : "Cancelar"}
-                </button>
-                <button
-                  onClick={() => void addTrait()}
-                  disabled={!traitDesc.trim() || traitsSaving}
-                  className="mirava-button mirava-button-primary px-4 text-sm font-semibold"
-                >
-                  {traitsSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-                  {locale === "fr" ? "Ajouter" : "Añadir"}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {traits.length === 0 && !traitsOpen && (
-            <p className="mt-4 text-xs opacity-40 italic">
-              {locale === "fr" ? "Aucune caractéristique renseignée." : "Ninguna característica registrada."}
-            </p>
-          )}
-        </Surface>
-      )}
 
       <DialogPrimitive.Root open={deleteIdentityOpen} onOpenChange={(open) => { if (open) setDeleteIdentityOpen(true); else closeIdentityDeletionDialog() }}>
         <DialogPrimitive.Portal>

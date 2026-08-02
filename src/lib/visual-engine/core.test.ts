@@ -1,6 +1,6 @@
 import sharp from "sharp"
 import { describe, expect, it } from "vitest"
-import { buildMiravaGenerationPrompt, createStudioCreation, cropMiravaResult, isStudioImageMimeType, studioCreationPublic, studioErrorResponse, type StudioCreationRecord, validateStudioImage } from "./core"
+import { buildMiravaGenerationPrompt, canAutoGenerateMiravaCreation, createStudioCreation, cropMiravaResult, isMiravaGenerationAlreadyDurable, isStudioImageMimeType, studioCreationPublic, studioErrorResponse, type StudioCreationRecord, validateStudioImage } from "./core"
 
 describe("MIRAVA private creation engine", () => {
   it("allows only private Studio image formats", () => {
@@ -81,5 +81,20 @@ describe("MIRAVA private creation engine", () => {
     const original = await sharp({ create: { width: 1024, height: 1536, channels: 4, background: "#111111" } }).png().toBuffer()
     const cropped = await cropMiravaResult(original)
     await expect(sharp(cropped).metadata()).resolves.toMatchObject({ width: 1024, height: 1280, format: "png" })
+  })
+
+  it("only auto-continues a creation after its required identity views exist", () => {
+    expect(canAutoGenerateMiravaCreation(2)).toBe(false)
+    expect(canAutoGenerateMiravaCreation(3)).toBe(true)
+    expect(canAutoGenerateMiravaCreation(6)).toBe(true)
+    expect(canAutoGenerateMiravaCreation(7)).toBe(false)
+  })
+
+  it("makes a recovered first-session generation idempotent once it is durable", () => {
+    expect(isMiravaGenerationAlreadyDurable("GENERATION_QUEUED")).toBe(true)
+    expect(isMiravaGenerationAlreadyDurable("GENERATING")).toBe(true)
+    expect(isMiravaGenerationAlreadyDurable("COMPLETED")).toBe(true)
+    expect(isMiravaGenerationAlreadyDurable("MASTER_PROMPT_READY")).toBe(false)
+    expect(isMiravaGenerationAlreadyDurable("FAILED")).toBe(false)
   })
 })

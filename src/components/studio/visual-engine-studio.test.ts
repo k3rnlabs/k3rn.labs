@@ -40,9 +40,21 @@ describe("MIRAVA studio entry contracts", () => {
   it("uses each onboarding choice in the first studio rather than collecting decorative data", () => {
     expect(studio).toContain("seriesSize: 1")
     expect(studio).toContain("only after the client has explicitly")
-    expect(studio).toContain('if (state.identityIntent === "now") openCapture("onboarding")')
+    expect(studio).toContain('body: JSON.stringify({ action: "session_ready", firstSessionId: session.creation.id })')
+    expect(studio).toContain('onStartCapture={(state) => void startOrResumeOnboarding(state)}')
+    expect(studio).toContain('captureContext === "onboarding" && (!consent?.privacyAccepted || !consent.openaiDisclosureAccepted)')
+    expect(studio).toContain('rightsConfirmed: consent.rightsConfirmed')
+    expect(studio).toContain('privacyAccepted: consent.privacyAccepted')
+    expect(studio).toContain('openaiDisclosureAccepted: consent.openaiDisclosureAccepted')
     expect(studio).toContain('setMiravaFirstName(firstName)')
-    expect(studio).toContain('`${firstName}, où voulez-vous être vue ?`')
+    expect(studio).toContain('setSelectedUniverseId(preferredUniverse.id)')
+  })
+
+  it("resumes an already prepared first session instead of duplicating it after a lost response", () => {
+    expect(studio).toContain('const latestOnboarding = await api<{ onboarding: MiravaOnboardingState | null }>("/api/visual-engine/onboarding")')
+    expect(studio).toContain('latestOnboarding.onboarding?.status === "session_ready" && latestOnboarding.onboarding.firstSessionId')
+    expect(studio).toContain('await api(`/api/visual-engine/creations/${latestOnboarding.onboarding.firstSessionId}/generate`, { method: "POST" })')
+    expect(studio).toContain('return latestOnboarding.onboarding.firstSessionId')
   })
 
   it("never preselects a paid multi-image series from an onboarding goal", () => {
@@ -68,17 +80,38 @@ describe("MIRAVA studio entry contracts", () => {
     expect(studio).toContain('!referenceFile && entryIntent !== "reference"')
     expect(studio).toContain('createStep === 0 && entryIntent === "reference" && !options.referenceMode')
     expect(studio).toContain('const openReferenceFromAlma = () => {')
+    expect(studio).toContain('setCurrent(null)')
+    expect(studio).toContain('Votre séance en cours reste dans votre galerie.')
+    expect(studio).not.toContain('Ajoutez votre inspiration dans la création ouverte')
     expect(studio).toContain('setEntryIntent("reference")')
     expect(studio).toContain('const isReferenceRoute = step === 0 && entryIntent === "reference"')
     expect(studio).toContain('quelle image vous inspire ?')
   })
 
-  it("keeps the internal analysis state out of the client and continues directly to generation when identity is ready", () => {
+  it("keeps mobile navigation to the three product destinations", () => {
+    const mobileNavigation = studio.slice(studio.indexOf("const bottomNavItems"), studio.indexOf("const isCreateFlow"))
+    expect(mobileNavigation).toContain('{ id: "create", label: t.create')
+    expect(mobileNavigation).toContain('{ id: "library", label: t.library')
+    expect(mobileNavigation).toContain('{ id: "account", label: t.account')
+    expect(mobileNavigation).not.toContain('{ id: "universes"')
+    expect(mobileNavigation).not.toContain('{ id: "alma"')
+    expect(studio).toContain("Alma remain available in the creation flow")
+  })
+
+  it("keeps the internal analysis state out of the client and starts a ready preset without exposing it", () => {
     expect(studio).not.toContain("MASTER_PROMPT")
-    const analysisIndex = studio.indexOf('await api(`/api/visual-engine/creations/${data.creation.id}/analyze`, { method: "POST" })')
-    const generationIndex = studio.indexOf('if (isMiravaIdentityProfileReady(identityProfile))')
-    expect(analysisIndex).toBeGreaterThan(-1)
-    expect(generationIndex).toBeGreaterThan(analysisIndex)
+    expect(studio).toContain('if (presetId && isMiravaIdentityProfileReady(identityProfile))')
+    expect(studio).toContain('await api(`/api/visual-engine/creations/${data.creation.id}/generate`, { method: "POST" })')
+  })
+
+  it("does not try to generate a personal-reference creation before its asynchronous analysis is ready", () => {
+    expect(studio).toContain('if (presetId && isMiravaIdentityProfileReady(identityProfile))')
+    expect(studio).toContain('await api(`/api/visual-engine/creations/${session.creation.id}/generate`, { method: "POST" })')
+  })
+
+  it("keeps Alma useful when a current creation can no longer be edited", () => {
+    expect(studio).toContain('const canApplyToCurrent = current && ["DRAFT", "ANALYSIS_QUEUED", "ANALYSING", "IDENTITY_READY"].includes(current.creation.status)')
+    expect(studio).toContain("Direction Alma prête pour votre prochaine séance. Votre création en cours reste inchangée.")
   })
 
   it("frames consent as the final creation action, not as a second studio entry", () => {
@@ -125,12 +158,13 @@ describe("MIRAVA studio entry contracts", () => {
 
   it("does not imply that camera capture is the only way to create an identity profile", () => {
     expect(studio).toContain('guided: "Préparer mon Profil identité"')
-    expect(studio).toContain('Facultatif · elles aident MIRAVA à préserver les détails qui comptent pour vous.')
+    expect(studio).toContain("MiravaIdentityCapture")
+    expect(studio).toContain('onOpenCapture={() => openCapture')
   })
 
-  it("refreshes distinctive details when the private identity profile is updated", () => {
-    expect(studio).toContain("setTraits(identityProfile?.physicalTraits ?? [])")
-    expect(studio).toContain("[identityProfile?.id, identityProfile?.updatedAt, identityProfile?.physicalTraits]")
+  it("keeps physical descriptions out of the client-side identity profile", () => {
+    expect(studio).not.toContain("physicalTraits")
+    expect(studio).not.toContain("CARACTÉRISTIQUES DISTINCTIVES")
   })
 
   it("returns Stripe checkout visitors to a clear account-state explanation", () => {
@@ -188,6 +222,12 @@ describe("MIRAVA studio entry contracts", () => {
     expect(studio).toContain("Abrir creación ${index + 1}: ${statusLabel}")
     expect(studio).toContain('imagesTitle: "Vos images"')
     expect(studio).toContain('<h2 className="mirava-section-title mt-12 text-2xl">{t.imagesTitle}</h2>')
+  })
+
+  it("keeps an empty private gallery actionable rather than blank", () => {
+    expect(studio).toContain("Votre premier studio apparaîtra ici après votre première séance.")
+    expect(studio).toContain("Votre galerie reste privée et vide jusqu’à votre première image.")
+    expect(studio).toContain('onStartCreate={() => { setCurrent(null); setCreateStep(0); selectView("create") }}')
   })
 
   it("resets a mobile destination to its beginning and announces non-error feedback", () => {

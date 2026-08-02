@@ -14,4 +14,10 @@ describe("MIRAVA PWA privacy policy", () => {
     expect(worker).toContain('url.pathname.startsWith("/api/")')
     expect(worker).toContain('url.pathname.startsWith("/storage/")')
   })
+
+  it("keeps notifications generic and their destination free of private creation ids", () => {
+    expect(worker).toContain('data: { url: "/visual-engine/studio" }')
+    expect(worker).not.toContain("payload.url")
+    expect(worker).not.toContain("creation=")
+  })
 })

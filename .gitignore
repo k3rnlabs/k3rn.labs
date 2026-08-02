@@ -12,6 +12,7 @@
 # next.js
 /.next/
 /.next-dev-*/
+/.next-verify-*/
 /.tsconfig-dev-*.json
 /out/
 

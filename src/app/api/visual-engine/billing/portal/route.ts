@@ -1,7 +1,7 @@
 import { verifySession } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { getStripe } from "@/lib/stripe"
-import { apiError, apiSuccess } from "@/lib/validate"
+import { miravaApiError as apiError, miravaApiSuccess as apiSuccess } from "@/lib/visual-engine/http"
 
 export async function POST() {
   const session = await verifySession()
@@ -19,6 +19,6 @@ export async function POST() {
     return apiSuccess({ url: portal.url })
   } catch (error) {
     console.error("[billing] portal error:", error)
-    return apiError(error instanceof Error ? error.message : "Le portail d'abonnement est momentanément indisponible.", 500)
+    return apiError("Le portail d'abonnement est momentanément indisponible. Réessayez dans un instant.", 500)
   }
 }

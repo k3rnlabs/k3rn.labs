@@ -9,9 +9,9 @@ describe("MIRAVA private result response policy", () => {
   )
 
   it("does not cache result media or any response that reveals its existence", () => {
-    expect(route).toContain('const PRIVATE_NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0", "Pragma": "no-cache" }')
-    expect(route).toContain('status: 401, headers: PRIVATE_NO_STORE_HEADERS')
-    expect(route).toContain('status: 404, headers: PRIVATE_NO_STORE_HEADERS')
-    expect(route).toContain('headers: PRIVATE_NO_STORE_HEADERS')
+    expect(route).toContain('import { MIRAVA_PRIVATE_NO_STORE_HEADERS } from "@/lib/visual-engine/http"')
+    expect(route).toContain('status: 401, headers: MIRAVA_PRIVATE_NO_STORE_HEADERS')
+    expect(route).toContain('status: 404, headers: MIRAVA_PRIVATE_NO_STORE_HEADERS')
+    expect(route).toContain('headers: MIRAVA_PRIVATE_NO_STORE_HEADERS')
   })
 })

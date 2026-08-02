@@ -136,7 +136,7 @@ export function MiravaCreativeDirector({
           </div>
         </header>
 
-        <div role="region" tabIndex={0} aria-label={locale === "fr" ? "Historique de conversation avec Alma" : "Historial de conversación con Alma"} className="flex-1 space-y-6 overflow-y-auto px-5 py-6 sm:px-7">
+        <div role="log" tabIndex={0} aria-live="polite" aria-relevant="additions text" aria-label={locale === "fr" ? "Historique de conversation avec Alma" : "Historial de conversación con Alma"} className="flex-1 space-y-6 overflow-y-auto px-5 py-6 sm:px-7">
           <div className="mirava-notice rounded-2xl border border-mirava-accent/20 bg-gradient-to-br from-mirava-surface-raised/90 to-mirava-canvas-raised/80 space-y-3 p-4 sm:p-5 shadow-lg">
             <div className="flex items-center gap-2 font-jakarta text-sm font-semibold text-mirava-accent">
               <Sparkles className="h-4 w-4 shrink-0 text-mirava-accent" />
