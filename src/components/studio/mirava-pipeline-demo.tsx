@@ -151,7 +151,7 @@ export function OnboardingPipelineDemo({ locale, className }: PipelineDemoProps)
                 />
 
                 {/* Oval Facial Reticle Encompassing Full Face & Head */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 -translate-y-6 sm:-translate-y-8">
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 -translate-y-12 sm:-translate-y-16">
                   <motion.div
                     initial={{ scale: 0.85, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
