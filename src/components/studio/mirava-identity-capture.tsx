@@ -774,16 +774,6 @@ export function MiravaIdentityCapture({
                   )}
                 </button>
               )}
-                {submitting ? (
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                ) : (
-                  <span>
-                    {locale === "fr"
-                      ? "Enregistrer mon profil et préparer ma séance"
-                      : "Guardar mi perfil y preparar mi sesión"}
-                  </span>
-                )}
-              </button>
             </div>
           )}
 
