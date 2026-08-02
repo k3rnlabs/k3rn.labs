@@ -190,7 +190,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                         maxLength={48}
                         onChange={(event) => setName(event.target.value)}
                         placeholder={labels.placeholder}
-                        className="mt-3 w-full rounded-xl border border-white/15 bg-black/60 px-4 py-3.5 font-jakarta text-lg font-medium text-white placeholder-white/30 transition-all focus:border-[#ede8df] focus:bg-black/90 focus:outline-none focus:ring-1 focus:ring-[#ede8df]/40"
+                        className="mt-3 w-full rounded-xl border border-white/20 bg-white px-4 py-3.5 font-jakarta text-lg font-semibold text-black placeholder-neutral-400 shadow-md transition-all focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#ede8df]"
                       />
                     </label>
                   </div>

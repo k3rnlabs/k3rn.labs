@@ -91,9 +91,21 @@ export function MobileProgressHeader({
           backgroundOpacity={0.15}
           className="w-full p-2.5 px-4 border border-white/15 shadow-[0_16px_40px_rgba(0,0,0,0.8)]"
         >
-          <div className="w-full">
-            {/* 6 Step Nodes / Progress segments */}
-            <div className="flex items-center gap-1.5 py-0.5" role="progressbar" aria-valuemin={1} aria-valuemax={totalSteps} aria-valuenow={currentStep}>
+          <div className="w-full space-y-1.5">
+            {/* Top Row: Logo Icon & Language Badge */}
+            <div className="flex h-6 items-center justify-between text-xs">
+              <div className="flex items-center gap-1.5 opacity-90">
+                <MiravaMark className="h-4 w-4 text-[#ede8df]" />
+              </div>
+              <div className="flex items-center">
+                <span className="rounded-md border border-white/15 bg-white/5 px-2 py-0.5 font-jakarta text-[9px] font-bold text-white/70 uppercase">
+                  {locale.toUpperCase()}
+                </span>
+              </div>
+            </div>
+
+            {/* Bottom Row: 6 Step Nodes / Progress segments */}
+            <div className="flex items-center gap-1.5 pt-0.5" role="progressbar" aria-valuemin={1} aria-valuemax={totalSteps} aria-valuenow={currentStep}>
               {Array.from({ length: totalSteps }).map((_, index) => {
                 const isActive = index < currentStep
                 return (
@@ -107,20 +119,6 @@ export function MobileProgressHeader({
                   </div>
                 )
               })}
-            </div>
-
-            <div className="flex h-8 items-center justify-between pt-1 text-xs">
-              {/* Compact Logo Icon */}
-              <div className="flex items-center gap-1.5 opacity-90">
-                <MiravaMark className="h-4 w-4 text-[#ede8df]" />
-              </div>
-
-              {/* Language Badge */}
-              <div className="flex items-center">
-                <span className="rounded-md border border-white/15 bg-white/5 px-2 py-0.5 font-jakarta text-[9px] font-bold text-white/70 uppercase">
-                  {locale.toUpperCase()}
-                </span>
-              </div>
             </div>
           </div>
         </GlassSurface>
