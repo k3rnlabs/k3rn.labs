@@ -38,7 +38,7 @@ describe("MIRAVA first-access onboarding", () => {
   it("requires an authenticated owner before reading their onboarding state", async () => {
     mocks.verifySession.mockResolvedValue(null)
 
-    const response = await GET()
+    const response = await GET(new NextRequest("http://localhost/api/visual-engine/onboarding"))
 
     expect(response.status).toBe(401)
     expect(mocks.findUnique).not.toHaveBeenCalled()
@@ -119,7 +119,7 @@ describe("MIRAVA first-access onboarding", () => {
       identityIntent: "later", updatedAt: new Date().toISOString(), completedAt: new Date().toISOString(),
     } } })
 
-    const response = await GET()
+    const response = await GET(new NextRequest("http://localhost/api/visual-engine/onboarding"))
     const data = await response.json()
 
     expect(response.status).toBe(200)

@@ -91,7 +91,7 @@ function readMiravaOnboardingState(preferences: unknown): MiravaOnboardingState 
   }
 }
 
-export async function GET(req: NextRequest = new NextRequest("http://localhost/api/visual-engine/onboarding")) {
+export async function GET(req: NextRequest) {
   const session = await verifySession()
   if (!session) return apiError("Unauthorized", 401)
   const resetParam = req.nextUrl?.searchParams?.get("reset") === "1"
