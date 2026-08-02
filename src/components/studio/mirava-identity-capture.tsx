@@ -42,7 +42,9 @@ export interface PhotoSlotDefinition {
   number: number
   title: Record<Locale, string>
   instruction: Record<Locale, string>
+  level: "required" | "recommended" | "optional"
   required: boolean
+  exampleImage?: string
   criteria: Record<Locale, string[]>
 }
 
@@ -55,7 +57,9 @@ export const PHOTO_SLOTS: PhotoSlotDefinition[] = [
       fr: "Regardez droit l’objectif, visage centré, éclairage naturel sans masque ni lunettes.",
       es: "Mira de frente a la cámara, rostro centrado, iluminación natural sin accesorios.",
     },
+    level: "required",
     required: true,
+    exampleImage: "/mirava/guide/face_neutre.png",
     criteria: {
       fr: [
         "Visage net et centré dans le cadre",
@@ -74,15 +78,17 @@ export const PHOTO_SLOTS: PhotoSlotDefinition[] = [
   {
     id: "angle",
     number: 2,
-    title: { fr: "Visage 3/4", es: "Rostro 3/4" },
+    title: { fr: "Visage 3/4 ou Profil", es: "Rostro 3/4 o Perfil" },
     instruction: {
       fr: "Visage légèrement tourné de trois-quarts pour capturer les volumes et le profil.",
       es: "Rostro ligeramente girado tres cuartos para capturar los volúmenes y el perfil.",
     },
+    level: "required",
     required: true,
+    exampleImage: "/mirava/guide/profil_gauche.png",
     criteria: {
       fr: [
-        "Angle 3/4 bien visible",
+        "Angle 3/4 ou profil bien visible",
         "Pommette et ligne de profil nettes",
         "Éclairage homogène avec la première photo",
       ],
@@ -98,10 +104,12 @@ export const PHOTO_SLOTS: PhotoSlotDefinition[] = [
     number: 3,
     title: { fr: "Visage avec sourire", es: "Rostro con sonrisa" },
     instruction: {
-      fr: "Optionnel · Sourire naturel pour capturer votre expression et dynamique faciale.",
-      es: "Opcional · Sonrisa natural para capturar tu expresión y dinámica facial.",
+      fr: "Recommandé · Sourire naturel pour capturer votre expression et dynamique faciale.",
+      es: "Recomendado · Sonrisa natural para capturar tu expresión y dinámica facial.",
     },
+    level: "recommended",
     required: false,
+    exampleImage: "/mirava/guide/face_sourire.png",
     criteria: {
       fr: [
         "Sourire naturel et détendu",
@@ -118,12 +126,14 @@ export const PHOTO_SLOTS: PhotoSlotDefinition[] = [
   {
     id: "body",
     number: 4,
-    title: { fr: "Photo plein pied", es: "Foto de cuerpo entero" },
+    title: { fr: "Photo de plein pied", es: "Foto de cuerpo entero" },
     instruction: {
-      fr: "Optionnel · Silhouette complète de haut en bas pour une parfaite harmonie d'ensemble.",
-      es: "Opcional · Silueta completa de pies a cabeza para una armonía corporal.",
+      fr: "Recommandé · Silhouette complète de haut en bas pour une parfaite harmonie d'ensemble.",
+      es: "Recomendado · Silueta completa de pies a cabeza para una armonía corporal.",
     },
+    level: "recommended",
     required: false,
+    exampleImage: "/mirava/guide/profil_droit.png",
     criteria: {
       fr: [
         "Silhouette entière visible de haut en bas",
@@ -145,6 +155,7 @@ export const PHOTO_SLOTS: PhotoSlotDefinition[] = [
       fr: "Optionnel · Cadrez vos tatouages, cicatrices ou signes distinctifs personnels.",
       es: "Opcional · Encuadra tus tatuajes, cicatrices o rasgos característicos.",
     },
+    level: "optional",
     required: false,
     criteria: {
       fr: [
@@ -411,18 +422,18 @@ export function MiravaIdentityCapture({
                   <span
                     className={cn(
                       "rounded-full border px-2.5 py-0.5 font-jakarta text-[10px] font-bold uppercase",
-                      currentSlot.required
-                        ? "border-[#ede8df]/40 bg-[#ede8df]/10 text-[#ede8df]"
+                      currentSlot.level === "required"
+                        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                        : currentSlot.level === "recommended"
+                        ? "border-amber-400/40 bg-amber-400/10 text-amber-300"
                         : "border-white/20 bg-white/5 text-white/60",
                     )}
                   >
-                    {currentSlot.required
-                      ? locale === "fr"
-                        ? "Requis"
-                        : "Requerido"
-                      : locale === "fr"
-                      ? "Optionnel"
-                      : "Opcional"}
+                    {currentSlot.level === "required"
+                      ? (locale === "fr" ? "Requis" : "Requerido")
+                      : currentSlot.level === "recommended"
+                      ? (locale === "fr" ? "Recommandé" : "Recomendado")
+                      : (locale === "fr" ? "Optionnel" : "Opcional")}
                   </span>
                 </div>
 
@@ -432,6 +443,29 @@ export function MiravaIdentityCapture({
                 <p className="mt-1 font-jakarta text-xs leading-relaxed text-white/70">
                   {currentSlot.instruction[locale]}
                 </p>
+
+                {/* EXAMPLE MODEL REFERENCE CARD */}
+                {currentSlot.exampleImage && (
+                  <div className="mt-4 flex items-center gap-3.5 rounded-xl border border-white/10 bg-black/40 p-3 text-left">
+                    <div className="relative h-16 w-14 shrink-0 overflow-hidden rounded-lg border border-white/20 shadow-md">
+                      <img
+                        src={currentSlot.exampleImage}
+                        alt="Exemple recommandé"
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                    <div className="space-y-1 font-jakarta text-xs">
+                      <span className="inline-block rounded bg-[#ede8df]/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#ede8df]">
+                        {locale === "fr" ? "Exemple recommandé" : "Ejemplo recomendado"}
+                      </span>
+                      <p className="text-[11px] text-white/80 leading-snug">
+                        {locale === "fr"
+                          ? "Reproduisez ce cadrage, cette posture et cet éclairage naturel."
+                          : "Reproduce este encuadre, postura e iluminación natural."}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* PHOTO PREVIEW & LIVE SCAN RETICLE */}
