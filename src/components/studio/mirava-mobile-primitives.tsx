@@ -17,9 +17,9 @@ interface MiravaMobileShellProps {
 
 export function MiravaMobileShell({ children, className, scrollable = false }: MiravaMobileShellProps) {
   return (
-    <div className={cn("mirava-native-mobile-shell relative min-h-dvh max-h-dvh bg-[#080909] text-[#f1f1ed] isolate overflow-hidden selection:bg-[#d5c6b0] selection:text-[#090a0a]", className)}>
-      {/* Unified dark mineral ambient background overlay */}
-      <div className="pointer-events-none fixed inset-0 z-0 bg-[radial-gradient(ellipse_at_50%_-10%,rgba(255,255,255,0.06),transparent_60%),radial-gradient(ellipse_at_50%_110%,rgba(0,0,0,0.85),transparent_70%)]" />
+    <div className={cn("mirava-native-mobile-shell relative min-h-dvh max-h-dvh text-[#f1f1ed] isolate overflow-hidden selection:bg-[#d5c6b0] selection:text-[#090a0a]", className)}>
+      {/* Unified dark mineral ambient background overlay (seamless edge-to-edge) */}
+      <div className="pointer-events-none fixed inset-0 z-0 bg-[radial-gradient(ellipse_at_50%_-10%,rgba(255,255,255,0.06),transparent_60%),radial-gradient(ellipse_at_50%_110%,rgba(0,0,0,0.85),transparent_70%)] bg-black" />
       <div className="pointer-events-none fixed inset-0 z-0 bg-[linear-gradient(to_bottom,rgba(15,16,16,0.3)_0%,transparent_30%,rgba(5,6,6,0.6)_100%)]" />
 
       <div
@@ -52,7 +52,7 @@ export function MobileProgressHeader({
   const currentStep = Math.min(totalSteps, Math.max(1, step + 1))
 
   return (
-    <header className="sticky top-0 z-40 -mx-4 mb-4 rounded-b-2xl border-b border-white/10 bg-[#080909]/92 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2 backdrop-blur-xl sm:-mx-6 sm:px-6">
+    <header className="sticky top-0 z-40 -mx-4 mb-4 rounded-b-2xl border-b border-white/10 bg-black/40 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2 backdrop-blur-xl sm:-mx-6 sm:px-6">
       {/* 6 Step Nodes / Progress segments */}
       <div className="flex items-center gap-1 py-1" role="progressbar" aria-valuemin={1} aria-valuemax={totalSteps} aria-valuenow={currentStep}>
         {Array.from({ length: totalSteps }).map((_, index) => {
@@ -314,27 +314,14 @@ interface FloatingActionDockProps {
 }
 
 export function FloatingActionDock({
-  onBack,
   onNext,
   nextLabel,
   disabled = false,
-  canGoBack = true,
 }: FloatingActionDockProps) {
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 p-3.5 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
-      <div className="mx-auto flex max-w-md items-center gap-2.5 rounded-[24px] border border-white/10 bg-[#121314]/85 p-2 shadow-[0_16px_40px_rgba(0,0,0,0.8)] backdrop-blur-xl sm:max-w-xl">
-        {canGoBack && onBack ? (
-          <button
-            type="button"
-            onClick={onBack}
-            className="flex h-[54px] w-[54px] shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-black/40 text-white/80 transition-all hover:bg-white/10 hover:text-white active:scale-95"
-            aria-label="Retour"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-        ) : null}
-
-        <div className="min-w-0 flex-1">
+      <div className="mx-auto flex max-w-md items-center rounded-[24px] border border-white/10 bg-black/60 p-2 shadow-[0_16px_40px_rgba(0,0,0,0.8)] backdrop-blur-xl sm:max-w-xl">
+        <div className="w-full min-w-0">
           <MiravaPrimaryButton onClick={onNext} disabled={disabled}>
             {nextLabel}
           </MiravaPrimaryButton>
