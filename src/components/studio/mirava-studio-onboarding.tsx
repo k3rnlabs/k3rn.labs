@@ -178,7 +178,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                   </div>
 
                   {/* Input Card */}
-                  <div className="rounded-[22px] border border-white/10 bg-[#121314]/80 p-5 shadow-2xl backdrop-blur-xl">
+                  <div className="rounded-[22px] border border-white/15 bg-white/10 p-5 shadow-2xl backdrop-blur-xl">
                     <label className="block">
                       <span className="block font-jakarta text-xs font-semibold tracking-wider text-white/70 uppercase">
                         {labels.name}
@@ -289,13 +289,13 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                   </div>
 
                   {/* Direction Hero & Summary Card */}
-                  <div className="overflow-hidden rounded-[24px] border border-white/15 bg-[#121314]/90 shadow-2xl backdrop-blur-xl">
+                  <div className="overflow-hidden rounded-[24px] border border-white/15 bg-white/10 shadow-2xl backdrop-blur-xl">
                     {/* Clean photo frame without text overlays covering the face */}
-                    <div className="relative aspect-[4/3] w-full overflow-hidden bg-black">
+                    <div className="relative aspect-[4/3] w-full overflow-hidden bg-black/40">
                       {primaryUniverse && (
                         <img src={primaryUniverse.image} alt={primaryUniverse.name[locale]} className="h-full w-full object-cover object-top" />
                       )}
-                      <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#121314] to-transparent pointer-events-none" />
+                      <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/60 to-transparent pointer-events-none" />
                     </div>
 
                     {/* Universe Title & Eyebrow below photo */}
@@ -354,8 +354,8 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                   </div>
 
                   {/* Face ID Reticle Hero Card */}
-                  <div className="relative flex flex-col items-center justify-center overflow-hidden rounded-[24px] border border-white/15 bg-gradient-to-b from-[#18191a] to-[#111213] p-6 text-center shadow-2xl">
-                    <div className="relative mb-4 grid h-24 w-24 place-items-center rounded-full border-2 border-[#ede8df]/40 bg-black/50 p-2 shadow-[0_0_30px_rgba(237,232,223,0.15)]">
+                  <div className="relative flex flex-col items-center justify-center overflow-hidden rounded-[24px] border border-white/15 bg-white/10 p-6 text-center shadow-2xl backdrop-blur-xl">
+                    <div className="relative mb-4 grid h-24 w-24 place-items-center rounded-full border-2 border-[#ede8df]/40 bg-black/40 p-2 shadow-[0_0_30px_rgba(237,232,223,0.15)]">
                       <div className="absolute inset-0 rounded-full border border-dashed border-[#ede8df]/60 animate-spin-slow" />
                       <UserCheck className="h-10 w-10 text-[#ede8df]" />
                     </div>
@@ -365,7 +365,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                   </div>
 
                   {/* Trust Bullet Cards */}
-                  <div className="space-y-2.5 rounded-2xl border border-white/10 bg-[#121314]/80 p-4 text-xs leading-relaxed text-white/70 backdrop-blur-xl">
+                  <div className="space-y-2.5 rounded-2xl border border-white/15 bg-white/10 p-4 text-xs leading-relaxed text-white/70 backdrop-blur-xl">
                     <div className="flex gap-3 items-start">
                       <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0 text-[#ede8df]" />
                       <span>{labels.privacy}</span>
@@ -389,7 +389,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
               {stepId === "capture_activation" && (
                 <div className="space-y-6 pt-2">
                   <div className="text-center">
-                    <div className="mx-auto mb-3 grid h-16 w-16 place-items-center rounded-full border border-[#ede8df]/30 bg-[#18191a] shadow-xl">
+                    <div className="mx-auto mb-3 grid h-16 w-16 place-items-center rounded-full border border-[#ede8df]/30 bg-white/15 backdrop-blur-xl shadow-xl">
                       <Sparkles className="h-7 w-7 text-[#ede8df]" />
                     </div>
                     <span className="block font-jakarta text-[10px] font-bold tracking-[0.16em] text-[#d5c6b0] uppercase">
@@ -401,7 +401,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                   </div>
 
                   {/* Identity Profile Status Card */}
-                  <div className="rounded-[24px] border border-white/15 bg-[#121314]/90 p-5 shadow-2xl backdrop-blur-xl">
+                  <div className="rounded-[24px] border border-white/15 bg-white/10 p-5 shadow-2xl backdrop-blur-xl">
                     <div className="flex items-center justify-between border-b border-white/10 pb-3">
                       <div>
                         <strong className="block font-jakarta text-sm font-semibold text-white">
@@ -493,7 +493,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                   </div>
 
                   {onboardingState?.status === "session_ready" && direction && (
-                    <div className="rounded-2xl border border-white/10 bg-[#141516] p-4 text-left font-jakarta text-xs">
+                    <div className="rounded-2xl border border-white/15 bg-white/10 p-4 text-left font-jakarta text-xs backdrop-blur-xl">
                       <span className="block text-[10px] font-semibold text-[#d5c6b0] uppercase tracking-wider">
                         {locale === "fr" ? "Première séance configurée" : "Primera sesión configurada"}
                       </span>

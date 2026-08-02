@@ -7,6 +7,8 @@ import { MiravaMark } from "@/components/mirava/mirava-mark"
 import type { MiravaUniverse } from "@/lib/mirava/universes"
 import { cn } from "@/lib/utils"
 
+import { Grainient } from "@/components/ui/grainient"
+
 type Locale = "fr" | "es"
 
 interface MiravaMobileShellProps {
@@ -18,9 +20,33 @@ interface MiravaMobileShellProps {
 export function MiravaMobileShell({ children, className, scrollable = false }: MiravaMobileShellProps) {
   return (
     <div className={cn("mirava-native-mobile-shell relative min-h-dvh max-h-dvh text-[#f1f1ed] isolate overflow-hidden selection:bg-[#d5c6b0] selection:text-[#090a0a]", className)}>
-      {/* Unified dark mineral ambient background overlay (seamless edge-to-edge) */}
-      <div className="pointer-events-none fixed inset-0 z-0 bg-[radial-gradient(ellipse_at_50%_-10%,rgba(255,255,255,0.06),transparent_60%),radial-gradient(ellipse_at_50%_110%,rgba(0,0,0,0.85),transparent_70%)] bg-black" />
-      <div className="pointer-events-none fixed inset-0 z-0 bg-[linear-gradient(to_bottom,rgba(15,16,16,0.3)_0%,transparent_30%,rgba(5,6,6,0.6)_100%)]" />
+      {/* React Bits Grainient WebGL Shader Ambient Background */}
+      <div className="pointer-events-none fixed inset-0 z-0 opacity-90">
+        <Grainient
+          color1="#4d4d4d"
+          color2="#2d2d2d"
+          color3="#cbab96"
+          timeSpeed={0.25}
+          colorBalance={-0.2}
+          warpStrength={1.9}
+          warpFrequency={3.9}
+          warpSpeed={2.0}
+          warpAmplitude={44}
+          blendAngle={2}
+          blendSoftness={0.25}
+          rotationAmount={250}
+          noiseScale={2.0}
+          grainAmount={0.1}
+          grainScale={5.2}
+          grainAnimated={false}
+          contrast={1.45}
+          gamma={0.95}
+          saturation={1.25}
+          centerX={-0.11}
+          centerY={0.04}
+          zoom={0.95}
+        />
+      </div>
 
       <div
         className={cn(
@@ -120,10 +146,10 @@ export function MiravaCustomCheckbox({ checked, onChange, label, className }: Mi
     <div
       onClick={() => onChange(!checked)}
       className={cn(
-        "flex cursor-pointer items-start gap-3.5 rounded-2xl border p-4 text-xs leading-relaxed transition-all duration-200 select-none",
+        "flex cursor-pointer items-start gap-3.5 rounded-2xl border p-4 text-xs leading-relaxed transition-all duration-200 select-none backdrop-blur-xl",
         checked
-          ? "border-[#ede8df]/40 bg-[#141516] text-[#f1f1ed] shadow-[0_4px_20px_rgba(0,0,0,0.3)]"
-          : "border-white/10 bg-black/40 text-white/80 hover:border-white/20",
+          ? "border-[#ede8df]/40 bg-white/15 text-[#f1f1ed] shadow-[0_4px_20px_rgba(0,0,0,0.3)]"
+          : "border-white/10 bg-white/5 text-white/80 hover:border-white/20",
         className
       )}
     >
@@ -165,10 +191,10 @@ export function MiravaSelectionCard({ title, subtitle, selected, onClick }: Mira
       onClick={onClick}
       whileTap={{ scale: 0.98 }}
       className={cn(
-        "group relative flex min-h-[76px] w-full items-center justify-between rounded-2xl border p-4 sm:p-5 text-left transition-all duration-200",
+        "group relative flex min-h-[76px] w-full items-center justify-between rounded-2xl border p-4 sm:p-5 text-left transition-all duration-200 backdrop-blur-xl",
         selected
-          ? "border-[#ede8df] bg-[#1a1c1d] shadow-[0_4px_20px_rgba(0,0,0,0.4)]"
-          : "border-white/10 bg-[#121314]/80 hover:border-white/25 hover:bg-[#161819]"
+          ? "border-[#ede8df] bg-white/15 shadow-[0_4px_20px_rgba(0,0,0,0.4)]"
+          : "border-white/10 bg-white/5 hover:border-white/25 hover:bg-white/10"
       )}
     >
       <div className="min-w-0 flex-1 pr-3">
