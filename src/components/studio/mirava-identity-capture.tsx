@@ -427,7 +427,6 @@ export function MiravaIdentityCapture({
                 )}
               >
                 {isDone ? <Check className="h-3.5 w-3.5 stroke-[3]" /> : <span>{slot.number}</span>}
-                <span className="hidden sm:inline text-[11px] truncate">{slot.id}</span>
               </button>
             )
           })}
@@ -441,7 +440,7 @@ export function MiravaIdentityCapture({
               <div className="rounded-2xl border border-white/15 bg-white/10 p-5 backdrop-blur-xl">
                 <div className="flex items-center justify-between gap-3">
                   <span className="block font-jakarta text-[10px] font-bold tracking-[0.16em] text-[#d5c6b0] uppercase">
-                    {`Étape ${currentSlot.number} sur 5`}
+                    {`Étape ${currentSlot.number} sur ${PHOTO_SLOTS.length}`}
                   </span>
                   <span
                     className={cn(
