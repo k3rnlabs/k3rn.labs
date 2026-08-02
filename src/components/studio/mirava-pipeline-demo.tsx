@@ -4,7 +4,8 @@ import React, { useEffect, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Check, Sparkles, Scan, Camera, Wand2, ShieldCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { type Locale } from "@/lib/mirava/brand"
+
+type Locale = "fr" | "es"
 
 interface PipelineDemoProps {
   locale: Locale
