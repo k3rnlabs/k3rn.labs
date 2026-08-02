@@ -196,16 +196,12 @@ const PRESET_DIRECTIONS: Record<MiravaStudioPresetId, { masterPrompt: string; ne
     negativePrompt: "explicit nudity, sexual content, minors, fantasy armor, distorted anatomy, identity drift, watermarks, text",
   },
   "lifestyle-creatrice": {
-    masterPrompt: "Elevated creator lifestyle editorial in a private suite, yacht lounge or intimate cafe setting, relaxed tailoring, warm authentic daylight and candid confidence without stock-photo mannerisms, composed as a center-safe vertical social campaign.",
+    masterPrompt: "Modern creator lifestyle mirror selfie editorial in a brushed stainless-steel elevator, heather purple activewear romper, black tote bag, glowing skin, athletic effortless posture, composed as a center-safe vertical social campaign.",
     negativePrompt: "explicit nudity, sexual content, minors, corporate stock-photo styling, distorted anatomy, identity drift, watermarks, text",
   },
   "dubai-glamour": {
     masterPrompt: "Ultra-glamorous Dubai night editorial with direct flash in front of the illuminated Burj Khalifa and luxury architecture, black silk styling, golden jewelry and silk headscarf, confident captivating posture, composed as a center-safe vertical social campaign.",
     negativePrompt: "explicit nudity, sexual content, minors, distorted anatomy, identity drift, watermarks, text",
-  },
-  "athleisure-chic": {
-    masterPrompt: "Modern athleisure chic mirror selfie editorial in a brushed stainless-steel elevator, heather purple activewear romper, black tote bag, glowing skin, athletic effortless posture, composed as a center-safe vertical social campaign.",
-    negativePrompt: "explicit nudity, sexual content, minors, distorted anatomy, identity drift, phone logos, watermarks, text",
   },
   "sport-glow": {
     masterPrompt: "Sunlit tennis club editorial on a clay court, sculptural white and black mesh tennis dress, holding a racket by the net, radiant sunlit skin, athletic elegance and effortless posture, composed as a center-safe vertical social campaign.",
