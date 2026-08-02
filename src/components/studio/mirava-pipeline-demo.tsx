@@ -150,17 +150,17 @@ export function OnboardingPipelineDemo({ locale, className }: PipelineDemoProps)
                   className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-[#ede8df] to-transparent shadow-[0_0_18px_#ede8df] z-20 pointer-events-none"
                 />
 
-                {/* Oval Facial Reticle Symmetrically Centered over Model's Face */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 -translate-y-8 sm:-translate-y-10">
+                {/* Oval Facial Reticle Encompassing Full Face & Head */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 -translate-y-6 sm:-translate-y-8">
                   <motion.div
                     initial={{ scale: 0.85, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    className="relative h-44 w-36 sm:h-48 sm:w-40 rounded-[50%] border-2 border-dashed border-[#ede8df]/85 shadow-[0_0_35px_rgba(213,198,176,0.3)]"
+                    className="relative h-56 w-44 sm:h-64 sm:w-52 rounded-[50%] border-2 border-dashed border-[#ede8df]/90 shadow-[0_0_40px_rgba(213,198,176,0.35)]"
                   >
-                    <div className="absolute -top-2 -left-2 h-4 w-4 border-t-2 border-l-2 border-[#ede8df]" />
-                    <div className="absolute -top-2 -right-2 h-4 w-4 border-t-2 border-r-2 border-[#ede8df]" />
-                    <div className="absolute -bottom-2 -left-2 h-4 w-4 border-b-2 border-l-2 border-[#ede8df]" />
-                    <div className="absolute -bottom-2 -right-2 h-4 w-4 border-b-2 border-r-2 border-[#ede8df]" />
+                    <div className="absolute -top-3 -left-3 h-5 w-5 border-t-2 border-l-2 border-[#ede8df]" />
+                    <div className="absolute -top-3 -right-3 h-5 w-5 border-t-2 border-r-2 border-[#ede8df]" />
+                    <div className="absolute -bottom-3 -left-3 h-5 w-5 border-b-2 border-l-2 border-[#ede8df]" />
+                    <div className="absolute -bottom-3 -right-3 h-5 w-5 border-b-2 border-r-2 border-[#ede8df]" />
                   </motion.div>
                 </div>
               </>
