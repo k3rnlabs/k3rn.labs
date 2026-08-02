@@ -31,6 +31,7 @@ export type MiravaVisionStep =
   | "hair"
   | "body-front"
   | "body-angle"
+  | "traits"
 
 export type MiravaVisionResult = {
   kind: "result"

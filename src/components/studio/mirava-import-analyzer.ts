@@ -159,7 +159,7 @@ async function evaluateFaceCandidate(analyzer: ImportAnalyzer, file: File): Prom
 
 export async function validateMiravaImportedFileForStep(file: File, step: MiravaVisionStep) {
   if (!validFile(file)) return { valid: false as const, issue: "invalid-file" as const }
-  const analyzer = await createImportAnalyzer(step.startsWith("body-") ? "pose" : "face")
+  const analyzer = await createImportAnalyzer(step.startsWith("body-") || step === "traits" ? "pose" : "face")
   try {
     const result = await analyzer.analyze(file, step)
     return result.ready ? { valid: true as const } : { valid: false as const, issue: result.issue }

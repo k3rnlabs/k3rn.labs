@@ -252,7 +252,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                       </h1>
                     </div>
                     <div className="mirava-onboarding-selection rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 font-jakarta text-xs font-bold tabular-nums text-[#ede8df]">
-                      {universeIds.length}/3
+                      {locale === "fr" ? `${universeIds.length} sur 3 univers` : `${universeIds.length} de 3 universos`}
                     </div>
                   </div>
 
@@ -290,22 +290,25 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
 
                   {/* Direction Hero & Summary Card */}
                   <div className="overflow-hidden rounded-[24px] border border-white/15 bg-[#121314]/90 shadow-2xl backdrop-blur-xl">
-                    <div className="relative aspect-[16/9] w-full overflow-hidden bg-black">
+                    {/* Clean photo frame without text overlays covering the face */}
+                    <div className="relative aspect-[4/3] w-full overflow-hidden bg-black">
                       {primaryUniverse && (
                         <img src={primaryUniverse.image} alt={primaryUniverse.name[locale]} className="h-full w-full object-cover object-top" />
                       )}
-                      <div className="absolute inset-0 bg-gradient-to-t from-[#121314] via-black/40 to-transparent" />
-                      <div className="absolute bottom-3 left-4 right-4 flex items-center justify-between">
-                        <span className="rounded-md bg-black/60 px-2.5 py-1 font-jakarta text-[10px] font-bold tracking-wider text-[#ede8df] uppercase backdrop-blur-md">
-                          {primaryUniverse?.eyebrow[locale]}
-                        </span>
-                        <span className="font-jakarta text-base font-semibold text-white">
-                          {primaryUniverse?.name[locale]}
-                        </span>
-                      </div>
+                      <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-[#121314] to-transparent pointer-events-none" />
                     </div>
 
-                    <div className="divide-y divide-white/10 p-5 font-jakarta text-xs">
+                    {/* Universe Title & Eyebrow below photo */}
+                    <div className="border-b border-white/10 px-5 pt-4 pb-3 flex items-center justify-between">
+                      <strong className="font-jakarta text-base font-semibold text-white">
+                        {primaryUniverse?.name[locale]}
+                      </strong>
+                      <span className="rounded-md border border-white/15 bg-white/5 px-2.5 py-1 font-jakarta text-[10px] font-bold tracking-wider text-[#ede8df] uppercase">
+                        {primaryUniverse?.eyebrow[locale]}
+                      </span>
+                    </div>
+
+                    <div className="divide-y divide-white/10 p-5 pt-3 font-jakarta text-xs">
                       <div className="pb-3 flex justify-between items-center">
                         <span className="text-white/50 uppercase tracking-wider font-semibold">{labels.goalLabel}</span>
                         <span className="font-semibold text-white text-sm">{selectedGoal?.title}</span>
@@ -464,6 +467,20 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                         </div>
                         <span className="text-[10px] text-white/50">
                           {onboardingState?.status === "session_ready" ? (locale === "fr" ? "Validé" : "Validado") : (locale === "fr" ? "Requis" : "Requerido")}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-white/80">
+                        <div className="flex items-center gap-2">
+                          {onboardingState?.status === "session_ready" ? (
+                            <Check className="h-4 w-4 text-emerald-400 stroke-[3]" />
+                          ) : (
+                            <div className="h-4 w-4 rounded-full border border-white/30 bg-black/40" />
+                          )}
+                          <span>{locale === "fr" ? "Traits atypiques & Tatouages" : "Rasgos distintivos y Tatuajes"}</span>
+                        </div>
+                        <span className="text-[10px] text-white/50">
+                          {locale === "fr" ? "Optionnel" : "Opcional"}
                         </span>
                       </div>
                     </div>

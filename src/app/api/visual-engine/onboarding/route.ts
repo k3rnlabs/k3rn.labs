@@ -113,7 +113,7 @@ export async function PATCH(req: NextRequest) {
   if (action.action === "progress") {
     const goal = action.goal ?? existing?.goal
     const selected = action.universeIds ?? existing?.universeIds ?? []
-    const direction = action.direction ?? existing?.direction ?? (goal && selected.length ? buildMiravaDirection(goal, selected) : undefined)
+    const direction = action.direction ?? (goal && selected.length ? buildMiravaDirection(goal, selected) : existing?.direction)
     const targetIndex = MIRAVA_ONBOARDING_STEPS.indexOf(action.currentStep)
     if (targetIndex >= 2 && !goal) return apiError("Onboarding objective incomplete", 409)
     if (targetIndex >= 3 && selected.length === 0) return apiError("Onboarding universes incomplete", 409)

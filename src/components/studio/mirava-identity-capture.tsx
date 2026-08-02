@@ -90,6 +90,13 @@ const steps: CaptureStep[] = [
     optional: true,
     mode: "pose",
   },
+  {
+    id: "traits",
+    title: { fr: "Traits atypiques & Tatouages", es: "Rasgos distintivos y Tatuajes" },
+    instruction: { fr: "Optionnel · Cadrez vos tatouages, cicatrices ou signes distinctifs.", es: "Opcional · Encuadra tus tatuajes, cicatrices o marcas distintivas." },
+    optional: true,
+    mode: "pose",
+  },
 ]
 
 type CapturedFrame = { stepId: MiravaVisionStep; file: File; preview: string }
