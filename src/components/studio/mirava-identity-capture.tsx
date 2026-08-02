@@ -268,18 +268,62 @@ async function analyzePhotoCriteria(
     const avgLuminance = totalLuminance / (pixelCount / 4)
     const mouthTeethRatio = mouthSampleCount > 0 ? mouthWhitePixels / mouthSampleCount : 0
 
+    // Skin pixel sampling for Face Framing (slotId front, angle, profile_right, smile)
+    let skinMinY = canvas.height
+    let skinMaxY = 0
+    let skinCount = 0
+
+    for (let y = 0; y < canvas.height; y += 2) {
+      for (let x = 0; x < canvas.width; x += 2) {
+        const idx = (y * canvas.width + x) * 4
+        const r = data[idx]
+        const g = data[idx + 1]
+        const b = data[idx + 2]
+
+        // Skin color heuristic (in RGB space)
+        const isSkin =
+          r > 70 &&
+          g > 45 &&
+          b > 30 &&
+          r > g &&
+          r > b &&
+          r - Math.min(g, b) > 14 &&
+          Math.abs(r - g) > 10
+
+        if (isSkin) {
+          skinCount++
+          if (y < skinMinY) skinMinY = y
+          if (y > skinMaxY) skinMaxY = y
+        }
+      }
+    }
+
+    const faceHeightRatio = skinCount > 0 ? (skinMaxY - skinMinY) / canvas.height : 0
+
     const failedIndices: number[] = []
     let warning: string | undefined
+
+    // Face Slots (front, angle, profile_right, smile): Face must be close enough (height ratio >= 0.22)
+    if (["front", "angle", "profile_right", "smile"].includes(slotId)) {
+      if (faceHeightRatio < 0.22 || skinCount < 80) {
+        failedIndices.push(0) // Index 0: "Visage net et centré dans le cadre"
+        warning =
+          locale === "fr"
+            ? "Visage trop distant : veuillez importer un portrait cadré de plus près (visage centré)."
+            : "Rostro demasiado lejano: usa un retrato centrado en el rostro."
+      }
+    }
 
     // Slot 1: Neutral Face checks
     if (slotId === "front") {
       const isSmiling = mouthTeethRatio > 0.038
       if (isSmiling) {
         failedIndices.push(2) // Index 2: "Expression neutre (sans lunettes ni masque)"
-        warning =
-          locale === "fr"
-            ? "Sourire détecté : cette photo doit avoir une expression neutre sans sourire."
-            : "Sonrisa detectada: esta foto debe tener una expresión neutra sin sonrisa."
+        warning = warning
+          ? `${warning} Sourire détecté.`
+          : locale === "fr"
+          ? "Sourire détecté : cette photo doit avoir une expression neutre sans sourire."
+          : "Sonrisa detectada: esta foto debe tener una expresión neutra sin sonrisa."
       }
       if (avgLuminance < 25 || avgLuminance > 240) {
         failedIndices.push(1) // Index 1: "Éclairage naturel et homogène"
@@ -661,7 +705,7 @@ export function MiravaIdentityCapture({
 
               {/* PHOTO PREVIEW & LIVE SCAN RETICLE */}
               {currentSlotState.preview ? (
-                <div className="relative aspect-[4/5] w-full overflow-hidden rounded-2xl border border-white/20 bg-black/90 shadow-2xl flex items-center justify-center">
+                <div className="relative aspect-[4/5] max-h-[320px] sm:max-h-[360px] w-full overflow-hidden rounded-2xl border border-white/20 bg-black/90 shadow-2xl flex items-center justify-center">
                   {/* Photo Image in original ratio without cropping */}
                   <img
                     src={currentSlotState.preview}
@@ -690,7 +734,7 @@ export function MiravaIdentityCapture({
                     </>
                   )}
 
-                  {/* SCANNED STATUS BADGE */}
+                  {/* SCANNED STATUS BADGE (Top Left) */}
                   {currentSlotState.status === "scanned" && (
                     <div
                       className={cn(
@@ -720,6 +764,18 @@ export function MiravaIdentityCapture({
                         </>
                       )}
                     </div>
+                  )}
+
+                  {/* CHANGE PHOTO BUTTON (Top Right) */}
+                  {currentSlotState.status === "scanned" && (
+                    <button
+                      type="button"
+                      onClick={handleResetCurrentPhoto}
+                      className="absolute top-3 right-3 flex items-center gap-1.5 rounded-full border border-white/20 bg-black/80 px-3 py-1 font-jakarta text-xs font-medium text-white/90 shadow-md backdrop-blur-md transition-all hover:bg-white/20 active:scale-95"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5 text-[#ede8df]" />
+                      <span>{locale === "fr" ? "Changer" : "Cambiar"}</span>
+                    </button>
                   )}
                 </div>
               ) : null}
@@ -815,18 +871,16 @@ export function MiravaIdentityCapture({
                   </>
                 )}
 
-                {currentSlotState.status === "scanned" && (
+                {!inline && currentSlotState.status === "scanned" && (
                   <div className="flex flex-col gap-2.5">
-                    {!inline && (
-                      <button
-                        type="button"
-                        onClick={handleAdvanceToNext}
-                        className="group flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-[#ede8df] px-5 font-jakarta text-sm font-semibold text-[#0d0e0e] shadow-lg transition-all hover:bg-white active:scale-[0.98]"
-                      >
-                        <span>{locale === "fr" ? "Valider et continuer" : "Validar y continuar"}</span>
-                        <ChevronRight className="h-5 w-5" />
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={handleAdvanceToNext}
+                      className="group flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-[#ede8df] px-5 font-jakarta text-sm font-semibold text-[#0d0e0e] shadow-lg transition-all hover:bg-white active:scale-[0.98]"
+                    >
+                      <span>{locale === "fr" ? "Valider et continuer" : "Validar y continuar"}</span>
+                      <ChevronRight className="h-5 w-5" />
+                    </button>
 
                     <button
                       type="button"
