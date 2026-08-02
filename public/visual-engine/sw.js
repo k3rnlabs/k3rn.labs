@@ -1,4 +1,4 @@
-const CACHE = "mirava-public-shell-v1";
+const CACHE = "mirava-public-shell-v2";
 const PUBLIC_SHELL = ["/visual-engine", "/visual-engine/offline"];
 
 self.addEventListener("install", (event) => {
