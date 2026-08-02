@@ -201,11 +201,8 @@ export function MiravaIdentityCapture({
     return index === -1 ? appendStartStep : index
   }, [appendStartStep, frames])
 
-  useEffect(() => {
-    if (initialConsentAccepted && phase === "intro") {
-      void startCamera()
-    }
-  }, [initialConsentAccepted, startCamera])
+  useEffect(() => { framesRef.current = frames }, [frames])
+  useEffect(() => { pendingFrameRef.current = pendingFrame }, [pendingFrame])
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop())
@@ -309,6 +306,12 @@ export function MiravaIdentityCapture({
       posthog.capture("camera_permission_denied", { onboarding_context: context })
     }
   }, [context, currentStep.id, currentStep.mode, initialiseWorker, legalAccepted, locale, stopCamera])
+
+  useEffect(() => {
+    if (initialConsentAccepted && phase === "intro") {
+      void startCamera()
+    }
+  }, [initialConsentAccepted, startCamera])
 
   useEffect(() => {
     if (phase !== "capture") return
