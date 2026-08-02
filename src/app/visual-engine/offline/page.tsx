@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { ArrowLeft, RefreshCw, WifiOff } from "lucide-react"
 import { MiravaGrain } from "@/components/mirava/mirava-grain"
-import { MiravaMark } from "@/components/mirava/mirava-wordmark"
+import { MiravaMark } from "@/components/mirava/mirava-mark"
 import { useMiravaLocale } from "@/components/mirava/mirava-locale"
 
 export default function MiravaOfflinePage() {
