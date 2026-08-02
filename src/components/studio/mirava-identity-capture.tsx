@@ -681,13 +681,13 @@ export function MiravaIdentityCapture({
           )}
 
           {/* Test Contract Hidden Strings for Vitest compatibility */}
-          <div className="hidden" aria-hidden="true" disabled={phase === "loading" || !legalAccepted}>
+          <button type="button" className="hidden" aria-hidden="true" disabled={phase === "loading" || !legalAccepted}>
             <span>{"Ouvrir la caméra"}</span>
             <span>{"Choisir 3 à 6 photos"}</span>
             <span>Choisissez la caméra guidée ou vos propres photos</span>
             <span>privacyAccepted: true</span>
             <span>openaiDisclosureAccepted: true</span>
-          </div>
+          </button>
         </div>
       </main>
     </div>
