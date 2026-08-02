@@ -1004,9 +1004,8 @@ function IdentityProfilePreview({
 function UniverseCard({ universe, locale, selected, onClick }: { universe: MiravaUniverse; locale: Locale; selected: boolean; onClick: () => void }) {
   return (
     <button aria-pressed={selected} onClick={onClick} className={cn("mirava-image-frame group relative min-w-[72vw] snap-center overflow-hidden border bg-mirava-canvas-raised text-left transition-[border-color,box-shadow] duration-150 sm:min-w-0", selected ? "border-mirava-ink ring-2 ring-mirava-ink/15" : "border-mirava-line")}>
-      <div className="relative aspect-[4/5] bg-black/80 overflow-hidden">
-        <Image src={universe.image} alt="" aria-hidden="true" fill className="object-cover blur-xl scale-125 opacity-35" />
-        <Image src={universe.image} alt={universe.name[locale]} fill priority={universe.id === "escapade-solaire"} sizes="(max-width: 640px) 72vw, (max-width: 1024px) 45vw, 24vw" className="object-contain p-0.5 transition-transform duration-300 group-hover:scale-[1.02]" />
+      <div className="relative aspect-[9/16] bg-black overflow-hidden">
+        <Image src={universe.image} alt={universe.name[locale]} fill priority={universe.id === "escapade-solaire"} sizes="(max-width: 640px) 72vw, (max-width: 1024px) 45vw, 24vw" className="object-cover object-center transition-transform duration-300 group-hover:scale-[1.025]" />
         <div className="mirava-media-overlay absolute inset-0 z-10" />
         <div className="absolute inset-x-4 bottom-4 text-mirava-ink z-20">
           <p className="text-[9px] font-semibold tracking-[.14em] text-mirava-ink/60">{universe.eyebrow[locale]}</p>

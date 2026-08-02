@@ -103,7 +103,7 @@ export const MIRAVA_UNIVERSES: MiravaUniverse[] = [
       fr: "Un très gros plan beauté pensé pour révéler le regard, la texture naturelle de la peau et la précision du style.",
       es: "Un primerísimo plano de belleza pensado para revelar la mirada, la textura natural de la piel y la precisión del estilismo.",
     },
-    image: "/visual-engine/univers/beauty-close-up.webp",
+    image: "/visual-engine/univers/beauty-close-up.png",
     keyElements: {
       fr: ["Flash éditorial précis", "Texture de peau préservée", "Cheveux wet-look", "Bijou sculptural"],
       es: ["Flash editorial preciso", "Textura de piel preservada", "Cabello wet-look", "Joya escultórica"],
@@ -315,6 +315,38 @@ export const MIRAVA_UNIVERSES: MiravaUniverse[] = [
         stylings: { fr: ["Combi-short activewear mauve", "Set de sport sculptant neutre", "Ensemble legging & brassière"], es: ["Mono corto activewear morado", "Set de deporte moldeador neutro", "Conjunto legging y top"] },
         energies: { fr: ["Athlétique", "Fraîche", "Décontractée"], es: ["Atlética", "Fresca", "Relajada"] },
         lights: { fr: ["Néon doux d'ascenseur", "Reflets inox", "Lumière naturelle de studio"], es: ["Neón suave de ascensor", "Reflejos de acero", "Luz natural de estudio"] },
+      },
+    },
+  },
+  {
+    id: "sport-glow",
+    name: { fr: "Tennis Club Glow", es: "Tennis Club Glow" },
+    eyebrow: { fr: "TENNIS · TERRE BATTUE · SOLEIL", es: "TENIS · TIERRA BATIDA · SOL" },
+    tagline: { fr: "L’élégance sportive sur terre battue.", es: "La elegancia deportiva en tierra batida." },
+    description: {
+      fr: "Tenue de tennis sculpturale blanche et noire, raquette et lumière estivale sur un court en terre battue pour un lifestyle country club solaire.",
+      es: "Conjunto de tenis escultórico blanco y negro, raqueta y luz estival en una pista de tierra batida para un lifestyle country club solar.",
+    },
+    image: "/visual-engine/univers/sport-glow.png",
+    keyElements: {
+      fr: ["Tenue de tennis blanche & noire", "Court en terre battue", "Raquette & rafraîchissement", "Soleil d'été & teint radieux"],
+      es: ["Conjunto de tenis blanco y negro", "Pista de tierra batida", "Raqueta y frescura", "Sol de verano y piel radiante"],
+    },
+    sampleBriefs: {
+      fr: ["Une silhouette de tennis sculpturale au filet d'un court en terre battue.", "Un portrait sport-chic estival avec raquette et lumière naturelle.", "Une campagne country club chic baignée par le soleil de l'après-midi."],
+      es: ["Una silueta de tenis escultórica en la red de una pista de tierra batida.", "Un retrato sport-chic estival con raqueta y luz natural.", "Una campaña country club chic bañada por el sol de la tarde."],
+    },
+    creativeDirection: {
+      location: { fr: "Court de tennis privé en terre battue", es: "Pista de tenis privada en tierra batida" },
+      styling: { fr: "Robe de tennis blanche & noire avec empiècements mesh", es: "Vestido de tenis blanco y negro con inserciones mesh" },
+      energy: { fr: "Solaire, athlétique et élégante", es: "Solar, atlética y elegante" },
+      light: { fr: "Soleil estival et lumière naturelle directe", es: "Sol estival y luz natural directa" },
+      photoStyle: { fr: "Lifestyle country club net et éditorial", es: "Lifestyle country club nítido y editorial" },
+      refinements: {
+        locations: { fr: ["Court en terre battue", "Clubhouse en bois", "Bord de court ensoleillé", "Terrasse de tennis club"], es: ["Pista de tierra batida", "Clubhouse de madera", "Junto a la red al sol", "Terraza de club de tenis"] },
+        stylings: { fr: ["Robe de tennis courte blanche", "Set de tennis plissé", "Ensemble brassière & jupe-short"], es: ["Vestido corto de tenis blanco", "Set de tenis plisado", "Conjunto top y falda-pantalon"] },
+        energies: { fr: ["Solaire", "Élégante", "Compétitive"], es: ["Solar", "Elegante", "Competitiva"] },
+        lights: { fr: ["Soleil direct d'après-midi", "Lumière dorée de fin de match", "Ombres nettes du filet"], es: ["Sol directo de tarde", "Luz dorada de final de partido", "Sombras nítidas de la red"] },
       },
     },
   },

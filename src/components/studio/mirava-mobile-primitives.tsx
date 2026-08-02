@@ -243,32 +243,23 @@ export function UniverseCard({ universe, selected, locale, onToggle }: UniverseC
       whileTap={{ scale: 0.97 }}
       transition={{ duration: 0.15 }}
       className={cn(
-        "group relative flex aspect-[0.75] w-full flex-col justify-end overflow-hidden rounded-[22px] border text-left transition-all duration-200 focus-visible:outline-2 focus-visible:outline-[#d5c6b0]",
+        "group relative flex aspect-[9/16] w-full flex-col justify-end overflow-hidden rounded-[22px] border text-left transition-all duration-200 focus-visible:outline-2 focus-visible:outline-[#d5c6b0]",
         selected
           ? "border-[#ede8df] shadow-[0_8px_32px_rgba(0,0,0,0.6)] ring-1 ring-[#ede8df]"
-          : "border-white/10 hover:border-white/25 shadow-lg bg-black/80"
+          : "border-white/10 hover:border-white/25 shadow-lg bg-black"
       )}
     >
-      {/* Ambient Blurred Background Fill */}
-      <img
-        src={universe.image}
-        alt=""
-        aria-hidden="true"
-        className="absolute inset-0 h-full w-full object-cover blur-xl scale-125 opacity-35 transition-opacity duration-300"
-      />
-
-      {/* Main Image Layer (Fully visible, uncropped) */}
       <img
         src={universe.image}
         alt={universe.name[locale]}
         className={cn(
-          "absolute inset-0 h-full w-full object-contain p-0.5 transition-all duration-500 group-hover:scale-[1.02]",
-          selected ? "saturate-[1.05] brightness-[0.98]" : "saturate-[0.85] brightness-[0.85]"
+          "absolute inset-0 h-full w-full object-cover object-center transition-all duration-500 group-hover:scale-105",
+          selected ? "scale-105 saturate-[1.05] brightness-[0.98]" : "saturate-[0.85] brightness-[0.85]"
         )}
       />
 
       <div className="pointer-events-none absolute inset-0 rounded-[22px] border border-white/10 z-10" />
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/95 via-black/30 to-transparent z-10" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-transparent z-10" />
 
       <div className="absolute right-3 top-3 z-20">
         <SelectionIndicator selected={selected} />

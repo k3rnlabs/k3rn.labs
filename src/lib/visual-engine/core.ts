@@ -207,6 +207,10 @@ const PRESET_DIRECTIONS: Record<MiravaStudioPresetId, { masterPrompt: string; ne
     masterPrompt: "Modern athleisure chic mirror selfie editorial in a brushed stainless-steel elevator, heather purple activewear romper, black tote bag, glowing skin, athletic effortless posture, composed as a center-safe vertical social campaign.",
     negativePrompt: "explicit nudity, sexual content, minors, distorted anatomy, identity drift, phone logos, watermarks, text",
   },
+  "sport-glow": {
+    masterPrompt: "Sunlit tennis club editorial on a clay court, sculptural white and black mesh tennis dress, holding a racket by the net, radiant sunlit skin, athletic elegance and effortless posture, composed as a center-safe vertical social campaign.",
+    negativePrompt: "explicit nudity, sexual content, minors, distorted anatomy, identity drift, brand logos, watermarks, text",
+  },
 }
 
 function nowPlus24Hours(): string {
