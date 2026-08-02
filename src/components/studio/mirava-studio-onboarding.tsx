@@ -18,6 +18,7 @@ import {
   UniverseGrid,
 } from "./mirava-mobile-primitives"
 import MiravaIdentityCapture, { PHOTO_SLOTS, type CaptureActionState } from "./mirava-identity-capture"
+import { OnboardingPipelineDemo } from "./mirava-pipeline-demo"
 
 type Locale = "fr" | "es"
 const GOALS: Record<Locale, Array<{ id: MiravaOnboardingGoal; title: string; session: string; reason: string }>> = {
@@ -208,20 +209,9 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                     </label>
                   </div>
 
-                  {/* Editorial Collage Grid */}
-                  <div className="grid grid-cols-3 gap-2.5 pt-2" aria-hidden="true">
-                    {MIRAVA_UNIVERSES.slice(0, 3).map((universe, idx) => (
-                      <div
-                        key={universe.id}
-                        className={cn(
-                          "relative aspect-[0.82] overflow-hidden rounded-2xl border border-white/10 shadow-md transition-transform duration-300",
-                          idx === 1 ? "scale-105 z-10 border-white/25 shadow-xl" : "opacity-80"
-                        )}
-                      >
-                        <img src={universe.image} alt="" className="h-full w-full object-cover object-top" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-                      </div>
-                    ))}
+                  {/* Gold Standard App-Native Animated Pipeline Demo */}
+                  <div className="pt-1 sm:pt-2">
+                    <OnboardingPipelineDemo locale={locale} />
                   </div>
                 </div>
               )}

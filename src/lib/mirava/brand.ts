@@ -24,9 +24,8 @@ export const MIRAVA_STUDIO_PRESETS = [
   { id: "editorial-mode", name: "Éditorial mode", description: "Silhouette sculpturale, contraste et haute mode." },
   { id: "night-glamour", name: "Glamour nocturne", description: "Flash nocturne, velours et présence confidentielle." },
   { id: "futuristic-muse", name: "Futuristic muse", description: "Eau prismatique, métal et reflets miroir." },
-  { id: "lifestyle-creatrice", name: "Vie de créatrice", description: "Instants privés, chic naturel et présence sociale." },
+  { id: "lifestyle-creatrice", name: "Vie de créatrice", description: "Athleisure chic, ascenseur inox et instants créateur." },
   { id: "dubai-glamour", name: "Glamour Dubaï", description: "Soie noire, bijoux en or et flash sous le Burj Khalifa." },
-  { id: "athleisure-chic", name: "Athleisure chic", description: "Combi activewear, miroir inox et allures sport-chic." },
   { id: "sport-glow", name: "Tennis Club Glow", description: "Tenue de tennis sculpturale et soleil sur terre battue." },
 ] as const
 
