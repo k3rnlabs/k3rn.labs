@@ -51,7 +51,7 @@ export function MiravaMobileShell({ children, className, scrollable = false }: M
 
       <div
         className={cn(
-          "relative z-10 mx-auto flex h-dvh max-w-md flex-col px-4 pb-28 pt-0 sm:max-w-xl sm:px-6",
+          "relative z-10 mx-auto flex h-dvh max-w-md flex-col px-4 pb-28 pt-16 sm:max-w-xl sm:px-6",
           scrollable ? "overflow-y-auto" : "overflow-hidden justify-between"
         )}
       >
@@ -79,24 +79,24 @@ export function MobileProgressHeader({
   const currentStep = Math.min(totalSteps, Math.max(1, step + 1))
 
   return (
-    <header className="sticky top-0 z-40 -mx-4 mb-4 rounded-b-2xl sm:-mx-6">
+    <header className="fixed top-0 left-0 right-0 z-50 w-full">
       <GlassSurface
         width="100%"
         height="auto"
-        borderRadius={16}
+        borderRadius={0}
         brightness={45}
         opacity={0.95}
-        blur={12}
-        backgroundOpacity={0.15}
-        className="px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2 border-b border-white/15 shadow-xl sm:px-6"
+        blur={14}
+        backgroundOpacity={0.2}
+        className="w-full border-b border-white/15 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2.5 shadow-2xl sm:px-8"
       >
-        <div className="w-full">
+        <div className="mx-auto w-full max-w-md sm:max-w-xl">
           {/* 6 Step Nodes / Progress segments */}
-          <div className="flex items-center gap-1 py-1" role="progressbar" aria-valuemin={1} aria-valuemax={totalSteps} aria-valuenow={currentStep}>
+          <div className="flex items-center gap-1.5 py-1" role="progressbar" aria-valuemin={1} aria-valuemax={totalSteps} aria-valuenow={currentStep}>
             {Array.from({ length: totalSteps }).map((_, index) => {
               const isActive = index < currentStep
               return (
-                <div key={index} className="relative h-[3px] flex-1 overflow-hidden rounded-full bg-white/15">
+                <div key={index} className="relative h-[3.5px] flex-1 overflow-hidden rounded-full bg-white/15">
                   <motion.div
                     className="h-full bg-[#ede8df]"
                     initial={{ width: 0 }}
