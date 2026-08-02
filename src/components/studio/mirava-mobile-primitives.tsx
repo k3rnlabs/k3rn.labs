@@ -37,8 +37,8 @@ export function MiravaMobileShell({ children, className, scrollable = false }: M
           blendSoftness={0.25}
           rotationAmount={250}
           noiseScale={2.0}
-          grainAmount={0.1}
-          grainScale={5.2}
+          grainAmount={0.035}
+          grainScale={2.2}
           grainAnimated={false}
           contrast={1.45}
           gamma={0.95}
@@ -51,7 +51,7 @@ export function MiravaMobileShell({ children, className, scrollable = false }: M
 
       <div
         className={cn(
-          "relative z-10 mx-auto flex h-dvh max-w-md flex-col px-4 pb-28 pt-16 sm:max-w-xl sm:px-6",
+          "relative z-10 mx-auto flex h-dvh max-w-md flex-col px-4 pb-28 pt-24 sm:max-w-xl sm:px-6",
           scrollable ? "overflow-y-auto" : "overflow-hidden justify-between"
         )}
       >
@@ -83,12 +83,12 @@ export function MobileProgressHeader({
       <GlassSurface
         width="100%"
         height="auto"
-        borderRadius={0}
+        borderRadius={20}
         brightness={45}
         opacity={0.95}
         blur={14}
         backgroundOpacity={0.2}
-        className="w-full border-b border-white/15 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2.5 shadow-2xl sm:px-8"
+        className="w-full rounded-b-2xl border-b border-white/15 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 shadow-2xl sm:px-8"
       >
         <div className="mx-auto w-full max-w-md sm:max-w-xl">
           {/* 6 Step Nodes / Progress segments */}

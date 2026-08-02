@@ -261,7 +261,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                   {universeLimitNotice && <p className="mirava-form-error rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200" role="status">{universeLimitNotice}</p>}
 
                   {/* Universe Cards Grid (Inner scroll container expanding to bottom dock) */}
-                  <div className="max-h-[calc(100dvh-210px)] overflow-y-auto pr-1 no-scrollbar space-y-3 pb-24">
+                  <div className="max-h-[calc(100dvh-240px)] overflow-y-auto pr-1 no-scrollbar space-y-3 pb-28">
                     <UniverseGrid>
                       {MIRAVA_UNIVERSES.map((universe) => (
                         <UniverseCard
