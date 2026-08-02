@@ -17,6 +17,7 @@ import {
   UniverseCard,
   UniverseGrid,
 } from "./mirava-mobile-primitives"
+import MiravaIdentityCapture from "./mirava-identity-capture"
 
 type Locale = "fr" | "es"
 const GOALS: Record<Locale, Array<{ id: MiravaOnboardingGoal; title: string; session: string; reason: string }>> = {
@@ -354,16 +355,12 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                     </h1>
                   </div>
 
-                  {/* Face ID Reticle Hero Card */}
-                  <div className="relative flex flex-col items-center justify-center overflow-hidden rounded-[24px] border border-white/15 bg-white/10 p-6 text-center shadow-2xl backdrop-blur-xl">
-                    <div className="relative mb-4 grid h-24 w-24 place-items-center rounded-full border-2 border-[#ede8df]/40 bg-black/40 p-2 shadow-[0_0_30px_rgba(237,232,223,0.15)]">
-                      <div className="absolute inset-0 rounded-full border border-dashed border-[#ede8df]/60 animate-spin-slow" />
-                      <UserCheck className="h-10 w-10 text-[#ede8df]" />
-                    </div>
-                    <strong className="block font-jakarta text-base font-semibold text-white">
-                      {labels.photos}
-                    </strong>
-                  </div>
+                  {/* Consent Checkbox */}
+                  <MiravaCustomCheckbox
+                    checked={identityConsentAccepted}
+                    onChange={setIdentityConsentAccepted}
+                    label={labels.consent}
+                  />
 
                   {/* Trust Bullet Cards */}
                   <div className="space-y-2.5 rounded-2xl border border-white/15 bg-white/10 p-4 text-xs leading-relaxed text-white/70 backdrop-blur-xl">
@@ -377,12 +374,39 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                     </div>
                   </div>
 
-                  {/* Consent Checkbox */}
-                  <MiravaCustomCheckbox
-                    checked={identityConsentAccepted}
-                    onChange={setIdentityConsentAccepted}
-                    label={labels.consent}
-                  />
+                  {/* INLINE SINGLE-PHOTO STEP CAPTURE */}
+                  <div className="pt-2">
+                    <MiravaIdentityCapture
+                      inline={true}
+                      locale={locale}
+                      initialConsentAccepted={identityConsentAccepted}
+                      onClose={() => {}}
+                      onComplete={async (files) => {
+                        if (files.length > 0) {
+                          setPending(true)
+                          try {
+                            const res = await fetch("/api/visual-engine/identity-profile", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                ageConfirmed: true,
+                                rightsConfirmed: true,
+                                retentionAccepted: true,
+                                privacyAccepted: true,
+                                openaiDisclosureAccepted: true,
+                              }),
+                            })
+                            if (res.ok) {
+                              const saved = await persist("capture_activation", { identityConsentAccepted: true })
+                              if (saved) onStartCapture(saved)
+                            }
+                          } finally {
+                            setPending(false)
+                          }
+                        }
+                      }}
+                    />
+                  </div>
                 </div>
               )}
 

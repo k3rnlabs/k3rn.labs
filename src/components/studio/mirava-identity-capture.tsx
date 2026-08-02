@@ -171,6 +171,7 @@ export function MiravaIdentityCapture({
   context = "onboarding",
   existingCount = 0,
   initialConsentAccepted = false,
+  inline = false,
   onClose,
   onComplete,
 }: {
@@ -178,6 +179,7 @@ export function MiravaIdentityCapture({
   context?: "onboarding" | "replace" | "append"
   existingCount?: number
   initialConsentAccepted?: boolean
+  inline?: boolean
   onClose: () => void
   onComplete: (files: File[], consent: MiravaIdentityConsent) => Promise<void>
 }) {
@@ -204,15 +206,17 @@ export function MiravaIdentityCapture({
   }, [onClose])
 
   useEffect(() => {
+    if (inline) return
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return
       close()
     }
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [close])
+  }, [close, inline])
 
   useEffect(() => {
+    if (inline) return
     const retainFocus = (event: KeyboardEvent) => {
       if (event.key !== "Tab") return
       if (!dialogRef.current) return
@@ -232,7 +236,7 @@ export function MiravaIdentityCapture({
     }
     window.addEventListener("keydown", retainFocus)
     return () => window.removeEventListener("keydown", retainFocus)
-  }, [])
+  }, [inline])
 
   // Keep worker ref contract for Vitest string checks
   useEffect(() => {
@@ -354,17 +358,8 @@ export function MiravaIdentityCapture({
 
   const phase: Phase = submitting ? "loading" : "capture"
 
-  return (
-    <div
-      ref={dialogRef}
-      role="dialog"
-      aria-modal="true"
-      aria-label={locale === "fr" ? "Capture guidée de votre Profil identité" : "Captura guiada de tu Perfil de identidad"}
-      className="mirava-theme fixed inset-0 z-50 flex flex-col bg-[#0b0c0d] text-[#f1f1ed] selection:bg-[#d5c6b0] selection:text-[#090a0a]"
-      data-dialog-initial-focus
-    >
-      <MiravaGrain />
-
+  const contentUI = (
+    <div className={cn("space-y-5", inline ? "" : "mx-auto max-w-lg")}>
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
@@ -374,69 +369,35 @@ export function MiravaIdentityCapture({
         onChange={handleFileSelect}
       />
 
-      {/* Header bar */}
-      <header className="sticky top-0 z-40 flex items-center justify-between border-b border-white/10 bg-black/60 px-4 py-3.5 backdrop-blur-xl sm:px-6">
-        <button
-          type="button"
-          onClick={close}
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/80 transition-all hover:bg-white/15 active:scale-95"
-          aria-label={locale === "fr" ? "Fermer" : "Cerrar"}
-        >
-          <X className="h-5 w-5" />
-        </button>
+      {/* STEPPER PILLS (1 to 5) */}
+      {!showSummary && (
+        <div className="flex items-center justify-between gap-1.5 rounded-2xl border border-white/10 bg-white/5 p-2 backdrop-blur-xl">
+          {PHOTO_SLOTS.map((slot, idx) => {
+            const state = slotStates[slot.id]
+            const isActive = idx === activeSlotIndex
+            const isDone = state.status === "scanned" && state.file
 
-        <div className="text-center font-jakarta">
-          <span className="block text-[10px] font-bold tracking-[0.16em] text-[#d5c6b0] uppercase">
-            MIRAVA / PROFIL IDENTITÉ
-          </span>
-          <strong className="block text-xs font-semibold text-white">
-            {showSummary
-              ? locale === "fr"
-                ? "Validation du Profil Identité"
-                : "Validación del Perfil"
-              : `${currentSlot.title[locale]}`}
-          </strong>
+            return (
+              <button
+                key={slot.id}
+                type="button"
+                onClick={() => setActiveSlotIndex(idx)}
+                className={cn(
+                  "flex flex-1 items-center justify-center gap-1 rounded-xl py-2 font-jakarta text-xs font-semibold transition-all duration-200",
+                  isActive
+                    ? "bg-[#ede8df] text-[#0d0e0e] shadow-md"
+                    : isDone
+                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                    : "bg-white/5 text-white/60 hover:bg-white/10",
+                )}
+              >
+                {isDone ? <Check className="h-3.5 w-3.5 stroke-[3]" /> : <span>{slot.number}</span>}
+                <span className="hidden sm:inline text-[11px] truncate">{slot.id}</span>
+              </button>
+            )
+          })}
         </div>
-
-        <div className="flex items-center gap-1">
-          <span className="rounded-md border border-white/15 bg-white/5 px-2 py-0.5 font-jakarta text-[9px] font-bold text-white/70 uppercase">
-            {locale.toUpperCase()}
-          </span>
-        </div>
-      </header>
-
-      {/* Main Container */}
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
-        <div className="mx-auto max-w-lg space-y-5">
-          {/* STEPPER PILLS (1 to 5) */}
-          {!showSummary && (
-            <div className="flex items-center justify-between gap-1.5 rounded-2xl border border-white/10 bg-white/5 p-2 backdrop-blur-xl">
-              {PHOTO_SLOTS.map((slot, idx) => {
-                const state = slotStates[slot.id]
-                const isActive = idx === activeSlotIndex
-                const isDone = state.status === "scanned" && state.file
-
-                return (
-                  <button
-                    key={slot.id}
-                    type="button"
-                    onClick={() => setActiveSlotIndex(idx)}
-                    className={cn(
-                      "flex flex-1 items-center justify-center gap-1 rounded-xl py-2 font-jakarta text-xs font-semibold transition-all duration-200",
-                      isActive
-                        ? "bg-[#ede8df] text-[#0d0e0e] shadow-md"
-                        : isDone
-                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                        : "bg-white/5 text-white/60 hover:bg-white/10",
-                    )}
-                  >
-                    {isDone ? <Check className="h-3.5 w-3.5 stroke-[3]" /> : <span>{slot.number}</span>}
-                    <span className="hidden sm:inline text-[11px] truncate">{slot.id}</span>
-                  </button>
-                )
-              })}
-            </div>
-          )}
+      )}
 
           {/* SINGLE PHOTO STEP VIEW */}
           {!showSummary ? (
@@ -689,6 +650,57 @@ export function MiravaIdentityCapture({
             <span>openaiDisclosureAccepted: true</span>
           </button>
         </div>
+  )
+
+  if (inline) {
+    return contentUI
+  }
+
+  return (
+    <div
+      ref={dialogRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label={locale === "fr" ? "Capture guidée de votre Profil identité" : "Captura guiada de tu Perfil de identidad"}
+      className="mirava-theme fixed inset-0 z-50 flex flex-col bg-[#0b0c0d] text-[#f1f1ed] selection:bg-[#d5c6b0] selection:text-[#090a0a]"
+      data-dialog-initial-focus
+    >
+      <MiravaGrain />
+
+      {/* Header bar */}
+      <header className="sticky top-0 z-40 flex items-center justify-between border-b border-white/10 bg-black/60 px-4 py-3.5 backdrop-blur-xl sm:px-6">
+        <button
+          type="button"
+          onClick={close}
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/80 transition-all hover:bg-white/15 active:scale-95"
+          aria-label={locale === "fr" ? "Fermer" : "Cerrar"}
+        >
+          <X className="h-5 w-5" />
+        </button>
+
+        <div className="text-center font-jakarta">
+          <span className="block text-[10px] font-bold tracking-[0.16em] text-[#d5c6b0] uppercase">
+            MIRAVA / PROFIL IDENTITÉ
+          </span>
+          <strong className="block text-xs font-semibold text-white">
+            {showSummary
+              ? locale === "fr"
+                ? "Validation du Profil Identité"
+                : "Validación del Perfil"
+              : `${currentSlot.title[locale]}`}
+          </strong>
+        </div>
+
+        <div className="flex items-center gap-1">
+          <span className="rounded-md border border-white/15 bg-white/5 px-2 py-0.5 font-jakarta text-[9px] font-bold text-white/70 uppercase">
+            {locale.toUpperCase()}
+          </span>
+        </div>
+      </header>
+
+      {/* Main Container */}
+      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+        {contentUI}
       </main>
     </div>
   )
