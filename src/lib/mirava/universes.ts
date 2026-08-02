@@ -350,6 +350,38 @@ export const MIRAVA_UNIVERSES: MiravaUniverse[] = [
       },
     },
   },
+  {
+    id: "retro-lounge",
+    name: { fr: "Cinéma Rétro", es: "Cine Retro" },
+    eyebrow: { fr: "DENTELLE · VINTAGE · CINÉMA", es: "ENCAJE · VINTAGE · CINE" },
+    tagline: { fr: "Le glamour intemporel des années 70.", es: "El glamour intemporal de los años 70." },
+    description: {
+      fr: "Top en dentelle noire, bottes en cuir et téléphone vintage dans une ambiance pastel feutrée pour une campagne éditoriale rétro-cinématique.",
+      es: "Top de encaje negro, botas de cuero y teléfono vintage en un ambiente pastel íntimo para una campaña editorial retrocinematográfica.",
+    },
+    image: "/visual-engine/univers/retro-lounge.png",
+    keyElements: {
+      fr: ["Dentelle noire & bottes cuir", "Téléphone à cadran vintage", "Décor pastel feutré 70s", "Regard magnétique & posture rétro"],
+      es: ["Encaje negro y botas de cuero", "Teléfono de disco vintage", "Entorno pastel íntimo 70s", "Mirada magnética y postura retro"],
+    },
+    sampleBriefs: {
+      fr: ["Un portrait rétro-cinéma avec top dentelle noire et téléphone à cadran.", "Une esthétique 70s feutrée avec lumière douce et détails cuir.", "Une scène de film d'auteur élégante et mystérieuse."],
+      es: ["Un retrato retro-cine con top de encaje negro y teléfono de disco.", "Una estética 70s íntima con luz suave y detalles de cuero.", "Una escena de película de autor elegante y misteriosa."],
+    },
+    creativeDirection: {
+      location: { fr: "Suite d'hôtel rétro pastel aux tons rosés", es: "Suite de hotel retro pastel en tonos rosados" },
+      styling: { fr: "Top en dentelle noire transparent et bottes hautes en cuir", es: "Top de encaje negro transparente y botas altas de cuero" },
+      energy: { fr: "Mystérieuse, nostalgique et élégante", es: "Misteriosa, nostálgica y elegante" },
+      light: { fr: "Lumière douce d'ambiance 70s et ombres feutrées", es: "Luz suave de ambiente 70s y sombras íntimas" },
+      photoStyle: { fr: "Grain film 35 mm et cadrage cinéma rétro", es: "Grano de película 35 mm y encuadre de cine retro" },
+      refinements: {
+        locations: { fr: ["Chambre d'hôtel 70s", "Lounge vintage pastel", "Entrée rétro feutrée", "Décor cinéma vintage"], es: ["Habitación de hotel 70s", "Lounge vintage pastel", "Entrada retro íntima", "Escena de cine vintage"] },
+        stylings: { fr: ["Top dentelle & bottes cuir", "Tailoring vintage bordeaux", "Ensemble velours 70s"], es: ["Top encaje y botas cuero", "Sastrería vintage burdeos", "Set terciopelo 70s"] },
+        energies: { fr: ["Mystérieuse", "Nostalgique", "Cinématique"], es: ["Misteriosa", "Nostálgica", "Cinematográfica"] },
+        lights: { fr: ["Ambiances douces 70s", "Lumière tungstène feutrée", "Reflets de miroir vintage"], es: ["Ambientes suaves 70s", "Luz de tungsteno íntima", "Reflejos de espejo vintage"] },
+      },
+    },
+  },
 ]
 
 export function getMiravaUniverse(id: string | null | undefined) {

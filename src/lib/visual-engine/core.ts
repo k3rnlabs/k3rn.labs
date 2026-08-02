@@ -211,6 +211,10 @@ const PRESET_DIRECTIONS: Record<MiravaStudioPresetId, { masterPrompt: string; ne
     masterPrompt: "Sunlit tennis club editorial on a clay court, sculptural white and black mesh tennis dress, holding a racket by the net, radiant sunlit skin, athletic elegance and effortless posture, composed as a center-safe vertical social campaign.",
     negativePrompt: "explicit nudity, sexual content, minors, distorted anatomy, identity drift, brand logos, watermarks, text",
   },
+  "retro-lounge": {
+    masterPrompt: "Chic 70s retro film editorial in a pastel pink hotel suite, black lace top, shorts and knee-high leather boots, holding a vintage rotary telephone, alluring candid posture and warm nostalgic lighting, composed as a center-safe vertical social campaign.",
+    negativePrompt: "explicit nudity, sexual content, minors, distorted anatomy, identity drift, watermarks, text",
+  },
 }
 
 function nowPlus24Hours(): string {

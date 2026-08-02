@@ -28,6 +28,7 @@ export const MIRAVA_STUDIO_PRESETS = [
   { id: "athleisure-chic", name: "Athleisure chic", description: "Combi activewear mauve, miroir inox et allures shopping-fitness." },
   { id: "dubai-glamour", name: "Glamour Dubaï", description: "Soie noire, bijoux en or et flash sous le Burj Khalifa." },
   { id: "sport-glow", name: "Tennis Club Glow", description: "Tenue de tennis sculpturale et soleil sur terre battue." },
+  { id: "retro-lounge", name: "Cinéma Rétro", description: "Dentelle noire, téléphone vintage et esthétique 70s." },
 ] as const
 
 export type MiravaStudioPresetId = (typeof MIRAVA_STUDIO_PRESETS)[number]["id"]

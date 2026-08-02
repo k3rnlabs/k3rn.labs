@@ -14,6 +14,7 @@ interface PipelineDemoProps {
 
 const GENERATED_STUDIO_PHOTOS = [
   "/visual-engine/univers/dubai-glamour.png",
+  "/visual-engine/univers/retro-lounge.png",
   "/visual-engine/univers/night-glamour.png",
   "/visual-engine/univers/escapade-solaire.webp",
 ]
@@ -47,7 +48,7 @@ const STAGES = [
     id: "studio",
     badge: { fr: "3. GÉNÉRATION DU STUDIO", es: "3. GENERACIÓN DEL ESTUDIO" },
     title: { fr: "Rendus Studio personnalisés", es: "Resultados de Estudio personalizados" },
-    status: { fr: "Rendus éditoriaux prêts à diffuser", es: "Resultados editoriales listos para publicar" },
+    status: { fr: "4 univers uniques générés selon vos critères", es: "4 universos únicos generados según sus criterios" },
     image: "/visual-engine/univers/dubai-glamour.png",
     icon: Sparkles,
     checks: [
@@ -65,16 +66,16 @@ export function OnboardingPipelineDemo({ locale, className }: PipelineDemoProps)
   useEffect(() => {
     const interval = setInterval(() => {
       setActiveStage((prev) => (prev + 1) % STAGES.length)
-    }, 3800)
+    }, 4200)
     return () => clearInterval(interval)
   }, [])
 
-  // Sub-cycle generated studio photos when on stage 2 (Generation Studio)
+  // Sub-cycle through all 4 generated studio photos when on stage 2 (Génération Studio)
   useEffect(() => {
     if (activeStage !== 2) return
     const subInterval = setInterval(() => {
       setResultPhotoIndex((prev) => (prev + 1) % GENERATED_STUDIO_PHOTOS.length)
-    }, 1400)
+    }, 1350)
     return () => clearInterval(subInterval)
   }, [activeStage])
 
@@ -126,7 +127,7 @@ export function OnboardingPipelineDemo({ locale, className }: PipelineDemoProps)
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 1.02 }}
-            transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
             className="absolute inset-0"
           >
             <img
@@ -138,28 +139,28 @@ export function OnboardingPipelineDemo({ locale, className }: PipelineDemoProps)
               )}
             />
 
-            {/* STAGE 0: Biometric Scanner Target on face_neutre.png */}
+            {/* STAGE 0: Biometric Scanner Target Perfectly Aligned on face_neutre.png */}
             {activeStage === 0 && (
               <>
                 {/* Vertical Scanning Laser Beam */}
                 <motion.div
-                  initial={{ top: "10%" }}
-                  animate={{ top: ["10%", "85%", "10%"] }}
+                  initial={{ top: "18%" }}
+                  animate={{ top: ["18%", "72%", "18%"] }}
                   transition={{ repeat: Infinity, duration: 2.2, ease: "linear" }}
                   className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-[#ede8df] to-transparent shadow-[0_0_18px_#ede8df] z-20 pointer-events-none"
                 />
 
-                {/* Oval Facial Reticle Frame centered on model's face */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 -translate-y-4">
+                {/* Oval Facial Reticle Symmetrically Centered over Model's Face */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 -translate-y-8 sm:-translate-y-10">
                   <motion.div
-                    initial={{ scale: 0.8, opacity: 0 }}
+                    initial={{ scale: 0.85, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    className="relative h-48 w-40 rounded-full border border-dashed border-[#ede8df]/70 shadow-[0_0_35px_rgba(213,198,176,0.25)]"
+                    className="relative h-44 w-36 sm:h-48 sm:w-40 rounded-[50%] border-2 border-dashed border-[#ede8df]/85 shadow-[0_0_35px_rgba(213,198,176,0.3)]"
                   >
-                    <div className="absolute -top-1.5 -left-1.5 h-3.5 w-3.5 border-t-2 border-l-2 border-[#ede8df]" />
-                    <div className="absolute -top-1.5 -right-1.5 h-3.5 w-3.5 border-t-2 border-r-2 border-[#ede8df]" />
-                    <div className="absolute -bottom-1.5 -left-1.5 h-3.5 w-3.5 border-b-2 border-l-2 border-[#ede8df]" />
-                    <div className="absolute -bottom-1.5 -right-1.5 h-3.5 w-3.5 border-b-2 border-r-2 border-[#ede8df]" />
+                    <div className="absolute -top-2 -left-2 h-4 w-4 border-t-2 border-l-2 border-[#ede8df]" />
+                    <div className="absolute -top-2 -right-2 h-4 w-4 border-t-2 border-r-2 border-[#ede8df]" />
+                    <div className="absolute -bottom-2 -left-2 h-4 w-4 border-b-2 border-l-2 border-[#ede8df]" />
+                    <div className="absolute -bottom-2 -right-2 h-4 w-4 border-b-2 border-r-2 border-[#ede8df]" />
                   </motion.div>
                 </div>
               </>
@@ -190,7 +191,7 @@ export function OnboardingPipelineDemo({ locale, className }: PipelineDemoProps)
               <motion.div
                 initial={{ opacity: 0, x: "-100%" }}
                 animate={{ opacity: [0, 0.45, 0], x: ["-100%", "100%", "200%"] }}
-                transition={{ duration: 1.6, ease: "easeInOut" }}
+                transition={{ duration: 1.5, ease: "easeInOut" }}
                 className="absolute inset-0 bg-gradient-to-r from-transparent via-amber-200/35 to-transparent z-20 pointer-events-none"
               />
             )}
@@ -200,7 +201,7 @@ export function OnboardingPipelineDemo({ locale, className }: PipelineDemoProps)
         {/* Ambient Dark Gradient Bottom Background for Badges */}
         <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black via-black/85 to-transparent pointer-events-none z-20" />
 
-        {/* Bottom Verification Badges Container (Guaranteed No Clipping) */}
+        {/* Bottom Verification Badges Container */}
         <div className="relative z-30 p-3.5 pb-4 space-y-2">
           <div className="flex flex-wrap items-center gap-1.5">
             {current.checks.map((check, idx) => (
