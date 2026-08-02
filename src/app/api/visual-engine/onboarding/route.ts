@@ -91,12 +91,30 @@ function readMiravaOnboardingState(preferences: unknown): MiravaOnboardingState 
   }
 }
 
-export async function GET() {
+export async function GET(req?: NextRequest) {
   const session = await verifySession()
   if (!session) return apiError("Unauthorized", 401)
+  const resetParam = req?.nextUrl?.searchParams.get("reset") === "1"
   const user = await db.user.findUnique({ where: { id: session.userId }, select: { firstName: true, preferences: true } })
   if (!user) return apiError("User not found", 404)
+  if (resetParam) {
+    const prefs = asPreferences(user.preferences)
+    delete prefs.miravaOnboarding
+    await db.user.update({ where: { id: session.userId }, data: { preferences: prefs } })
+    return apiSuccess({ firstName: user.firstName, onboarding: null })
+  }
   return apiSuccess({ firstName: user.firstName, onboarding: readMiravaOnboardingState(user.preferences) })
+}
+
+export async function DELETE() {
+  const session = await verifySession()
+  if (!session) return apiError("Unauthorized", 401)
+  const user = await db.user.findUnique({ where: { id: session.userId }, select: { preferences: true } })
+  if (!user) return apiError("User not found", 404)
+  const prefs = asPreferences(user.preferences)
+  delete prefs.miravaOnboarding
+  await db.user.update({ where: { id: session.userId }, data: { preferences: prefs } })
+  return apiSuccess({ onboarding: null })
 }
 
 export async function PATCH(req: NextRequest) {
