@@ -17,7 +17,7 @@ import {
   UniverseCard,
   UniverseGrid,
 } from "./mirava-mobile-primitives"
-import MiravaIdentityCapture from "./mirava-identity-capture"
+import MiravaIdentityCapture, { PHOTO_SLOTS } from "./mirava-identity-capture"
 
 type Locale = "fr" | "es"
 const GOALS: Record<Locale, Array<{ id: MiravaOnboardingGoal; title: string; session: string; reason: string }>> = {
@@ -445,76 +445,50 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
 
                     {/* View Breakdown List */}
                     <div className="mt-3.5 space-y-2.5 font-jakarta text-xs">
-                      <div className="flex items-center justify-between text-white/90">
-                        <div className="flex items-center gap-2">
-                          <Check className="h-4 w-4 text-emerald-400 stroke-[3]" />
-                          <span>{locale === "fr" ? "Face naturelle" : "Rostro natural"}</span>
-                        </div>
-                        <span className="text-[10px] text-emerald-400 font-semibold">{locale === "fr" ? "Validé" : "Validado"}</span>
-                      </div>
+                      {PHOTO_SLOTS.map((slot) => {
+                        const isRequired = slot.level === "required"
+                        const isRecommended = slot.level === "recommended"
+                        const isDone = onboardingState?.status === "session_ready" || slot.number === 1
 
-                      <div className="flex items-center justify-between text-white/80">
-                        <div className="flex items-center gap-2">
-                          {onboardingState?.status === "session_ready" ? (
-                            <Check className="h-4 w-4 text-emerald-400 stroke-[3]" />
-                          ) : (
-                            <div className="h-4 w-4 rounded-full border border-white/30 bg-black/40" />
-                          )}
-                          <span>{locale === "fr" ? "Profil gauche" : "Perfil izquierdo"}</span>
-                        </div>
-                        <span className="text-[10px] text-white/50">
-                          {onboardingState?.status === "session_ready" ? (locale === "fr" ? "Validé" : "Validado") : (locale === "fr" ? "Requis" : "Requerido")}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between text-white/80">
-                        <div className="flex items-center gap-2">
-                          {onboardingState?.status === "session_ready" ? (
-                            <Check className="h-4 w-4 text-emerald-400 stroke-[3]" />
-                          ) : (
-                            <div className="h-4 w-4 rounded-full border border-white/30 bg-black/40" />
-                          )}
-                          <span>{locale === "fr" ? "Profil droit" : "Perfil derecho"}</span>
-                        </div>
-                        <span className="text-[10px] text-white/50">
-                          {onboardingState?.status === "session_ready" ? (locale === "fr" ? "Validé" : "Validado") : (locale === "fr" ? "Requis" : "Requerido")}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between text-white/80">
-                        <div className="flex items-center gap-2">
-                          {onboardingState?.status === "session_ready" ? (
-                            <Check className="h-4 w-4 text-emerald-400 stroke-[3]" />
-                          ) : (
-                            <div className="h-4 w-4 rounded-full border border-white/30 bg-black/40" />
-                          )}
-                          <span>{locale === "fr" ? "Photo de plein pied" : "Foto de cuerpo entero"}</span>
-                        </div>
-                        <span className="text-[10px] text-white/50">
-                          {onboardingState?.status === "session_ready" ? (locale === "fr" ? "Validé" : "Validado") : (locale === "fr" ? "Requis" : "Requerido")}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between text-white/80">
-                        <div className="flex items-center gap-2">
-                          {onboardingState?.status === "session_ready" ? (
-                            <Check className="h-4 w-4 text-emerald-400 stroke-[3]" />
-                          ) : (
-                            <div className="h-4 w-4 rounded-full border border-white/30 bg-black/40" />
-                          )}
-                          <span>{locale === "fr" ? "Traits atypiques & Tatouages" : "Rasgos distintivos y Tatuajes"}</span>
-                        </div>
-                        <span className="text-[10px] text-white/50">
-                          {locale === "fr" ? "Optionnel" : "Opcional"}
-                        </span>
-                      </div>
+                        return (
+                          <div key={slot.id} className="flex items-center justify-between text-white/90">
+                            <div className="flex items-center gap-2">
+                              {isDone ? (
+                                <Check className="h-4 w-4 text-emerald-400 stroke-[3]" />
+                              ) : (
+                                <div className="h-4 w-4 rounded-full border border-white/30 bg-black/40" />
+                              )}
+                              <span>{slot.title[locale]}</span>
+                            </div>
+                            <span className={cn(
+                              "text-[10px] font-semibold",
+                              isDone
+                                ? "text-emerald-400"
+                                : isRequired
+                                ? "text-amber-400"
+                                : "text-white/40"
+                            )}>
+                              {isDone
+                                ? (locale === "fr" ? "Validé" : "Validado")
+                                : isRequired
+                                ? (locale === "fr" ? "Requis" : "Requerido")
+                                : isRecommended
+                                ? (locale === "fr" ? "Recommandé" : "Recomendado")
+                                : (locale === "fr" ? "Optionnel" : "Opcional")}
+                            </span>
+                          </div>
+                        )
+                      })}
                     </div>
 
-                    <div className="mt-4 rounded-xl border border-white/10 bg-black/40 p-3 text-[11px] leading-relaxed text-white/70">
-                      {locale === "fr"
-                        ? "Complétez les trois vues restantes pour permettre à Mirava de conserver plus fidèlement vos traits dans chaque univers."
-                        : "Completa las vistas restantes para permitir a Mirava conservar tus rasgos con mayor fidelidad."}
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void goToStep("identity_permission")}
+                      className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 font-jakarta text-xs font-semibold text-white transition-all hover:bg-white/20"
+                    >
+                      <Camera className="h-4 w-4 text-[#ede8df]" />
+                      <span>{locale === "fr" ? "Ajouter ou modifier mes photos" : "Añadir o modificar mis fotos"}</span>
+                    </button>
                   </div>
 
                   {onboardingState?.status === "session_ready" && direction && (

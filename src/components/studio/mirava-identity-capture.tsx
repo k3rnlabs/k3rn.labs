@@ -35,7 +35,7 @@ export type MiravaIdentityConsent = {
   openaiDisclosureAccepted: true
 }
 
-export type PhotoSlotId = "front" | "angle" | "smile" | "body" | "tattoos"
+export type PhotoSlotId = "front" | "angle" | "profile_right" | "smile" | "body" | "tattoos"
 
 export interface PhotoSlotDefinition {
   id: PhotoSlotId
@@ -78,30 +78,54 @@ export const PHOTO_SLOTS: PhotoSlotDefinition[] = [
   {
     id: "angle",
     number: 2,
-    title: { fr: "Visage 3/4 ou Profil", es: "Rostro 3/4 o Perfil" },
+    title: { fr: "Profil gauche", es: "Perfil izquierdo" },
     instruction: {
-      fr: "Visage légèrement tourné de trois-quarts pour capturer les volumes et le profil.",
-      es: "Rostro ligeramente girado tres cuartos para capturar los volúmenes y el perfil.",
+      fr: "Visage tourné de profil gauche pour capturer la ligne de profil et les contours.",
+      es: "Rostro girado de perfil izquierdo para capturar la línea de perfil y los contornos.",
     },
     level: "required",
     required: true,
     exampleImage: "/mirava/guide/profil_gauche.png",
     criteria: {
       fr: [
-        "Angle 3/4 ou profil bien visible",
-        "Pommette et ligne de profil nettes",
-        "Éclairage homogène avec la première photo",
+        "Profil gauche bien visible et net",
+        "Pommette et arête du nez visibles",
+        "Éclairage homogène avec la face neutre",
       ],
       es: [
-        "Ángulo 3/4 bien visible",
+        "Perfil izquierdo bien visible y nítido",
         "Pómulo y línea de perfil nítidos",
-        "Iluminación homogénea con la primera foto",
+        "Iluminación homogénea",
+      ],
+    },
+  },
+  {
+    id: "profile_right",
+    number: 3,
+    title: { fr: "Profil droit", es: "Perfil derecho" },
+    instruction: {
+      fr: "Visage tourné de profil droit pour équilibrer la captation 3D de vos traits.",
+      es: "Rostro girado de perfil derecho para equilibrar la captación 3D de tus rasgos.",
+    },
+    level: "required",
+    required: true,
+    exampleImage: "/mirava/guide/profil_droit.png",
+    criteria: {
+      fr: [
+        "Profil droit bien visible et net",
+        "Arête du nez et menton nets",
+        "Lumière homogène",
+      ],
+      es: [
+        "Perfil derecho bien visible y nítido",
+        "Línea de perfil nítida",
+        "Luz uniforme",
       ],
     },
   },
   {
     id: "smile",
-    number: 3,
+    number: 4,
     title: { fr: "Visage avec sourire", es: "Rostro con sonrisa" },
     instruction: {
       fr: "Recommandé · Sourire naturel pour capturer votre expression et dynamique faciale.",
@@ -125,7 +149,7 @@ export const PHOTO_SLOTS: PhotoSlotDefinition[] = [
   },
   {
     id: "body",
-    number: 4,
+    number: 5,
     title: { fr: "Photo de plein pied", es: "Foto de cuerpo entero" },
     instruction: {
       fr: "Recommandé · Silhouette complète de haut en bas pour une parfaite harmonie d'ensemble.",
@@ -133,7 +157,6 @@ export const PHOTO_SLOTS: PhotoSlotDefinition[] = [
     },
     level: "recommended",
     required: false,
-    exampleImage: "/mirava/guide/profil_droit.png",
     criteria: {
       fr: [
         "Silhouette entière visible de haut en bas",
@@ -149,7 +172,7 @@ export const PHOTO_SLOTS: PhotoSlotDefinition[] = [
   },
   {
     id: "tattoos",
-    number: 5,
+    number: 6,
     title: { fr: "Particularités & Tatouages", es: "Rasgos & Tatuajes" },
     instruction: {
       fr: "Optionnel · Cadrez vos tatouages, cicatrices ou signes distinctifs personnels.",
@@ -201,6 +224,7 @@ export function MiravaIdentityCapture({
   const [slotStates, setSlotStates] = useState<Record<PhotoSlotId, PhotoSlotState>>({
     front: { file: null, preview: null, status: "idle", criteriaProgress: 0 },
     angle: { file: null, preview: null, status: "idle", criteriaProgress: 0 },
+    profile_right: { file: null, preview: null, status: "idle", criteriaProgress: 0 },
     smile: { file: null, preview: null, status: "idle", criteriaProgress: 0 },
     body: { file: null, preview: null, status: "idle", criteriaProgress: 0 },
     tattoos: { file: null, preview: null, status: "idle", criteriaProgress: 0 },
