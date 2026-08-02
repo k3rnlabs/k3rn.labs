@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Check, Sparkles, Scan, Camera, Wand2, ShieldCheck } from "lucide-react"
+import { Check, Sparkles, Scan, Wand2, ShieldCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 type Locale = "fr" | "es"
