@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Check, Sparkles, Scan, Wand2, ShieldCheck } from "lucide-react"
+import { Check, Sparkles, Scan, ShieldCheck, UserCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 type Locale = "fr" | "es"
@@ -12,13 +12,19 @@ interface PipelineDemoProps {
   className?: string
 }
 
+const GENERATED_STUDIO_PHOTOS = [
+  "/visual-engine/univers/dubai-glamour.png",
+  "/visual-engine/univers/night-glamour.png",
+  "/visual-engine/univers/escapade-solaire.webp",
+]
+
 const STAGES = [
   {
     id: "capture",
     badge: { fr: "1. ANALYSE DU VISAGE", es: "1. ANÁLISIS FACIAL" },
-    title: { fr: "Scan de votre identité visuelle", es: "Escaner de su identidad visual" },
-    status: { fr: "Visage neutre détecté & validé sur l'appareil", es: "Rostro neutro detectado y validado en el dispositivo" },
-    image: "/visual-engine/univers/beauty-close-up.png",
+    title: { fr: "Analyse biométrique neutre", es: "Análisis biométrico neutro" },
+    status: { fr: "Visage neutre de face validé sur votre appareil", es: "Rostro neutro de frente validado en su dispositivo" },
+    image: "/visual-engine/univers/face_neutre.png",
     icon: Scan,
     checks: [
       { fr: "Visage de face neutre", es: "Rostro neutro frontal" },
@@ -26,48 +32,60 @@ const STAGES = [
     ],
   },
   {
-    id: "synthesis",
-    badge: { fr: "2. DIRECTION ÉDITORIALE", es: "2. DIRECCIÓN EDITORIAL" },
-    title: { fr: "Synthèse IA sur-mesure", es: "Síntesis IA a medida" },
-    status: { fr: "Génération du Studio selon votre direction", es: "Generación del Estudio según su dirección" },
-    image: "/visual-engine/univers/beauty-close-up.png",
-    icon: Wand2,
+    id: "identity",
+    badge: { fr: "2. CRÉATION DE L'IDENTITÉ", es: "2. CREACIÓN DE IDENTIDAD" },
+    title: { fr: "Synthèse de votre Profil Identité", es: "Síntesis de su Perfil de Identidad" },
+    status: { fr: "Création sécurisée de votre signature visuelle privée", es: "Creación segura de su firma visual privada" },
+    image: "/visual-engine/univers/face_neutre.png",
+    icon: UserCheck,
     checks: [
-      { fr: "Préservation des traits réels", es: "Preservación de rasgos reales" },
-      { fr: "Rendu 4K Studio", es: "Rendimiento 4K Estudio" },
+      { fr: "Empreinte visage chiffrée", es: "Huella facial cifrada" },
+      { fr: "Clé d'identité unique", es: "Clave de identidad única" },
     ],
   },
   {
-    id: "result",
-    badge: { fr: "3. VOTRE STUDIO GÉNÉRÉ", es: "3. SU ESTUDIO GENERADO" },
-    title: { fr: "Résultat éditorial final", es: "Resultado editorial final" },
-    status: { fr: "Campagne personnalisée prête à diffuser", es: "Campaña personalizada lista para publicar" },
+    id: "studio",
+    badge: { fr: "3. GÉNÉRATION DU STUDIO", es: "3. GENERACIÓN DEL ESTUDIO" },
+    title: { fr: "Rendus Studio personnalisés", es: "Resultados de Estudio personalizados" },
+    status: { fr: "Rendus éditoriaux prêts à diffuser", es: "Resultados editoriales listos para publicar" },
     image: "/visual-engine/univers/dubai-glamour.png",
     icon: Sparkles,
     checks: [
       { fr: "Rendus 100% réalistes", es: "Resultados 100% realistas" },
-      { fr: "Qualité App Native", es: "Calidad App Nativa" },
+      { fr: "Qualité App Native 4K", es: "Calidad App Nativa 4K" },
     ],
   },
 ]
 
 export function OnboardingPipelineDemo({ locale, className }: PipelineDemoProps) {
   const [activeStage, setActiveStage] = useState(0)
+  const [resultPhotoIndex, setResultPhotoIndex] = useState(0)
 
+  // Cycle main stages automatically
   useEffect(() => {
     const interval = setInterval(() => {
       setActiveStage((prev) => (prev + 1) % STAGES.length)
-    }, 3600)
+    }, 3800)
     return () => clearInterval(interval)
   }, [])
 
+  // Sub-cycle generated studio photos when on stage 2 (Generation Studio)
+  useEffect(() => {
+    if (activeStage !== 2) return
+    const subInterval = setInterval(() => {
+      setResultPhotoIndex((prev) => (prev + 1) % GENERATED_STUDIO_PHOTOS.length)
+    }, 1400)
+    return () => clearInterval(subInterval)
+  }, [activeStage])
+
   const current = STAGES[activeStage]
   const IconComponent = current.icon
+  const displayImage = activeStage === 2 ? GENERATED_STUDIO_PHOTOS[resultPhotoIndex] : current.image
 
   return (
-    <div className={cn("relative overflow-hidden rounded-[24px] border border-white/15 bg-black/70 p-1 shadow-2xl backdrop-blur-2xl", className)}>
+    <div className={cn("relative overflow-hidden rounded-[24px] border border-white/15 bg-black/80 shadow-2xl backdrop-blur-2xl flex flex-col", className)}>
       {/* Top Animated Progress Header */}
-      <div className="flex items-center justify-between border-b border-white/10 px-4 py-2.5 bg-white/5">
+      <div className="flex items-center justify-between border-b border-white/10 px-4 py-2.5 bg-white/5 shrink-0 z-30">
         <div className="flex items-center gap-2">
           <motion.div
             key={current.id}
@@ -101,108 +119,108 @@ export function OnboardingPipelineDemo({ locale, className }: PipelineDemoProps)
       </div>
 
       {/* Main Animation Display Canvas */}
-      <div className="relative aspect-[9/12] w-full overflow-hidden rounded-[20px] bg-black">
+      <div className="relative aspect-[9/13.5] w-full overflow-hidden rounded-b-[24px] bg-black flex flex-col justify-end">
         <AnimatePresence mode="wait">
           <motion.div
-            key={current.id}
+            key={`${current.id}-${displayImage}`}
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 1.02 }}
-            transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-            className="relative h-full w-full"
+            transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+            className="absolute inset-0"
           >
             <img
-              src={current.image}
+              src={displayImage}
               alt=""
               className={cn(
-                "h-full w-full object-cover object-top transition-all duration-700",
-                activeStage === 1 ? "scale-105 filter blur-[2px] brightness-[0.75]" : "brightness-[0.9]"
+                "h-full w-full object-cover object-center transition-all duration-700",
+                activeStage === 1 ? "scale-105 filter blur-[2px] brightness-[0.75]" : "brightness-[0.92]"
               )}
             />
 
-            {/* STAGE 0: Biometric Laser Scan Overlays */}
+            {/* STAGE 0: Biometric Scanner Target on face_neutre.png */}
             {activeStage === 0 && (
               <>
-                {/* Vertical Scanning Laser */}
+                {/* Vertical Scanning Laser Beam */}
                 <motion.div
-                  initial={{ top: "0%" }}
-                  animate={{ top: ["0%", "100%", "0%"] }}
+                  initial={{ top: "10%" }}
+                  animate={{ top: ["10%", "85%", "10%"] }}
                   transition={{ repeat: Infinity, duration: 2.2, ease: "linear" }}
-                  className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-[#ede8df] to-transparent shadow-[0_0_15px_#ede8df] z-20 pointer-events-none"
+                  className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-[#ede8df] to-transparent shadow-[0_0_18px_#ede8df] z-20 pointer-events-none"
                 />
 
-                {/* Facial Reticle Frame */}
-                <div className="absolute inset-0 grid place-items-center pointer-events-none z-10">
+                {/* Oval Facial Reticle Frame centered on model's face */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 -translate-y-4">
                   <motion.div
                     initial={{ scale: 0.8, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
-                    className="relative h-44 w-36 rounded-full border border-dashed border-[#ede8df]/60 shadow-[0_0_30px_rgba(213,198,176,0.2)]"
+                    className="relative h-48 w-40 rounded-full border border-dashed border-[#ede8df]/70 shadow-[0_0_35px_rgba(213,198,176,0.25)]"
                   >
-                    <div className="absolute -top-1 -left-1 h-3 w-3 border-t-2 border-l-2 border-[#ede8df]" />
-                    <div className="absolute -top-1 -right-1 h-3 w-3 border-t-2 border-r-2 border-[#ede8df]" />
-                    <div className="absolute -bottom-1 -left-1 h-3 w-3 border-b-2 border-l-2 border-[#ede8df]" />
-                    <div className="absolute -bottom-1 -right-1 h-3 w-3 border-b-2 border-r-2 border-[#ede8df]" />
+                    <div className="absolute -top-1.5 -left-1.5 h-3.5 w-3.5 border-t-2 border-l-2 border-[#ede8df]" />
+                    <div className="absolute -top-1.5 -right-1.5 h-3.5 w-3.5 border-t-2 border-r-2 border-[#ede8df]" />
+                    <div className="absolute -bottom-1.5 -left-1.5 h-3.5 w-3.5 border-b-2 border-l-2 border-[#ede8df]" />
+                    <div className="absolute -bottom-1.5 -right-1.5 h-3.5 w-3.5 border-b-2 border-r-2 border-[#ede8df]" />
                   </motion.div>
                 </div>
               </>
             )}
 
-            {/* STAGE 1: AI Synthesis Particle Wave */}
+            {/* STAGE 1: Identity Creation Shimmer */}
             {activeStage === 1 && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm z-20 p-4 text-center">
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/45 backdrop-blur-sm z-20 p-4 text-center">
                 <motion.div
                   animate={{ rotate: 360 }}
-                  transition={{ repeat: Infinity, duration: 3, ease: "linear" }}
-                  className="relative flex h-14 w-14 items-center justify-center rounded-full border border-dashed border-[#ede8df] bg-[#ede8df]/10 text-[#ede8df]"
+                  transition={{ repeat: Infinity, duration: 4, ease: "linear" }}
+                  className="relative flex h-14 w-14 items-center justify-center rounded-full border border-dashed border-[#ede8df] bg-[#ede8df]/15 text-[#ede8df] shadow-lg"
                 >
-                  <Sparkles className="h-6 w-6" />
+                  <UserCheck className="h-6 w-6" />
                 </motion.div>
                 <p className="mt-3 font-jakarta text-sm font-semibold text-white drop-shadow-md">
                   {current.title[locale]}
                 </p>
-                <div className="mt-2 flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[10px] font-medium text-white/80 backdrop-blur-md">
-                  <ShieldCheck className="h-3 w-3 text-[#ede8df]" />
-                  <span>Traitement sécurisé sur votre appareil</span>
+                <div className="mt-2.5 flex items-center gap-1.5 rounded-full border border-white/15 bg-black/50 px-3.5 py-1.5 text-[10px] font-semibold text-white/90 backdrop-blur-md shadow-md">
+                  <ShieldCheck className="h-3.5 w-3.5 text-[#ede8df]" />
+                  <span>Conservation 100% privée & chiffrée</span>
                 </div>
               </div>
             )}
 
-            {/* STAGE 2: Result Gold Flare Overlay */}
+            {/* STAGE 2: Studio Generation Flare */}
             {activeStage === 2 && (
               <motion.div
                 initial={{ opacity: 0, x: "-100%" }}
-                animate={{ opacity: [0, 0.4, 0], x: ["-100%", "100%", "200%"] }}
-                transition={{ duration: 1.5, ease: "easeInOut" }}
-                className="absolute inset-0 bg-gradient-to-r from-transparent via-amber-200/30 to-transparent z-20 pointer-events-none"
+                animate={{ opacity: [0, 0.45, 0], x: ["-100%", "100%", "200%"] }}
+                transition={{ duration: 1.6, ease: "easeInOut" }}
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-amber-200/35 to-transparent z-20 pointer-events-none"
               />
             )}
-
-            {/* Ambient Dark Gradient Bottom */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent pointer-events-none z-10" />
-
-            {/* Floating Live Verification Badges */}
-            <div className="absolute inset-x-3 bottom-3 z-30 space-y-2">
-              <div className="flex flex-wrap items-center gap-1.5">
-                {current.checks.map((check, idx) => (
-                  <motion.span
-                    key={check[locale]}
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.15 + idx * 0.1 }}
-                    className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-950/70 px-2.5 py-1 text-[10px] font-semibold text-emerald-300 backdrop-blur-md shadow-sm"
-                  >
-                    <Check className="h-3 w-3 text-emerald-400 stroke-[3]" />
-                    <span>{check[locale]}</span>
-                  </motion.span>
-                ))}
-              </div>
-
-              <p className="font-jakarta text-xs leading-tight text-white/90 font-medium drop-shadow-md">
-                {current.status[locale]}
-              </p>
-            </div>
           </motion.div>
         </AnimatePresence>
+
+        {/* Ambient Dark Gradient Bottom Background for Badges */}
+        <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-black via-black/85 to-transparent pointer-events-none z-20" />
+
+        {/* Bottom Verification Badges Container (Guaranteed No Clipping) */}
+        <div className="relative z-30 p-3.5 pb-4 space-y-2">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {current.checks.map((check, idx) => (
+              <motion.span
+                key={`${current.id}-${check[locale]}`}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.12 + idx * 0.08 }}
+                className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-950/80 px-2.5 py-1 text-[10px] font-bold text-emerald-300 backdrop-blur-md shadow-md"
+              >
+                <Check className="h-3 w-3 text-emerald-400 stroke-[3]" />
+                <span>{check[locale]}</span>
+              </motion.span>
+            ))}
+          </div>
+
+          <p className="font-jakarta text-xs leading-tight text-white/95 font-semibold drop-shadow-md">
+            {current.status[locale]}
+          </p>
+        </div>
       </div>
     </div>
   )
