@@ -94,8 +94,11 @@ export function MobileProgressHeader({
           <div className="w-full space-y-1.5">
             {/* Top Row: Logo Icon & Language Badge */}
             <div className="flex h-6 items-center justify-between text-xs">
-              <div className="flex items-center gap-1.5 opacity-90">
+              <div className="flex items-center gap-2 opacity-90">
                 <MiravaMark className="h-4 w-4 text-[#ede8df]" />
+                <span className="font-jakarta text-xs font-semibold tracking-wider text-white">
+                  MIRAVA Studio
+                </span>
               </div>
               <div className="flex items-center">
                 <span className="rounded-md border border-white/15 bg-white/5 px-2 py-0.5 font-jakarta text-[9px] font-bold text-white/70 uppercase">

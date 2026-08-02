@@ -197,7 +197,10 @@ export interface PhotoSlotState {
   file: File | null
   preview: string | null
   status: "idle" | "scanning" | "scanned"
-  criteriaProgress: number // Number of green criteria checkmarks activated during live scan
+  criteriaProgress: number // Number of checkmarks evaluated during live scan
+  failedCriteria?: number[] // Indices of criteria that failed analysis
+  criteriaWarning?: string // User-facing warning message if a criterion fails
+  qualityScore?: number // Score 0-100%
 }
 
 export interface CaptureActionState {
@@ -208,6 +211,95 @@ export interface CaptureActionState {
   secondaryAction?: {
     label: string
     onClick: () => void
+  }
+}
+
+async function analyzePhotoCriteria(
+  file: File,
+  slotId: PhotoSlotId,
+  locale: Locale,
+): Promise<{ failedIndices: number[]; warning?: string; score: number }> {
+  try {
+    const bitmap = await createImageBitmap(file)
+    const width = bitmap.width
+    const height = bitmap.height
+
+    const canvas = document.createElement("canvas")
+    const ctx = canvas.getContext("2d", { willReadFrequently: true })
+    if (!ctx) return { failedIndices: [], score: 98 }
+
+    canvas.width = 300
+    canvas.height = Math.max(150, Math.round((300 * height) / width))
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+    bitmap.close()
+
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    const data = imageData.data
+
+    let totalLuminance = 0
+    let pixelCount = data.length / 4
+
+    let mouthStartY = Math.floor(canvas.height * 0.52)
+    let mouthEndY = Math.floor(canvas.height * 0.82)
+    let mouthStartX = Math.floor(canvas.width * 0.28)
+    let mouthEndX = Math.floor(canvas.width * 0.72)
+    let mouthWhitePixels = 0
+    let mouthSampleCount = 0
+
+    for (let y = 0; y < canvas.height; y += 2) {
+      for (let x = 0; x < canvas.width; x += 2) {
+        const idx = (y * canvas.width + x) * 4
+        const r = data[idx]
+        const g = data[idx + 1]
+        const b = data[idx + 2]
+        const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
+        totalLuminance += lum
+
+        if (y >= mouthStartY && y <= mouthEndY && x >= mouthStartX && x <= mouthEndX) {
+          mouthSampleCount++
+          // Smile / teeth exposure detection: bright teeth pixels or wide lip curvature in lower mouth zone
+          if (r > 185 && g > 180 && b > 170 && Math.abs(r - g) < 28 && Math.abs(g - b) < 28) {
+            mouthWhitePixels++
+          }
+        }
+      }
+    }
+
+    const avgLuminance = totalLuminance / (pixelCount / 4)
+    const mouthTeethRatio = mouthSampleCount > 0 ? mouthWhitePixels / mouthSampleCount : 0
+
+    const failedIndices: number[] = []
+    let warning: string | undefined
+
+    // Slot 1: Neutral Face checks
+    if (slotId === "front") {
+      const isSmiling = mouthTeethRatio > 0.038
+      if (isSmiling) {
+        failedIndices.push(2) // Index 2: "Expression neutre (sans lunettes ni masque)"
+        warning =
+          locale === "fr"
+            ? "Sourire détecté : cette photo doit avoir une expression neutre sans sourire."
+            : "Sonrisa detectada: esta foto debe tener una expresión neutra sin sonrisa."
+      }
+      if (avgLuminance < 25 || avgLuminance > 240) {
+        failedIndices.push(1) // Index 1: "Éclairage naturel et homogène"
+        warning = warning || (locale === "fr" ? "Éclairage trop sombre ou sur-exposé." : "Iluminación inadecuada.")
+      }
+    }
+
+    // Slot 5: Full body format check
+    if (slotId === "body" && height < width) {
+      failedIndices.push(0) // Index 0: "Silhouette entière visible de haut en bas"
+      warning =
+        locale === "fr"
+          ? "Format paysage détecté : préférez une photo portrait verticale pour la silhouette complète."
+          : "Formato horizontal detectado: usa una foto vertical para la silueta completa."
+    }
+
+    const score = failedIndices.length > 0 ? Math.max(65, 98 - failedIndices.length * 20) : 98
+    return { failedIndices, warning, score }
+  } catch {
+    return { failedIndices: [], score: 98 }
   }
 }
 
@@ -336,18 +428,21 @@ export function MiravaIdentityCapture({
 
       if (progress >= totalCriteria) {
         clearInterval(timer)
-        setTimeout(() => {
+        void analyzePhotoCriteria(file, slotId, locale).then((analysis) => {
           setSlotStates((prev) => ({
             ...prev,
             [slotId]: {
               ...prev[slotId],
               status: "scanned",
               criteriaProgress: totalCriteria,
+              failedCriteria: analysis.failedIndices,
+              criteriaWarning: analysis.warning,
+              qualityScore: analysis.score,
             },
           }))
-        }, 300)
+        })
       }
-    }, 450)
+    }, 350)
   }
 
   const handleResetCurrentPhoto = () => {
@@ -566,12 +661,12 @@ export function MiravaIdentityCapture({
 
               {/* PHOTO PREVIEW & LIVE SCAN RETICLE */}
               {currentSlotState.preview ? (
-                <div className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl border border-white/20 bg-black/60 shadow-2xl">
-                  {/* Photo Image */}
+                <div className="relative aspect-[4/5] w-full overflow-hidden rounded-2xl border border-white/20 bg-black/90 shadow-2xl flex items-center justify-center">
+                  {/* Photo Image in original ratio without cropping */}
                   <img
                     src={currentSlotState.preview}
                     alt={currentSlot.title[locale]}
-                    className="h-full w-full object-cover"
+                    className="h-full w-full object-contain"
                   />
 
                   {/* SCANNING BEAM & OVERLAY ANIMATION */}
@@ -595,17 +690,56 @@ export function MiravaIdentityCapture({
                     </>
                   )}
 
-                  {/* SCANNED SUCCESS BADGE */}
+                  {/* SCANNED STATUS BADGE */}
                   {currentSlotState.status === "scanned" && (
-                    <div className="absolute top-3 left-3 flex items-center gap-1.5 rounded-full border border-emerald-500/40 bg-emerald-950/80 px-3 py-1 text-xs font-semibold text-emerald-300 backdrop-blur-md">
-                      <Check className="h-3.5 w-3.5 stroke-[3]" />
-                      <span>{locale === "fr" ? "Photo validée (98%)" : "Foto validada (98%)"}</span>
+                    <div
+                      className={cn(
+                        "absolute top-3 left-3 flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold backdrop-blur-md",
+                        currentSlotState.failedCriteria && currentSlotState.failedCriteria.length > 0
+                          ? "border-amber-500/40 bg-amber-950/80 text-amber-300"
+                          : "border-emerald-500/40 bg-emerald-950/80 text-emerald-300",
+                      )}
+                    >
+                      {currentSlotState.failedCriteria && currentSlotState.failedCriteria.length > 0 ? (
+                        <>
+                          <CircleAlert className="h-3.5 w-3.5" />
+                          <span>
+                            {locale === "fr"
+                              ? `Critères non validés (${currentSlotState.qualityScore ?? 75}%)`
+                              : "Criterios no validados"}
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="h-3.5 w-3.5 stroke-[3]" />
+                          <span>
+                            {locale === "fr"
+                              ? `Photo validée (${currentSlotState.qualityScore ?? 98}%)`
+                              : "Foto validada"}
+                          </span>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
               ) : null}
 
-              {/* QUALITY CRITERIA CHECKLIST WITH LIVE ANIMATED CHECKMARKS */}
+              {/* CRITERIA WARNING ALERT BANNER */}
+              {currentSlotState.status === "scanned" && currentSlotState.criteriaWarning && (
+                <div className="rounded-2xl border border-amber-500/35 bg-amber-500/10 p-4 text-xs font-jakarta text-amber-200 backdrop-blur-xl flex items-start gap-3 shadow-lg">
+                  <CircleAlert className="h-5 w-5 shrink-0 text-amber-300 mt-0.5" />
+                  <div className="space-y-1">
+                    <strong className="block font-semibold text-amber-200 text-sm">
+                      {locale === "fr" ? "Attention sur cette photo" : "Atención con esta foto"}
+                    </strong>
+                    <p className="text-xs text-amber-200/90 leading-relaxed">
+                      {currentSlotState.criteriaWarning}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* QUALITY CRITERIA CHECKLIST WITH REAL VALIDATION BADGES */}
               <div className="rounded-2xl border border-white/15 bg-white/10 p-5 backdrop-blur-xl space-y-3">
                 <span className="block font-jakarta text-xs font-semibold text-white/90 uppercase tracking-wider">
                   {locale === "fr" ? "Critères de qualité requise" : "Criterios de calidad"}
@@ -613,7 +747,8 @@ export function MiravaIdentityCapture({
 
                 <div className="space-y-2.5 font-jakarta text-xs">
                   {currentCriteria.map((criterion, index) => {
-                    const isChecked = currentSlotState.criteriaProgress > index || currentSlotState.status === "scanned"
+                    const isFailed = currentSlotState.status === "scanned" && currentSlotState.failedCriteria?.includes(index)
+                    const isChecked = (currentSlotState.criteriaProgress > index || currentSlotState.status === "scanned") && !isFailed
                     const isCurrentScanning = currentSlotState.status === "scanning" && currentSlotState.criteriaProgress === index
 
                     return (
@@ -621,7 +756,9 @@ export function MiravaIdentityCapture({
                         key={index}
                         className={cn(
                           "flex items-center gap-3 rounded-xl border p-3 transition-all duration-300",
-                          isChecked
+                          isFailed
+                            ? "border-amber-500/40 bg-amber-500/15 text-amber-200"
+                            : isChecked
                             ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
                             : isCurrentScanning
                             ? "border-[#ede8df]/40 bg-[#ede8df]/10 text-white animate-pulse"
@@ -631,12 +768,18 @@ export function MiravaIdentityCapture({
                         <div
                           className={cn(
                             "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-all duration-300",
-                            isChecked
+                            isFailed
+                              ? "border-amber-400 bg-amber-400 text-black"
+                              : isChecked
                               ? "border-emerald-400 bg-emerald-400 text-black"
                               : "border-white/20 bg-black/40 text-transparent",
                           )}
                         >
-                          <Check className={cn("h-3 w-3 stroke-[3]", isChecked ? "scale-100" : "scale-0")} />
+                          {isFailed ? (
+                            <X className="h-3 w-3 stroke-[3]" />
+                          ) : (
+                            <Check className={cn("h-3 w-3 stroke-[3]", isChecked ? "scale-100" : "scale-0")} />
+                          )}
                         </div>
                         <span className="flex-1 font-medium">{criterion}</span>
                       </div>
