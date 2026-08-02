@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
+import { GlassSurface } from "@/components/ui/glass-surface"
 import { ArrowLeft, ArrowRight, Camera, Check, Clock3, LockKeyhole, ShieldCheck, Sparkles, UserCheck } from "lucide-react"
 import posthog from "posthog-js"
 import { MiravaWordmark } from "@/components/mirava/mirava-wordmark"
@@ -517,28 +518,39 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
 
         {/* Action Bar (Preserving exact Vitest string contracts) */}
         <footer className="fixed bottom-0 left-0 right-0 z-40 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-          <div className="mx-auto flex max-w-md items-center gap-3 rounded-[24px] border border-white/10 bg-black/80 p-2 shadow-[0_16px_40px_rgba(0,0,0,0.8)] backdrop-blur-xl sm:max-w-xl mirava-onboarding-v3-actions">
-            <button
-              onClick={() => void back()}
-              disabled={step === 0 || pending}
-              aria-label={labels.back}
-              className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-black/40 text-white/80 transition-all hover:bg-white/10 hover:text-white active:scale-95 disabled:opacity-40"
-            >
-              <ArrowLeft className="h-5 w-5" />
-              <span className="sr-only">{labels.back}</span>
-            </button>
+          <GlassSurface
+            width="100%"
+            height="auto"
+            borderRadius={24}
+            brightness={45}
+            opacity={0.95}
+            blur={14}
+            backgroundOpacity={0.15}
+            className="mx-auto max-w-md p-2 shadow-[0_16px_40px_rgba(0,0,0,0.8)] sm:max-w-xl mirava-onboarding-v3-actions"
+          >
+            <div className="flex w-full items-center gap-3">
+              <button
+                onClick={() => void back()}
+                disabled={step === 0 || pending}
+                aria-label={labels.back}
+                className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-black/40 text-white/80 transition-all hover:bg-white/10 hover:text-white active:scale-95 disabled:opacity-40"
+              >
+                <ArrowLeft className="h-5 w-5" />
+                <span className="sr-only">{labels.back}</span>
+              </button>
 
-            <button
-              onClick={() => void next()}
-              disabled={!canContinue || pending}
-              className="group flex min-h-[52px] w-full flex-1 items-center justify-center gap-2 rounded-2xl bg-[#ede8df] px-5 font-jakarta text-sm font-semibold text-[#0d0e0e] shadow-[0_4px_20px_rgba(237,232,223,0.15)] transition-all duration-200 hover:bg-white active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-[#2c2d2e] disabled:text-white/30 disabled:shadow-none is-primary"
-            >
-              <span>
-                {pending ? labels.saving : stepId === "promise_name" ? labels.start : stepId === "objective" ? labels.objectiveCta : stepId === "visual_universes" ? labels.use : stepId === "direction_review" ? labels.confirm : stepId === "identity_permission" ? labels.camera : onboardingState?.status === "session_ready" ? labels.open : labels.resume}
-              </span>
-              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-            </button>
-          </div>
+              <button
+                onClick={() => void next()}
+                disabled={!canContinue || pending}
+                className="group flex min-h-[52px] w-full flex-1 items-center justify-center gap-2 rounded-2xl bg-[#ede8df] px-5 font-jakarta text-sm font-semibold text-[#0d0e0e] shadow-[0_4px_20px_rgba(237,232,223,0.15)] transition-all duration-200 hover:bg-white active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-[#2c2d2e] disabled:text-white/30 disabled:shadow-none is-primary"
+              >
+                <span>
+                  {pending ? labels.saving : stepId === "promise_name" ? labels.start : stepId === "objective" ? labels.objectiveCta : stepId === "visual_universes" ? labels.use : stepId === "direction_review" ? labels.confirm : stepId === "identity_permission" ? labels.camera : onboardingState?.status === "session_ready" ? labels.open : labels.resume}
+                </span>
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+              </button>
+            </div>
+          </GlassSurface>
         </footer>
       </MiravaMobileShell>
     </section>

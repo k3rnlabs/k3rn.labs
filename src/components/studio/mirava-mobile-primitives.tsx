@@ -7,6 +7,7 @@ import { MiravaMark } from "@/components/mirava/mirava-mark"
 import type { MiravaUniverse } from "@/lib/mirava/universes"
 import { cn } from "@/lib/utils"
 
+import { GlassSurface } from "@/components/ui/glass-surface"
 import { Grainient } from "@/components/ui/grainient"
 
 type Locale = "fr" | "es"
@@ -78,37 +79,50 @@ export function MobileProgressHeader({
   const currentStep = Math.min(totalSteps, Math.max(1, step + 1))
 
   return (
-    <header className="sticky top-0 z-40 -mx-4 mb-4 rounded-b-2xl border-b border-white/10 bg-black/40 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2 backdrop-blur-xl sm:-mx-6 sm:px-6">
-      {/* 6 Step Nodes / Progress segments */}
-      <div className="flex items-center gap-1 py-1" role="progressbar" aria-valuemin={1} aria-valuemax={totalSteps} aria-valuenow={currentStep}>
-        {Array.from({ length: totalSteps }).map((_, index) => {
-          const isActive = index < currentStep
-          return (
-            <div key={index} className="relative h-[3px] flex-1 overflow-hidden rounded-full bg-white/10">
-              <motion.div
-                className="h-full bg-[#ede8df]"
-                initial={{ width: 0 }}
-                animate={{ width: isActive ? "100%" : "0%" }}
-                transition={{ duration: 0.3, ease: "easeOut" }}
-              />
+    <header className="sticky top-0 z-40 -mx-4 mb-4 rounded-b-2xl sm:-mx-6">
+      <GlassSurface
+        width="100%"
+        height="auto"
+        borderRadius={16}
+        brightness={45}
+        opacity={0.95}
+        blur={12}
+        backgroundOpacity={0.15}
+        className="px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2 border-b border-white/15 shadow-xl sm:px-6"
+      >
+        <div className="w-full">
+          {/* 6 Step Nodes / Progress segments */}
+          <div className="flex items-center gap-1 py-1" role="progressbar" aria-valuemin={1} aria-valuemax={totalSteps} aria-valuenow={currentStep}>
+            {Array.from({ length: totalSteps }).map((_, index) => {
+              const isActive = index < currentStep
+              return (
+                <div key={index} className="relative h-[3px] flex-1 overflow-hidden rounded-full bg-white/15">
+                  <motion.div
+                    className="h-full bg-[#ede8df]"
+                    initial={{ width: 0 }}
+                    animate={{ width: isActive ? "100%" : "0%" }}
+                    transition={{ duration: 0.3, ease: "easeOut" }}
+                  />
+                </div>
+              )
+            })}
+          </div>
+
+          <div className="flex h-10 items-center justify-between py-1 text-xs">
+            {/* Compact Logo Icon */}
+            <div className="flex items-center gap-1.5 opacity-90">
+              <MiravaMark className="h-5 w-5 text-[#ede8df]" />
             </div>
-          )
-        })}
-      </div>
 
-      <div className="flex h-10 items-center justify-between py-1 text-xs">
-        {/* Compact Logo Icon */}
-        <div className="flex items-center gap-1.5 opacity-90">
-          <MiravaMark className="h-5 w-5 text-[#ede8df]" />
+            {/* Language Badge Only */}
+            <div className="flex items-center">
+              <span className="rounded-md border border-white/15 bg-white/5 px-2 py-0.5 font-jakarta text-[9px] font-bold text-white/70 uppercase">
+                {locale.toUpperCase()}
+              </span>
+            </div>
+          </div>
         </div>
-
-        {/* Language Badge Only (No redundant step number text) */}
-        <div className="flex items-center">
-          <span className="rounded-md border border-white/15 bg-white/5 px-2 py-0.5 font-jakarta text-[9px] font-bold text-white/70 uppercase">
-            {locale.toUpperCase()}
-          </span>
-        </div>
-      </div>
+      </GlassSurface>
     </header>
   )
 }
