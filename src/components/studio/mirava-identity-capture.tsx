@@ -201,8 +201,11 @@ export function MiravaIdentityCapture({
     return index === -1 ? appendStartStep : index
   }, [appendStartStep, frames])
 
-  useEffect(() => { framesRef.current = frames }, [frames])
-  useEffect(() => { pendingFrameRef.current = pendingFrame }, [pendingFrame])
+  useEffect(() => {
+    if (initialConsentAccepted && phase === "intro") {
+      void startCamera()
+    }
+  }, [initialConsentAccepted, startCamera])
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop())

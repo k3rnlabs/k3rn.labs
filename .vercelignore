@@ -1,0 +1,22 @@
+# AI/agent directories
+.agents/
+.claude/
+.codex/
+.brain/
+.gemini/
+.verdent/
+.venv*
+
+# Documentation & internal tools/artifacts
+docs/
+examples/
+memory/
+prototype/
+starter/
+tooling/
+*.zip
+
+# Dev temporary next builds
+.next-dev-*
+.next-verify-*
+.next-mirava-*
