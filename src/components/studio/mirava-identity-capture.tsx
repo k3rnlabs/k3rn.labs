@@ -237,17 +237,25 @@ async function analyzePhotoCriteria(
     const data = imageData.data
 
     let totalLuminance = 0
+    let leftLuminance = 0
+    let rightLuminance = 0
+    let leftPixelCount = 0
+    let rightPixelCount = 0
     let pixelCount = data.length / 4
 
-    let mouthStartY = Math.floor(canvas.height * 0.52)
-    let mouthEndY = Math.floor(canvas.height * 0.82)
-    let mouthStartX = Math.floor(canvas.width * 0.28)
-    let mouthEndX = Math.floor(canvas.width * 0.72)
-    let mouthWhitePixels = 0
-    let mouthSampleCount = 0
+    let skinMinY = canvas.height
+    let skinMaxY = 0
+    let skinMinX = canvas.width
+    let skinMaxX = 0
+    let skinCount = 0
+    let leftSkinCount = 0
+    let rightSkinCount = 0
 
-    for (let y = 0; y < canvas.height; y += 2) {
-      for (let x = 0; x < canvas.width; x += 2) {
+    let gradients = 0
+    let gradientSamples = 0
+
+    for (let y = 0; y < canvas.height; y += 3) {
+      for (let x = 0; x < canvas.width; x += 3) {
         const idx = (y * canvas.width + x) * 4
         const r = data[idx]
         const g = data[idx + 1]
@@ -255,36 +263,25 @@ async function analyzePhotoCriteria(
         const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
         totalLuminance += lum
 
-        if (y >= mouthStartY && y <= mouthEndY && x >= mouthStartX && x <= mouthEndX) {
-          mouthSampleCount++
-          // Smile / teeth exposure detection: bright teeth pixels or wide lip curvature in lower mouth zone
-          if (r > 185 && g > 180 && b > 170 && Math.abs(r - g) < 28 && Math.abs(g - b) < 28) {
-            mouthWhitePixels++
-          }
+        if (x < canvas.width / 2) {
+          leftLuminance += lum
+          leftPixelCount++
+        } else {
+          rightLuminance += lum
+          rightPixelCount++
         }
-      }
-    }
 
-    const avgLuminance = totalLuminance / (pixelCount / 4)
-    const mouthTeethRatio = mouthSampleCount > 0 ? mouthWhitePixels / mouthSampleCount : 0
+        if (x + 3 < canvas.width) {
+          const nextIdx = (y * canvas.width + (x + 3)) * 4
+          const nextLum = 0.2126 * data[nextIdx] + 0.7152 * data[nextIdx + 1] + 0.0722 * data[nextIdx + 2]
+          gradients += Math.abs(lum - nextLum)
+          gradientSamples++
+        }
 
-    // Skin pixel sampling for Face Framing (slotId front, angle, profile_right, smile)
-    let skinMinY = canvas.height
-    let skinMaxY = 0
-    let skinCount = 0
-
-    for (let y = 0; y < canvas.height; y += 2) {
-      for (let x = 0; x < canvas.width; x += 2) {
-        const idx = (y * canvas.width + x) * 4
-        const r = data[idx]
-        const g = data[idx + 1]
-        const b = data[idx + 2]
-
-        // Skin color heuristic (in RGB space)
         const isSkin =
-          r > 70 &&
-          g > 45 &&
-          b > 30 &&
+          r > 65 &&
+          g > 40 &&
+          b > 25 &&
           r > g &&
           r > b &&
           r - Math.min(g, b) > 14 &&
@@ -294,53 +291,162 @@ async function analyzePhotoCriteria(
           skinCount++
           if (y < skinMinY) skinMinY = y
           if (y > skinMaxY) skinMaxY = y
+          if (x < skinMinX) skinMinX = x
+          if (x > skinMaxX) skinMaxX = x
+
+          if (x < canvas.width / 2) leftSkinCount++
+          else rightSkinCount++
         }
       }
     }
 
+    const avgLuminance = totalLuminance / Math.max(1, pixelCount / 9)
+    const avgLeftLum = leftLuminance / Math.max(1, leftPixelCount)
+    const avgRightLum = rightLuminance / Math.max(1, rightPixelCount)
+    const lightDiff = Math.abs(avgLeftLum - avgRightLum)
+    const sharpness = gradients / Math.max(1, gradientSamples)
+
     const faceHeightRatio = skinCount > 0 ? (skinMaxY - skinMinY) / canvas.height : 0
+    const skinSideBalance = skinCount > 30 ? (rightSkinCount - leftSkinCount) / skinCount : 0
+    const yaw = skinSideBalance
+
+    const mouthStartY = Math.floor(skinMinY + (skinMaxY - skinMinY) * 0.55)
+    const mouthEndY = Math.floor(skinMinY + (skinMaxY - skinMinY) * 0.85)
+    const mouthStartX = Math.floor(skinMinX + (skinMaxX - skinMinX) * 0.25)
+    const mouthEndX = Math.floor(skinMinX + (skinMaxX - skinMinX) * 0.75)
+
+    let mouthWhitePixels = 0
+    let mouthSampleCount = 0
+
+    if (skinCount > 30 && mouthEndY > mouthStartY && mouthEndX > mouthStartX) {
+      for (let y = mouthStartY; y < mouthEndY; y += 2) {
+        for (let x = mouthStartX; x < mouthEndX; x += 2) {
+          const idx = (y * canvas.width + x) * 4
+          const r = data[idx]
+          const g = data[idx + 1]
+          const b = data[idx + 2]
+          mouthSampleCount++
+          if (r > 180 && g > 175 && b > 165 && Math.abs(r - g) < 28 && Math.abs(g - b) < 28) {
+            mouthWhitePixels++
+          }
+        }
+      }
+    }
+
+    const mouthTeethRatio = mouthSampleCount > 0 ? mouthWhitePixels / mouthSampleCount : 0
+    const isSmiling = mouthTeethRatio > 0.038
 
     const failedIndices: number[] = []
     let warning: string | undefined
 
-    // Face Slots (front, angle, profile_right, smile): Face must be close enough (height ratio >= 0.22)
-    if (["front", "angle", "profile_right", "smile"].includes(slotId)) {
-      if (faceHeightRatio < 0.22 || skinCount < 80) {
-        failedIndices.push(0) // Index 0: "Visage net et centré dans le cadre"
+    // SLOT 1: Visage face neutre (front)
+    if (slotId === "front") {
+      if (faceHeightRatio < 0.22 || skinCount < 40) {
+        failedIndices.push(0)
         warning =
           locale === "fr"
-            ? "Visage trop distant : veuillez importer un portrait cadré de plus près (visage centré)."
+            ? "Visage trop distant ou non centré : importez un portrait cadré de près sur le visage."
             : "Rostro demasiado lejano: usa un retrato centrado en el rostro."
       }
-    }
-
-    // Slot 1: Neutral Face checks
-    if (slotId === "front") {
-      const isSmiling = mouthTeethRatio > 0.038
+      if (avgLuminance < 25 || avgLuminance > 240 || lightDiff > 70) {
+        failedIndices.push(1)
+        warning = warning || (locale === "fr" ? "Éclairage trop sombre ou ombres dissymétriques." : "Iluminación inadecuada.")
+      }
       if (isSmiling) {
-        failedIndices.push(2) // Index 2: "Expression neutre (sans lunettes ni masque)"
+        failedIndices.push(2)
         warning = warning
           ? `${warning} Sourire détecté.`
           : locale === "fr"
-          ? "Sourire détecté : cette photo doit avoir une expression neutre sans sourire."
+          ? "Sourire détecté : cette photo doit avoir une expression strictement neutre sans sourire."
           : "Sonrisa detectada: esta foto debe tener una expresión neutra sin sonrisa."
       }
-      if (avgLuminance < 25 || avgLuminance > 240) {
-        failedIndices.push(1) // Index 1: "Éclairage naturel et homogène"
-        warning = warning || (locale === "fr" ? "Éclairage trop sombre ou sur-exposé." : "Iluminación inadecuada.")
+      if (Math.abs(yaw) > 0.28) {
+        failedIndices.push(2)
+        warning = warning || (locale === "fr" ? "Visage de profil : regardez droit vers l'objectif pour la face neutre." : "Rostro de perfil.")
       }
     }
 
-    // Slot 5: Full body format check
-    if (slotId === "body" && height < width) {
-      failedIndices.push(0) // Index 0: "Silhouette entière visible de haut en bas"
-      warning =
-        locale === "fr"
-          ? "Format paysage détecté : préférez une photo portrait verticale pour la silhouette complète."
-          : "Formato horizontal detectado: usa una foto vertical para la silueta completa."
+    // SLOT 2: Profil gauche / 3/4 (angle)
+    if (slotId === "angle") {
+      const isTurnedLeft = yaw > 0.10
+      if (!isTurnedLeft) {
+        failedIndices.push(0) // "Profil gauche bien visible et net"
+        warning =
+          locale === "fr"
+            ? "Ce n'est pas un profil gauche : vous êtes de face. Pivotez la tête de 3/4 vers votre gauche."
+            : "No es un perfil izquierdo: estás de frente. Gira la cabeza 3/4 hacia tu izquierda."
+      }
+      if (faceHeightRatio < 0.20 || skinCount < 40) {
+        failedIndices.push(1) // "Pommette et arête du nez visibles"
+        warning = warning || (locale === "fr" ? "Visage trop éloigné pour distinguer le profil." : "Rostro lejano.")
+      }
+      if (avgLuminance < 25 || avgLuminance > 240) {
+        failedIndices.push(2) // "Éclairage homogène"
+      }
     }
 
-    const score = failedIndices.length > 0 ? Math.max(65, 98 - failedIndices.length * 20) : 98
+    // SLOT 3: Profil droit / 3/4 (profile_right)
+    if (slotId === "profile_right") {
+      const isTurnedRight = yaw < -0.10
+      if (!isTurnedRight) {
+        failedIndices.push(0) // "Profil droit bien visible et net"
+        warning =
+          locale === "fr"
+            ? "Ce n'est pas un profil droit : vous êtes de face. Pivotez la tête de 3/4 vers votre droite."
+            : "No es un perfil derecho: estás de frente. Gira la cabeza 3/4 hacia tu derecha."
+      }
+      if (faceHeightRatio < 0.20 || skinCount < 40) {
+        failedIndices.push(1) // "Pommette et arête du nez visibles"
+        warning = warning || (locale === "fr" ? "Visage trop éloigné pour distinguer le profil." : "Rostro lejano.")
+      }
+      if (avgLuminance < 25 || avgLuminance > 240) {
+        failedIndices.push(2) // "Éclairage homogène"
+      }
+    }
+
+    // SLOT 4: Visage avec sourire (smile)
+    if (slotId === "smile") {
+      if (!isSmiling) {
+        failedIndices.push(0) // "Sourire naturel et détendu"
+        warning =
+          locale === "fr"
+            ? "Aucun sourire détecté : veuillez soumettre une photo avec un vrai sourire."
+            : "No se detectó sonrisa: envía una foto sonriendo."
+      }
+      if (faceHeightRatio < 0.20 || skinCount < 40) {
+        failedIndices.push(1) // "Visage bien dégagé"
+      }
+    }
+
+    // SLOT 5: Photo de plein pied (body)
+    if (slotId === "body") {
+      if (height < width) {
+        failedIndices.push(0) // "Silhouette entière visible de haut en bas"
+        warning =
+          locale === "fr"
+            ? "Format paysage détecté : préférez une photo portrait verticale pour la silhouette entière."
+            : "Formato horizontal: usa una foto vertical."
+      }
+      if (faceHeightRatio > 0.42) {
+        failedIndices.push(0)
+        warning =
+          warning
+            ? `${warning} Gros plan détecté.`
+            : locale === "fr"
+            ? "Ceci est un gros plan du visage : importez une photo montrant votre silhouette entière de haut en bas."
+            : "Foto en primer plano: envía una foto de cuerpo entero."
+      }
+    }
+
+    // SLOT 6: Tatouages / détails (tattoos)
+    if (slotId === "tattoos") {
+      if (sharpness < 1.8) {
+        failedIndices.push(0) // "Détails bien nets et éclairés"
+        warning = locale === "fr" ? "Photo floue : privilégiez une photo nette et bien éclairée." : "Foto borrosa."
+      }
+    }
+
+    const score = failedIndices.length > 0 ? Math.max(60, 98 - failedIndices.length * 20) : 98
     return { failedIndices, warning, score }
   } catch {
     return { failedIndices: [], score: 98 }
