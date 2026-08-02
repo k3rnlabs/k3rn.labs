@@ -16,10 +16,9 @@ interface MiravaMobileShellProps {
   children: React.ReactNode
   className?: string
   scrollable?: boolean
-  noDock?: boolean
 }
 
-export function MiravaMobileShell({ children, className, scrollable = false, noDock = false }: MiravaMobileShellProps) {
+export function MiravaMobileShell({ children, className, scrollable = false }: MiravaMobileShellProps) {
   return (
     <div className={cn("mirava-native-mobile-shell relative min-h-dvh max-h-dvh text-[#f1f1ed] isolate overflow-hidden selection:bg-[#d5c6b0] selection:text-[#090a0a]", className)}>
       {/* React Bits Grainient WebGL Shader Ambient Background */}
@@ -52,8 +51,7 @@ export function MiravaMobileShell({ children, className, scrollable = false, noD
 
       <div
         className={cn(
-          "relative z-10 mx-auto flex h-dvh max-w-md flex-col px-4 pt-28 sm:max-w-xl sm:px-6 sm:pt-32",
-          noDock ? "pb-6" : "pb-28",
+          "relative z-10 mx-auto flex h-dvh max-w-md flex-col px-4 pb-28 pt-28 sm:max-w-xl sm:px-6 sm:pt-32",
           scrollable ? "overflow-y-auto" : "overflow-hidden justify-between"
         )}
       >

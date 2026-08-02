@@ -56,6 +56,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
   const [universeIds, setUniverseIds] = useState<string[]>(initialState?.universeIds.length ? initialState.universeIds : initialUniverseId && getMiravaUniverse(initialUniverseId) ? [initialUniverseId] : [])
   const [identityConsentAccepted, setIdentityConsentAccepted] = useState(Boolean(initialState?.identityConsentAt))
   const [photosUploaded, setPhotosUploaded] = useState(0)
+  const [identityPhase, setIdentityPhase] = useState<"intro" | "capture">("intro")
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [universeLimitNotice, setUniverseLimitNotice] = useState<string | null>(null)
@@ -76,6 +77,8 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
     panelRef.current?.focus({ preventScroll: true })
     posthog.capture("onboarding_step_viewed", { onboarding_version: MIRAVA_ONBOARDING_VERSION, step_id: stepId })
     if (stepId === "identity_permission") posthog.capture("identity_explanation_viewed", { onboarding_version: MIRAVA_ONBOARDING_VERSION })
+    // Reset identity phase when navigating away from identity step
+    if (stepId !== "identity_permission") setIdentityPhase("intro")
   }, [stepId])
   useEffect(() => () => { if (goalAdvanceTimerRef.current !== null) window.clearTimeout(goalAdvanceTimerRef.current) }, [])
 
@@ -96,7 +99,8 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
     else if (stepId === "objective" && goal) { if (goalAdvanceTimerRef.current !== null) window.clearTimeout(goalAdvanceTimerRef.current); await persist("visual_universes", { goal }) }
     else if (stepId === "visual_universes" && direction) await persist("direction_review", { universeIds, direction })
     else if (stepId === "direction_review" && direction) { const saved = await persist("identity_permission", { direction }); if (saved) posthog.capture("direction_confirmed", { onboarding_version: MIRAVA_ONBOARDING_VERSION, objective: goal, primary_universe_id: direction.primaryUniverseId }) }
-    else if (stepId === "identity_permission" && identityConsentAccepted) { const saved = await persist("capture_activation", { identityConsentAccepted: true }); if (saved) onStartCapture(saved) }
+    // identity_permission intro phase: advance to capture phase (no backend call yet)
+    else if (stepId === "identity_permission" && identityPhase === "intro" && identityConsentAccepted) { setIdentityPhase("capture"); posthog.capture("identity_consent_accepted", { onboarding_version: MIRAVA_ONBOARDING_VERSION }) }
     else if (stepId === "capture_activation" && onboardingState?.status !== "session_ready" && onboardingState) onStartCapture(onboardingState)
     else if (stepId === "capture_activation" && onboardingState?.status === "session_ready") {
       setPending(true); setError(null)
@@ -125,8 +129,13 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
   }
 
   const back = async () => {
-    const target = MIRAVA_ONBOARDING_STEPS[Math.max(0, step - 1)]
     posthog.capture("onboarding_back_clicked", { onboarding_version: MIRAVA_ONBOARDING_VERSION, step_id: stepId })
+    // On capture phase: go back to intro phase, not to previous step
+    if (stepId === "identity_permission" && identityPhase === "capture") {
+      setIdentityPhase("intro")
+      return
+    }
+    const target = MIRAVA_ONBOARDING_STEPS[Math.max(0, step - 1)]
     await goToStep(target)
   }
 
@@ -145,13 +154,12 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
     return [...current, id]
   })
 
-  // On identity_permission, the CTA in the dock is hidden (capture is fully inline).
-  // canContinue is kept true so the dock button can appear if needed, but we hide it below.
-  const canContinue = stepId === "promise_name" ? Boolean(name.trim()) : stepId === "objective" ? Boolean(goal) : stepId === "visual_universes" ? universeIds.length > 0 : stepId === "identity_permission" ? (photosUploaded > 0) : stepId === "capture_activation" ? Boolean(onboardingState) : true
+  // identity_permission intro: need consent. capture phase: dock has no CTA (capture handles it)
+  const canContinue = stepId === "promise_name" ? Boolean(name.trim()) : stepId === "objective" ? Boolean(goal) : stepId === "visual_universes" ? universeIds.length > 0 : stepId === "identity_permission" ? identityConsentAccepted : stepId === "capture_activation" ? Boolean(onboardingState) : true
 
   return (
     <section lang={locale} className="mirava-studio-onboarding-v3">
-      <MiravaMobileShell scrollable={stepId === "identity_permission"} noDock={stepId === "identity_permission"}>
+      <MiravaMobileShell scrollable={stepId === "identity_permission" && identityPhase === "capture"}>
         {/* Progress Header */}
         <MobileProgressHeader
           step={step}
@@ -346,21 +354,9 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                 </div>
               )}
 
-              {/* STEP 5: IDENTITY PERMISSION */}
-              {stepId === "identity_permission" && (
-                <div className="space-y-5 pt-2 sm:pt-3">
-                  {/* Back button row (dock is hidden on this step) */}
-                  <button
-                    type="button"
-                    onClick={() => void back()}
-                    disabled={pending}
-                    className="flex items-center gap-2 font-jakarta text-xs font-medium text-white/60 hover:text-white transition-colors"
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                    <span>{labels.back}</span>
-                  </button>
-
-                  {/* Page header — visible above the photo capture */}
+              {/* STEP 5A: IDENTITY INTRO — consent + trust (identityPhase = "intro") */}
+              {stepId === "identity_permission" && identityPhase === "intro" && (
+                <div className="space-y-6 pt-2 sm:pt-3">
                   <div>
                     <span className="block font-jakarta text-[10px] font-bold tracking-[0.16em] text-[#d5c6b0] uppercase">
                       MIRAVA / IDENTITÉ ET CONTRÔLE
@@ -388,8 +384,12 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                       <span>{labels.processing}</span>
                     </div>
                   </div>
+                </div>
+              )}
 
-                  {/* INLINE PHOTO CAPTURE — the capture slots render here */}
+              {/* STEP 5B: IDENTITY CAPTURE — photo slots only (identityPhase = "capture") */}
+              {stepId === "identity_permission" && identityPhase === "capture" && (
+                <div className="pt-2 sm:pt-3">
                   <MiravaIdentityCapture
                     inline={true}
                     locale={locale}
@@ -528,44 +528,45 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
           </div>
         )}
 
-        {/* Action Bar — hidden on identity_permission step (capture has its own inline action buttons) */}
-        {stepId !== "identity_permission" && (
-          <footer className="fixed bottom-0 left-0 right-0 z-40 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-            <GlassSurface
-              width="100%"
-              height="auto"
-              borderRadius={24}
-              brightness={45}
-              opacity={0.95}
-              blur={14}
-              backgroundOpacity={0.15}
-              className="mx-auto max-w-md p-2 shadow-[0_16px_40px_rgba(0,0,0,0.8)] sm:max-w-xl mirava-onboarding-v3-actions"
-            >
-              <div className="flex w-full items-center gap-3">
-                <button
-                  onClick={() => void back()}
-                  disabled={step === 0 || pending}
-                  aria-label={labels.back}
-                  className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-black/40 text-white/80 transition-all hover:bg-white/10 hover:text-white active:scale-95 disabled:opacity-40"
-                >
-                  <ArrowLeft className="h-5 w-5" />
-                  <span className="sr-only">{labels.back}</span>
-                </button>
+        {/* Action Bar — always visible. On identity capture phase, only back button shown */}
+        <footer className="fixed bottom-0 left-0 right-0 z-40 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <GlassSurface
+            width="100%"
+            height="auto"
+            borderRadius={24}
+            brightness={45}
+            opacity={0.95}
+            blur={14}
+            backgroundOpacity={0.15}
+            className="mx-auto max-w-md p-2 shadow-[0_16px_40px_rgba(0,0,0,0.8)] sm:max-w-xl mirava-onboarding-v3-actions"
+          >
+            <div className="flex w-full items-center gap-3">
+              <button
+                onClick={() => void back()}
+                disabled={step === 0 || pending}
+                aria-label={labels.back}
+                className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-black/40 text-white/80 transition-all hover:bg-white/10 hover:text-white active:scale-95 disabled:opacity-40"
+              >
+                <ArrowLeft className="h-5 w-5" />
+                <span className="sr-only">{labels.back}</span>
+              </button>
 
+              {/* Capture phase: no dock CTA (MiravaIdentityCapture handles its own action buttons) */}
+              {!(stepId === "identity_permission" && identityPhase === "capture") && (
                 <button
                   onClick={() => void next()}
                   disabled={!canContinue || pending}
                   className="group flex min-h-[52px] w-full flex-1 items-center justify-center gap-2 rounded-2xl bg-[#ede8df] px-5 font-jakarta text-sm font-semibold text-[#0d0e0e] shadow-[0_4px_20px_rgba(237,232,223,0.15)] transition-all duration-200 hover:bg-white active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-[#2c2d2e] disabled:text-white/30 disabled:shadow-none is-primary"
                 >
                   <span>
-                    {pending ? labels.saving : stepId === "promise_name" ? labels.start : stepId === "objective" ? labels.objectiveCta : stepId === "visual_universes" ? labels.use : stepId === "direction_review" ? labels.confirm : onboardingState?.status === "session_ready" ? labels.open : labels.resume}
+                    {pending ? labels.saving : stepId === "promise_name" ? labels.start : stepId === "objective" ? labels.objectiveCta : stepId === "visual_universes" ? labels.use : stepId === "direction_review" ? labels.confirm : stepId === "identity_permission" && identityPhase === "intro" ? labels.camera : onboardingState?.status === "session_ready" ? labels.open : labels.resume}
                   </span>
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                 </button>
-              </div>
-            </GlassSurface>
-          </footer>
-        )}
+              )}
+            </div>
+          </GlassSurface>
+        </footer>
       </MiravaMobileShell>
     </section>
   )
