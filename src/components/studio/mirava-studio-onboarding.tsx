@@ -161,7 +161,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
 
   return (
     <section lang={locale} className="mirava-studio-onboarding-v3">
-      <MiravaMobileShell scrollable={stepId === "identity_permission" && identityPhase === "capture"}>
+      <MiravaMobileShell>
         {/* Progress Header */}
         <MobileProgressHeader
           step={step}
@@ -520,8 +520,8 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
           </div>
         )}
 
-        {/* Action Bar — always visible. On identity capture phase, only back button shown */}
-        <footer className="fixed bottom-0 left-0 right-0 z-40 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+        {/* Action Bar — always visible. Pinned to bottom with safe area insets */}
+        <footer className="fixed bottom-0 left-0 right-0 z-40 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] bg-gradient-to-t from-black via-black/90 to-transparent backdrop-blur-md pointer-events-none">
           <GlassSurface
             width="100%"
             height="auto"
@@ -530,7 +530,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
             opacity={0.95}
             blur={14}
             backgroundOpacity={0.15}
-            className="mx-auto max-w-md p-2 shadow-[0_16px_40px_rgba(0,0,0,0.8)] sm:max-w-xl mirava-onboarding-v3-actions"
+            className="mx-auto max-w-md p-2 shadow-[0_16px_40px_rgba(0,0,0,0.8)] sm:max-w-xl pointer-events-auto mirava-onboarding-v3-actions"
           >
             <div className="flex w-full items-center gap-3">
               <button

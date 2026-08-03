@@ -18,9 +18,9 @@ interface MiravaMobileShellProps {
   scrollable?: boolean
 }
 
-export function MiravaMobileShell({ children, className, scrollable = false }: MiravaMobileShellProps) {
+export function MiravaMobileShell({ children, className }: MiravaMobileShellProps) {
   return (
-    <div className={cn("mirava-native-mobile-shell relative min-h-dvh max-h-dvh text-[#f1f1ed] isolate overflow-hidden selection:bg-[#d5c6b0] selection:text-[#090a0a]", className)}>
+    <div className={cn("mirava-native-mobile-shell fixed inset-0 text-[#f1f1ed] isolate overflow-hidden selection:bg-[#d5c6b0] selection:text-[#090a0a]", className)}>
       {/* React Bits Grainient WebGL Shader Ambient Background */}
       <div className="pointer-events-none fixed inset-0 z-0 opacity-90">
         <Grainient
@@ -49,11 +49,9 @@ export function MiravaMobileShell({ children, className, scrollable = false }: M
         />
       </div>
 
+      {/* Main Content Viewport — scrollable internally underneath fixed top header & above bottom dock */}
       <div
-        className={cn(
-          "relative z-10 mx-auto flex h-dvh max-w-md flex-col px-4 pb-28 pt-28 sm:max-w-xl sm:px-6 sm:pt-32",
-          scrollable ? "overflow-y-auto" : "overflow-hidden justify-between"
-        )}
+        className="relative z-10 mx-auto flex h-full w-full max-w-md flex-col overflow-y-auto overflow-x-hidden scrollbar-none px-4 pt-[calc(max(0.75rem,env(safe-area-inset-top))+72px)] pb-[calc(max(1rem,env(safe-area-inset-bottom))+96px)] sm:max-w-xl sm:px-6"
       >
         {children}
       </div>
@@ -73,13 +71,11 @@ export function MobileProgressHeader({
   step,
   totalSteps = 6,
   locale = "fr",
-  onBack,
-  canGoBack = true,
 }: MobileProgressHeaderProps) {
   const currentStep = Math.min(totalSteps, Math.max(1, step + 1))
 
   return (
-    <header className="fixed top-3 left-0 right-0 z-50 px-4 sm:px-6 pointer-events-none">
+    <header className="fixed top-0 left-0 right-0 z-50 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 px-4 sm:px-6 pointer-events-none bg-gradient-to-b from-black via-black/90 to-transparent backdrop-blur-md">
       <div className="mx-auto max-w-md sm:max-w-xl pointer-events-auto">
         <GlassSurface
           width="100%"
@@ -350,8 +346,8 @@ export function FloatingActionDock({
   disabled = false,
 }: FloatingActionDockProps) {
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 p-3.5 pb-[max(0.875rem,env(safe-area-inset-bottom))]">
-      <div className="mx-auto flex max-w-md items-center rounded-[24px] border border-white/10 bg-black/60 p-2 shadow-[0_16px_40px_rgba(0,0,0,0.8)] backdrop-blur-xl sm:max-w-xl">
+    <div className="fixed bottom-0 left-0 right-0 z-40 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] bg-gradient-to-t from-black via-black/90 to-transparent backdrop-blur-md pointer-events-none">
+      <div className="mx-auto flex max-w-md items-center rounded-[24px] border border-white/10 bg-black/60 p-2 shadow-[0_16px_40px_rgba(0,0,0,0.8)] backdrop-blur-xl sm:max-w-xl pointer-events-auto">
         <div className="w-full min-w-0">
           <MiravaPrimaryButton onClick={onNext} disabled={disabled}>
             {nextLabel}
