@@ -35,6 +35,12 @@ enum StudioCreationStatus {
   CANCELLED
 }
 
+enum StudioGenerationIntent {
+  INITIAL
+  REGENERATE
+  POSE_VARIATION
+}
+
 enum StudioAssetKind {
   REFERENCE
   IDENTITY
@@ -757,6 +763,12 @@ model StudioCreation {
   studioProfileId          String?
   identityProfileId        String?
   presetId                 String?
+  generationIntent         StudioGenerationIntent @default(INITIAL)
+  parentCreationId         String?
+  rootCreationId           String?
+  sourceResultIndex        Int?
+  variationRequest         Json?
+  clientIdempotencyKey     String?
   creativeOptions          Json                 @default("{}")
   status                   StudioCreationStatus @default(DRAFT)
   creativeDirectionSummary String?              @db.Text
@@ -779,12 +791,20 @@ model StudioCreation {
   studioProfile StudioProfile? @relation("StudioProfileCreations", fields: [studioProfileId], references: [id], onDelete: SetNull)
   sourceStudioProfile StudioProfile? @relation("StudioProfileSource")
   identityProfile StudioIdentityProfile? @relation(fields: [identityProfileId], references: [id], onDelete: SetNull)
+  parentCreation StudioCreation? @relation("StudioCreationLineage", fields: [parentCreationId], references: [id], onDelete: SetNull)
+  childCreations StudioCreation[] @relation("StudioCreationLineage")
+  rootCreation StudioCreation? @relation("StudioCreationRoot", fields: [rootCreationId], references: [id], onDelete: SetNull)
+  rootDescendants StudioCreation[] @relation("StudioCreationRoot")
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
   @@index([dossierId])
   @@index([studioProfileId, createdAt])
   @@index([identityProfileId])
+  @@index([parentCreationId, createdAt])
+  @@index([rootCreationId, createdAt])
+  @@index([generationIntent, createdAt])
+  @@unique([userId, clientIdempotencyKey])
 }
 
 model StudioProfile {
