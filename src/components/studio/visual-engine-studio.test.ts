@@ -50,6 +50,24 @@ describe("MIRAVA studio entry contracts", () => {
     expect(studio).toContain('setSelectedUniverseId(preferredUniverse.id)')
   })
 
+  it("rechecks the durable identity profile before reopening capture", () => {
+    expect(studio).toContain(
+      'const latestProfile =',
+    )
+    expect(studio).toContain(
+      '"/api/visual-engine/identity-profile"',
+    )
+    expect(studio).toContain(
+      "setIdentityProfile(latestProfile.profile)",
+    )
+    expect(studio).toContain(
+      "isMiravaIdentityProfileReady(\n          latestProfile.profile,",
+    )
+    expect(studio).not.toContain(
+      "if (!isMiravaIdentityProfileReady(identityProfile)) {\n      openCapture",
+    )
+  })
+
   it("resumes an already prepared first session instead of duplicating it after a lost response", () => {
     expect(studio).toContain('const latestOnboarding = await api<{ onboarding: MiravaOnboardingState | null }>("/api/visual-engine/onboarding")')
     expect(studio).toContain('latestOnboarding.onboarding?.status === "session_ready" && latestOnboarding.onboarding.firstSessionId')

@@ -64,6 +64,30 @@ describe("MIRAVA onboarding localization contracts", () => {
     )
   })
 
+  it("keeps activation linear and truthful after identity upload", () => {
+    expect(onboarding).toContain(
+      "activationRequestRef",
+    )
+    expect(onboarding).toContain(
+      "activationPreparing",
+    )
+    expect(onboarding).toContain(
+      "photos réellement enregistrées",
+    )
+    expect(onboarding).toContain(
+      "Préparation de ma séance…",
+    )
+    expect(onboarding).not.toContain(
+      'const isDone = onboardingState?.status === "session_ready" || slot.number === 1',
+    )
+    expect(onboarding).not.toContain(
+      "Ajouter ou modifier mes photos",
+    )
+    expect(onboarding).not.toContain(
+      "onStartCapture(saved)",
+    )
+  })
+
   it("sends the complete onboarding state when the identity profile is finalized", () => {
     expect(onboarding).toContain(
       'const saved = await persist(\n                          "capture_activation"',
@@ -107,8 +131,12 @@ describe("MIRAVA onboarding localization contracts", () => {
   it("confirms the goal, then auto-advances briefly while keeping back navigation", () => {
     expect(onboarding).toContain('objectiveCta: "Choisir mes univers"')
     expect(onboarding).toContain('objectiveCta: "Elegir mis universos"')
-    expect(onboarding).toContain('stepId === "objective" ? labels.objectiveCta')
-    expect(onboarding).toContain('stepId === "objective" ? Boolean(goal)')
+    expect(onboarding).toMatch(
+      /stepId === "objective"\s*\? labels\.objectiveCta/,
+    )
+    expect(onboarding).toMatch(
+      /stepId === "objective"\s*\? Boolean\(goal\)/,
+    )
     expect(onboarding).toContain("window.setTimeout")
     expect(onboarding).toContain("360")
     expect(onboarding).toContain('void persist("visual_universes", { goal: choice })')

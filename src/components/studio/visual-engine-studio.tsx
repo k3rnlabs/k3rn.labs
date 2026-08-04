@@ -584,22 +584,58 @@ export function VisualEngineStudio() {
     return session.creation.id
   }
 
-  const startOrResumeOnboarding = async (onboarding: MiravaOnboardingState) => {
+  const startOrResumeOnboarding = async (
+    onboarding: MiravaOnboardingState,
+  ) => {
     setMiravaOnboarding(onboarding)
-    if (!isMiravaIdentityProfileReady(identityProfile)) {
-      openCapture("onboarding")
-      return
-    }
     setPending("onboarding-activation")
     setError(null)
+    clearNotice()
+
     try {
-      const creationId = await prepareOnboardingSession(onboarding, {
-        ageConfirmed: true, rightsConfirmed: true, retentionAccepted: true,
-        privacyAccepted: true, openaiDisclosureAccepted: true,
-      })
+      /*
+       * L'upload du Profil identité vient d'être finalisé par
+       * MiravaStudioOnboarding. L'état React du Studio peut encore contenir
+       * l'ancien profil null : toujours relire la source durable avant de
+       * décider de rouvrir la capture.
+       */
+      const latestProfile =
+        await api<{ profile: IdentityProfile }>(
+          "/api/visual-engine/identity-profile",
+        )
+
+      setIdentityProfile(latestProfile.profile)
+
+      if (
+        !isMiravaIdentityProfileReady(
+          latestProfile.profile,
+        )
+      ) {
+        openCapture("onboarding")
+        return
+      }
+
+      const creationId =
+        await prepareOnboardingSession(
+          onboarding,
+          {
+            ageConfirmed: true,
+            rightsConfirmed: true,
+            retentionAccepted: true,
+            privacyAccepted: true,
+            openaiDisclosureAccepted: true,
+          },
+        )
+
       await refresh(creationId)
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : (locale === "fr" ? "La première séance n’a pas pu être préparée." : "No se ha podido preparar la primera sesión."))
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : locale === "fr"
+          ? "La première séance n’a pas pu être préparée."
+          : "No se ha podido preparar la primera sesión.",
+      )
     } finally {
       setPending(null)
     }

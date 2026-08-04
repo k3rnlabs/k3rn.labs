@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
 import { GlassSurface } from "@/components/ui/glass-surface"
-import { ArrowLeft, ArrowRight, Camera, Check, Clock3, Loader2, LockKeyhole, ShieldCheck, Sparkles, Upload, UserCheck } from "lucide-react"
+import { ArrowLeft, ArrowRight, Check, Clock3, Loader2, LockKeyhole, ShieldCheck, Sparkles, Upload, UserCheck } from "lucide-react"
 import posthog from "posthog-js"
 import { MiravaWordmark } from "@/components/mirava/mirava-wordmark"
 import { MIRAVA_ONBOARDING_STEPS, MIRAVA_ONBOARDING_VERSION, onboardingStepIndex, type MiravaOnboardingDirection, type MiravaOnboardingGoal, type MiravaOnboardingState, type MiravaOnboardingStepId } from "@/lib/mirava/onboarding"
@@ -22,7 +22,7 @@ import {
   UniverseCard,
   UniverseGrid,
 } from "./mirava-mobile-primitives"
-import MiravaIdentityCapture, { PHOTO_SLOTS, type CaptureActionState } from "./mirava-identity-capture"
+import MiravaIdentityCapture, { type CaptureActionState } from "./mirava-identity-capture"
 import { OnboardingPipelineDemo } from "./mirava-pipeline-demo"
 
 type Locale = "fr" | "es"
@@ -100,6 +100,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
   const [universeLimitNotice, setUniverseLimitNotice] = useState<string | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const goalAdvanceTimerRef = useRef<number | null>(null)
+  const activationRequestRef = useRef<string | null>(null)
   const step = onboardingStepIndex(stepId)
   const direction = useMemo(() => goal && universeIds.length ? directionFor(goal, universeIds, locale) : undefined, [goal, locale, universeIds])
   const selectedGoal = GOALS[locale].find((item) => item.id === goal)
@@ -110,6 +111,11 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
       identityProfileReceipt.assetCount >= MIRAVA_MIN_IDENTITY_PHOTOS &&
       identityProfileReceipt.assetCount <= MIRAVA_MAX_IDENTITY_PHOTOS,
   )
+
+  const activationPreparing =
+    stepId === "capture_activation" &&
+    identityProfileReady &&
+    onboardingState?.status !== "session_ready"
 
   useEffect(() => {
     setOnboardingState(initialState)
@@ -190,6 +196,37 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
   }, [
     identityProfileReceipt,
     locale,
+    stepId,
+  ])
+
+  useEffect(() => {
+    if (
+      stepId !== "capture_activation" ||
+      !identityProfileReady ||
+      !onboardingState ||
+      onboardingState.status === "session_ready"
+    ) {
+      return
+    }
+
+    const requestKey =
+      `${onboardingState.updatedAt}:` +
+      `${identityProfileReceipt?.updatedAt ?? ""}`
+
+    if (
+      activationRequestRef.current ===
+      requestKey
+    ) {
+      return
+    }
+
+    activationRequestRef.current = requestKey
+    onStartCapture(onboardingState)
+  }, [
+    identityProfileReady,
+    identityProfileReceipt?.updatedAt,
+    onStartCapture,
+    onboardingState,
     stepId,
   ])
 
@@ -280,7 +317,6 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
     else if (stepId === "direction_review" && direction) { const saved = await persist("identity_permission", { direction }); if (saved) posthog.capture("direction_confirmed", { onboarding_version: MIRAVA_ONBOARDING_VERSION, objective: goal, primary_universe_id: direction.primaryUniverseId }) }
     // identity_permission intro phase: advance to capture phase (no backend call yet)
     else if (stepId === "identity_permission" && identityPhase === "intro" && identityConsentAccepted) { setIdentityPhase("capture"); posthog.capture("identity_consent_accepted", { onboarding_version: MIRAVA_ONBOARDING_VERSION }) }
-    else if (stepId === "capture_activation" && onboardingState?.status !== "session_ready" && onboardingState) onStartCapture(onboardingState)
     else if (stepId === "capture_activation" && onboardingState?.status === "session_ready") {
       setPending(true); setError(null)
       try {
@@ -309,6 +345,15 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
 
   const back = async () => {
     posthog.capture("onboarding_back_clicked", { onboarding_version: MIRAVA_ONBOARDING_VERSION, step_id: stepId })
+    // Une fois le Profil identité enregistré, l'activation devient un
+    // parcours linéaire : ne jamais retourner vers une capture vide.
+    if (
+      stepId === "capture_activation" &&
+      identityProfileReady
+    ) {
+      return
+    }
+
     // On capture phase: go back to intro phase, not to previous step
     if (stepId === "identity_permission" && identityPhase === "capture") {
       setIdentityPhase("intro")
@@ -334,7 +379,18 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
   })
 
   // identity_permission intro: need consent. capture phase: dock has no CTA (capture handles it)
-  const canContinue = stepId === "promise_name" ? Boolean(name.trim()) : stepId === "objective" ? Boolean(goal) : stepId === "visual_universes" ? universeIds.length > 0 : stepId === "identity_permission" ? identityConsentAccepted : stepId === "capture_activation" ? Boolean(onboardingState) : true
+  const canContinue =
+    stepId === "promise_name"
+      ? Boolean(name.trim())
+      : stepId === "objective"
+      ? Boolean(goal)
+      : stepId === "visual_universes"
+      ? universeIds.length > 0
+      : stepId === "identity_permission"
+      ? identityConsentAccepted
+      : stepId === "capture_activation"
+      ? onboardingState?.status === "session_ready"
+      : true
 
   return (
     <section lang={locale} className="mirava-studio-onboarding-v3">
@@ -642,7 +698,8 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                           },
                         )
 
-                        onStartCapture(saved)
+                        // La préparation de la séance est déclenchée
+                        // automatiquement par l'effet d'activation.
                       } finally {
                         setPending(false)
                       }
@@ -653,120 +710,135 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
 
               {/* STEP 6: CAPTURE ACTIVATION */}
               {stepId === "capture_activation" && (
-                <div className="space-y-6 pt-2">
+                <div className="space-y-5 pt-3">
                   <div className="text-center">
-                    <div className="mx-auto mb-3 grid h-16 w-16 place-items-center rounded-full border border-[#ede8df]/30 bg-white/15 backdrop-blur-xl shadow-xl">
-                      <Sparkles className="h-7 w-7 text-[#ede8df]" />
+                    <div
+                      className={cn(
+                        "mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full border bg-white/10 shadow-xl backdrop-blur-xl",
+                        onboardingState?.status === "session_ready"
+                          ? "border-emerald-400/40"
+                          : "border-[#ede8df]/25",
+                      )}
+                    >
+                      <Sparkles
+                        className={cn(
+                          "h-7 w-7 text-[#ede8df]",
+                          activationPreparing &&
+                            "animate-pulse",
+                        )}
+                      />
                     </div>
+
                     <span className="block font-jakarta text-[10px] font-bold tracking-[0.16em] text-[#d5c6b0] uppercase">
                       MIRAVA / ACTIVATION
                     </span>
-                    <h1 className="mt-2 font-jakarta text-2xl font-semibold tracking-[-0.04em] text-white sm:text-3xl leading-tight">
-                      {onboardingState?.status === "session_ready"
+
+                    <h1 className="mt-3 font-jakarta text-2xl font-semibold leading-tight tracking-[-0.04em] text-white sm:text-3xl">
+                      {onboardingState?.status ===
+                      "session_ready"
                         ? `${labels.ready}, ${name.trim()}.`
                         : identityProfileReady
                         ? locale === "fr"
-                          ? "Votre Profil Identité est prêt."
-                          : "Tu Perfil de Identidad está listo."
+                          ? "Votre identité est enregistrée."
+                          : "Tu identidad está guardada."
                         : locale === "fr"
-                        ? "Vérification de votre Profil Identité…"
-                        : "Verificando tu Perfil de Identidad…"}
+                        ? "Vérification de votre identité…"
+                        : "Verificando tu identidad…"}
                     </h1>
+
+                    <p className="mx-auto mt-3 max-w-sm font-jakarta text-sm leading-relaxed text-white/60">
+                      {onboardingState?.status ===
+                      "session_ready"
+                        ? locale === "fr"
+                          ? "Votre Profil Identité et votre direction sont prêts. Ouvrez maintenant votre première séance."
+                          : "Tu Perfil de Identidad y tu dirección están listos. Abre ahora tu primera sesión."
+                        : identityProfileReady
+                        ? locale === "fr"
+                          ? "MIRAVA prépare votre première séance à partir de votre direction et de vos références privées."
+                          : "MIRAVA prepara tu primera sesión a partir de tu dirección y de tus referencias privadas."
+                        : locale === "fr"
+                        ? "Confirmation de l’enregistrement privé en cours."
+                        : "Confirmando el almacenamiento privado."}
+                    </p>
                   </div>
 
-                  {/* Identity Profile Status Card */}
-                  <div className="rounded-[24px] border border-white/15 bg-white/10 p-5 shadow-2xl backdrop-blur-xl">
-                    <div className="flex items-center justify-between border-b border-white/10 pb-3">
-                      <div>
+                  <div className="rounded-[24px] border border-white/15 bg-black/20 p-5 shadow-2xl backdrop-blur-xl">
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-full border border-emerald-400/30 bg-emerald-400/10">
+                        <Check className="h-4 w-4 stroke-[3] text-emerald-400" />
+                      </div>
+
+                      <div className="min-w-0 flex-1">
                         <strong className="block font-jakarta text-sm font-semibold text-white">
-                          {locale === "fr" ? "Profil Identité Privé" : "Perfil de Identidad Privado"}
-                        </strong>
-                        <span className="font-jakarta text-xs text-[#ede8df]">
                           {identityProfileReady
                             ? locale === "fr"
-                              ? `${photosUploaded} photo${photosUploaded > 1 ? "s" : ""} enregistrée${photosUploaded > 1 ? "s" : ""}`
-                              : `${photosUploaded} foto${photosUploaded > 1 ? "s" : ""} guardada${photosUploaded > 1 ? "s" : ""}`
+                              ? `${photosUploaded} photo${photosUploaded > 1 ? "s" : ""} privée${photosUploaded > 1 ? "s" : ""} enregistrée${photosUploaded > 1 ? "s" : ""}`
+                              : `${photosUploaded} foto${photosUploaded > 1 ? "s" : ""} privada${photosUploaded > 1 ? "s" : ""} guardada${photosUploaded > 1 ? "s" : ""}`
                             : locale === "fr"
-                            ? "Vérification de l’enregistrement…"
-                            : "Verificando el guardado…"}
+                            ? "Profil Identité privé"
+                            : "Perfil de Identidad privado"}
+                        </strong>
+
+                        <span className="mt-1 block font-jakarta text-xs leading-relaxed text-white/50">
+                          {locale === "fr"
+                            ? "Aucune vue n’est déduite ou inventée : seules les photos réellement enregistrées sont utilisées."
+                            : "No se deduce ni se inventa ninguna vista: solo se utilizan las fotos realmente guardadas."}
                         </span>
                       </div>
-                      <span
-                        className={cn(
-                          "rounded-full border px-2.5 py-1 font-jakarta text-[10px] font-bold",
-                          identityProfileReady
-                            ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
-                            : "border-amber-400/40 bg-amber-400/10 text-amber-300",
-                        )}
-                      >
-                        {identityProfileReady
-                          ? locale === "fr"
-                            ? "ENREGISTRÉ"
-                            : "GUARDADO"
-                          : locale === "fr"
-                          ? "VÉRIFICATION"
-                          : "VERIFICACIÓN"}
+
+                      <span className="shrink-0 rounded-full border border-white/15 bg-white/5 px-2.5 py-1 font-jakarta text-[9px] font-bold tracking-wider text-white/60">
+                        PRIVÉ
                       </span>
                     </div>
 
-                    {/* View Breakdown List */}
-                    <div className="mt-3.5 space-y-2.5 font-jakarta text-xs">
-                      {PHOTO_SLOTS.map((slot) => {
-                        const isRequired = slot.level === "required"
-                        const isRecommended = slot.level === "recommended"
-                        const isDone = onboardingState?.status === "session_ready" || slot.number === 1
+                    <div className="mt-5 space-y-2 border-t border-white/10 pt-4 font-jakarta text-xs">
+                      <div className="flex items-center gap-2.5 text-white/75">
+                        <Check className="h-4 w-4 stroke-[3] text-emerald-400" />
+                        <span>
+                          {locale === "fr"
+                            ? "Direction artistique confirmée"
+                            : "Dirección artística confirmada"}
+                        </span>
+                      </div>
 
-                        return (
-                          <div key={slot.id} className="flex items-center justify-between text-white/90">
-                            <div className="flex items-center gap-2">
-                              {isDone ? (
-                                <Check className="h-4 w-4 text-emerald-400 stroke-[3]" />
-                              ) : (
-                                <div className="h-4 w-4 rounded-full border border-white/30 bg-black/40" />
-                              )}
-                              <span>{slot.title[locale]}</span>
-                            </div>
-                            <span className={cn(
-                              "text-[10px] font-semibold",
-                              isDone
-                                ? "text-emerald-400"
-                                : isRequired
-                                ? "text-amber-400"
-                                : "text-white/40"
-                            )}>
-                              {isDone
-                                ? (locale === "fr" ? "Validé" : "Validado")
-                                : isRequired
-                                ? (locale === "fr" ? "Requis" : "Requerido")
-                                : isRecommended
-                                ? (locale === "fr" ? "Recommandé" : "Recomendado")
-                                : (locale === "fr" ? "Optionnel" : "Opcional")}
-                            </span>
-                          </div>
-                        )
-                      })}
+                      <div className="flex items-center gap-2.5 text-white/75">
+                        {onboardingState?.status ===
+                        "session_ready" ? (
+                          <Check className="h-4 w-4 stroke-[3] text-emerald-400" />
+                        ) : (
+                          <Loader2 className="h-4 w-4 animate-spin text-[#d5c6b0]" />
+                        )}
+
+                        <span>
+                          {onboardingState?.status ===
+                          "session_ready"
+                            ? locale === "fr"
+                              ? "Première séance prête"
+                              : "Primera sesión lista"
+                            : locale === "fr"
+                            ? "Préparation de la première séance"
+                            : "Preparando la primera sesión"}
+                        </span>
+                      </div>
                     </div>
-
-                    <button
-                      type="button"
-                      onClick={() => void goToStep("identity_permission")}
-                      className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 font-jakarta text-xs font-semibold text-white transition-all hover:bg-white/20"
-                    >
-                      <Camera className="h-4 w-4 text-[#ede8df]" />
-                      <span>{locale === "fr" ? "Ajouter ou modifier mes photos" : "Añadir o modificar mis fotos"}</span>
-                    </button>
                   </div>
 
-                  {onboardingState?.status === "session_ready" && direction && (
-                    <div className="rounded-2xl border border-white/15 bg-white/10 p-4 text-left font-jakarta text-xs backdrop-blur-xl">
-                      <span className="block text-[10px] font-semibold text-[#d5c6b0] uppercase tracking-wider">
-                        {locale === "fr" ? "Première séance configurée" : "Primera sesión configurada"}
-                      </span>
-                      <strong className="mt-1 block font-semibold text-white text-sm">
-                        {selectedGoal?.session} — {primaryUniverse?.name[locale]}
-                      </strong>
-                    </div>
-                  )}
+                  {onboardingState?.status ===
+                    "session_ready" &&
+                    direction && (
+                      <div className="rounded-2xl border border-white/15 bg-white/10 p-4 text-left font-jakarta text-xs backdrop-blur-xl">
+                        <span className="block text-[10px] font-semibold tracking-wider text-[#d5c6b0] uppercase">
+                          {locale === "fr"
+                            ? "Première séance configurée"
+                            : "Primera sesión configurada"}
+                        </span>
+
+                        <strong className="mt-1 block text-sm font-semibold text-white">
+                          {selectedGoal?.session} —{" "}
+                          {primaryUniverse?.name[locale]}
+                        </strong>
+                      </div>
+                    )}
                 </div>
               )}
             </motion.div>
@@ -795,7 +867,11 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
             <div className="flex w-full min-w-0 items-center gap-3">
               <button
                 onClick={() => void back()}
-                disabled={step === 0 || pending}
+                disabled={
+                  step === 0 ||
+                  pending ||
+                  stepId === "capture_activation"
+                }
                 aria-label={labels.back}
                 className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-black/40 text-white/80 transition-all hover:bg-white/10 hover:text-white active:scale-95 disabled:opacity-40"
               >
@@ -849,9 +925,37 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                   className="group flex min-h-[52px] min-w-0 flex-1 items-center justify-center gap-2 overflow-hidden rounded-2xl bg-[#ede8df] px-4 font-jakarta text-sm font-semibold text-[#0d0e0e] shadow-[0_4px_20px_rgba(237,232,223,0.15)] transition-all duration-200 hover:bg-white active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-[#2c2d2e] disabled:text-white/30 disabled:shadow-none is-primary"
                 >
                   <span className="min-w-0 truncate">
-                    {pending ? labels.saving : stepId === "promise_name" ? labels.start : stepId === "objective" ? labels.objectiveCta : stepId === "visual_universes" ? labels.use : stepId === "direction_review" ? labels.confirm : stepId === "identity_permission" && identityPhase === "intro" ? labels.camera : onboardingState?.status === "session_ready" ? labels.open : labels.resume}
+                    {pending
+                      ? labels.saving
+                      : stepId === "promise_name"
+                      ? labels.start
+                      : stepId === "objective"
+                      ? labels.objectiveCta
+                      : stepId === "visual_universes"
+                      ? labels.use
+                      : stepId === "direction_review"
+                      ? labels.confirm
+                      : stepId === "identity_permission" &&
+                        identityPhase === "intro"
+                      ? labels.camera
+                      : stepId === "capture_activation" &&
+                        onboardingState?.status !==
+                          "session_ready"
+                      ? locale === "fr"
+                        ? "Préparation de ma séance…"
+                        : "Preparando mi sesión…"
+                      : onboardingState?.status ===
+                        "session_ready"
+                      ? labels.open
+                      : labels.resume}
                   </span>
-                  <ArrowRight className="h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
+                  {stepId === "capture_activation" &&
+                  onboardingState?.status !==
+                    "session_ready" ? (
+                    <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                  ) : (
+                    <ArrowRight className="h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
+                  )}
                 </button>
               )}
             </div>
