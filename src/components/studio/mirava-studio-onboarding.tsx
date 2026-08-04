@@ -521,7 +521,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
         )}
 
         {/* Action Bar — always visible. Pinned to bottom with safe area insets */}
-        <footer className="fixed bottom-0 left-0 right-0 z-40 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] bg-gradient-to-t from-black via-black/90 to-transparent backdrop-blur-md pointer-events-none">
+        <footer className="mirava-floating-action-frame fixed bottom-0 left-0 right-0 z-40 px-4 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))] pointer-events-none">
           <GlassSurface
             width="100%"
             height="auto"
@@ -530,7 +530,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
             opacity={0.95}
             blur={14}
             backgroundOpacity={0.15}
-            className="mx-auto max-w-md p-2 shadow-[0_16px_40px_rgba(0,0,0,0.8)] sm:max-w-xl pointer-events-auto mirava-onboarding-v3-actions"
+            className="mirava-floating-action-glass mirava-onboarding-v3-actions mx-auto max-w-md px-1.5 py-1 shadow-[0_12px_30px_rgba(0,0,0,0.48)] sm:max-w-xl pointer-events-auto"
           >
             <div className="flex w-full items-center gap-3">
               <button
