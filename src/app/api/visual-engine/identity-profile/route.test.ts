@@ -16,7 +16,7 @@ vi.mock("@/lib/auth", () => ({ verifySession: mocks.verifySession }))
 vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: mocks.checkRateLimit }))
 vi.mock("@/lib/visual-engine/core", () => ({
   MIN_IDENTITY_ASSETS: 3,
-  MAX_IDENTITY_ASSETS: 6,
+  MAX_IDENTITY_ASSETS: 10,
   getIdentityProfilePublic: mocks.getIdentityProfilePublic,
   replaceIdentityProfile: mocks.replaceIdentityProfile,
   appendIdentityProfile: mocks.appendIdentityProfile,
