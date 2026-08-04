@@ -12,7 +12,6 @@ import {
   Loader2,
   LockKeyhole,
   RotateCcw,
-  Scan,
   ShieldCheck,
   Sparkles,
   Upload,
@@ -22,6 +21,9 @@ import {
 import { cn } from "@/lib/utils"
 import posthog from "posthog-js"
 import { MiravaGrain } from "@/components/mirava/mirava-grain"
+import { analyzeMiravaIdentityPhoto } from "./mirava-import-analyzer"
+import type { MiravaVisionIssue, MiravaVisionResult, MiravaVisionStep } from "./mirava-vision.types"
+import { MiravaScanOverlay } from "./mirava-scan-overlay"
 import { MIRAVA_MIN_IDENTITY_PHOTOS } from "@/lib/mirava/identity-profile"
 
 type Locale = "fr" | "es"
@@ -157,6 +159,7 @@ export const PHOTO_SLOTS: PhotoSlotDefinition[] = [
     },
     level: "recommended",
     required: false,
+    exampleImage: "/visual-engine/identity-guide/05-body-front.webp",
     criteria: {
       fr: [
         "Silhouette entière visible de haut en bas",
@@ -201,6 +204,7 @@ export interface PhotoSlotState {
   failedCriteria?: number[] // Indices of criteria that failed analysis
   criteriaWarning?: string // User-facing warning message if a criterion fails
   qualityScore?: number // Score 0-100%
+  visionResult?: MiravaVisionResult
 }
 
 export interface CaptureActionState {
@@ -214,242 +218,301 @@ export interface CaptureActionState {
   }
 }
 
-async function analyzePhotoCriteria(
+
+const SLOT_VISION_STEP: Record<PhotoSlotId, MiravaVisionStep> = {
+  front: "front",
+  angle: "left",
+  profile_right: "right",
+  smile: "smile",
+  body: "body-front",
+  tattoos: "traits",
+}
+
+function issueMessage(issue: MiravaVisionIssue, locale: Locale): string | undefined {
+  const messages: Record<Exclude<MiravaVisionIssue, "ready" | "loading">, Record<Locale, string>> = {
+    "no-face": {
+      fr: "Aucun visage n’a été détecté. Utilisez une photo nette où le visage est entièrement visible.",
+      es: "No se detectó ningún rostro. Usa una foto nítida con el rostro completamente visible.",
+    },
+    "multiple-faces": {
+      fr: "Plusieurs visages ont été détectés. La photo doit montrer uniquement la personne du profil.",
+      es: "Se detectaron varios rostros. La foto debe mostrar únicamente a la persona del perfil.",
+    },
+    "no-pose": {
+      fr: "Aucune silhouette complète n’a été détectée.",
+      es: "No se detectó una silueta completa.",
+    },
+    "multiple-poses": {
+      fr: "Plusieurs personnes ont été détectées. Utilisez une photo individuelle.",
+      es: "Se detectaron varias personas. Usa una foto individual.",
+    },
+    "move-closer": {
+      fr: "Le sujet est trop éloigné. Utilisez une photo cadrée plus près.",
+      es: "El sujeto está demasiado lejos. Usa una foto más cercana.",
+    },
+    "move-back": {
+      fr: "Le sujet est trop près ou partiellement coupé. Reculez légèrement le cadrage.",
+      es: "El sujeto está demasiado cerca o parcialmente cortado.",
+    },
+    center: {
+      fr: "Le visage ou la silhouette n’est pas suffisamment centré.",
+      es: "El rostro o la silueta no está suficientemente centrado.",
+    },
+    "turn-left": {
+      fr: "Cette photo ne correspond pas au profil gauche demandé.",
+      es: "Esta foto no corresponde al perfil izquierdo solicitado.",
+    },
+    "turn-right": {
+      fr: "Cette photo ne correspond pas au profil droit demandé.",
+      es: "Esta foto no corresponde al perfil derecho solicitado.",
+    },
+    "face-camera": {
+      fr: "Regardez davantage face à l’objectif.",
+      es: "Mira más directamente hacia la cámara.",
+    },
+    tilt: {
+      fr: "La tête est trop inclinée. Gardez-la plus droite.",
+      es: "La cabeza está demasiado inclinada.",
+    },
+    "expression-not-neutral": {
+      fr: "Une expression clairement souriante a été détectée. Pour cette vue, gardez simplement votre expression naturelle et détendue.",
+      es: "Se detectó una expresión claramente sonriente. Mantén una expresión natural y relajada.",
+    },
+    "smile-required": {
+      fr: "Le sourire n’est pas suffisamment visible. Utilisez une photo avec une expression clairement souriante.",
+      es: "La sonrisa no es suficientemente visible. Usa una foto con una expresión claramente sonriente.",
+    },
+    "eyes-closed": {
+      fr: "Un œil semble fermé ou insuffisamment visible. Choisissez une photo avec les deux yeux ouverts.",
+      es: "Un ojo parece cerrado o poco visible. Usa una foto con ambos ojos abiertos.",
+    },
+    "red-eye": {
+      fr: "Un flash frontal agressif et des yeux rouges ont été détectés. Utilisez une lumière douce sans flash direct.",
+      es: "Se detectó un flash frontal agresivo y ojos rojos. Usa una luz suave sin flash directo.",
+    },
+    "body-in-frame": {
+      fr: "La silhouette complète, des épaules jusqu’aux pieds, doit être visible.",
+      es: "La silueta completa debe ser visible de hombros a pies.",
+    },
+    "body-front": {
+      fr: "La posture n’est pas suffisamment de face.",
+      es: "La postura no está suficientemente de frente.",
+    },
+    "body-angle": {
+      fr: "La posture n’est pas suffisamment en trois-quarts.",
+      es: "La postura no está suficientemente en tres cuartos.",
+    },
+    dark: {
+      fr: "Le visage est trop sombre. Placez-vous face à une source lumineuse douce et homogène.",
+      es: "El rostro está demasiado oscuro. Colócate frente a una luz suave y uniforme.",
+    },
+    bright: {
+      fr: "Certaines zones du visage sont surexposées. Réduisez la lumière directe.",
+      es: "Algunas zonas del rostro están sobreexpuestas.",
+    },
+    "uneven-light": {
+      fr: "La lumière est trop déséquilibrée entre les deux côtés du visage.",
+      es: "La luz está demasiado desequilibrada entre ambos lados del rostro.",
+    },
+    backlit: {
+      fr: "Votre visage est en contre-jour : l’arrière-plan est beaucoup plus lumineux que vos traits. Placez-vous face à la lumière ou éloignez-vous de la fenêtre derrière vous.",
+      es: "Tu rostro está a contraluz: el fondo es mucho más luminoso. Colócate frente a la luz o aléjate de la ventana situada detrás.",
+    },
+    blurry: {
+      fr: "La photo manque de netteté. Utilisez une image plus précise et sans flou.",
+      es: "La foto no es suficientemente nítida.",
+    },
+    "hold-still": {
+      fr: "La photo semble présenter du flou de mouvement.",
+      es: "La foto parece tener desenfoque de movimiento.",
+    },
+    unavailable: {
+      fr: "L’analyse du visage est indisponible. Réessayez ou choisissez une autre photo.",
+      es: "El análisis facial no está disponible. Inténtalo de nuevo.",
+    },
+  }
+
+  if (issue === "ready" || issue === "loading") return undefined
+  return messages[issue][locale]
+}
+
+type SlotCriterionMap = {
+  framing?: number
+  orientation?: number
+  details?: number
+  lighting?: number
+  expression?: number
+  eyes?: number
+  posture?: number
+  sharpness?: number
+}
+
+const SLOT_CRITERION_MAP: Record<PhotoSlotId, SlotCriterionMap> = {
+  front: {
+    framing: 0,
+    orientation: 0,
+    lighting: 1,
+    expression: 2,
+    eyes: 3,
+    sharpness: 0,
+  },
+  angle: {
+    orientation: 0,
+    framing: 0,
+    details: 1,
+    lighting: 2,
+    sharpness: 0,
+  },
+  profile_right: {
+    orientation: 0,
+    framing: 0,
+    details: 1,
+    lighting: 2,
+    sharpness: 0,
+  },
+  smile: {
+    expression: 0,
+    framing: 1,
+    eyes: 1,
+    lighting: 2,
+    sharpness: 1,
+  },
+  body: {
+    framing: 0,
+    posture: 1,
+    lighting: 2,
+    sharpness: 0,
+  },
+  tattoos: {
+    framing: 0,
+    lighting: 1,
+    sharpness: 0,
+  },
+}
+
+function failedCriteriaForResult(
+  slotId: PhotoSlotId,
+  result: MiravaVisionResult,
+): number[] {
+  const issues =
+    result.issues.length > 0
+      ? result.issues
+      : result.issue === "ready"
+      ? []
+      : [result.issue]
+
+  const map = SLOT_CRITERION_MAP[slotId]
+  const failed = new Set<number>()
+
+  const add = (index: number | undefined) => {
+    if (index !== undefined) failed.add(index)
+  }
+
+  for (const issue of issues) {
+    switch (issue) {
+      case "dark":
+      case "bright":
+      case "uneven-light":
+      case "backlit":
+        add(map.lighting)
+        break
+
+      case "blurry":
+      case "hold-still":
+        add(map.sharpness)
+        break
+
+      case "turn-left":
+      case "turn-right":
+      case "face-camera":
+      case "tilt":
+        add(map.orientation)
+        break
+
+      case "expression-not-neutral":
+      case "smile-required":
+        add(map.expression)
+        break
+
+      case "eyes-closed":
+        add(map.eyes)
+        break
+
+      case "body-front":
+      case "body-angle":
+        add(map.posture)
+        break
+
+      case "body-in-frame":
+      case "no-pose":
+      case "multiple-poses":
+      case "no-face":
+      case "multiple-faces":
+      case "move-closer":
+      case "move-back":
+      case "center":
+        add(map.framing)
+        break
+
+      case "unavailable":
+        PHOTO_SLOTS
+          .find((slot) => slot.id === slotId)
+          ?.criteria.fr.forEach((_, index) => failed.add(index))
+        break
+    }
+  }
+
+  return Array.from(failed).sort((a, b) => a - b)
+}
+
+function visionQualityScore(result: MiravaVisionResult): number | undefined {
+  if (result.issue === "unavailable") return undefined
+
+  let score = 100
+
+  if (result.luminance !== null) {
+    score -= Math.min(25, Math.abs(result.luminance - 145) * 0.16)
+  }
+
+  if (result.lightDifference !== null) {
+    score -= Math.min(20, result.lightDifference * 0.3)
+  }
+
+  if (result.sharpness !== null && result.sharpness < 12) {
+    score -= Math.min(25, (12 - result.sharpness) * 2)
+  }
+
+  if (!result.ready) score -= 25
+
+  return Math.max(0, Math.min(100, Math.round(score)))
+}
+
+async function analyzeIdentityPhoto(
   file: File,
   slotId: PhotoSlotId,
   locale: Locale,
-): Promise<{ failedIndices: number[]; warning?: string; score: number }> {
-  try {
-    const bitmap = await createImageBitmap(file)
-    const width = bitmap.width
-    const height = bitmap.height
+): Promise<{
+  failedIndices: number[]
+  warning?: string
+  score?: number
+  visionResult: MiravaVisionResult
+}> {
+  const result = await analyzeMiravaIdentityPhoto(file, SLOT_VISION_STEP[slotId])
 
-    const canvas = document.createElement("canvas")
-    const ctx = canvas.getContext("2d", { willReadFrequently: true })
-    if (!ctx) return { failedIndices: [], score: 98 }
-
-    canvas.width = 300
-    canvas.height = Math.max(150, Math.round((300 * height) / width))
-    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
-    bitmap.close()
-
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-    const data = imageData.data
-
-    let totalLuminance = 0
-    let leftLuminance = 0
-    let rightLuminance = 0
-    let leftPixelCount = 0
-    let rightPixelCount = 0
-    let pixelCount = data.length / 4
-
-    let skinMinY = canvas.height
-    let skinMaxY = 0
-    let skinMinX = canvas.width
-    let skinMaxX = 0
-    let skinCount = 0
-    let leftSkinCount = 0
-    let rightSkinCount = 0
-
-    let gradients = 0
-    let gradientSamples = 0
-
-    for (let y = 0; y < canvas.height; y += 3) {
-      for (let x = 0; x < canvas.width; x += 3) {
-        const idx = (y * canvas.width + x) * 4
-        const r = data[idx]
-        const g = data[idx + 1]
-        const b = data[idx + 2]
-        const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
-        totalLuminance += lum
-
-        if (x < canvas.width / 2) {
-          leftLuminance += lum
-          leftPixelCount++
-        } else {
-          rightLuminance += lum
-          rightPixelCount++
-        }
-
-        if (x + 3 < canvas.width) {
-          const nextIdx = (y * canvas.width + (x + 3)) * 4
-          const nextLum = 0.2126 * data[nextIdx] + 0.7152 * data[nextIdx + 1] + 0.0722 * data[nextIdx + 2]
-          gradients += Math.abs(lum - nextLum)
-          gradientSamples++
-        }
-
-        const isSkin =
-          r > 65 &&
-          g > 40 &&
-          b > 25 &&
-          r > g &&
-          r > b &&
-          r - Math.min(g, b) > 14 &&
-          Math.abs(r - g) > 10
-
-        if (isSkin) {
-          skinCount++
-          if (y < skinMinY) skinMinY = y
-          if (y > skinMaxY) skinMaxY = y
-          if (x < skinMinX) skinMinX = x
-          if (x > skinMaxX) skinMaxX = x
-
-          if (x < canvas.width / 2) leftSkinCount++
-          else rightSkinCount++
-        }
-      }
-    }
-
-    const avgLuminance = totalLuminance / Math.max(1, pixelCount / 9)
-    const avgLeftLum = leftLuminance / Math.max(1, leftPixelCount)
-    const avgRightLum = rightLuminance / Math.max(1, rightPixelCount)
-    const lightDiff = Math.abs(avgLeftLum - avgRightLum)
-    const sharpness = gradients / Math.max(1, gradientSamples)
-
-    const faceHeightRatio = skinCount > 0 ? (skinMaxY - skinMinY) / canvas.height : 0
-    const skinSideBalance = skinCount > 30 ? (rightSkinCount - leftSkinCount) / skinCount : 0
-    const yaw = skinSideBalance
-
-    const mouthStartY = Math.floor(skinMinY + (skinMaxY - skinMinY) * 0.55)
-    const mouthEndY = Math.floor(skinMinY + (skinMaxY - skinMinY) * 0.85)
-    const mouthStartX = Math.floor(skinMinX + (skinMaxX - skinMinX) * 0.25)
-    const mouthEndX = Math.floor(skinMinX + (skinMaxX - skinMinX) * 0.75)
-
-    let mouthWhitePixels = 0
-    let mouthSampleCount = 0
-
-    if (skinCount > 30 && mouthEndY > mouthStartY && mouthEndX > mouthStartX) {
-      for (let y = mouthStartY; y < mouthEndY; y += 2) {
-        for (let x = mouthStartX; x < mouthEndX; x += 2) {
-          const idx = (y * canvas.width + x) * 4
-          const r = data[idx]
-          const g = data[idx + 1]
-          const b = data[idx + 2]
-          mouthSampleCount++
-          if (r > 180 && g > 175 && b > 165 && Math.abs(r - g) < 28 && Math.abs(g - b) < 28) {
-            mouthWhitePixels++
-          }
-        }
-      }
-    }
-
-    const mouthTeethRatio = mouthSampleCount > 0 ? mouthWhitePixels / mouthSampleCount : 0
-    const isSmiling = mouthTeethRatio > 0.038
-
-    const failedIndices: number[] = []
-    let warning: string | undefined
-
-    // SLOT 1: Visage face neutre (front)
-    if (slotId === "front") {
-      if (faceHeightRatio < 0.22 || skinCount < 40) {
-        failedIndices.push(0)
-        warning =
-          locale === "fr"
-            ? "Visage trop distant ou non centré : importez un portrait cadré de près sur le visage."
-            : "Rostro demasiado lejano: usa un retrato centrado en el rostro."
-      }
-      if (avgLuminance < 25 || avgLuminance > 240 || lightDiff > 70) {
-        failedIndices.push(1)
-        warning = warning || (locale === "fr" ? "Éclairage trop sombre ou ombres dissymétriques." : "Iluminación inadecuada.")
-      }
-      if (isSmiling) {
-        failedIndices.push(2)
-        warning = warning
-          ? `${warning} Sourire détecté.`
-          : locale === "fr"
-          ? "Sourire détecté : cette photo doit avoir une expression strictement neutre sans sourire."
-          : "Sonrisa detectada: esta foto debe tener una expresión neutra sin sonrisa."
-      }
-      if (Math.abs(yaw) > 0.28) {
-        failedIndices.push(2)
-        warning = warning || (locale === "fr" ? "Visage de profil : regardez droit vers l'objectif pour la face neutre." : "Rostro de perfil.")
-      }
-    }
-
-    // SLOT 2: Profil gauche / 3/4 (angle)
-    if (slotId === "angle") {
-      const isTurnedLeft = yaw > 0.10
-      if (!isTurnedLeft) {
-        failedIndices.push(0) // "Profil gauche bien visible et net"
-        warning =
-          locale === "fr"
-            ? "Ce n'est pas un profil gauche : vous êtes de face. Pivotez la tête de 3/4 vers votre gauche."
-            : "No es un perfil izquierdo: estás de frente. Gira la cabeza 3/4 hacia tu izquierda."
-      }
-      if (faceHeightRatio < 0.20 || skinCount < 40) {
-        failedIndices.push(1) // "Pommette et arête du nez visibles"
-        warning = warning || (locale === "fr" ? "Visage trop éloigné pour distinguer le profil." : "Rostro lejano.")
-      }
-      if (avgLuminance < 25 || avgLuminance > 240) {
-        failedIndices.push(2) // "Éclairage homogène"
-      }
-    }
-
-    // SLOT 3: Profil droit / 3/4 (profile_right)
-    if (slotId === "profile_right") {
-      const isTurnedRight = yaw < -0.10
-      if (!isTurnedRight) {
-        failedIndices.push(0) // "Profil droit bien visible et net"
-        warning =
-          locale === "fr"
-            ? "Ce n'est pas un profil droit : vous êtes de face. Pivotez la tête de 3/4 vers votre droite."
-            : "No es un perfil derecho: estás de frente. Gira la cabeza 3/4 hacia tu derecha."
-      }
-      if (faceHeightRatio < 0.20 || skinCount < 40) {
-        failedIndices.push(1) // "Pommette et arête du nez visibles"
-        warning = warning || (locale === "fr" ? "Visage trop éloigné pour distinguer le profil." : "Rostro lejano.")
-      }
-      if (avgLuminance < 25 || avgLuminance > 240) {
-        failedIndices.push(2) // "Éclairage homogène"
-      }
-    }
-
-    // SLOT 4: Visage avec sourire (smile)
-    if (slotId === "smile") {
-      if (!isSmiling) {
-        failedIndices.push(0) // "Sourire naturel et détendu"
-        warning =
-          locale === "fr"
-            ? "Aucun sourire détecté : veuillez soumettre une photo avec un vrai sourire."
-            : "No se detectó sonrisa: envía una foto sonriendo."
-      }
-      if (faceHeightRatio < 0.20 || skinCount < 40) {
-        failedIndices.push(1) // "Visage bien dégagé"
-      }
-    }
-
-    // SLOT 5: Photo de plein pied (body)
-    if (slotId === "body") {
-      if (height < width) {
-        failedIndices.push(0) // "Silhouette entière visible de haut en bas"
-        warning =
-          locale === "fr"
-            ? "Format paysage détecté : préférez une photo portrait verticale pour la silhouette entière."
-            : "Formato horizontal: usa una foto vertical."
-      }
-      if (faceHeightRatio > 0.42) {
-        failedIndices.push(0)
-        warning =
-          warning
-            ? `${warning} Gros plan détecté.`
-            : locale === "fr"
-            ? "Ceci est un gros plan du visage : importez une photo montrant votre silhouette entière de haut en bas."
-            : "Foto en primer plano: envía una foto de cuerpo entero."
-      }
-    }
-
-    // SLOT 6: Tatouages / détails (tattoos)
-    if (slotId === "tattoos") {
-      if (sharpness < 1.8) {
-        failedIndices.push(0) // "Détails bien nets et éclairés"
-        warning = locale === "fr" ? "Photo floue : privilégiez une photo nette et bien éclairée." : "Foto borrosa."
-      }
-    }
-
-    const score = failedIndices.length > 0 ? Math.max(60, 98 - failedIndices.length * 20) : 98
-    return { failedIndices, warning, score }
-  } catch {
-    return { failedIndices: [], score: 98 }
+  return {
+    failedIndices: failedCriteriaForResult(slotId, result),
+    warning: (
+      result.issues.length > 0
+        ? result.issues
+        : result.issue === "ready"
+        ? []
+        : [result.issue]
+    )
+      .map((issue) => issueMessage(issue, locale))
+      .filter(Boolean)
+      .join(" "),
+    score: visionQualityScore(result),
+    visionResult: result,
   }
 }
 
@@ -528,32 +591,60 @@ export function MiravaIdentityCapture({
     return () => window.removeEventListener("keydown", retainFocus)
   }, [inline])
 
-  // Keep worker ref contract for Vitest string checks
-  useEffect(() => {
-    // new Worker("/visual-engine/vision/mirava-vision.worker.js", { type: "module" })
-  }, [])
-
   const currentSlot = PHOTO_SLOTS[activeSlotIndex]
   const currentSlotState = slotStates[currentSlot.id]
   const currentCriteria = currentSlot.criteria[locale]
 
-  // Count valid photos uploaded
+  // Only photos that passed every required criterion count as validated
   const completedPhotos = useMemo(
-    () => PHOTO_SLOTS.filter((slot) => slotStates[slot.id].file && slotStates[slot.id].status === "scanned"),
+    () =>
+      PHOTO_SLOTS.filter((slot) => {
+        const state = slotStates[slot.id]
+
+        return (
+          Boolean(state.file) &&
+          state.status === "scanned" &&
+          (state.failedCriteria?.length ?? 0) === 0 &&
+          state.visionResult?.ready === true
+        )
+      }),
     [slotStates],
   )
-  const requiredPhotosDone = slotStates.front.status === "scanned" && slotStates.angle.status === "scanned"
 
-  // Handle Photo Upload & Trigger Live Scan Animation
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
+  const requiredPhotosDone = (
+    ["front", "angle", "profile_right"] as PhotoSlotId[]
+  ).every((slotId) => {
+    const state = slotStates[slotId]
+
+    return (
+      Boolean(state.file) &&
+      state.status === "scanned" &&
+      (state.failedCriteria?.length ?? 0) === 0 &&
+      state.visionResult?.ready === true
+    )
+  })
+
+  const currentPhotoHasBlockingIssues =
+    currentSlotState.status === "scanned" &&
+    (
+      (currentSlotState.failedCriteria?.length ?? 0) > 0 ||
+      currentSlotState.visionResult?.ready !== true
+    )
+
+  // Handle Photo Upload & Trigger the real MediaPipe analysis
+  const handleFileSelect = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0]
     if (!file) return
 
     const previewUrl = URL.createObjectURL(file)
     const slotId = currentSlot.id
+    const totalCriteria = currentSlot.criteria[locale].length
+    const scanStartedAt = performance.now()
 
-    setSlotStates((prev) => ({
-      ...prev,
+    setSlotStates((previous) => ({
+      ...previous,
       [slotId]: {
         file,
         preview: previewUrl,
@@ -562,37 +653,52 @@ export function MiravaIdentityCapture({
       },
     }))
 
-    // Live scanning animation timer: activates checkmarks 1-by-1
-    const totalCriteria = currentSlot.criteria[locale].length
-    let progress = 0
+    const analysis = await analyzeIdentityPhoto(file, slotId, locale)
 
-    const timer = setInterval(() => {
-      progress += 1
-      setSlotStates((prev) => ({
-        ...prev,
+    // Dès que MediaPipe a localisé le visage, le réticule rejoint sa vraie
+    // position pendant la fin de l'animation.
+    setSlotStates((previous) => {
+      const state = previous[slotId]
+
+      if (state.preview !== previewUrl) return previous
+
+      return {
+        ...previous,
         [slotId]: {
-          ...prev[slotId],
-          criteriaProgress: progress,
+          ...state,
+          visionResult: analysis.visionResult,
         },
-      }))
-
-      if (progress >= totalCriteria) {
-        clearInterval(timer)
-        void analyzePhotoCriteria(file, slotId, locale).then((analysis) => {
-          setSlotStates((prev) => ({
-            ...prev,
-            [slotId]: {
-              ...prev[slotId],
-              status: "scanned",
-              criteriaProgress: totalCriteria,
-              failedCriteria: analysis.failedIndices,
-              criteriaWarning: analysis.warning,
-              qualityScore: analysis.score,
-            },
-          }))
-        })
       }
-    }, 350)
+    })
+
+    const minimumScanDuration = 1800
+    const elapsed = performance.now() - scanStartedAt
+
+    if (elapsed < minimumScanDuration) {
+      await new Promise((resolve) =>
+        window.setTimeout(resolve, minimumScanDuration - elapsed),
+      )
+    }
+
+
+    setSlotStates((previous) => {
+      const state = previous[slotId]
+
+      if (state.preview !== previewUrl) return previous
+
+      return {
+        ...previous,
+        [slotId]: {
+          ...state,
+          status: "scanned",
+          criteriaProgress: totalCriteria,
+          failedCriteria: analysis.failedIndices,
+          criteriaWarning: analysis.warning,
+          qualityScore: analysis.score,
+          visionResult: analysis.visionResult,
+        },
+      }
+    })
   }
 
   const handleResetCurrentPhoto = () => {
@@ -669,12 +775,38 @@ export function MiravaIdentityCapture({
     }
 
     if (currentSlotState.status === "scanned") {
+      if (currentPhotoHasBlockingIssues) {
+        return {
+          label:
+            locale === "fr"
+              ? "Choisir une meilleure photo"
+              : "Elegir una foto mejor",
+          icon: "upload",
+          onClick: () => fileInputRef.current?.click(),
+          secondaryAction: !currentSlot.required
+            ? {
+                label:
+                  locale === "fr"
+                    ? "Passer cette photo"
+                    : "Saltar esta foto",
+                onClick: handleSkipOptionalSlot,
+              }
+            : undefined,
+        }
+      }
+
       return {
-        label: locale === "fr" ? "Valider et continuer" : "Validar y continuar",
+        label:
+          locale === "fr"
+            ? "Valider et continuer"
+            : "Validar y continuar",
         icon: "next",
         onClick: handleAdvanceToNext,
         secondaryAction: {
-          label: locale === "fr" ? "Changer la photo" : "Cambiar la foto",
+          label:
+            locale === "fr"
+              ? "Changer la photo"
+              : "Cambiar la foto",
           onClick: handleResetCurrentPhoto,
         },
       }
@@ -692,6 +824,7 @@ export function MiravaIdentityCapture({
         : undefined,
     }
   }, [
+    currentPhotoHasBlockingIssues,
     currentSlot.required,
     currentSlotState.status,
     handleAdvanceToNext,
@@ -809,82 +942,148 @@ export function MiravaIdentityCapture({
                 )}
               </div>
 
-              {/* PHOTO PREVIEW & LIVE SCAN RETICLE */}
+              {/* PHOTO PREVIEW IN ITS ORIGINAL ASPECT RATIO */}
               {currentSlotState.preview ? (
-                <div className="relative aspect-[4/5] max-h-[320px] sm:max-h-[360px] w-full overflow-hidden rounded-2xl border border-white/20 bg-black/90 shadow-2xl flex items-center justify-center">
-                  {/* Photo Image in original ratio without cropping */}
-                  <img
-                    src={currentSlotState.preview}
-                    alt={currentSlot.title[locale]}
-                    className="h-full w-full object-contain"
-                  />
+                <div className="flex w-full justify-center">
+                  <div className="relative inline-block max-w-full overflow-hidden rounded-2xl border border-white/20 bg-black shadow-2xl">
+                    <img
+                      src={currentSlotState.preview}
+                      alt={currentSlot.title[locale]}
+                      className="block h-auto max-h-[68svh] w-auto max-w-full"
+                    />
 
-                  {/* SCANNING BEAM & OVERLAY ANIMATION */}
-                  {currentSlotState.status === "scanning" && (
-                    <>
-                      {/* Laser Line Animation */}
-                      <div className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-[#ede8df] to-transparent shadow-[0_0_15px_#ede8df] animate-scan-beam" />
+                    {currentSlotState.status === "scanning" && (
+                      <MiravaScanOverlay
+                        locale={locale}
+                        target={currentSlotState.visionResult}
+                        variant={
+                          currentSlot.id === "body"
+                            ? "body"
+                            : currentSlot.id === "tattoos"
+                            ? "detail"
+                            : "face"
+                        }
+                      />
+                    )}
 
-                      {/* Face Target Reticle Overlay */}
-                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <div className="relative h-44 w-44 rounded-full border-2 border-dashed border-[#ede8df]/80 animate-spin-slow grid place-items-center">
-                          <Scan className="h-10 w-10 text-[#ede8df] animate-pulse" />
-                        </div>
+                    {currentSlotState.status === "scanned" && (
+                      <div
+                        className={cn(
+                          "absolute left-3 top-3 flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold backdrop-blur-md",
+                          currentSlotState.failedCriteria &&
+                            currentSlotState.failedCriteria.length > 0
+                            ? "border-amber-500/40 bg-amber-950/80 text-amber-300"
+                            : "border-emerald-500/40 bg-emerald-950/80 text-emerald-300",
+                        )}
+                      >
+                        {currentSlotState.failedCriteria &&
+                        currentSlotState.failedCriteria.length > 0 ? (
+                          <>
+                            <CircleAlert className="h-3.5 w-3.5" />
+                            <span>
+                              {locale === "fr"
+                                ? currentSlotState.visionResult?.issue === "unavailable"
+                                  ? "Analyse non disponible"
+                                  : "À améliorer"
+                                : "Criterios a mejorar"}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <Check className="h-3.5 w-3.5 stroke-[3]" />
+                            <span>
+                              {locale === "fr"
+                                ? "Photo validée"
+                                : "Foto validada"}
+                            </span>
+                          </>
+                        )}
                       </div>
+                    )}
 
-                      {/* Scanning Status Badge */}
-                      <div className="absolute top-3 left-3 flex items-center gap-2 rounded-full border border-[#ede8df]/40 bg-black/80 px-3 py-1 text-xs font-semibold text-[#ede8df] backdrop-blur-md">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        <span>{locale === "fr" ? "Scan en cours…" : "Escaneando…"}</span>
-                      </div>
-                    </>
-                  )}
-
-                  {/* SCANNED STATUS BADGE (Top Left) */}
-                  {currentSlotState.status === "scanned" && (
-                    <div
-                      className={cn(
-                        "absolute top-3 left-3 flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold backdrop-blur-md",
-                        currentSlotState.failedCriteria && currentSlotState.failedCriteria.length > 0
-                          ? "border-amber-500/40 bg-amber-950/80 text-amber-300"
-                          : "border-emerald-500/40 bg-emerald-950/80 text-emerald-300",
-                      )}
-                    >
-                      {currentSlotState.failedCriteria && currentSlotState.failedCriteria.length > 0 ? (
-                        <>
-                          <CircleAlert className="h-3.5 w-3.5" />
-                          <span>
-                            {locale === "fr"
-                              ? `Critères non validés (${currentSlotState.qualityScore ?? 75}%)`
-                              : "Criterios no validados"}
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          <Check className="h-3.5 w-3.5 stroke-[3]" />
-                          <span>
-                            {locale === "fr"
-                              ? `Photo validée (${currentSlotState.qualityScore ?? 98}%)`
-                              : "Foto validada"}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  )}
-
-                  {/* CHANGE PHOTO BUTTON (Top Right) */}
-                  {currentSlotState.status === "scanned" && (
-                    <button
-                      type="button"
-                      onClick={handleResetCurrentPhoto}
-                      className="absolute top-3 right-3 flex items-center gap-1.5 rounded-full border border-white/20 bg-black/80 px-3 py-1 font-jakarta text-xs font-medium text-white/90 shadow-md backdrop-blur-md transition-all hover:bg-white/20 active:scale-95"
-                    >
-                      <RotateCcw className="h-3.5 w-3.5 text-[#ede8df]" />
-                      <span>{locale === "fr" ? "Changer" : "Cambiar"}</span>
-                    </button>
-                  )}
+                    {currentSlotState.status === "scanned" && (
+                      <button
+                        type="button"
+                        onClick={handleResetCurrentPhoto}
+                        className="absolute right-3 top-3 flex items-center gap-1.5 rounded-full border border-white/20 bg-black/80 px-3 py-1 font-jakarta text-xs font-medium text-white/90 shadow-md backdrop-blur-md transition-all hover:bg-white/20 active:scale-95"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5 text-[#ede8df]" />
+                        <span>{locale === "fr" ? "Changer" : "Cambiar"}</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               ) : null}
+
+              {process.env.NODE_ENV !== "production" &&
+                currentSlotState.visionResult && (
+                  <div className="rounded-xl border border-sky-400/25 bg-sky-950/30 px-3 py-2 font-mono text-[10px] leading-5 text-sky-100/80">
+                    <strong className="mr-2 text-sky-200">
+                      Vision debug
+                    </strong>
+                    L={currentSlotState.visionResult.luminance?.toFixed(1) ?? "n/a"}
+                    {" · "}
+                    BG={currentSlotState.visionResult.backgroundLuminance?.toFixed(1) ?? "n/a"}
+                    {" · "}
+                    BG90={currentSlotState.visionResult.backgroundP90?.toFixed(0) ?? "n/a"}
+                    {" · "}
+                    BGclair={currentSlotState.visionResult.backgroundHighlightRatio?.toFixed(2) ?? "n/a"}
+                    {" · "}
+                    visage50={currentSlotState.visionResult.faceMedianLuminance?.toFixed(0) ?? "n/a"}
+                    {" · "}
+                    contre-jour={currentSlotState.visionResult.backlightDifference?.toFixed(1) ?? "n/a"}
+                    {" · "}
+                    dL={currentSlotState.visionResult.lightDifference?.toFixed(1) ?? "n/a"}
+                    {" · "}
+                    ombres={currentSlotState.visionResult.shadowRatio?.toFixed(2) ?? "n/a"}
+                    {" · "}
+                    hautes={currentSlotState.visionResult.highlightRatio?.toFixed(3) ?? "n/a"}
+                    {" · "}
+                    netteté={currentSlotState.visionResult.sharpness?.toFixed(1) ?? "n/a"}
+                    {" · "}
+                    sourire={currentSlotState.visionResult.smileScore?.toFixed(2) ?? "n/a"}
+                    {" · "}
+                    yeux=
+                    {currentSlotState.visionResult.eyeBlinkLeft?.toFixed(2) ?? "n/a"}
+                    /
+                    {currentSlotState.visionResult.eyeBlinkRight?.toFixed(2) ?? "n/a"}
+                    {" · "}
+                    yeuxRouges=
+                    L:{
+                      currentSlotState.visionResult.redEyeLeft?.toFixed(3) ?? "n/a"
+                    }
+                    /
+                    R:{
+                      currentSlotState.visionResult.redEyeRight?.toFixed(3) ?? "n/a"
+                    }
+                    /
+                    B:{
+                      currentSlotState.visionResult.redEyeScore?.toFixed(3) ?? "n/a"
+                    }
+                    {" · "}
+                    cadre={
+                      currentSlotState.visionResult.boxWidth?.toFixed(2) ?? "n/a"
+                    }
+                    /
+                    {
+                      currentSlotState.visionResult.boxHeight?.toFixed(2) ?? "n/a"
+                    }
+                    {" · "}
+                    yaw={currentSlotState.visionResult.yaw?.toFixed(2) ?? "n/a"}
+                    {" · "}
+                    verdict={
+                      currentSlotState.visionResult.issues.length
+                        ? currentSlotState.visionResult.issues.join(",")
+                        : "ready"
+                    }
+                    {currentSlotState.visionResult.diagnostic && (
+                      <>
+                        {" · "}
+                        erreur={currentSlotState.visionResult.diagnostic}
+                      </>
+                    )}
+                  </div>
+                )}
 
               {/* CRITERIA WARNING ALERT BANNER */}
               {currentSlotState.status === "scanned" && currentSlotState.criteriaWarning && (

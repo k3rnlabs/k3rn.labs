@@ -41,8 +41,8 @@ type ImportAnalyzer = {
 export function classifyMiravaFaceYaw(yaw: number | null): "front" | "left" | "right" | null {
   if (yaw === null) return null
   if (Math.abs(yaw) <= 0.13) return "front"
-  if (yaw >= 0.16 && yaw <= 0.48) return "left"
-  if (yaw <= -0.16 && yaw >= -0.48) return "right"
+  if (yaw <= -0.16 && yaw >= -0.48) return "left"
+  if (yaw >= 0.16 && yaw <= 0.48) return "right"
   return null
 }
 
@@ -155,6 +155,76 @@ async function evaluateFaceCandidate(analyzer: ImportAnalyzer, file: File): Prom
   if (stepId === "front" && initial.ready) return { file, stepId, result: initial }
   const confirmed = await analyzer.analyze(file, stepId)
   return confirmed.ready ? { file, stepId, result: confirmed } : { fileName: file.name, issue: confirmed.issue }
+}
+
+function unavailableVisionResult(
+  diagnostic?: string,
+): MiravaVisionResult {
+  return {
+    kind: "result",
+    requestId: 0,
+    issue: "unavailable",
+    issues: ["unavailable"],
+    ready: false,
+    centerX: null,
+    centerY: null,
+    boxWidth: null,
+    boxHeight: null,
+    yaw: null,
+    roll: null,
+    luminance: null,
+    backgroundLuminance: null,
+    backgroundP90: null,
+    backgroundHighlightRatio: null,
+    faceMedianLuminance: null,
+    backlightDifference: null,
+    lightDifference: null,
+    shadowRatio: null,
+    highlightRatio: null,
+    sharpness: null,
+    smileScore: null,
+    eyeBlinkLeft: null,
+    eyeBlinkRight: null,
+    redEyeLeft: null,
+    redEyeRight: null,
+    redEyeScore: null,
+    diagnostic: diagnostic ?? null,
+  }
+}
+
+export async function analyzeMiravaIdentityPhoto(
+  file: File,
+  step: MiravaVisionStep,
+): Promise<MiravaVisionResult> {
+  if (!validFile(file)) return unavailableVisionResult()
+
+  const mode: MiravaVisionMode =
+    step === "traits"
+      ? "quality"
+      : step.startsWith("body-")
+      ? "pose"
+      : "face"
+
+  let analyzer: ImportAnalyzer | null = null
+
+  try {
+    analyzer = await createImportAnalyzer(mode)
+    return await analyzer.analyze(file, step)
+  } catch (error) {
+    const diagnostic =
+      error instanceof Error
+        ? `${error.name}: ${error.message}`
+        : String(error)
+
+    console.error(
+      `[MIRAVA Vision] ${mode}/${step} analysis failed`,
+      error,
+    )
+
+    return unavailableVisionResult(diagnostic)
+  } finally {
+    analyzer?.close()
+  }
 }
 
 export async function validateMiravaImportedFileForStep(file: File, step: MiravaVisionStep) {
