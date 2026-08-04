@@ -4,6 +4,7 @@ import {
   buildRegenerationChildDraft,
   isMatchingPostGenerationReplay,
   postGenerationCreationId,
+  postGenerationDebitKey,
   postGenerationReservationKey,
   type PostGenerationSource,
 } from "@/lib/mirava/post-generation"
@@ -128,8 +129,10 @@ describe("MIRAVA post-generation planning", () => {
     }, draft)).toBe(false)
   })
 
-  it("uses one deterministic reservation key per child", () => {
+  it("uses deterministic reservation and debit keys per child", () => {
     expect(postGenerationReservationKey("pg_123"))
       .toBe("mirava-post-generation-reservation:pg_123")
+    expect(postGenerationDebitKey("pg_123"))
+      .toBe("mirava-post-generation-debit:pg_123")
   })
 })

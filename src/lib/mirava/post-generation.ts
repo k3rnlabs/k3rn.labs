@@ -73,6 +73,10 @@ export function postGenerationReservationKey(creationId: string): string {
   return `mirava-post-generation-reservation:${creationId}`
 }
 
+export function postGenerationDebitKey(creationId: string): string {
+  return `mirava-post-generation-debit:${creationId}`
+}
+
 function normalizedSingleResultOptions(value: unknown): Record<string, unknown> {
   const parsed = miravaCreativeOptionsSchema.safeParse(value)
   return {

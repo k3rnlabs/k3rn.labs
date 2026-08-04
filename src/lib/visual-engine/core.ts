@@ -12,6 +12,7 @@ import {
   buildPoseVariationChildDraft,
   buildRegenerationChildDraft,
   isMatchingPostGenerationReplay,
+  postGenerationDebitKey,
   postGenerationReservationKey,
   type PostGenerationChildDraft,
 } from "@/lib/mirava/post-generation"
@@ -715,6 +716,11 @@ async function ensurePostGenerationCreditReservation(args: {
       args.creation.id,
       reservationKey,
       1,
+    )
+    await debitMiravaCreditReservation(
+      args.creation.userId,
+      args.creation.id,
+      postGenerationDebitKey(args.creation.id),
     )
     return asCreation(await db.studioCreation.update({
       where: { id: args.creation.id, userId: args.creation.userId },
