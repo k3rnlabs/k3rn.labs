@@ -1,4 +1,20 @@
-const miravaConnectSources = process.env.NODE_ENV === "development" ? "'self' ws://localhost:*" : "'self'"
+const miravaSupabaseOrigin = (() => {
+  try {
+    return process.env.NEXT_PUBLIC_SUPABASE_URL
+      ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).origin
+      : ""
+  } catch {
+    return ""
+  }
+})()
+
+const miravaConnectSources = [
+  "'self'",
+  process.env.NODE_ENV === "development"
+    ? "ws://localhost:*"
+    : "",
+  miravaSupabaseOrigin,
+].filter(Boolean).join(" ")
 const miravaScriptSources = process.env.NODE_ENV === "development"
   ? "'self' 'unsafe-inline' 'unsafe-eval'"
   : "'self' 'unsafe-inline' 'wasm-unsafe-eval'"

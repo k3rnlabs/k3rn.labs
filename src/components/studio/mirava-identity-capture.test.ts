@@ -41,6 +41,24 @@ describe("MIRAVA identity capture accessibility contracts", () => {
     expect(capture).toContain("MIRAVA_MAX_IDENTITY_PHOTOS")
   })
 
+  it("restores validated photos after backward navigation or reload", () => {
+    expect(capture).toContain(
+      "readMiravaIdentityDraft",
+    )
+    expect(capture).toContain(
+      "writeMiravaIdentityDraft",
+    )
+    expect(capture).toContain(
+      "clearMiravaIdentityDraft",
+    )
+    expect(capture).toContain(
+      "IdentityDraftSnapshot",
+    )
+    expect(capture).toContain(
+      "URL.createObjectURL(state.file)",
+    )
+  })
+
   it("routes imported identity photos through the real MediaPipe analyzer", () => {
     expect(capture).toContain('from "./mirava-import-analyzer"')
     expect(capture).toContain("analyzeMiravaIdentityPhoto(")

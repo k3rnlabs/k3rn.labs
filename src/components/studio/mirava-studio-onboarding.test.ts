@@ -49,6 +49,21 @@ describe("MIRAVA onboarding localization contracts", () => {
     expect(onboarding).toContain('onCompleted(data.onboarding, name.trim())')
   })
 
+  it("bypasses the Vercel media payload limit with signed direct uploads", () => {
+    expect(onboarding).toContain(
+      "uploadMiravaIdentityProfile",
+    )
+    expect(onboarding).toContain(
+      "files,",
+    )
+    expect(onboarding).toContain(
+      "consent,",
+    )
+    expect(onboarding).not.toContain(
+      'form.append("file"',
+    )
+  })
+
   it("sends the complete onboarding state when the identity profile is finalized", () => {
     expect(onboarding).toContain(
       'const saved = await persist(\n                          "capture_activation"',

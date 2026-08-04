@@ -28,6 +28,11 @@ import {
   MIRAVA_MAX_IDENTITY_PHOTOS,
   MIRAVA_MIN_IDENTITY_PHOTOS,
 } from "@/lib/mirava/identity-profile"
+import {
+  clearMiravaIdentityDraft,
+  readMiravaIdentityDraft,
+  writeMiravaIdentityDraft,
+} from "@/lib/mirava/identity-draft.client"
 
 type Locale = "fr" | "es"
 type Phase = "intro" | "loading" | "importing" | "capture" | "review" | "summary"
@@ -221,6 +226,21 @@ export interface CaptureActionState {
   }
 }
 
+type PersistedPhotoSlotState =
+  Omit<PhotoSlotState, "preview">
+
+type IdentityDraftSnapshot = {
+  activeSlotIndex: number
+  showSummary: boolean
+  legalAccepted: boolean
+  slotStates: Record<
+    PhotoSlotId,
+    PersistedPhotoSlotState
+  >
+  additionalTraitPhotos: Array<{
+    file: File
+  }>
+}
 
 const SLOT_VISION_STEP: Record<PhotoSlotId, MiravaVisionStep> = {
   front: "front",
@@ -590,6 +610,169 @@ export function MiravaIdentityCapture({
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [legalAccepted, setLegalAccepted] = useState(initialConsentAccepted)
+  const [draftHydrated, setDraftHydrated] =
+    useState(false)
+  const draftCompletedRef = useRef(false)
+  const identityDraftKey =
+    `mirava-identity-draft:${context}`
+
+  useEffect(() => {
+    let cancelled = false
+
+    const restoreDraft = async () => {
+      const snapshot =
+        await readMiravaIdentityDraft<
+          IdentityDraftSnapshot
+        >(identityDraftKey)
+
+      if (
+        cancelled ||
+        !snapshot?.slotStates
+      ) {
+        if (!cancelled) {
+          setDraftHydrated(true)
+        }
+        return
+      }
+
+      const restoredStates =
+        {} as Record<
+          PhotoSlotId,
+          PhotoSlotState
+        >
+
+      for (const slot of PHOTO_SLOTS) {
+        const state =
+          snapshot.slotStates[slot.id]
+
+        restoredStates[slot.id] = state
+          ? {
+              ...state,
+              preview: state.file
+                ? URL.createObjectURL(state.file)
+                : null,
+            }
+          : {
+              file: null,
+              preview: null,
+              status: "idle",
+              criteriaProgress: 0,
+            }
+      }
+
+      const restoredTraits =
+        (
+          snapshot.additionalTraitPhotos ??
+          []
+        )
+          .filter(
+            (photo) =>
+              photo.file instanceof File,
+          )
+          .map((photo) => ({
+            file: photo.file,
+            preview: URL.createObjectURL(
+              photo.file,
+            ),
+          }))
+
+      setSlotStates(restoredStates)
+      setAdditionalTraitPhotos(
+        restoredTraits,
+      )
+      setActiveSlotIndex(
+        Math.max(
+          0,
+          Math.min(
+            PHOTO_SLOTS.length - 1,
+            snapshot.activeSlotIndex ?? 0,
+          ),
+        ),
+      )
+      setShowSummary(
+        snapshot.showSummary === true,
+      )
+      setLegalAccepted(
+        snapshot.legalAccepted === true ||
+          initialConsentAccepted,
+      )
+      setDraftHydrated(true)
+    }
+
+    void restoreDraft()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    identityDraftKey,
+    initialConsentAccepted,
+  ])
+
+  useEffect(() => {
+    if (!draftHydrated) return
+
+    const persistedSlotStates =
+      {} as Record<
+        PhotoSlotId,
+        PersistedPhotoSlotState
+      >
+
+    for (const slot of PHOTO_SLOTS) {
+      const state = slotStates[slot.id]
+      const {
+        preview: _preview,
+        ...persisted
+      } = state
+
+      persistedSlotStates[slot.id] =
+        state.status === "scanning"
+          ? {
+              file: null,
+              status: "idle",
+              criteriaProgress: 0,
+            }
+          : persisted
+    }
+
+    const snapshot: IdentityDraftSnapshot = {
+      activeSlotIndex,
+      showSummary,
+      legalAccepted,
+      slotStates: persistedSlotStates,
+      additionalTraitPhotos:
+        additionalTraitPhotos.map(
+          ({ file }) => ({ file }),
+        ),
+    }
+
+    const persistDraft = () => {
+      if (draftCompletedRef.current) return
+
+      void writeMiravaIdentityDraft(
+        identityDraftKey,
+        snapshot,
+      )
+    }
+
+    const timeout = window.setTimeout(
+      persistDraft,
+      180,
+    )
+
+    return () => {
+      window.clearTimeout(timeout)
+      persistDraft()
+    }
+  }, [
+    activeSlotIndex,
+    additionalTraitPhotos,
+    draftHydrated,
+    identityDraftKey,
+    legalAccepted,
+    showSummary,
+    slotStates,
+  ])
 
   // Accessible Modal Keyboard Trap & Escape contracts
   const close = useCallback(() => {
@@ -874,6 +1057,12 @@ export function MiravaIdentityCapture({
 
     try {
       await onComplete(finalFiles, consent)
+
+      draftCompletedRef.current = true
+
+      await clearMiravaIdentityDraft(
+        identityDraftKey,
+      )
     } catch (err) {
       setSubmitError(
         err instanceof Error

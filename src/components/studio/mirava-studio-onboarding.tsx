@@ -12,6 +12,7 @@ import {
   MIRAVA_MAX_IDENTITY_PHOTOS,
   MIRAVA_MIN_IDENTITY_PHOTOS,
 } from "@/lib/mirava/identity-profile"
+import { uploadMiravaIdentityProfile } from "@/lib/mirava/identity-profile-upload.client"
 import { cn } from "@/lib/utils"
 import {
   MiravaMobileShell,
@@ -575,62 +576,15 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                         )
                       }
 
-                      const form = new FormData()
-                      form.append("mode", "replace")
-
-                      files.forEach((file) => {
-                        form.append("file", file, file.name)
-                      })
-
-                      form.append(
-                        "ageConfirmed",
-                        String(consent.ageConfirmed),
-                      )
-                      form.append(
-                        "rightsConfirmed",
-                        String(consent.rightsConfirmed),
-                      )
-                      form.append(
-                        "retentionAccepted",
-                        String(consent.retentionAccepted),
-                      )
-                      form.append(
-                        "privacyAccepted",
-                        String(consent.privacyAccepted),
-                      )
-                      form.append(
-                        "openaiDisclosureAccepted",
-                        String(
-                          consent.openaiDisclosureAccepted,
-                        ),
-                      )
-
                       setPending(true)
 
                       try {
-                        const response = await fetch(
-                          "/api/visual-engine/identity-profile",
-                          {
-                            method: "POST",
-                            body: form,
-                          },
-                        )
-
-                        const data = await response
-                          .json()
-                          .catch(() => null) as
-                            | IdentityProfileApiResponse
-                            | null
-
-                        if (!response.ok) {
-                          throw new Error(
-                            data?.error ??
-                              data?.message ??
-                              labels.saveError,
-                          )
-                        }
-
-                        const profile = data?.profile
+                        const profile =
+                          await uploadMiravaIdentityProfile({
+                            files,
+                            consent,
+                            locale,
+                          })
 
                         if (
                           !isIdentityProfileReceipt(profile) ||

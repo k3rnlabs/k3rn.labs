@@ -13,10 +13,25 @@ describe("MIRAVA local vision privacy boundary", () => {
     expect(worker).not.toContain("storage.googleapis.com")
   })
 
-  it("restricts Visual Engine connections to the same origin in production", () => {
-    expect(nextConfig).toContain('process.env.NODE_ENV === "development"')
-    expect(nextConfig).toContain(': "\'self\'"')
-    expect(nextConfig).toContain('`connect-src ${miravaConnectSources}`')
+  it("restricts Visual Engine connections to self and the configured Supabase origin", () => {
+    expect(nextConfig).toContain(
+      'const miravaSupabaseOrigin = (() => {',
+    )
+    expect(nextConfig).toContain(
+      "new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).origin",
+    )
+    expect(nextConfig).toContain(
+      '"\'self\'",',
+    )
+    expect(nextConfig).toContain(
+      '.filter(Boolean).join(" ")',
+    )
+    expect(nextConfig).toContain(
+      '`connect-src ${miravaConnectSources}`',
+    )
+    expect(nextConfig).not.toContain(
+      '"*"',
+    )
   })
 
   it("uses only self-hosted model and runtime paths", () => {

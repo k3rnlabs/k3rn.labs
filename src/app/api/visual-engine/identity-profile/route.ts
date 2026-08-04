@@ -2,7 +2,7 @@ import { NextRequest } from "next/server"
 import { verifySession } from "@/lib/auth"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { miravaApiError as apiError, miravaApiSuccess as apiSuccess } from "@/lib/visual-engine/http"
-import { appendIdentityProfile, deleteIdentityProfile, getIdentityProfilePublic, MAX_IDENTITY_ASSETS, MIN_IDENTITY_ASSETS, replaceIdentityProfile, studioErrorResponse } from "@/lib/visual-engine/core"
+import { appendIdentityProfile, deleteIdentityProfile, getIdentityProfilePublic, MAX_IDENTITY_ASSETS, MIN_IDENTITY_ASSETS, replaceIdentityProfile, replaceIdentityProfileFromStagedUploads, studioErrorResponse } from "@/lib/visual-engine/core"
 import { recordMiravaAudit } from "@/lib/visual-engine/audit"
 
 export async function GET() {
@@ -18,6 +18,58 @@ export async function POST(req: NextRequest) {
   const limit = await checkRateLimit("studioUpload", `${session.userId}:${req.headers.get("x-forwarded-for") ?? "local"}`)
   if (!limit.success) return apiError("Trop d’envois MIRAVA. Réessayez plus tard.", 429)
   try {
+    const contentType =
+      req.headers.get("content-type") ?? ""
+
+    if (
+      contentType.includes("application/json")
+    ) {
+      const body = await req.json() as {
+        mode?: string
+        batchId?: string
+        uploads?: Array<{
+          path: string
+          mimeType: string
+          bytes: number
+        }>
+        ageConfirmed?: boolean
+        rightsConfirmed?: boolean
+        retentionAccepted?: boolean
+      }
+
+      if (
+        body.mode !== "replace-staged" ||
+        typeof body.batchId !== "string" ||
+        !Array.isArray(body.uploads)
+      ) {
+        return apiError(
+          "Session d’envoi invalide.",
+          400,
+        )
+      }
+
+      const profile =
+        await replaceIdentityProfileFromStagedUploads({
+          userId: session.userId,
+          batchId: body.batchId,
+          uploads: body.uploads,
+          ageConfirmed:
+            body.ageConfirmed === true,
+          rightsConfirmed:
+            body.rightsConfirmed === true,
+          retentionAccepted:
+            body.retentionAccepted === true,
+        })
+
+      await recordMiravaAudit(
+        session.userId,
+        "IDENTITY_PROFILE_UPDATED",
+        "identity-onboarding",
+      )
+
+      return apiSuccess({ profile })
+    }
+
     const form = await req.formData()
     const creationId = form.get("creationId")
     const mode = form.get("mode") === "append" ? "append" : "replace"

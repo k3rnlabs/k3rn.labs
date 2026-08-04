@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   checkRateLimit: vi.fn(),
   getIdentityProfilePublic: vi.fn(),
   replaceIdentityProfile: vi.fn(),
+  replaceIdentityProfileFromStagedUploads: vi.fn(),
   appendIdentityProfile: vi.fn(),
   deleteIdentityProfile: vi.fn(),
   studioErrorResponse: vi.fn(),
@@ -19,6 +20,8 @@ vi.mock("@/lib/visual-engine/core", () => ({
   MAX_IDENTITY_ASSETS: 10,
   getIdentityProfilePublic: mocks.getIdentityProfilePublic,
   replaceIdentityProfile: mocks.replaceIdentityProfile,
+  replaceIdentityProfileFromStagedUploads:
+    mocks.replaceIdentityProfileFromStagedUploads,
   appendIdentityProfile: mocks.appendIdentityProfile,
   deleteIdentityProfile: mocks.deleteIdentityProfile,
   studioErrorResponse: mocks.studioErrorResponse,
@@ -43,12 +46,54 @@ function identityUpload({ mode = "replace", count = 3, consent = true }: { mode?
   })
 }
 
+function stagedIdentityUpload() {
+  return new NextRequest(
+    "https://mirava.test/api/visual-engine/identity-profile",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-forwarded-for": "198.51.100.20",
+      },
+      body: JSON.stringify({
+        mode: "replace-staged",
+        batchId:
+          "11111111-1111-4111-8111-111111111111",
+        uploads: [
+          {
+            path:
+              "user-1/identity-staging/11111111-1111-4111-8111-111111111111/1.jpg",
+            mimeType: "image/jpeg",
+            bytes: 1024,
+          },
+          {
+            path:
+              "user-1/identity-staging/11111111-1111-4111-8111-111111111111/2.jpg",
+            mimeType: "image/jpeg",
+            bytes: 1024,
+          },
+          {
+            path:
+              "user-1/identity-staging/11111111-1111-4111-8111-111111111111/3.jpg",
+            mimeType: "image/jpeg",
+            bytes: 1024,
+          },
+        ],
+        ageConfirmed: true,
+        rightsConfirmed: true,
+        retentionAccepted: true,
+      }),
+    },
+  )
+}
+
 describe("MIRAVA identity profile route", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.verifySession.mockResolvedValue({ userId: "user-1" })
     mocks.checkRateLimit.mockResolvedValue({ success: true, remaining: 9 })
     mocks.replaceIdentityProfile.mockResolvedValue({ id: "profile-1", assetCount: 3, previews: [] })
+    mocks.replaceIdentityProfileFromStagedUploads.mockResolvedValue({ id: "profile-1", assetCount: 3, previews: [] })
     mocks.appendIdentityProfile.mockResolvedValue({ id: "profile-1", assetCount: 4, previews: [] })
     mocks.studioErrorResponse.mockReturnValue({ message: "Une erreur Studio est survenue.", status: 500 })
   })
@@ -81,6 +126,32 @@ describe("MIRAVA identity profile route", () => {
       files: expect.arrayContaining([expect.objectContaining({ mimeType: "image/png", buffer: expect.any(Buffer) })]),
     }))
     expect(mocks.recordMiravaAudit).toHaveBeenCalledWith("user-1", "IDENTITY_PROFILE_UPDATED", "identity-onboarding")
+  })
+
+  it("finalizes direct private uploads from a small JSON request", async () => {
+    const response = await POST(
+      stagedIdentityUpload(),
+    )
+
+    expect(response.status).toBe(200)
+    expect(
+      mocks.replaceIdentityProfileFromStagedUploads,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user-1",
+        batchId:
+          "11111111-1111-4111-8111-111111111111",
+        ageConfirmed: true,
+        rightsConfirmed: true,
+        retentionAccepted: true,
+        uploads: expect.arrayContaining([
+          expect.objectContaining({
+            mimeType: "image/jpeg",
+            bytes: 1024,
+          }),
+        ]),
+      }),
+    )
   })
 
   it("permits a single additional view only through append mode", async () => {

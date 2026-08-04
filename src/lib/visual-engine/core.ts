@@ -435,7 +435,7 @@ export async function replaceIdentityProfile(args: {
   files: Array<{ mimeType: string; buffer: Buffer }>
 }) {
   if (args.files.length < MIN_IDENTITY_ASSETS || args.files.length > MAX_IDENTITY_ASSETS) {
-    throw new StudioError("Ajoutez entre trois et six photos d’identité.", "IDENTITY_REQUIRED")
+    throw new StudioError("Ajoutez entre trois et dix photos d’identité.", "IDENTITY_REQUIRED")
   }
   if (args.creationId) {
     await getStudioCreationForUser(args.userId, args.creationId)
@@ -479,6 +479,135 @@ export async function replaceIdentityProfile(args: {
   return getIdentityProfilePublic(args.userId)
 }
 
+export async function replaceIdentityProfileFromStagedUploads(args: {
+  userId: string
+  batchId: string
+  ageConfirmed?: boolean
+  rightsConfirmed?: boolean
+  retentionAccepted?: boolean
+  uploads: Array<{
+    path: string
+    mimeType: string
+    bytes: number
+  }>
+}) {
+  if (
+    args.uploads.length < MIN_IDENTITY_ASSETS ||
+    args.uploads.length > MAX_IDENTITY_ASSETS
+  ) {
+    throw new StudioError(
+      "Ajoutez entre trois et dix photos d’identité.",
+      "IDENTITY_REQUIRED",
+    )
+  }
+
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      args.batchId,
+    )
+  ) {
+    throw new StudioError(
+      "La session d’envoi du Profil identité est invalide.",
+      "INVALID_STATE",
+    )
+  }
+
+  const prefix =
+    `${args.userId}/identity-staging/` +
+    `${args.batchId}/`
+
+  const paths = args.uploads.map(
+    (upload) => upload.path,
+  )
+
+  if (
+    new Set(paths).size !== paths.length ||
+    paths.some(
+      (path) =>
+        !path.startsWith(prefix) ||
+        path.includes(".."),
+    )
+  ) {
+    throw new StudioError(
+      "Une référence d’image privée est invalide.",
+      "FORBIDDEN",
+    )
+  }
+
+  const files: Array<{
+    mimeType: string
+    buffer: Buffer
+  }> = []
+
+  try {
+    for (const upload of args.uploads) {
+      if (
+        ![
+          "image/jpeg",
+          "image/png",
+          "image/webp",
+        ].includes(upload.mimeType) ||
+        !Number.isInteger(upload.bytes) ||
+        upload.bytes < 1 ||
+        upload.bytes > MAX_STUDIO_IMAGE_BYTES
+      ) {
+        throw new StudioError(
+          "Une photo préparée est invalide.",
+          "INVALID_FILE",
+        )
+      }
+
+      const { data, error } =
+        await supabaseAdmin.storage
+          .from(STUDIO_BUCKET)
+          .download(upload.path)
+
+      if (error || !data) {
+        throw new StudioError(
+          "Une photo privée n’a pas été reçue complètement.",
+          "STORAGE_ERROR",
+          true,
+        )
+      }
+
+      const buffer = Buffer.from(
+        await data.arrayBuffer(),
+      )
+
+      if (
+        buffer.length !== upload.bytes ||
+        buffer.length >
+          MAX_STUDIO_IMAGE_BYTES
+      ) {
+        throw new StudioError(
+          "L’intégrité d’une photo privée n’a pas pu être confirmée.",
+          "INVALID_FILE",
+        )
+      }
+
+      files.push({
+        mimeType: upload.mimeType,
+        buffer,
+      })
+    }
+
+    return await replaceIdentityProfile({
+      userId: args.userId,
+      ageConfirmed: args.ageConfirmed,
+      rightsConfirmed: args.rightsConfirmed,
+      retentionAccepted:
+        args.retentionAccepted,
+      files,
+    })
+  } finally {
+    if (paths.length > 0) {
+      await supabaseAdmin.storage
+        .from(STUDIO_BUCKET)
+        .remove(paths)
+    }
+  }
+}
+
 export async function appendIdentityProfile(args: {
   userId: string
   creationId?: string
@@ -497,7 +626,7 @@ export async function appendIdentityProfile(args: {
   if (!profile) throw new StudioError("Créez d’abord votre Profil identité.", "IDENTITY_REQUIRED")
   const existingAssets = await db.studioIdentityAsset.findMany({ where: { identityProfileId: profile.id, userId: args.userId } })
   if (existingAssets.length + args.files.length > MAX_IDENTITY_ASSETS) {
-    throw new StudioError("Six photos d’identité maximum sont autorisées.", "ASSET_LIMIT")
+    throw new StudioError("Dix photos d’identité maximum sont autorisées.", "ASSET_LIMIT")
   }
   for (const file of args.files) await validateStudioImage(file.buffer, file.mimeType)
 
@@ -549,7 +678,7 @@ export async function uploadStudioAsset(args: {
 
   const existingAssets = (await db.studioAsset.findMany({ where: { creationId: args.creationId, kind: args.kind, deletedAt: null } })).map(asAsset)
   if (args.kind === "REFERENCE" && existingAssets.length >= 1) throw new StudioError("Une seule photo de référence est autorisée.", "ASSET_LIMIT")
-  if (args.kind === "IDENTITY" && existingAssets.length >= MAX_IDENTITY_ASSETS) throw new StudioError("Six photos d’identité maximum sont autorisées.", "ASSET_LIMIT")
+  if (args.kind === "IDENTITY" && existingAssets.length >= MAX_IDENTITY_ASSETS) throw new StudioError("Dix photos d’identité maximum sont autorisées.", "ASSET_LIMIT")
 
   const id = randomUUID()
   const storagePath = `${args.userId}/${args.creationId}/${args.kind.toLowerCase()}-${id}.${extensionForMime(args.mimeType)}`
@@ -630,7 +759,7 @@ export async function queueStudioGeneration(args: { userId: string; creationId: 
   const masterPrompt = creation.masterPrompt?.trim()
   if (!masterPrompt || masterPrompt.length < 80 || masterPrompt.length > 12000) throw new StudioError("La direction artistique enregistrée est invalide.", "INVALID_PROMPT")
   const identityAssets = await getIdentityAssetsForCreation(creation)
-  if (identityAssets.length < MIN_IDENTITY_ASSETS || identityAssets.length > MAX_IDENTITY_ASSETS) throw new StudioError("Ajoutez entre trois et six photos d’identité.", "IDENTITY_REQUIRED")
+  if (identityAssets.length < MIN_IDENTITY_ASSETS || identityAssets.length > MAX_IDENTITY_ASSETS) throw new StudioError("Ajoutez entre trois et dix photos d’identité.", "IDENTITY_REQUIRED")
 
   if (!creation.creditReservationKey) {
     await ensureStudioActivation(args.userId)
