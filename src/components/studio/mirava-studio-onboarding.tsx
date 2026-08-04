@@ -21,6 +21,35 @@ import MiravaIdentityCapture, { PHOTO_SLOTS, type CaptureActionState } from "./m
 import { OnboardingPipelineDemo } from "./mirava-pipeline-demo"
 
 type Locale = "fr" | "es"
+
+type IdentityProfileReceipt = {
+  id: string
+  assetCount: number
+  updatedAt: string
+}
+
+type IdentityProfileApiResponse = {
+  profile?: IdentityProfileReceipt
+  error?: string
+  message?: string
+}
+
+function isIdentityProfileReceipt(
+  value: unknown,
+): value is IdentityProfileReceipt {
+  if (!value || typeof value !== "object") return false
+
+  const candidate = value as Record<string, unknown>
+
+  return (
+    typeof candidate.id === "string" &&
+    candidate.id.length > 0 &&
+    typeof candidate.assetCount === "number" &&
+    Number.isInteger(candidate.assetCount) &&
+    typeof candidate.updatedAt === "string" &&
+    candidate.updatedAt.length > 0
+  )
+}
 const GOALS: Record<Locale, Array<{ id: MiravaOnboardingGoal; title: string; session: string; reason: string }>> = {
   fr: [
     { id: "presence", title: "Développer ma présence", session: "Portrait éditorial", reason: "Une image cohérente pour votre profil et vos publications." },
@@ -57,6 +86,8 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
   const [universeIds, setUniverseIds] = useState<string[]>(initialState?.universeIds.length ? initialState.universeIds : initialUniverseId && getMiravaUniverse(initialUniverseId) ? [initialUniverseId] : [])
   const [identityConsentAccepted, setIdentityConsentAccepted] = useState(Boolean(initialState?.identityConsentAt))
   const [photosUploaded, setPhotosUploaded] = useState(0)
+  const [identityProfileReceipt, setIdentityProfileReceipt] =
+    useState<IdentityProfileReceipt | null>(null)
   const [identityPhase, setIdentityPhase] = useState<"intro" | "capture">("intro")
   const [captureActionState, setCaptureActionState] = useState<CaptureActionState | null>(null)
   const [pending, setPending] = useState(false)
@@ -68,6 +99,12 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
   const direction = useMemo(() => goal && universeIds.length ? directionFor(goal, universeIds, locale) : undefined, [goal, locale, universeIds])
   const selectedGoal = GOALS[locale].find((item) => item.id === goal)
   const primaryUniverse = getMiravaUniverse(direction?.primaryUniverseId)
+
+  const identityProfileReady = Boolean(
+    identityProfileReceipt?.id &&
+      identityProfileReceipt.assetCount >= 3 &&
+      identityProfileReceipt.assetCount <= 6,
+  )
 
   useEffect(() => {
     setOnboardingState(initialState)
@@ -83,6 +120,73 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
     if (stepId !== "identity_permission") setIdentityPhase("intro")
   }, [stepId])
   useEffect(() => () => { if (goalAdvanceTimerRef.current !== null) window.clearTimeout(goalAdvanceTimerRef.current) }, [])
+
+  useEffect(() => {
+    if (
+      stepId !== "capture_activation" ||
+      identityProfileReceipt
+    ) {
+      return
+    }
+
+    let cancelled = false
+
+    const verifyPersistedIdentityProfile = async () => {
+      try {
+        const response = await fetch(
+          "/api/visual-engine/identity-profile",
+          {
+            method: "GET",
+            cache: "no-store",
+          },
+        )
+
+        const data = await response
+          .json()
+          .catch(() => null) as
+            | IdentityProfileApiResponse
+            | null
+
+        const profile = data?.profile
+
+        if (
+          !response.ok ||
+          !isIdentityProfileReceipt(profile) ||
+          profile.assetCount < 3 ||
+          profile.assetCount > 6
+        ) {
+          throw new Error(
+            data?.error ??
+              data?.message ??
+              "MIRAVA_IDENTITY_PROFILE_NOT_READY",
+          )
+        }
+
+        if (cancelled) return
+
+        setIdentityProfileReceipt(profile)
+        setPhotosUploaded(profile.assetCount)
+      } catch {
+        if (cancelled) return
+
+        setError(
+          locale === "fr"
+            ? "Le Profil Identité n’a pas pu être vérifié. Réessayez avant de créer votre séance."
+            : "No se pudo verificar el Perfil de Identidad. Inténtalo de nuevo antes de crear tu sesión.",
+        )
+      }
+    }
+
+    void verifyPersistedIdentityProfile()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    identityProfileReceipt,
+    locale,
+    stepId,
+  ])
 
   const persist = async (currentStep: MiravaOnboardingStepId, overrides: { firstName?: string; goal?: MiravaOnboardingGoal; universeIds?: string[]; direction?: MiravaOnboardingDirection; identityConsentAccepted?: true } = {}) => {
     setPending(true); setError(null)
@@ -388,11 +492,14 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                     onClose={() => {}}
                     onActionStateChange={setCaptureActionState}
                     onComplete={async (files, consent) => {
-                      if (files.length === 0) {
+                      if (
+                        files.length < 3 ||
+                        files.length > 6
+                      ) {
                         throw new Error(
                           locale === "fr"
-                            ? "Aucune photo validée à enregistrer."
-                            : "No hay fotos validadas para guardar.",
+                            ? "Entre trois et six photos validées sont nécessaires pour enregistrer le Profil Identité."
+                            : "Se necesitan entre tres y seis fotos validadas para guardar el Perfil de Identidad.",
                         )
                       }
 
@@ -440,10 +547,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                         const data = await response
                           .json()
                           .catch(() => null) as
-                            | {
-                                error?: string
-                                message?: string
-                              }
+                            | IdentityProfileApiResponse
                             | null
 
                         if (!response.ok) {
@@ -451,6 +555,21 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                             data?.error ??
                               data?.message ??
                               labels.saveError,
+                          )
+                        }
+
+                        const profile = data?.profile
+
+                        if (
+                          !isIdentityProfileReceipt(profile) ||
+                          profile.assetCount !== files.length ||
+                          profile.assetCount < 3 ||
+                          profile.assetCount > 6
+                        ) {
+                          throw new Error(
+                            locale === "fr"
+                              ? "Le Profil Identité n’a pas été enregistré complètement. Aucune séance n’a été lancée."
+                              : "El Perfil de Identidad no se guardó completamente. No se inició ninguna sesión.",
                           )
                         }
 
@@ -465,7 +584,19 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                           throw new Error(labels.saveError)
                         }
 
-                        setPhotosUploaded(files.length)
+                        setIdentityProfileReceipt(profile)
+                        setPhotosUploaded(profile.assetCount)
+
+                        posthog.capture(
+                          "identity_profile_persisted",
+                          {
+                            onboarding_version:
+                              MIRAVA_ONBOARDING_VERSION,
+                            identity_profile_id: profile.id,
+                            asset_count: profile.assetCount,
+                          },
+                        )
+
                         onStartCapture(saved)
                       } finally {
                         setPending(false)
@@ -486,7 +617,15 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                       MIRAVA / ACTIVATION
                     </span>
                     <h1 className="mt-2 font-jakarta text-2xl font-semibold tracking-[-0.04em] text-white sm:text-3xl leading-tight">
-                      {onboardingState?.status === "session_ready" ? `${labels.ready}, ${name.trim()}.` : labels.preparing}
+                      {onboardingState?.status === "session_ready"
+                        ? `${labels.ready}, ${name.trim()}.`
+                        : identityProfileReady
+                        ? locale === "fr"
+                          ? "Votre Profil Identité est prêt."
+                          : "Tu Perfil de Identidad está listo."
+                        : locale === "fr"
+                        ? "Vérification de votre Profil Identité…"
+                        : "Verificando tu Perfil de Identidad…"}
                     </h1>
                   </div>
 
@@ -498,13 +637,30 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                           {locale === "fr" ? "Profil Identité Privé" : "Perfil de Identidad Privado"}
                         </strong>
                         <span className="font-jakarta text-xs text-[#ede8df]">
-                          {onboardingState?.status === "session_ready"
-                            ? (locale === "fr" ? "4 vues sur 4 validées" : "4 vistas de 4 validadas")
-                            : (locale === "fr" ? "1 vue sur 4 validée" : "1 vista de 4 validada")}
+                          {identityProfileReady
+                            ? locale === "fr"
+                              ? `${photosUploaded} photo${photosUploaded > 1 ? "s" : ""} enregistrée${photosUploaded > 1 ? "s" : ""}`
+                              : `${photosUploaded} foto${photosUploaded > 1 ? "s" : ""} guardada${photosUploaded > 1 ? "s" : ""}`
+                            : locale === "fr"
+                            ? "Vérification de l’enregistrement…"
+                            : "Verificando el guardado…"}
                         </span>
                       </div>
-                      <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 font-jakarta text-[10px] font-bold text-emerald-400">
-                        {onboardingState?.status === "session_ready" ? "PRÊT" : "EN COURS"}
+                      <span
+                        className={cn(
+                          "rounded-full border px-2.5 py-1 font-jakarta text-[10px] font-bold",
+                          identityProfileReady
+                            ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+                            : "border-amber-400/40 bg-amber-400/10 text-amber-300",
+                        )}
+                      >
+                        {identityProfileReady
+                          ? locale === "fr"
+                            ? "ENREGISTRÉ"
+                            : "GUARDADO"
+                          : locale === "fr"
+                          ? "VÉRIFICATION"
+                          : "VERIFICACIÓN"}
                       </span>
                     </div>
 
@@ -589,9 +745,9 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
             opacity={0.95}
             blur={14}
             backgroundOpacity={0.15}
-            className="mirava-floating-action-glass mirava-onboarding-v3-actions mx-auto max-w-md px-1.5 py-1 shadow-[0_12px_30px_rgba(0,0,0,0.48)] sm:max-w-xl pointer-events-auto"
+            className="mirava-floating-action-glass mirava-onboarding-v3-actions mx-auto w-full min-w-0 max-w-md overflow-hidden px-1.5 py-1 shadow-[0_12px_30px_rgba(0,0,0,0.48)] sm:max-w-xl pointer-events-auto"
           >
-            <div className="flex w-full items-center gap-3">
+            <div className="flex w-full min-w-0 items-center gap-3">
               <button
                 onClick={() => void back()}
                 disabled={step === 0 || pending}
@@ -604,27 +760,53 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
 
               {/* Action Button: uses captureActionState during capture phase, otherwise standard next step button */}
               {stepId === "identity_permission" && identityPhase === "capture" && captureActionState ? (
-                <button
-                  type="button"
-                  onClick={captureActionState.onClick}
-                  disabled={captureActionState.disabled || pending}
-                  className="group flex min-h-[52px] min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl bg-[#ede8df] px-5 font-jakarta text-sm font-semibold text-[#0d0e0e] shadow-[0_4px_20px_rgba(237,232,223,0.15)] transition-all duration-200 hover:bg-white active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-[#2c2d2e] disabled:text-white/30 disabled:shadow-none is-primary"
-                >
-                  {captureActionState.icon === "upload" && <Upload className="h-4 w-4" />}
-                  {captureActionState.icon === "loading" && <Loader2 className="h-4 w-4 animate-spin" />}
-                  <span className="min-w-0 text-center leading-tight">{captureActionState.label}</span>
-                  {captureActionState.icon === "next" && <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />}
-                </button>
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <button
+                    type="button"
+                    onClick={captureActionState.onClick}
+                    disabled={captureActionState.disabled || pending}
+                    className="group flex min-h-[52px] w-full min-w-0 items-center justify-center gap-2 overflow-hidden rounded-2xl bg-[#ede8df] px-4 font-jakarta text-sm font-semibold text-[#0d0e0e] shadow-[0_4px_20px_rgba(237,232,223,0.15)] transition-all duration-200 hover:bg-white active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-[#2c2d2e] disabled:text-white/30 disabled:shadow-none is-primary"
+                  >
+                    {captureActionState.icon === "upload" && (
+                      <Upload className="h-4 w-4 shrink-0" />
+                    )}
+
+                    {captureActionState.icon === "loading" && (
+                      <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                    )}
+
+                    <span className="min-w-0 truncate text-center">
+                      {captureActionState.label}
+                    </span>
+
+                    {captureActionState.icon === "next" && (
+                      <ArrowRight className="h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
+                    )}
+                  </button>
+
+                  {captureActionState.secondaryAction && (
+                    <button
+                      type="button"
+                      onClick={captureActionState.secondaryAction.onClick}
+                      disabled={pending}
+                      className="flex min-h-[34px] w-full min-w-0 items-center justify-center rounded-xl border border-white/15 bg-white/5 px-3 font-jakarta text-[11px] font-semibold text-white/75 transition-all hover:bg-white/10 hover:text-white disabled:opacity-40"
+                    >
+                      <span className="min-w-0 truncate">
+                        {captureActionState.secondaryAction.label}
+                      </span>
+                    </button>
+                  )}
+                </div>
               ) : (
                 <button
                   onClick={() => void next()}
                   disabled={!canContinue || pending}
-                  className="group flex min-h-[52px] w-full flex-1 items-center justify-center gap-2 rounded-2xl bg-[#ede8df] px-5 font-jakarta text-sm font-semibold text-[#0d0e0e] shadow-[0_4px_20px_rgba(237,232,223,0.15)] transition-all duration-200 hover:bg-white active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-[#2c2d2e] disabled:text-white/30 disabled:shadow-none is-primary"
+                  className="group flex min-h-[52px] min-w-0 flex-1 items-center justify-center gap-2 overflow-hidden rounded-2xl bg-[#ede8df] px-4 font-jakarta text-sm font-semibold text-[#0d0e0e] shadow-[0_4px_20px_rgba(237,232,223,0.15)] transition-all duration-200 hover:bg-white active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-[#2c2d2e] disabled:text-white/30 disabled:shadow-none is-primary"
                 >
-                  <span>
+                  <span className="min-w-0 truncate">
                     {pending ? labels.saving : stepId === "promise_name" ? labels.start : stepId === "objective" ? labels.objectiveCta : stepId === "visual_universes" ? labels.use : stepId === "direction_review" ? labels.confirm : stepId === "identity_permission" && identityPhase === "intro" ? labels.camera : onboardingState?.status === "session_ready" ? labels.open : labels.resume}
                   </span>
-                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                  <ArrowRight className="h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
                 </button>
               )}
             </div>

@@ -579,6 +579,10 @@ export function MiravaIdentityCapture({
     tattoos: { file: null, preview: null, status: "idle", criteriaProgress: 0 },
   })
 
+  const [additionalTraitPhotos, setAdditionalTraitPhotos] = useState<
+    Array<{ file: File; preview: string }>
+  >([])
+
   const [showSummary, setShowSummary] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -641,6 +645,9 @@ export function MiravaIdentityCapture({
       }),
     [slotStates],
   )
+
+  const completedPhotoCount =
+    completedPhotos.length + additionalTraitPhotos.length
 
   const requiredPhotosDone = (
     ["front", "angle", "profile_right"] as PhotoSlotId[]
@@ -746,6 +753,61 @@ export function MiravaIdentityCapture({
     if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
+  const handleAddAnotherTraitPhoto = () => {
+    if (currentSlot.id !== "tattoos") return
+
+    const {
+      file,
+      preview,
+      status,
+      failedCriteria,
+      visionResult,
+    } = currentSlotState
+
+    if (
+      !file ||
+      !preview ||
+      status !== "scanned" ||
+      (failedCriteria?.length ?? 0) > 0 ||
+      visionResult?.ready !== true
+    ) {
+      return
+    }
+
+    setAdditionalTraitPhotos((previous) => [
+      ...previous,
+      { file, preview },
+    ])
+
+    setSlotStates((previous) => ({
+      ...previous,
+      tattoos: {
+        file: null,
+        preview: null,
+        status: "idle",
+        criteriaProgress: 0,
+      },
+    }))
+
+    const input = fileInputRef.current
+
+    if (input) {
+      input.value = ""
+      input.click()
+    }
+  }
+
+  const handleRemoveAdditionalTraitPhoto = (preview: string) => {
+    setAdditionalTraitPhotos((previous) =>
+      previous.filter((photo) => {
+        if (photo.preview !== preview) return true
+
+        URL.revokeObjectURL(photo.preview)
+        return false
+      }),
+    )
+  }
+
   const handleAdvanceToNext = () => {
     if (activeSlotIndex < PHOTO_SLOTS.length - 1) {
       setActiveSlotIndex((prev) => prev + 1)
@@ -768,18 +830,21 @@ export function MiravaIdentityCapture({
     setSubmitting(true)
     setSubmitError(null)
 
-    const finalFiles = PHOTO_SLOTS.flatMap((slot) => {
-      const state = slotStates[slot.id]
+    const finalFiles = [
+      ...PHOTO_SLOTS.flatMap((slot) => {
+        const state = slotStates[slot.id]
 
-      return (
-        state.file &&
-        state.status === "scanned" &&
-        (state.failedCriteria?.length ?? 0) === 0 &&
-        state.visionResult?.ready === true
-      )
-        ? [state.file]
-        : []
-    })
+        return (
+          state.file &&
+          state.status === "scanned" &&
+          (state.failedCriteria?.length ?? 0) === 0 &&
+          state.visionResult?.ready === true
+        )
+          ? [state.file]
+          : []
+      }),
+      ...additionalTraitPhotos.map((photo) => photo.file),
+    ]
 
     const consent: MiravaIdentityConsent = {
       ageConfirmed: true,
@@ -807,7 +872,7 @@ export function MiravaIdentityCapture({
   const currentActionState = useMemo<CaptureActionState>(() => {
     if (showSummary) {
       return {
-        label: locale === "fr" ? "Préparer ma séance" : "Preparar mi sesión",
+        label: locale === "fr" ? "Enregistrer mon profil" : "Guardar mi perfil",
         icon: submitting ? "loading" : "submit",
         disabled: submitting || !legalAccepted || !requiredPhotosDone,
         onClick: handleSubmitFinalProfile,
@@ -844,6 +909,24 @@ export function MiravaIdentityCapture({
         }
       }
 
+      if (currentSlot.id === "tattoos") {
+        return {
+          label:
+            locale === "fr"
+              ? "Ajouter une autre photo"
+              : "Añadir otra foto",
+          icon: "upload",
+          onClick: handleAddAnotherTraitPhoto,
+          secondaryAction: {
+            label:
+              locale === "fr"
+                ? "Terminer les particularités"
+                : "Finalizar los rasgos",
+            onClick: handleAdvanceToNext,
+          },
+        }
+      }
+
       return {
         label:
           locale === "fr"
@@ -861,6 +944,27 @@ export function MiravaIdentityCapture({
       }
     }
 
+    if (
+      currentSlot.id === "tattoos" &&
+      additionalTraitPhotos.length > 0
+    ) {
+      return {
+        label:
+          locale === "fr"
+            ? "Ajouter une autre photo"
+            : "Añadir otra foto",
+        icon: "upload",
+        onClick: () => fileInputRef.current?.click(),
+        secondaryAction: {
+          label:
+            locale === "fr"
+              ? "Terminer les particularités"
+              : "Finalizar los rasgos",
+          onClick: handleAdvanceToNext,
+        },
+      }
+    }
+
     return {
       label: locale === "fr" ? "Ajouter cette photo" : "Añadir esta foto",
       icon: "upload",
@@ -873,9 +977,12 @@ export function MiravaIdentityCapture({
         : undefined,
     }
   }, [
+    additionalTraitPhotos.length,
     currentPhotoHasBlockingIssues,
+    currentSlot.id,
     currentSlot.required,
     currentSlotState.status,
+    handleAddAnotherTraitPhoto,
     handleAdvanceToNext,
     handleResetCurrentPhoto,
     handleSkipOptionalSlot,
@@ -1257,8 +1364,8 @@ export function MiravaIdentityCapture({
                 </h2>
                 <p className="mt-1 font-jakarta text-xs text-white/70">
                   {locale === "fr"
-                    ? `${completedPhotos.length} photo(s) prêtes pour l'analyse IA.`
-                    : `${completedPhotos.length} foto(s) listas.`}
+                    ? `${completedPhotoCount} photo(s) prêtes pour l'analyse IA.`
+                    : `${completedPhotoCount} foto(s) listas.`}
                 </p>
 
                 {/* Thumbnails Grid */}
@@ -1275,6 +1382,44 @@ export function MiravaIdentityCapture({
                       </div>
                     )
                   })}
+
+                  {additionalTraitPhotos.map((photo, index) => (
+                    <div
+                      key={photo.preview}
+                      className="relative aspect-square overflow-hidden rounded-xl border border-white/15 bg-black/50"
+                    >
+                      <img
+                        src={photo.preview}
+                        alt={
+                          locale === "fr"
+                            ? `Particularité ${index + 1}`
+                            : `Rasgo ${index + 1}`
+                        }
+                        className="h-full w-full object-cover"
+                      />
+
+                      <span className="absolute inset-x-1 bottom-1 truncate rounded bg-black/80 px-1.5 py-0.5 text-center text-[8px] font-bold text-white uppercase">
+                        {locale === "fr"
+                          ? `Détail ${index + 1}`
+                          : `Detalle ${index + 1}`}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleRemoveAdditionalTraitPhoto(photo.preview)
+                        }
+                        aria-label={
+                          locale === "fr"
+                            ? "Supprimer cette photo"
+                            : "Eliminar esta foto"
+                        }
+                        className="absolute right-1.5 top-1.5 grid h-7 w-7 place-items-center rounded-full border border-white/20 bg-black/80 text-white shadow-md backdrop-blur-md"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -1319,8 +1464,8 @@ export function MiravaIdentityCapture({
                   ) : (
                     <span>
                       {locale === "fr"
-                        ? "Enregistrer mon profil et préparer ma séance"
-                        : "Guardar mi perfil y preparar mi sesión"}
+                        ? "Enregistrer mon profil"
+                        : "Guardar mi perfil"}
                     </span>
                   )}
                 </button>

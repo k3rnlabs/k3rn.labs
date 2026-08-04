@@ -50,6 +50,6 @@ describe("MIRAVA identity capture accessibility contracts", () => {
     expect(capture).toContain("leur traitement par OpenAI pour préparer ma première séance")
     expect(capture).toContain("su tratamiento por OpenAI para preparar mi primera sesión")
     expect(capture).toContain('disabled={phase === "loading" || !legalAccepted}')
-    expect(capture).toContain("Enregistrer mon profil et préparer ma séance")
+    expect(capture).toContain("Enregistrer mon profil")
   })
 })
