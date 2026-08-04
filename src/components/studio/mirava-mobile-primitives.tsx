@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 
 import { GlassSurface } from "@/components/ui/glass-surface"
 import { Grainient } from "@/components/ui/grainient"
+import "./mirava-floating-shell.css"
 
 type Locale = "fr" | "es"
 
@@ -51,7 +52,7 @@ export function MiravaMobileShell({ children, className }: MiravaMobileShellProp
 
       {/* Main Content Viewport — scrollable internally underneath fixed top header & above bottom dock */}
       <div
-        className="relative z-10 mx-auto flex h-full w-full max-w-md flex-col overflow-y-auto overflow-x-hidden scrollbar-none px-4 pt-[calc(max(0.75rem,env(safe-area-inset-top))+72px)] pb-[calc(max(1rem,env(safe-area-inset-bottom))+96px)] sm:max-w-xl sm:px-6"
+        className="mirava-onboarding-mobile-scroll relative z-10 mx-auto flex h-full w-full max-w-md flex-col overflow-y-auto overflow-x-hidden scrollbar-none px-4 pt-[calc(max(0.75rem,env(safe-area-inset-top))+88px)] pb-[calc(max(1rem,env(safe-area-inset-bottom))+108px)] sm:max-w-xl sm:px-6"
       >
         {children}
       </div>
@@ -75,7 +76,7 @@ export function MobileProgressHeader({
   const currentStep = Math.min(totalSteps, Math.max(1, step + 1))
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 px-4 sm:px-6 pointer-events-none bg-gradient-to-b from-black via-black/90 to-transparent backdrop-blur-md">
+    <header className="mirava-floating-header-frame fixed top-0 left-0 right-0 z-50 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 sm:px-6 pointer-events-none">
       <div className="mx-auto max-w-md sm:max-w-xl pointer-events-auto">
         <GlassSurface
           width="100%"
@@ -85,7 +86,7 @@ export function MobileProgressHeader({
           opacity={0.95}
           blur={14}
           backgroundOpacity={0.15}
-          className="w-full p-2.5 px-4 border border-white/15 shadow-[0_16px_40px_rgba(0,0,0,0.8)]"
+          className="mirava-floating-header-glass w-full border border-white/15 px-2 py-1 shadow-[0_10px_28px_rgba(0,0,0,0.42)]"
         >
           <div className="w-full space-y-1.5">
             {/* Top Row: Logo Icon & Language Badge */}
@@ -346,8 +347,8 @@ export function FloatingActionDock({
   disabled = false,
 }: FloatingActionDockProps) {
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] bg-gradient-to-t from-black via-black/90 to-transparent backdrop-blur-md pointer-events-none">
-      <div className="mx-auto flex max-w-md items-center rounded-[24px] border border-white/10 bg-black/60 p-2 shadow-[0_16px_40px_rgba(0,0,0,0.8)] backdrop-blur-xl sm:max-w-xl pointer-events-auto">
+    <div className="mirava-floating-action-frame fixed bottom-0 left-0 right-0 z-40 px-4 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))] pointer-events-none">
+      <div className="mx-auto flex max-w-md items-center rounded-[24px] border border-white/10 bg-black/60 p-2 shadow-[0_12px_30px_rgba(0,0,0,0.48)] backdrop-blur-xl sm:max-w-xl pointer-events-auto">
         <div className="w-full min-w-0">
           <MiravaPrimaryButton onClick={onNext} disabled={disabled}>
             {nextLabel}

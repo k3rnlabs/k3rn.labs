@@ -9,6 +9,15 @@ describe("MIRAVA onboarding localization contracts", () => {
     "utf8",
   )
 
+  const mobilePrimitives = readFileSync(
+    path.resolve(process.cwd(), "src/components/studio/mirava-mobile-primitives.tsx"),
+    "utf8",
+  )
+  const floatingShellStyles = readFileSync(
+    path.resolve(process.cwd(), "src/components/studio/mirava-floating-shell.css"),
+    "utf8",
+  )
+
   it("localizes every visible onboarding section label", () => {
     expect(onboarding).toContain('promise: "Votre studio photo personnel, guidé de la direction au premier résultat."')
     expect(onboarding).toContain('promise: "Tu estudio fotográfico personal, guiado desde la dirección hasta el primer resultado."')
@@ -87,5 +96,25 @@ describe("MIRAVA onboarding localization contracts", () => {
     expect(onboarding).toContain('universeLimit: "Máximo tres universos. Elimina uno para elegir otro."')
     expect(onboarding).toContain('setUniverseLimitNotice(labels.universeLimit)')
     expect(onboarding).toContain('role="status">{universeLimitNotice}</p>')
+  })
+
+  it("keeps the mobile header and action dock as isolated floating glass capsules", () => {
+    const headerFrame = mobilePrimitives.match(/<header className="([^"]*mirava-floating-header-frame[^"]*)"/)?.[1] ?? ""
+    const actionFrame = onboarding.match(/<footer className="([^"]*mirava-floating-action-frame[^"]*)"/)?.[1] ?? ""
+
+    expect(headerFrame).toContain("fixed")
+    expect(headerFrame).not.toContain("bg-gradient")
+    expect(headerFrame).not.toContain("backdrop-blur")
+    expect(actionFrame).toContain("fixed")
+    expect(actionFrame).not.toContain("bg-gradient")
+    expect(actionFrame).not.toContain("backdrop-blur")
+
+    expect(mobilePrimitives).toContain("mirava-onboarding-mobile-scroll")
+    expect(mobilePrimitives).toContain("mirava-floating-header-glass")
+    expect(onboarding).toContain("mirava-floating-action-glass")
+    expect(floatingShellStyles).toContain("background: transparent !important")
+    expect(floatingShellStyles).toContain("backdrop-filter: none !important")
+    expect(floatingShellStyles).toContain("-webkit-backdrop-filter: none !important")
+    expect(floatingShellStyles).toContain("background-image: none !important")
   })
 })
