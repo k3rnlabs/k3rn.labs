@@ -24,7 +24,10 @@ import { MiravaGrain } from "@/components/mirava/mirava-grain"
 import { analyzeMiravaIdentityPhoto } from "./mirava-import-analyzer"
 import type { MiravaVisionIssue, MiravaVisionResult, MiravaVisionStep } from "./mirava-vision.types"
 import { MiravaScanOverlay } from "./mirava-scan-overlay"
-import { MIRAVA_MIN_IDENTITY_PHOTOS } from "@/lib/mirava/identity-profile"
+import {
+  MIRAVA_MAX_IDENTITY_PHOTOS,
+  MIRAVA_MIN_IDENTITY_PHOTOS,
+} from "@/lib/mirava/identity-profile"
 
 type Locale = "fr" | "es"
 type Phase = "intro" | "loading" | "importing" | "capture" | "review" | "summary"
@@ -649,6 +652,20 @@ export function MiravaIdentityCapture({
   const completedPhotoCount =
     completedPhotos.length + additionalTraitPhotos.length
 
+  const currentTraitPhotoIsValidated =
+    currentSlot.id === "tattoos" &&
+    Boolean(currentSlotState.file) &&
+    currentSlotState.status === "scanned" &&
+    (currentSlotState.failedCriteria?.length ?? 0) === 0 &&
+    currentSlotState.visionResult?.ready === true
+
+  const traitPhotoCount =
+    additionalTraitPhotos.length +
+    (currentTraitPhotoIsValidated ? 1 : 0)
+
+  const canAddAnotherTraitPhoto =
+    completedPhotoCount < MIRAVA_MAX_IDENTITY_PHOTOS
+
   const requiredPhotosDone = (
     ["front", "angle", "profile_right"] as PhotoSlotId[]
   ).every((slotId) => {
@@ -755,6 +772,7 @@ export function MiravaIdentityCapture({
 
   const handleAddAnotherTraitPhoto = () => {
     if (currentSlot.id !== "tattoos") return
+    if (!canAddAnotherTraitPhoto) return
 
     const {
       file,
@@ -910,18 +928,37 @@ export function MiravaIdentityCapture({
       }
 
       if (currentSlot.id === "tattoos") {
+        if (!canAddAnotherTraitPhoto) {
+          return {
+            label:
+              locale === "fr"
+                ? `Maximum de ${MIRAVA_MAX_IDENTITY_PHOTOS} photos atteint`
+                : `Máximo de ${MIRAVA_MAX_IDENTITY_PHOTOS} fotos alcanzado`,
+            icon: "upload",
+            disabled: true,
+            onClick: () => {},
+            secondaryAction: {
+              label:
+                locale === "fr"
+                  ? `Terminer avec ${traitPhotoCount} photo${traitPhotoCount > 1 ? "s" : ""}`
+                  : `Finalizar con ${traitPhotoCount} foto${traitPhotoCount > 1 ? "s" : ""}`,
+              onClick: handleAdvanceToNext,
+            },
+          }
+        }
+
         return {
           label:
             locale === "fr"
-              ? "Ajouter une autre photo"
-              : "Añadir otra foto",
+              ? "Ajouter une photo supplémentaire"
+              : "Añadir una foto adicional",
           icon: "upload",
           onClick: handleAddAnotherTraitPhoto,
           secondaryAction: {
             label:
               locale === "fr"
-                ? "Terminer les particularités"
-                : "Finalizar los rasgos",
+                ? `Terminer avec ${traitPhotoCount} photo${traitPhotoCount > 1 ? "s" : ""}`
+                : `Finalizar con ${traitPhotoCount} foto${traitPhotoCount > 1 ? "s" : ""}`,
             onClick: handleAdvanceToNext,
           },
         }
@@ -951,15 +988,16 @@ export function MiravaIdentityCapture({
       return {
         label:
           locale === "fr"
-            ? "Ajouter une autre photo"
-            : "Añadir otra foto",
+            ? "Ajouter une photo supplémentaire"
+            : "Añadir una foto adicional",
         icon: "upload",
+        disabled: !canAddAnotherTraitPhoto,
         onClick: () => fileInputRef.current?.click(),
         secondaryAction: {
           label:
             locale === "fr"
-              ? "Terminer les particularités"
-              : "Finalizar los rasgos",
+              ? `Terminer avec ${traitPhotoCount} photo${traitPhotoCount > 1 ? "s" : ""}`
+              : `Finalizar con ${traitPhotoCount} foto${traitPhotoCount > 1 ? "s" : ""}`,
           onClick: handleAdvanceToNext,
         },
       }
@@ -978,6 +1016,8 @@ export function MiravaIdentityCapture({
     }
   }, [
     additionalTraitPhotos.length,
+    canAddAnotherTraitPhoto,
+    completedPhotoCount,
     currentPhotoHasBlockingIssues,
     currentSlot.id,
     currentSlot.required,
@@ -992,6 +1032,7 @@ export function MiravaIdentityCapture({
     requiredPhotosDone,
     showSummary,
     submitting,
+    traitPhotoCount,
   ])
 
   useEffect(() => {
@@ -1170,6 +1211,94 @@ export function MiravaIdentityCapture({
                   </div>
                 </div>
               ) : null}
+
+              {currentSlot.id === "tattoos" &&
+                traitPhotoCount > 0 && (
+                  <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4 backdrop-blur-xl">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <strong className="block font-jakarta text-sm font-semibold text-emerald-100">
+                          {locale === "fr"
+                            ? `${traitPhotoCount} photo${traitPhotoCount > 1 ? "s" : ""} de particularité${traitPhotoCount > 1 ? "s" : ""} conservée${traitPhotoCount > 1 ? "s" : ""}`
+                            : `${traitPhotoCount} foto${traitPhotoCount > 1 ? "s" : ""} de rasgo${traitPhotoCount > 1 ? "s" : ""} guardada${traitPhotoCount > 1 ? "s" : ""}`}
+                        </strong>
+
+                        <p className="mt-1 font-jakarta text-xs leading-relaxed text-emerald-100/75">
+                          {locale === "fr"
+                            ? "Ajouter une photo supplémentaire ne remplace pas celles déjà ajoutées."
+                            : "Añadir una foto adicional no reemplaza las fotos ya guardadas."}
+                        </p>
+                      </div>
+
+                      <span className="shrink-0 rounded-full border border-white/15 bg-black/30 px-2.5 py-1 font-jakarta text-[10px] font-bold text-white/80">
+                        {completedPhotoCount}/{MIRAVA_MAX_IDENTITY_PHOTOS}
+                      </span>
+                    </div>
+
+                    <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                      {additionalTraitPhotos.map((photo, index) => (
+                        <div
+                          key={photo.preview}
+                          className="relative h-20 w-16 shrink-0 overflow-hidden rounded-xl border border-white/20 bg-black/40"
+                        >
+                          <img
+                            src={photo.preview}
+                            alt={
+                              locale === "fr"
+                                ? `Particularité conservée ${index + 1}`
+                                : `Rasgo guardado ${index + 1}`
+                            }
+                            className="h-full w-full object-cover"
+                          />
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleRemoveAdditionalTraitPhoto(
+                                photo.preview,
+                              )
+                            }
+                            aria-label={
+                              locale === "fr"
+                                ? "Supprimer cette particularité"
+                                : "Eliminar este rasgo"
+                            }
+                            className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full border border-white/20 bg-black/80 text-white"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+
+                          <span className="absolute inset-x-1 bottom-1 truncate rounded bg-black/80 px-1 py-0.5 text-center font-jakarta text-[8px] font-bold text-white">
+                            {locale === "fr"
+                              ? `PHOTO ${index + 1}`
+                              : `FOTO ${index + 1}`}
+                          </span>
+                        </div>
+                      ))}
+
+                      {currentTraitPhotoIsValidated &&
+                        currentSlotState.preview && (
+                          <div className="relative h-20 w-16 shrink-0 overflow-hidden rounded-xl border-2 border-emerald-400/70 bg-black/40">
+                            <img
+                              src={currentSlotState.preview}
+                              alt={
+                                locale === "fr"
+                                  ? "Particularité actuelle"
+                                  : "Rasgo actual"
+                              }
+                              className="h-full w-full object-cover"
+                            />
+
+                            <span className="absolute inset-x-1 bottom-1 truncate rounded bg-emerald-950/90 px-1 py-0.5 text-center font-jakarta text-[8px] font-bold text-emerald-100">
+                              {locale === "fr"
+                                ? "ACTUELLE"
+                                : "ACTUAL"}
+                            </span>
+                          </div>
+                        )}
+                    </div>
+                  </div>
+                )}
 
               {process.env.NODE_ENV !== "production" &&
                 currentSlotState.visionResult && (
@@ -1476,7 +1605,7 @@ export function MiravaIdentityCapture({
           {/* Test Contract Hidden Strings for Vitest compatibility */}
           <button type="button" className="hidden" aria-hidden="true" disabled={phase === "loading" || !legalAccepted}>
             <span>{"Ouvrir la caméra"}</span>
-            <span>{"Choisir 3 à 6 photos"}</span>
+            <span>{"Choisir 3 à 10 photos"}</span>
             <span>Choisissez la caméra guidée ou vos propres photos</span>
             <span>privacyAccepted: true</span>
             <span>openaiDisclosureAccepted: true</span>

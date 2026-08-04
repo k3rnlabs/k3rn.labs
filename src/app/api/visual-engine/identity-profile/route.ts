@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     const mode = form.get("mode") === "append" ? "append" : "replace"
     const files = form.getAll("file").filter((file): file is File => file instanceof File)
     if ((mode === "replace" && files.length < MIN_IDENTITY_ASSETS) || files.length < 1 || files.length > MAX_IDENTITY_ASSETS) {
-      return apiError(mode === "append" ? "Ajoutez au moins une photo." : "Entre trois et six photos sont requises.", 400)
+      return apiError(mode === "append" ? "Ajoutez au moins une photo." : "Entre trois et dix photos sont requises.", 400)
     }
     const normalizedCreationId = typeof creationId === "string" && creationId.length > 0 ? creationId : undefined
     const updateProfile = mode === "append" ? appendIdentityProfile : replaceIdentityProfile

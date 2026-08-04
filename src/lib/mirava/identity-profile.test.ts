@@ -9,8 +9,8 @@ describe("MIRAVA identity onboarding contract", () => {
     expect(isMiravaIdentityProfileReady({ assetCount: 3 })).toBe(true)
   })
 
-  it("keeps hair and full-body references within the six-photo profile", () => {
-    expect(MIRAVA_MAX_IDENTITY_PHOTOS).toBe(6)
-    expect(isMiravaIdentityProfileReady({ assetCount: 6 })).toBe(true)
+  it("supports several distinctive-trait references within the ten-photo profile", () => {
+    expect(MIRAVA_MAX_IDENTITY_PHOTOS).toBe(10)
+    expect(isMiravaIdentityProfileReady({ assetCount: 10 })).toBe(true)
   })
 })

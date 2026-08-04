@@ -87,7 +87,9 @@ describe("MIRAVA private creation engine", () => {
     expect(canAutoGenerateMiravaCreation(2)).toBe(false)
     expect(canAutoGenerateMiravaCreation(3)).toBe(true)
     expect(canAutoGenerateMiravaCreation(6)).toBe(true)
-    expect(canAutoGenerateMiravaCreation(7)).toBe(false)
+    expect(canAutoGenerateMiravaCreation(7)).toBe(true)
+    expect(canAutoGenerateMiravaCreation(10)).toBe(true)
+    expect(canAutoGenerateMiravaCreation(11)).toBe(false)
   })
 
   it("makes a recovered first-session generation idempotent once it is durable", () => {

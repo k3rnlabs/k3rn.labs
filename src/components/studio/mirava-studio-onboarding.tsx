@@ -8,6 +8,10 @@ import posthog from "posthog-js"
 import { MiravaWordmark } from "@/components/mirava/mirava-wordmark"
 import { MIRAVA_ONBOARDING_STEPS, MIRAVA_ONBOARDING_VERSION, onboardingStepIndex, type MiravaOnboardingDirection, type MiravaOnboardingGoal, type MiravaOnboardingState, type MiravaOnboardingStepId } from "@/lib/mirava/onboarding"
 import { MIRAVA_UNIVERSES, getMiravaUniverse } from "@/lib/mirava/universes"
+import {
+  MIRAVA_MAX_IDENTITY_PHOTOS,
+  MIRAVA_MIN_IDENTITY_PHOTOS,
+} from "@/lib/mirava/identity-profile"
 import { cn } from "@/lib/utils"
 import {
   MiravaMobileShell,
@@ -102,8 +106,8 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
 
   const identityProfileReady = Boolean(
     identityProfileReceipt?.id &&
-      identityProfileReceipt.assetCount >= 3 &&
-      identityProfileReceipt.assetCount <= 6,
+      identityProfileReceipt.assetCount >= MIRAVA_MIN_IDENTITY_PHOTOS &&
+      identityProfileReceipt.assetCount <= MIRAVA_MAX_IDENTITY_PHOTOS,
   )
 
   useEffect(() => {
@@ -152,8 +156,8 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
         if (
           !response.ok ||
           !isIdentityProfileReceipt(profile) ||
-          profile.assetCount < 3 ||
-          profile.assetCount > 6
+          profile.assetCount < MIRAVA_MIN_IDENTITY_PHOTOS ||
+          profile.assetCount > MIRAVA_MAX_IDENTITY_PHOTOS
         ) {
           throw new Error(
             data?.error ??
@@ -493,13 +497,13 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                     onActionStateChange={setCaptureActionState}
                     onComplete={async (files, consent) => {
                       if (
-                        files.length < 3 ||
-                        files.length > 6
+                        files.length < MIRAVA_MIN_IDENTITY_PHOTOS ||
+                        files.length > MIRAVA_MAX_IDENTITY_PHOTOS
                       ) {
                         throw new Error(
                           locale === "fr"
-                            ? "Entre trois et six photos validées sont nécessaires pour enregistrer le Profil Identité."
-                            : "Se necesitan entre tres y seis fotos validadas para guardar el Perfil de Identidad.",
+                            ? "Entre trois et dix photos validées sont nécessaires pour enregistrer le Profil Identité."
+                            : "Se necesitan entre tres y diez fotos validadas para guardar el Perfil de Identidad.",
                         )
                       }
 
@@ -563,8 +567,8 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                         if (
                           !isIdentityProfileReceipt(profile) ||
                           profile.assetCount !== files.length ||
-                          profile.assetCount < 3 ||
-                          profile.assetCount > 6
+                          profile.assetCount < MIRAVA_MIN_IDENTITY_PHOTOS ||
+                          profile.assetCount > MIRAVA_MAX_IDENTITY_PHOTOS
                         ) {
                           throw new Error(
                             locale === "fr"

@@ -28,8 +28,17 @@ describe("MIRAVA identity capture accessibility contracts", () => {
 
   it("keeps both guided camera and private import routes visible", () => {
     expect(capture).toContain('"Ouvrir la caméra"')
-    expect(capture).toContain('"Choisir 3 à 6 photos"')
+    expect(capture).toContain('"Choisir 3 à 10 photos"')
     expect(capture).toContain("Choisissez la caméra guidée ou vos propres photos")
+  })
+
+  it("makes additional trait photos visibly cumulative", () => {
+    expect(capture).toContain(
+      "Ajouter une photo supplémentaire ne remplace pas celles déjà ajoutées.",
+    )
+    expect(capture).toContain("Terminer avec")
+    expect(capture).toContain("traitPhotoCount")
+    expect(capture).toContain("MIRAVA_MAX_IDENTITY_PHOTOS")
   })
 
   it("routes imported identity photos through the real MediaPipe analyzer", () => {
