@@ -32,8 +32,11 @@ describe("MIRAVA identity capture accessibility contracts", () => {
     expect(capture).toContain("Choisissez la caméra guidée ou vos propres photos")
   })
 
-  it("loads the standalone local vision worker instead of Next's page runtime", () => {
-    expect(capture).toContain('new Worker("/visual-engine/vision/mirava-vision.worker.js", { type: "module" })')
+  it("routes imported identity photos through the real MediaPipe analyzer", () => {
+    expect(capture).toContain('from "./mirava-import-analyzer"')
+    expect(capture).toContain("analyzeMiravaIdentityPhoto(")
+    expect(capture).not.toContain("async function analyzePhotoCriteria(")
+    expect(capture).not.toContain('// new Worker("/visual-engine/vision/mirava-vision.worker.js"')
   })
 
   it("keeps the full-screen capture anchored to the viewport", () => {

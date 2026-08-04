@@ -167,7 +167,7 @@ export const MIRAVA_UNIVERSES: MiravaUniverse[] = [
       fr: "Flash nocturne, velours noir et lumière d’hôtel composent une image confidentielle, spontanée et très maîtrisée.",
       es: "Flash nocturno, terciopelo negro y luz de hotel componen una imagen confidencial, espontánea y muy controlada.",
     },
-    image: "/visual-engine/univers/night-glamour.png",
+    image: "/visual-engine/univers/night-glamour.webp",
     keyElements: {
       fr: ["Flash direct nocturne", "Velours noir", "Grain 35 mm", "Arrivée confidentielle"],
       es: ["Flash directo nocturno", "Terciopelo negro", "Grano de 35 mm", "Llegada confidencial"],

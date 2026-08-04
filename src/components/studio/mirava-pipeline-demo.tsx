@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Check, Sparkles, Scan, ShieldCheck, UserCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { MiravaScanOverlay } from "./mirava-scan-overlay"
 
 type Locale = "fr" | "es"
 
@@ -13,10 +14,10 @@ interface PipelineDemoProps {
 }
 
 const GENERATED_STUDIO_PHOTOS = [
-  "/visual-engine/univers/dubai-glamour.png",
-  "/visual-engine/univers/retro-lounge.png",
-  "/visual-engine/univers/night-glamour.png",
-  "/visual-engine/univers/escapade-solaire.webp",
+  "/visual-engine/univers/plage3.webp",
+  "/visual-engine/univers/hot.webp",
+  "/visual-engine/univers/sexy.webp",
+  "/visual-engine/univers/lifestyle-creatrice.webp",
 ]
 
 const STAGES = [
@@ -49,7 +50,7 @@ const STAGES = [
     badge: { fr: "3. GÉNÉRATION DU STUDIO", es: "3. GENERACIÓN DEL ESTUDIO" },
     title: { fr: "Rendus Studio personnalisés", es: "Resultados de Estudio personalizados" },
     status: { fr: "4 univers uniques générés selon vos critères", es: "4 universos únicos generados según sus criterios" },
-    image: "/visual-engine/univers/dubai-glamour.png",
+    image: "/visual-engine/univers/plage3.webp",
     icon: Sparkles,
     checks: [
       { fr: "Rendus 100% réalistes", es: "Resultados 100% realistas" },
@@ -139,50 +140,133 @@ export function OnboardingPipelineDemo({ locale, className }: PipelineDemoProps)
               )}
             />
 
-            {/* STAGE 0: Biometric Scanner Target Perfectly Aligned on face_neutre.png */}
+            {/* Shared MIRAVA face scanning overlay */}
             {activeStage === 0 && (
-              <>
-                {/* Vertical Scanning Laser Beam */}
-                <motion.div
-                  initial={{ top: "18%" }}
-                  animate={{ top: ["18%", "72%", "18%"] }}
-                  transition={{ repeat: Infinity, duration: 2.2, ease: "linear" }}
-                  className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-[#ede8df] to-transparent shadow-[0_0_18px_#ede8df] z-20 pointer-events-none"
-                />
-
-                {/* Oval Facial Reticle Encompassing Full Face & Head */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10 -translate-y-12 sm:-translate-y-16">
-                  <motion.div
-                    initial={{ scale: 0.85, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    className="relative h-56 w-44 sm:h-64 sm:w-52 rounded-[50%] border-2 border-dashed border-[#ede8df]/90 shadow-[0_0_40px_rgba(213,198,176,0.35)]"
-                  >
-                    <div className="absolute -top-3 -left-3 h-5 w-5 border-t-2 border-l-2 border-[#ede8df]" />
-                    <div className="absolute -top-3 -right-3 h-5 w-5 border-t-2 border-r-2 border-[#ede8df]" />
-                    <div className="absolute -bottom-3 -left-3 h-5 w-5 border-b-2 border-l-2 border-[#ede8df]" />
-                    <div className="absolute -bottom-3 -right-3 h-5 w-5 border-b-2 border-r-2 border-[#ede8df]" />
-                  </motion.div>
-                </div>
-              </>
+              <MiravaScanOverlay
+                locale={locale}
+                variant="face"
+                showStatus={false}
+              />
             )}
 
-            {/* STAGE 1: Identity Creation Shimmer */}
+            {/* STAGE 1: Premium identity synthesis */}
             {activeStage === 1 && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/45 backdrop-blur-sm z-20 p-4 text-center">
+              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/35 px-6 text-center backdrop-blur-[2px]">
                 <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ repeat: Infinity, duration: 4, ease: "linear" }}
-                  className="relative flex h-14 w-14 items-center justify-center rounded-full border border-dashed border-[#ede8df] bg-[#ede8df]/15 text-[#ede8df] shadow-lg"
+                  initial={{ opacity: 0, y: 14, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{
+                    duration: 0.55,
+                    ease: [0.16, 1, 0.3, 1],
+                  }}
+                  className="w-full max-w-[300px] rounded-[22px] border border-white/15 bg-black/65 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.55)] backdrop-blur-xl"
                 >
-                  <UserCheck className="h-6 w-6" />
+                  <div className="flex items-center justify-between">
+                    <span className="font-jakarta text-[9px] font-bold tracking-[0.18em] text-[#d5c6b0] uppercase">
+                      {locale === "fr"
+                        ? "Synthèse biométrique"
+                        : "Síntesis biométrica"}
+                    </span>
+
+                    <motion.span
+                      initial={{ opacity: 0.45 }}
+                      animate={{ opacity: [0.45, 1, 0.45] }}
+                      transition={{
+                        duration: 1.5,
+                        repeat: Infinity,
+                      }}
+                      className="font-jakarta text-[9px] font-semibold text-white/60"
+                    >
+                      MIRAVA ID
+                    </motion.span>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-3 gap-2">
+                    {[
+                      locale === "fr" ? "Visage" : "Rostro",
+                      locale === "fr" ? "Traits" : "Rasgos",
+                      locale === "fr" ? "Signature" : "Firma",
+                    ].map((label, index) => (
+                      <motion.div
+                        key={label}
+                        initial={{ opacity: 0.3, y: 5 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{
+                          delay: 0.18 + index * 0.22,
+                          duration: 0.4,
+                        }}
+                        className="rounded-xl border border-white/10 bg-white/[0.055] px-2 py-3"
+                      >
+                        <motion.div
+                          initial={{ scaleX: 0.25 }}
+                          animate={{ scaleX: 1 }}
+                          transition={{
+                            delay: 0.25 + index * 0.22,
+                            duration: 0.55,
+                          }}
+                          className="mx-auto h-px w-7 origin-left bg-[#ede8df]"
+                        />
+
+                        <span className="mt-2 block font-jakarta text-[9px] font-semibold tracking-wide text-white/75 uppercase">
+                          {label}
+                        </span>
+                      </motion.div>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 overflow-hidden rounded-full bg-white/10 p-[2px]">
+                    <div className="h-1.5 overflow-hidden rounded-full bg-black/50">
+                      <motion.div
+                        initial={{ width: "8%" }}
+                        animate={{
+                          width: ["8%", "58%", "100%"],
+                        }}
+                        transition={{
+                          duration: 3.1,
+                          times: [0, 0.58, 1],
+                          ease: [0.16, 1, 0.3, 1],
+                        }}
+                        className="h-full rounded-full bg-gradient-to-r from-[#aa9680] via-[#f4eee5] to-white shadow-[0_0_14px_rgba(244,238,229,0.75)]"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-between font-jakarta text-[9px] text-white/45">
+                    <span>
+                      {locale === "fr"
+                        ? "Analyse des repères"
+                        : "Análisis de referencias"}
+                    </span>
+                    <span>
+                      {locale === "fr"
+                        ? "Profil sécurisé"
+                        : "Perfil seguro"}
+                    </span>
+                  </div>
                 </motion.div>
-                <p className="mt-3 font-jakarta text-sm font-semibold text-white drop-shadow-md">
+
+                <motion.p
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.35 }}
+                  className="mt-5 font-jakarta text-base font-semibold text-white drop-shadow-md"
+                >
                   {current.title[locale]}
-                </p>
-                <div className="mt-2.5 flex items-center gap-1.5 rounded-full border border-white/15 bg-black/50 px-3.5 py-1.5 text-[10px] font-semibold text-white/90 backdrop-blur-md shadow-md">
+                </motion.p>
+
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.55 }}
+                  className="mt-3 flex items-center gap-2 rounded-full border border-white/15 bg-black/55 px-4 py-2 font-jakarta text-[10px] font-semibold text-white/85 backdrop-blur-md"
+                >
                   <ShieldCheck className="h-3.5 w-3.5 text-[#ede8df]" />
-                  <span>Conservation 100% privée & chiffrée</span>
-                </div>
+                  <span>
+                    {locale === "fr"
+                      ? "Conservation privée et chiffrée"
+                      : "Conservación privada y cifrada"}
+                  </span>
+                </motion.div>
               </div>
             )}
 
