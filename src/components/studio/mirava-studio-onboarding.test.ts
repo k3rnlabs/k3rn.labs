@@ -49,6 +49,21 @@ describe("MIRAVA onboarding localization contracts", () => {
     expect(onboarding).toContain('onCompleted(data.onboarding, name.trim())')
   })
 
+  it("sends the complete onboarding state when the identity profile is finalized", () => {
+    expect(onboarding).toContain(
+      'const saved = await persist(\n                          "capture_activation"',
+    )
+    expect(onboarding).toContain("goal,")
+    expect(onboarding).toContain("universeIds,")
+    expect(onboarding).toContain("direction,")
+    expect(onboarding).toContain(
+      "identityConsentAccepted: true",
+    )
+    expect(onboarding).toContain(
+      "[mirava-onboarding] progress_failed",
+    )
+  })
+
   it("persists backward edits and uses the latest server state for activation", () => {
     expect(onboarding).toContain("await persist(target)")
     expect(onboarding).toContain("setOnboardingState(data.onboarding)")

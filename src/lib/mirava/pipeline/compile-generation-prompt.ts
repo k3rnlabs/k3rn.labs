@@ -1,4 +1,8 @@
 import { getPromptProfile } from "../profiles/prompt-profiles"
+import {
+  buildAdaptiveRealismLayer,
+  buildAdaptiveRealismNegativeGuardrails,
+} from "../profiles/realism-profiles"
 import { compiledGenerationPromptSchema, CompiledGenerationPrompt } from "../schemas/compiled-generation-prompt.schema"
 import { SceneContextClassification } from "../schemas/scene-context.schema"
 import { VisualDirectionBlueprint } from "../schemas/visual-direction-blueprint.schema"
@@ -24,7 +28,7 @@ export type GenerationPromptCompilerInput = {
 }
 
 export const COMPILER_METADATA = {
-  compilerVersion: "1.0.0",
+  compilerVersion: "1.1.0",
 } as const
 
 /**
@@ -55,7 +59,14 @@ export function compileGenerationPrompt(input: GenerationPromptCompilerInput): C
     ? "TRANSFER_MODE = FIDELITY. Reproduce extracted camera geometry, lighting architecture, pose anchors, exposure relationships, and wardrobe silhouette faithfully. Do not add fill light, HDR shadow lifting, artificial skin glow, or cinematic relighting."
     : "TRANSFER_MODE = POLISHED. Refine technical execution while preserving extracted lighting, pose, composition, and wardrobe construction."
 
-  // E. USER DIRECTION (IF PROVIDED)
+  // E. ADAPTIVE PHOTOGRAPHIC REALISM
+  const adaptiveRealismLayer =
+    buildAdaptiveRealismLayer(sceneContext)
+
+  const adaptiveRealismNegativeGuardrails =
+    buildAdaptiveRealismNegativeGuardrails(sceneContext)
+
+  // F. USER DIRECTION (IF PROVIDED)
   let userNoteSegment = ""
   if (userDirection && userDirection.trim().length > 0) {
     const cleanNote = userDirection.trim()
@@ -80,6 +91,7 @@ export function compileGenerationPrompt(input: GenerationPromptCompilerInput): C
     identityClause,
     profileFramingSegment,
     basePrompt,
+    adaptiveRealismLayer,
     fidelityContract,
     frameSegment,
     userNoteSegment,
@@ -90,6 +102,7 @@ export function compileGenerationPrompt(input: GenerationPromptCompilerInput): C
   // H. NEGATIVE GUARDRAILS
   const negativeGuardrailsParts = [
     blueprint.negativeGuardrails,
+    adaptiveRealismNegativeGuardrails,
     "identity mixing, facial drift, altered facial anatomy, body reshaping, malformed hands, extra limbs",
     "changed garment coverage, unintended transparency, incorrect wardrobe construction",
     "invented fill light, HDR flattening, plastic skin, excessive retouching, studio relighting, cinematic reinterpretation",

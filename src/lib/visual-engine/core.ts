@@ -20,7 +20,10 @@ import { notifyMiravaCreationReady } from "./push"
 import { MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_METADATA, MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_PROMPT } from "@/lib/mirava/prompts/visual-direction-extractor-v2"
 import { MIRAVA_SCENE_CONTEXT_CLASSIFIER_V1_METADATA } from "@/lib/mirava/prompts/scene-context-classifier-v1"
 import { parseV2Extraction } from "@/lib/mirava/pipeline/parse-v2-extraction"
-import { classifySceneContext } from "@/lib/mirava/pipeline/classify-scene-context"
+import {
+  classifySceneContext,
+  heuristicSceneClassification,
+} from "@/lib/mirava/pipeline/classify-scene-context"
 import { compileGenerationPrompt } from "@/lib/mirava/pipeline/compile-generation-prompt"
 import { complianceNeutralRewrite } from "@/lib/mirava/pipeline/compliance-neutral-rewrite"
 import { assertNoArtisticReferenceInGenerationPayload, assertAtLeastOneValidatedIdentityImage } from "@/lib/mirava/security/assert-image-role-separation"
@@ -777,6 +780,13 @@ export function buildMiravaGenerationPrompt(
   const seriesBrief = buildMiravaSeriesShotBrief(creation.creativeOptions, frameIndex)
   const physicalTraitsSegment = formatPhysicalTraitsForPrompt(physicalTraits)
 
+  const inferredSceneContext =
+    heuristicSceneClassification({
+      creativeDirectionSummary: "",
+      baseGenerationPrompt: creation.masterPrompt ?? "",
+      negativeGuardrails: creation.negativePrompt ?? "",
+    })
+
   const fakeBlueprint: VisualDirectionBlueprint = {
     id: "legacy",
     status: "published",
@@ -784,8 +794,8 @@ export function buildMiravaGenerationPrompt(
     creativeDirectionSummary: "",
     baseGenerationPrompt: creation.masterPrompt ?? "",
     negativeGuardrails: creation.negativePrompt ?? "",
-    sceneProfile: "standard_fashion",
-    photographicGenre: "commercial_campaign",
+    sceneProfile: inferredSceneContext.sceneProfile,
+    photographicGenre: inferredSceneContext.photographicGenre,
     extractionMetadata: {
       extractorVersion: MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_METADATA.version,
       classifierVersion: MIRAVA_SCENE_CONTEXT_CLASSIFIER_V1_METADATA.version,
@@ -805,16 +815,7 @@ export function buildMiravaGenerationPrompt(
 
   const compiled = compileGenerationPrompt({
     blueprint: fakeBlueprint,
-    sceneContext: {
-      sceneProfile: "standard_fashion",
-      photographicGenre: "commercial_campaign",
-      garmentContext: "standard_clothing",
-      coverageInstruction: "not_applicable",
-      referenceCharacter: "standard",
-      wordingProfile: "standard",
-      confidence: 1,
-      requiresHumanReview: false,
-    },
+    sceneContext: inferredSceneContext,
     generation: { frameIndex },
   })
 

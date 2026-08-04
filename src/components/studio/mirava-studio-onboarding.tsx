@@ -192,16 +192,84 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
     stepId,
   ])
 
-  const persist = async (currentStep: MiravaOnboardingStepId, overrides: { firstName?: string; goal?: MiravaOnboardingGoal; universeIds?: string[]; direction?: MiravaOnboardingDirection; identityConsentAccepted?: true } = {}) => {
-    setPending(true); setError(null)
+  const persist = async (
+    currentStep: MiravaOnboardingStepId,
+    overrides: {
+      firstName?: string
+      goal?: MiravaOnboardingGoal
+      universeIds?: string[]
+      direction?: MiravaOnboardingDirection
+      identityConsentAccepted?: true
+    } = {},
+  ) => {
+    setPending(true)
+    setError(null)
+
     try {
-      const response = await fetch("/api/visual-engine/onboarding", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "progress", currentStep, ...overrides }) })
-      const data = await response.json() as { onboarding?: MiravaOnboardingState; error?: string }
-      if (!response.ok || !data.onboarding) throw new Error(data.error ?? "MIRAVA_ONBOARDING_FAILED")
+      const response = await fetch(
+        "/api/visual-engine/onboarding",
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: "progress",
+            currentStep,
+            ...overrides,
+          }),
+        },
+      )
+
+      const data = await response
+        .json()
+        .catch(() => null) as
+          | {
+              onboarding?: MiravaOnboardingState
+              error?: string
+              message?: string
+            }
+          | null
+
+      if (!response.ok || !data?.onboarding) {
+        const reason =
+          data?.error ??
+          data?.message ??
+          "MIRAVA_ONBOARDING_FAILED"
+
+        console.error(
+          "[mirava-onboarding] progress_failed",
+          {
+            currentStep,
+            status: response.status,
+            reason,
+          },
+        )
+
+        throw new Error(reason)
+      }
+
       setOnboardingState(data.onboarding)
       setStepId(data.onboarding.currentStep)
+
       return data.onboarding
-    } catch { setError(labels.saveError); return null } finally { setPending(false) }
+    } catch (error) {
+      console.error(
+        "[mirava-onboarding] persist_failed",
+        {
+          currentStep,
+          error:
+            error instanceof Error
+              ? error.message
+              : String(error),
+        },
+      )
+
+      setError(labels.saveError)
+      return null
+    } finally {
+      setPending(false)
+    }
   }
 
   const next = async () => {
@@ -577,15 +645,34 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                           )
                         }
 
+                        if (
+                          !goal ||
+                          universeIds.length === 0 ||
+                          !direction
+                        ) {
+                          throw new Error(
+                            locale === "fr"
+                              ? "Vos choix d’onboarding sont incomplets. Revenez à l’étape précédente avant de finaliser votre Profil Identité."
+                              : "Tus elecciones de onboarding están incompletas. Vuelve al paso anterior antes de finalizar tu Perfil de Identidad.",
+                          )
+                        }
+
                         const saved = await persist(
                           "capture_activation",
                           {
+                            goal,
+                            universeIds,
+                            direction,
                             identityConsentAccepted: true,
                           },
                         )
 
                         if (!saved) {
-                          throw new Error(labels.saveError)
+                          throw new Error(
+                            locale === "fr"
+                              ? "Vos photos ont été enregistrées, mais MIRAVA n’a pas pu finaliser l’onboarding. Réessayez."
+                              : "Tus fotos se guardaron, pero MIRAVA no pudo finalizar el onboarding. Inténtalo de nuevo.",
+                          )
                         }
 
                         setIdentityProfileReceipt(profile)

@@ -160,7 +160,17 @@ A vertical photograph of a model in a blazer.
       expect(compiled.positivePrompt).toContain("IDENTITY INVARIANT")
       expect(compiled.positivePrompt).toContain("Standard commercial swimwear campaign")
       expect(compiled.positivePrompt).toContain("TRANSFER_MODE = FIDELITY")
+      expect(compiled.positivePrompt).toContain(
+        "ADAPTIVE PHOTOGRAPHIC REALISM",
+      )
+      expect(compiled.positivePrompt).toContain(
+        "IDENTITY-SAFE IMPERFECTIONS",
+      )
       expect(compiled.negativeGuardrails).toContain("identity mixing")
+      expect(compiled.negativeGuardrails).toContain(
+        "invented tattoos",
+      )
+      expect(compiled.metadata.compilerVersion).toBe("1.1.0")
     })
   })
 

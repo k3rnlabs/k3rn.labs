@@ -72,10 +72,20 @@ export function heuristicSceneClassification(
     sceneProfile = "nightlife_direct_flash"
     garmentContext = "standard_clothing"
     photographicGenre = "nightlife_flash"
-  } else if (text.includes("mirror") || text.includes("selfie") || text.includes("elevator")) {
+  } else if (text.includes("mirror") || text.includes("elevator")) {
     sceneProfile = "mirror_selfie"
     garmentContext = "standard_clothing"
     photographicGenre = "mirror_selfie"
+  } else if (
+    text.includes("selfie") ||
+    text.includes("iphone") ||
+    text.includes("smartphone") ||
+    text.includes("front camera") ||
+    text.includes("phone camera")
+  ) {
+    sceneProfile = "lifestyle"
+    garmentContext = "standard_clothing"
+    photographicGenre = "phone_photo"
   } else if (text.includes("beauty") || text.includes("close-up") || text.includes("skin") || text.includes("makeup")) {
     sceneProfile = "beauty_closeup"
     garmentContext = "standard_clothing"
@@ -88,10 +98,26 @@ export function heuristicSceneClassification(
     sceneProfile = "luxury_editorial"
     garmentContext = "eveningwear"
     photographicGenre = "fashion_editorial"
-  } else if (text.includes("travel") || text.includes("resort")) {
+  } else if (
+    text.includes("travel") ||
+    text.includes("destination") ||
+    text.includes("beach") ||
+    text.includes("coastal") ||
+    text.includes("cityscape") ||
+    text.includes("landmark")
+  ) {
     sceneProfile = "travel_editorial"
     garmentContext = "resortwear"
     photographicGenre = "fashion_editorial"
+  } else if (
+    text.includes("lifestyle") ||
+    text.includes("candid") ||
+    text.includes("casual snapshot") ||
+    text.includes("handheld")
+  ) {
+    sceneProfile = "lifestyle"
+    garmentContext = "standard_clothing"
+    photographicGenre = "social_snapshot"
   }
 
   const coverageInstruction: SceneContextClassification["coverageInstruction"] =

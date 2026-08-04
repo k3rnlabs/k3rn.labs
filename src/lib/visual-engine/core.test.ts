@@ -61,6 +61,30 @@ describe("MIRAVA private creation engine", () => {
     expect(prompt).toContain("same adult identity, destination family")
   })
 
+  it("selects authentic phone-camera realism for selfie scenes", () => {
+    const prompt = buildMiravaGenerationPrompt({
+      masterPrompt:
+        "A spontaneous handheld iPhone selfie outdoors with natural daylight and casual social-photo framing.",
+      negativePrompt:
+        "identity drift, plastic skin, studio relighting",
+      creativeOptions: {
+        seriesSize: 1,
+        energy: "Spontanée",
+      },
+    })
+
+    expect(prompt).toContain(
+      "ADAPTIVE PHOTOGRAPHIC REALISM",
+    )
+    expect(prompt).toContain(
+      "AUTHENTIC SMARTPHONE CAMERA BEHAVIOR",
+    )
+    expect(prompt).toContain(
+      "natural wide-angle perspective falloff",
+    )
+    expect(prompt).toContain("invented tattoos")
+  })
+
   it("requires the complete adult, image-rights and provider consent before creating a Studio record", async () => {
     await expect(createStudioCreation({
       userId: "user-1",
