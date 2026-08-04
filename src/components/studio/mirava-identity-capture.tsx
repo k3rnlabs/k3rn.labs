@@ -228,6 +228,37 @@ const SLOT_VISION_STEP: Record<PhotoSlotId, MiravaVisionStep> = {
   tattoos: "traits",
 }
 
+
+const SUMMARY_SLOT_LABELS: Record<
+  PhotoSlotId,
+  Record<Locale, string>
+> = {
+  front: {
+    fr: "Face",
+    es: "Frente",
+  },
+  angle: {
+    fr: "Profil gauche",
+    es: "Perfil izquierdo",
+  },
+  profile_right: {
+    fr: "Profil droit",
+    es: "Perfil derecho",
+  },
+  smile: {
+    fr: "Sourire",
+    es: "Sonrisa",
+  },
+  body: {
+    fr: "Silhouette",
+    es: "Silueta",
+  },
+  tattoos: {
+    fr: "Tatouage",
+    es: "Tatuaje",
+  },
+}
+
 function issueMessage(issue: MiravaVisionIssue, locale: Locale): string | undefined {
   const messages: Record<Exclude<MiravaVisionIssue, "ready" | "loading">, Record<Locale, string>> = {
     "no-face": {
@@ -737,7 +768,18 @@ export function MiravaIdentityCapture({
     setSubmitting(true)
     setSubmitError(null)
 
-    const finalFiles = PHOTO_SLOTS.map((slot) => slotStates[slot.id].file).filter(Boolean) as File[]
+    const finalFiles = PHOTO_SLOTS.flatMap((slot) => {
+      const state = slotStates[slot.id]
+
+      return (
+        state.file &&
+        state.status === "scanned" &&
+        (state.failedCriteria?.length ?? 0) === 0 &&
+        state.visionResult?.ready === true
+      )
+        ? [state.file]
+        : []
+    })
 
     const consent: MiravaIdentityConsent = {
       ageConfirmed: true,
@@ -750,7 +792,14 @@ export function MiravaIdentityCapture({
     try {
       await onComplete(finalFiles, consent)
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Erreur lors de la sauvegarde du profil.")
+      setSubmitError(
+        err instanceof Error
+          ? err.message
+          : locale === "fr"
+          ? "Erreur lors de la sauvegarde du profil."
+          : "Error al guardar el perfil.",
+      )
+    } finally {
       setSubmitting(false)
     }
   }
@@ -758,7 +807,7 @@ export function MiravaIdentityCapture({
   const currentActionState = useMemo<CaptureActionState>(() => {
     if (showSummary) {
       return {
-        label: locale === "fr" ? "Enregistrer mon profil et préparer ma séance" : "Guardar mi perfil y preparar mi sesión",
+        label: locale === "fr" ? "Préparer ma séance" : "Preparar mi sesión",
         icon: submitting ? "loading" : "submit",
         disabled: submitting || !legalAccepted || !requiredPhotosDone,
         onClick: handleSubmitFinalProfile,
@@ -1220,8 +1269,8 @@ export function MiravaIdentityCapture({
                     return (
                       <div key={slot.id} className="relative aspect-square overflow-hidden rounded-xl border border-white/15 bg-black/50">
                         <img src={st.preview} alt={slot.id} className="h-full w-full object-cover" />
-                        <span className="absolute bottom-1 left-1 rounded bg-black/80 px-1.5 py-0.5 text-[9px] font-bold text-white uppercase">
-                          {slot.id}
+                        <span className="absolute inset-x-1 bottom-1 truncate rounded bg-black/80 px-1.5 py-0.5 text-center text-[8px] font-bold text-white uppercase">
+                          {SUMMARY_SLOT_LABELS[slot.id][locale]}
                         </span>
                       </div>
                     )

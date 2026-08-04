@@ -387,29 +387,88 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                     initialConsentAccepted={identityConsentAccepted}
                     onClose={() => {}}
                     onActionStateChange={setCaptureActionState}
-                    onComplete={async (files) => {
-                      setPhotosUploaded(files.length)
-                      if (files.length > 0) {
-                        setPending(true)
-                        try {
-                          const res = await fetch("/api/visual-engine/identity-profile", {
+                    onComplete={async (files, consent) => {
+                      if (files.length === 0) {
+                        throw new Error(
+                          locale === "fr"
+                            ? "Aucune photo validée à enregistrer."
+                            : "No hay fotos validadas para guardar.",
+                        )
+                      }
+
+                      const form = new FormData()
+                      form.append("mode", "replace")
+
+                      files.forEach((file) => {
+                        form.append("file", file, file.name)
+                      })
+
+                      form.append(
+                        "ageConfirmed",
+                        String(consent.ageConfirmed),
+                      )
+                      form.append(
+                        "rightsConfirmed",
+                        String(consent.rightsConfirmed),
+                      )
+                      form.append(
+                        "retentionAccepted",
+                        String(consent.retentionAccepted),
+                      )
+                      form.append(
+                        "privacyAccepted",
+                        String(consent.privacyAccepted),
+                      )
+                      form.append(
+                        "openaiDisclosureAccepted",
+                        String(
+                          consent.openaiDisclosureAccepted,
+                        ),
+                      )
+
+                      setPending(true)
+
+                      try {
+                        const response = await fetch(
+                          "/api/visual-engine/identity-profile",
+                          {
                             method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              ageConfirmed: true,
-                              rightsConfirmed: true,
-                              retentionAccepted: true,
-                              privacyAccepted: true,
-                              openaiDisclosureAccepted: true,
-                            }),
-                          })
-                          if (res.ok) {
-                            const saved = await persist("capture_activation", { identityConsentAccepted: true })
-                            if (saved) onStartCapture(saved)
-                          }
-                        } finally {
-                          setPending(false)
+                            body: form,
+                          },
+                        )
+
+                        const data = await response
+                          .json()
+                          .catch(() => null) as
+                            | {
+                                error?: string
+                                message?: string
+                              }
+                            | null
+
+                        if (!response.ok) {
+                          throw new Error(
+                            data?.error ??
+                              data?.message ??
+                              labels.saveError,
+                          )
                         }
+
+                        const saved = await persist(
+                          "capture_activation",
+                          {
+                            identityConsentAccepted: true,
+                          },
+                        )
+
+                        if (!saved) {
+                          throw new Error(labels.saveError)
+                        }
+
+                        setPhotosUploaded(files.length)
+                        onStartCapture(saved)
+                      } finally {
+                        setPending(false)
                       }
                     }}
                   />
@@ -549,11 +608,11 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                   type="button"
                   onClick={captureActionState.onClick}
                   disabled={captureActionState.disabled || pending}
-                  className="group flex min-h-[52px] w-full flex-1 items-center justify-center gap-2 rounded-2xl bg-[#ede8df] px-5 font-jakarta text-sm font-semibold text-[#0d0e0e] shadow-[0_4px_20px_rgba(237,232,223,0.15)] transition-all duration-200 hover:bg-white active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-[#2c2d2e] disabled:text-white/30 disabled:shadow-none is-primary"
+                  className="group flex min-h-[52px] min-w-0 flex-1 items-center justify-center gap-2 rounded-2xl bg-[#ede8df] px-5 font-jakarta text-sm font-semibold text-[#0d0e0e] shadow-[0_4px_20px_rgba(237,232,223,0.15)] transition-all duration-200 hover:bg-white active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-[#2c2d2e] disabled:text-white/30 disabled:shadow-none is-primary"
                 >
                   {captureActionState.icon === "upload" && <Upload className="h-4 w-4" />}
                   {captureActionState.icon === "loading" && <Loader2 className="h-4 w-4 animate-spin" />}
-                  <span className="truncate">{captureActionState.label}</span>
+                  <span className="min-w-0 text-center leading-tight">{captureActionState.label}</span>
                   {captureActionState.icon === "next" && <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />}
                 </button>
               ) : (
