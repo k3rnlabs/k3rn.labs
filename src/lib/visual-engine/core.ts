@@ -9,6 +9,14 @@ import { MIRAVA_MAX_IDENTITY_PHOTOS, MIRAVA_MIN_IDENTITY_PHOTOS, MIRAVA_RECOMMEN
 import { type PhysicalTrait, formatPhysicalTraitsForPrompt, parsePhysicalTraits } from "@/lib/mirava/physical-traits"
 import { buildMiravaSeriesShotBrief, getMiravaSeriesSize } from "@/lib/mirava/series"
 import {
+  buildPoseVariationChildDraft,
+  buildRegenerationChildDraft,
+  isMatchingPostGenerationReplay,
+  postGenerationReservationKey,
+  type PostGenerationChildDraft,
+} from "@/lib/mirava/post-generation"
+import type { PoseVariationRequest, RegenerationRequest } from "@/lib/mirava/pose-variation"
+import {
   MiravaCreditError,
   debitMiravaCreditReservation,
   ensureMiravaActivation,
@@ -48,6 +56,12 @@ export type StudioCreationRecord = {
   studioProfileId?: string | null
   identityProfileId?: string | null
   presetId?: string | null
+  generationIntent?: "INITIAL" | "REGENERATE" | "POSE_VARIATION"
+  parentCreationId?: string | null
+  rootCreationId?: string | null
+  sourceResultIndex?: number | null
+  variationRequest?: unknown
+  clientIdempotencyKey?: string | null
   creativeOptions?: Record<string, unknown>
   status: StudioStatus
   creativeDirectionSummary: string | null
@@ -592,6 +606,176 @@ export async function downloadStudioResultAtIndexForUser(userId: string, creatio
   const result = (await getStudioAssets(creationId, "RESULT"))[index]
   if (!result) throw new StudioError("Résultat MIRAVA introuvable.", "NOT_FOUND")
   return { buffer: await downloadAsset(result), mimeType: result.mimeType }
+}
+
+async function validatePostGenerationSource(args: {
+  userId: string
+  sourceCreationId: string
+  sourceResultIndex: number
+}): Promise<StudioCreationRecord> {
+  const source = await getStudioCreationForUser(args.userId, args.sourceCreationId)
+  if (source.status !== "COMPLETED") {
+    throw new StudioError("La création source doit être terminée.", "INVALID_STATE")
+  }
+  if (!Number.isInteger(args.sourceResultIndex) || args.sourceResultIndex < 0 || args.sourceResultIndex > 5) {
+    throw new StudioError("Résultat MIRAVA introuvable.", "NOT_FOUND")
+  }
+  const sourceResult = (await getStudioAssets(source.id, "RESULT"))[args.sourceResultIndex]
+  if (!sourceResult) throw new StudioError("Résultat MIRAVA introuvable.", "NOT_FOUND")
+  if (!source.identityProfileId) {
+    throw new StudioError("Le Profil identité utilisé pour cette création n’est plus disponible.", "IDENTITY_REQUIRED")
+  }
+  const identityAssets = await getIdentityAssetsForCreation(source)
+  if (identityAssets.length < MIN_IDENTITY_ASSETS || identityAssets.length > MAX_IDENTITY_ASSETS) {
+    throw new StudioError("Ajoutez entre trois et six photos d’identité.", "IDENTITY_REQUIRED")
+  }
+  if (!source.masterPrompt?.trim()) {
+    throw new StudioError("La direction artistique enregistrée est invalide.", "INVALID_PROMPT")
+  }
+  const consent = await db.studioConsent.findUnique({
+    where: { creationId: source.id, userId: args.userId },
+  })
+  if (!consent) throw new StudioError("Le consentement complet est requis.", "CONSENT_REQUIRED")
+  return source
+}
+
+function assertMatchingPostGenerationReplay(
+  existing: StudioCreationRecord,
+  draft: PostGenerationChildDraft,
+): void {
+  if (!isMatchingPostGenerationReplay(existing, draft)) {
+    throw new StudioError(
+      "Cette clé d’idempotence est déjà utilisée pour une autre variation.",
+      "IDEMPOTENCY_CONFLICT",
+    )
+  }
+}
+
+async function createOrResumePostGenerationChild(args: {
+  source: StudioCreationRecord
+  draft: PostGenerationChildDraft
+}): Promise<{ creation: StudioCreationRecord; created: boolean }> {
+  const existing = await db.studioCreation.findUnique({ where: { id: args.draft.id } })
+  if (existing) {
+    const creation = asCreation(existing)
+    assertMatchingPostGenerationReplay(creation, args.draft)
+    return { creation, created: false }
+  }
+
+  const sourceConsent = await db.studioConsent.findUnique({
+    where: { creationId: args.source.id, userId: args.source.userId },
+  })
+  if (!sourceConsent) throw new StudioError("Le consentement complet est requis.", "CONSENT_REQUIRED")
+
+  try {
+    const [created] = await db.$transaction([
+      db.studioCreation.create({
+        data: {
+          ...args.draft,
+          failureCode: null,
+          failureMessage: null,
+        },
+      }),
+      db.studioConsent.create({
+        data: {
+          creationId: args.draft.id,
+          userId: args.source.userId,
+          version: sourceConsent.version,
+          ageConfirmed: sourceConsent.ageConfirmed,
+          rightsConfirmed: sourceConsent.rightsConfirmed,
+          privacyAccepted: sourceConsent.privacyAccepted,
+          openaiDisclosureAccepted: sourceConsent.openaiDisclosureAccepted,
+        },
+      }),
+    ])
+    return { creation: asCreation(created), created: true }
+  } catch (error) {
+    const replay = await db.studioCreation.findUnique({ where: { id: args.draft.id } })
+    if (replay) {
+      const creation = asCreation(replay)
+      assertMatchingPostGenerationReplay(creation, args.draft)
+      return { creation, created: false }
+    }
+    throw error
+  }
+}
+
+async function ensurePostGenerationCreditReservation(args: {
+  creation: StudioCreationRecord
+  created: boolean
+}): Promise<StudioCreationRecord> {
+  if (args.creation.creditReservationKey) return args.creation
+
+  await ensureStudioActivation(args.creation.userId)
+  const reservationKey = postGenerationReservationKey(args.creation.id)
+
+  try {
+    await reserveMiravaCredit(
+      args.creation.userId,
+      args.creation.id,
+      reservationKey,
+      1,
+    )
+    return asCreation(await db.studioCreation.update({
+      where: { id: args.creation.id, userId: args.creation.userId },
+      data: { creditReservationKey: reservationKey },
+    }))
+  } catch (error) {
+    if (args.created && error instanceof MiravaCreditError && error.code === "INSUFFICIENT_CREDITS") {
+      await db.studioCreation.delete({
+        where: { id: args.creation.id, userId: args.creation.userId },
+      }).catch(() => undefined)
+    }
+    if (error instanceof MiravaCreditError) {
+      throw new StudioError(error.message, error.code)
+    }
+    throw error
+  }
+}
+
+async function createPostGenerationOperation(args: {
+  userId: string
+  sourceCreationId: string
+  draft: PostGenerationChildDraft
+}): Promise<StudioCreationRecord> {
+  const source = await validatePostGenerationSource({
+    userId: args.userId,
+    sourceCreationId: args.sourceCreationId,
+    sourceResultIndex: args.draft.sourceResultIndex,
+  })
+  if (source.id !== args.draft.parentCreationId || source.userId !== args.draft.userId) {
+    throw new StudioError("Création Studio introuvable.", "NOT_FOUND")
+  }
+  const child = await createOrResumePostGenerationChild({ source, draft: args.draft })
+  return ensurePostGenerationCreditReservation(child)
+}
+
+export async function createStudioRegeneration(args: {
+  userId: string
+  sourceCreationId: string
+  request: RegenerationRequest
+}): Promise<StudioCreationRecord> {
+  const source = await getStudioCreationForUser(args.userId, args.sourceCreationId)
+  const draft = buildRegenerationChildDraft(source, args.request)
+  return createPostGenerationOperation({
+    userId: args.userId,
+    sourceCreationId: args.sourceCreationId,
+    draft,
+  })
+}
+
+export async function createStudioPoseVariation(args: {
+  userId: string
+  sourceCreationId: string
+  request: PoseVariationRequest
+}): Promise<StudioCreationRecord> {
+  const source = await getStudioCreationForUser(args.userId, args.sourceCreationId)
+  const draft = buildPoseVariationChildDraft(source, args.request)
+  return createPostGenerationOperation({
+    userId: args.userId,
+    sourceCreationId: args.sourceCreationId,
+    draft,
+  })
 }
 
 export async function queueStudioAnalysis(userId: string, creationId: string): Promise<void> {

@@ -145,3 +145,78 @@ export function resolveRootCreationId(source: {
 }): string {
   return source.rootCreationId ?? source.id
 }
+
+export function buildPoseVariationContinuityContract(args: {
+  sourceCreationId: string
+  identityProfileId: string
+  minorCropAdjustment: boolean
+}): PoseVariationContinuityContract {
+  return poseVariationContinuityContractSchema.parse({
+    sourceCreationId: args.sourceCreationId,
+    identityProfileId: args.identityProfileId,
+    visualDirectionId: null,
+    locked: {
+      identity: true,
+      naturalFacialAnatomy: true,
+      naturalBodyProportions: true,
+      wardrobe: {
+        garmentIdentity: true,
+        category: true,
+        cut: true,
+        construction: true,
+        colors: true,
+        materials: true,
+        patterns: true,
+        accessories: true,
+        coverage: true,
+      },
+      beauty: {
+        makeup: true,
+        hairColor: true,
+        hairLength: true,
+        hairTexture: true,
+        manicure: true,
+      },
+      scene: {
+        location: true,
+        architecture: true,
+        background: true,
+        surfaces: true,
+        props: true,
+        timeOfDay: true,
+        weather: true,
+      },
+      lighting: {
+        sourceType: true,
+        direction: true,
+        hardness: true,
+        colorTemperature: true,
+        exposureRelationship: true,
+        shadowArchitecture: true,
+        highlightBehavior: true,
+      },
+      photography: {
+        genre: true,
+        colorGrade: true,
+        contrast: true,
+        realism: true,
+        lensFeel: true,
+        aspectRatio: true,
+      },
+    },
+    variable: {
+      bodyPose: true,
+      torsoOrientation: true,
+      headAngle: true,
+      gazeDirection: true,
+      facialExpression: true,
+      handPlacement: true,
+      armPosition: true,
+      legPosition: true,
+      weightDistribution: true,
+      hairArrangement: true,
+      naturalGarmentFolds: true,
+      minorCropAdjustment: args.minorCropAdjustment,
+    },
+  })
+}
