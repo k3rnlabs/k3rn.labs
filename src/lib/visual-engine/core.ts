@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto"
+import { createHash, randomUUID } from "crypto"
 import sharp from "sharp"
 import { db } from "@/lib/db"
 import { supabaseAdmin } from "@/lib/supabase-admin"
@@ -11,12 +11,18 @@ import { buildMiravaSeriesShotBrief, getMiravaSeriesSize } from "@/lib/mirava/se
 import {
   buildPoseVariationChildDraft,
   buildRegenerationChildDraft,
+  buildPostGenerationPromptSegment,
   isMatchingPostGenerationReplay,
   postGenerationDebitKey,
   postGenerationReservationKey,
   type PostGenerationChildDraft,
 } from "@/lib/mirava/post-generation"
-import type { PoseVariationRequest, RegenerationRequest } from "@/lib/mirava/pose-variation"
+import {
+  poseVariationRequestSchema,
+  regenerationRequestSchema,
+  type PoseVariationRequest,
+  type RegenerationRequest,
+} from "@/lib/mirava/pose-variation"
 import {
   MiravaCreditError,
   debitMiravaCreditReservation,
@@ -238,6 +244,14 @@ function nowPlus24Hours(): string {
 
 function studioKey(prefix: string, creationId?: string): string {
   return `${prefix}:${creationId ?? randomUUID()}`
+}
+
+export function studioGenerationJobId(creationId: string): string {
+  const digest = createHash("sha256")
+    .update(`mirava-generate:${creationId}`)
+    .digest("hex")
+    .slice(0, 24)
+  return `job_${digest}`
 }
 
 function extensionForMime(mimeType: string): string {
@@ -630,7 +644,8 @@ async function validatePostGenerationSource(args: {
   if (identityAssets.length < MIN_IDENTITY_ASSETS || identityAssets.length > MAX_IDENTITY_ASSETS) {
     throw new StudioError("Ajoutez entre trois et six photos d’identité.", "IDENTITY_REQUIRED")
   }
-  if (!source.masterPrompt?.trim()) {
+  const masterPrompt = source.masterPrompt?.trim()
+  if (!masterPrompt || masterPrompt.length < 80 || masterPrompt.length > 12000) {
     throw new StudioError("La direction artistique enregistrée est invalide.", "INVALID_PROMPT")
   }
   const consent = await db.studioConsent.findUnique({
@@ -740,19 +755,16 @@ async function ensurePostGenerationCreditReservation(args: {
 }
 
 async function createPostGenerationOperation(args: {
-  userId: string
-  sourceCreationId: string
+  source: StudioCreationRecord
   draft: PostGenerationChildDraft
 }): Promise<StudioCreationRecord> {
-  const source = await validatePostGenerationSource({
-    userId: args.userId,
-    sourceCreationId: args.sourceCreationId,
-    sourceResultIndex: args.draft.sourceResultIndex,
-  })
-  if (source.id !== args.draft.parentCreationId || source.userId !== args.draft.userId) {
+  if (args.source.id !== args.draft.parentCreationId || args.source.userId !== args.draft.userId) {
     throw new StudioError("Création Studio introuvable.", "NOT_FOUND")
   }
-  const child = await createOrResumePostGenerationChild({ source, draft: args.draft })
+  const child = await createOrResumePostGenerationChild({
+    source: args.source,
+    draft: args.draft,
+  })
   return ensurePostGenerationCreditReservation(child)
 }
 
@@ -761,13 +773,17 @@ export async function createStudioRegeneration(args: {
   sourceCreationId: string
   request: RegenerationRequest
 }): Promise<StudioCreationRecord> {
-  const source = await getStudioCreationForUser(args.userId, args.sourceCreationId)
-  const draft = buildRegenerationChildDraft(source, args.request)
-  return createPostGenerationOperation({
+  const parsed = regenerationRequestSchema.safeParse(args.request)
+  if (!parsed.success) {
+    throw new StudioError("La demande de régénération est invalide.", "INVALID_REQUEST")
+  }
+  const source = await validatePostGenerationSource({
     userId: args.userId,
     sourceCreationId: args.sourceCreationId,
-    draft,
+    sourceResultIndex: parsed.data.sourceResultIndex,
   })
+  const draft = buildRegenerationChildDraft(source, parsed.data)
+  return createPostGenerationOperation({ source, draft })
 }
 
 export async function createStudioPoseVariation(args: {
@@ -775,13 +791,17 @@ export async function createStudioPoseVariation(args: {
   sourceCreationId: string
   request: PoseVariationRequest
 }): Promise<StudioCreationRecord> {
-  const source = await getStudioCreationForUser(args.userId, args.sourceCreationId)
-  const draft = buildPoseVariationChildDraft(source, args.request)
-  return createPostGenerationOperation({
+  const parsed = poseVariationRequestSchema.safeParse(args.request)
+  if (!parsed.success) {
+    throw new StudioError("La demande de changement de pose est invalide.", "INVALID_REQUEST")
+  }
+  const source = await validatePostGenerationSource({
     userId: args.userId,
     sourceCreationId: args.sourceCreationId,
-    draft,
+    sourceResultIndex: parsed.data.sourceResultIndex,
   })
+  const draft = buildPoseVariationChildDraft(source, parsed.data)
+  return createPostGenerationOperation({ source, draft })
 }
 
 export async function queueStudioAnalysis(userId: string, creationId: string): Promise<void> {
@@ -807,12 +827,42 @@ export async function queueStudioAnalysis(userId: string, creationId: string): P
   }
 }
 
+async function ensureStudioGenerationJob(creationId: string): Promise<void> {
+  const existing = await db.studioJob.findFirst({
+    where: {
+      creationId,
+      kind: "GENERATE",
+      status: { in: ["PENDING", "RUNNING"] },
+    },
+  })
+  if (existing) return
+
+  const id = studioGenerationJobId(creationId)
+  await db.studioJob.upsert({
+    where: { id },
+    create: {
+      id,
+      creationId,
+      kind: "GENERATE",
+      status: "PENDING",
+    },
+    update: {
+      status: "PENDING",
+      attempts: 0,
+      nextRunAt: new Date().toISOString(),
+      lockedAt: null,
+      failureCode: null,
+    },
+  })
+}
+
 export async function queueStudioGeneration(args: { userId: string; creationId: string }): Promise<void> {
   const creation = await getStudioCreationForUser(args.userId, args.creationId)
-  // The browser can resume after a lost response, and the worker can continue
-  // a reference once identity is complete. Treat an already durable generation
-  // as success so neither path can create a second job or second debit.
-  if (isMiravaGenerationAlreadyDurable(creation.status)) return
+  if (creation.status === "COMPLETED") return
+  if (creation.status === "GENERATION_QUEUED" || creation.status === "GENERATING") {
+    await ensureStudioGenerationJob(creation.id)
+    return
+  }
   if (creation.status !== "MASTER_PROMPT_READY") throw new StudioError("L’analyse artistique doit être terminée avant la génération.", "INVALID_STATE")
   const masterPrompt = creation.masterPrompt?.trim()
   if (!masterPrompt || masterPrompt.length < 80 || masterPrompt.length > 12000) throw new StudioError("La direction artistique enregistrée est invalide.", "INVALID_PROMPT")
@@ -832,8 +882,15 @@ export async function queueStudioGeneration(args: { userId: string; creationId: 
     }
   }
 
-  await db.studioCreation.update({ where: { id: args.creationId, userId: args.userId }, data: { status: "GENERATION_QUEUED", failureCode: null, failureMessage: null } })
-  await db.studioJob.create({ data: { id: randomUUID(), creationId: args.creationId, kind: "GENERATE", status: "PENDING" } })
+  await db.studioCreation.update({
+    where: { id: args.creationId, userId: args.userId },
+    data: {
+      status: "GENERATION_QUEUED",
+      failureCode: null,
+      failureMessage: null,
+    },
+  })
+  await ensureStudioGenerationJob(args.creationId)
 }
 
 async function getIdentityAssetsForCreation(creation: StudioCreationRecord): Promise<Array<StudioAssetRecord | StudioIdentityAssetRecord>> {
@@ -841,6 +898,25 @@ async function getIdentityAssetsForCreation(creation: StudioCreationRecord): Pro
     return (await db.studioIdentityAsset.findMany({ where: { identityProfileId: creation.identityProfileId, userId: creation.userId }, orderBy: { createdAt: "asc" } })) as StudioIdentityAssetRecord[]
   }
   return getStudioAssets(creation.id, "IDENTITY")
+}
+
+async function getPoseVariationContinuityAsset(
+  creation: StudioCreationRecord,
+): Promise<StudioAssetRecord | null> {
+  if (creation.generationIntent !== "POSE_VARIATION") return null
+  if (!creation.parentCreationId || creation.sourceResultIndex === null || creation.sourceResultIndex === undefined) {
+    throw new StudioError("La source de continuité MIRAVA est invalide.", "INVALID_PROMPT")
+  }
+
+  const source = await getStudioCreationForUser(creation.userId, creation.parentCreationId)
+  if (source.status !== "COMPLETED") {
+    throw new StudioError("La création source doit être terminée.", "INVALID_STATE")
+  }
+  const result = (await getStudioAssets(source.id, "RESULT"))[creation.sourceResultIndex]
+  if (!result || result.kind !== "RESULT" || result.userId !== creation.userId) {
+    throw new StudioError("Résultat MIRAVA introuvable.", "NOT_FOUND")
+  }
+  return result
 }
 
 export async function listStudioCreations(userId: string): Promise<Array<StudioCreationPublic & { resultUrl: string | null }>> {
@@ -959,13 +1035,17 @@ async function extractMasterPrompt(reference: StudioAssetRecord): Promise<{ crea
 }
 
 export function buildMiravaGenerationPrompt(
-  creation: Pick<StudioCreationRecord, "masterPrompt" | "negativePrompt" | "creativeOptions">,
+  creation: Pick<
+    StudioCreationRecord,
+    "masterPrompt" | "negativePrompt" | "creativeOptions" | "generationIntent" | "variationRequest"
+  >,
   frameIndex = 0,
   physicalTraits: PhysicalTrait[] = []
 ): string {
   const creativePreferences = formatMiravaCreativeOptions(creation.creativeOptions)
   const seriesBrief = buildMiravaSeriesShotBrief(creation.creativeOptions, frameIndex)
   const physicalTraitsSegment = formatPhysicalTraitsForPrompt(physicalTraits)
+  const postGenerationSegment = buildPostGenerationPromptSegment(creation)
 
   const fakeBlueprint: VisualDirectionBlueprint = {
     id: "legacy",
@@ -1011,6 +1091,7 @@ export function buildMiravaGenerationPrompt(
   return [
     compiled.positivePrompt,
     physicalTraitsSegment,
+    postGenerationSegment,
     seriesBrief,
     creativePreferences,
     compiled.negativeGuardrails ? `Avoid: ${compiled.negativeGuardrails}` : "",
@@ -1021,14 +1102,21 @@ async function generateStudioImage(
   creation: StudioCreationRecord,
   identityAssets: Array<StudioAssetRecord | StudioIdentityAssetRecord>,
   frameIndex = 0,
-  physicalTraits: PhysicalTrait[] = []
+  physicalTraits: PhysicalTrait[] = [],
+  continuityAsset: StudioAssetRecord | null = null,
 ): Promise<Buffer> {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) throw new StudioError("Le moteur Studio n’est pas configuré.", "PROVIDER_CONFIGURATION")
 
   // ASSERT STRICT IMAGE ROLE SEPARATION
-  assertNoArtisticReferenceInGenerationPayload({ assets: identityAssets })
+  const generationAssets = continuityAsset
+    ? [...identityAssets, continuityAsset]
+    : identityAssets
+  assertNoArtisticReferenceInGenerationPayload({ assets: generationAssets })
   assertAtLeastOneValidatedIdentityImage(identityAssets)
+  if (continuityAsset && continuityAsset.kind !== "RESULT") {
+    throw new StudioError("La source de continuité MIRAVA est invalide.", "INVALID_IMAGE")
+  }
 
   const prompt = buildMiravaGenerationPrompt(creation, frameIndex, physicalTraits)
 
@@ -1044,6 +1132,14 @@ async function generateStudioImage(
     for (const asset of identityAssets) {
       const buffer = await downloadAsset(asset)
       form.append("image[]", new Blob([new Uint8Array(buffer)], { type: asset.mimeType }), `identity-${asset.id}.${extensionForMime(asset.mimeType)}`)
+    }
+    if (continuityAsset) {
+      const buffer = await downloadAsset(continuityAsset)
+      form.append(
+        "image[]",
+        new Blob([new Uint8Array(buffer)], { type: continuityAsset.mimeType }),
+        `continuity-source.${extensionForMime(continuityAsset.mimeType)}`,
+      )
     }
 
     const response = await fetch("https://api.openai.com/v1/images/edits", {
@@ -1207,9 +1303,16 @@ async function processStudioJob(job: StudioJobRecord): Promise<void> {
         ? await db.studioIdentityProfile.findUnique({ where: { id: currentCreation.identityProfileId } })
         : await db.studioIdentityProfile.findUnique({ where: { userId: currentCreation.userId } })
       const physicalTraits = parsePhysicalTraits((identityProfile as unknown as Record<string, unknown> | null)?.physicalTraits)
+      const continuityAsset = await getPoseVariationContinuityAsset(currentCreation)
       for (let frameIndex = existingResults.length; frameIndex < requestedResultCount; frameIndex += 1) {
-        const output = await generateStudioImage(creation, identities, frameIndex, physicalTraits)
-        await storeResultAsset(creation, output)
+        const output = await generateStudioImage(
+          currentCreation,
+          identities,
+          frameIndex,
+          physicalTraits,
+          continuityAsset,
+        )
+        await storeResultAsset(currentCreation, output)
       }
       await db.studioCreation.update({ where: { id: creation.id }, data: { status: "COMPLETED", completedAt: new Date().toISOString() } })
       void notifyMiravaCreationReady(creation.userId, creation.id)

@@ -1,6 +1,6 @@
 import sharp from "sharp"
 import { describe, expect, it } from "vitest"
-import { buildMiravaGenerationPrompt, canAutoGenerateMiravaCreation, createStudioCreation, cropMiravaResult, isMiravaGenerationAlreadyDurable, isStudioImageMimeType, studioCreationPublic, studioErrorResponse, type StudioCreationRecord, validateStudioImage } from "./core"
+import { buildMiravaGenerationPrompt, canAutoGenerateMiravaCreation, createStudioCreation, cropMiravaResult, isMiravaGenerationAlreadyDurable, isStudioImageMimeType, studioCreationPublic, studioErrorResponse, studioGenerationJobId, type StudioCreationRecord, validateStudioImage } from "./core"
 
 describe("MIRAVA private creation engine", () => {
   it("allows only private Studio image formats", () => {
@@ -96,5 +96,29 @@ describe("MIRAVA private creation engine", () => {
     expect(isMiravaGenerationAlreadyDurable("COMPLETED")).toBe(true)
     expect(isMiravaGenerationAlreadyDurable("MASTER_PROMPT_READY")).toBe(false)
     expect(isMiravaGenerationAlreadyDurable("FAILED")).toBe(false)
+  })
+
+  it("derives one deterministic generation job id per creation", () => {
+    const first = studioGenerationJobId("creation-1")
+    const replay = studioGenerationJobId("creation-1")
+    const other = studioGenerationJobId("creation-2")
+
+    expect(first).toBe(replay)
+    expect(first).not.toBe(other)
+    expect(first).toMatch(/^job_[a-f0-9]{24}$/)
+  })
+
+  it("marks regeneration as a new interpretation rather than a pose continuity edit", () => {
+    const prompt = buildMiravaGenerationPrompt({
+      masterPrompt: "A premium destination campaign in Dubai with coherent warm architectural styling and a believable social-editorial finish.",
+      negativePrompt: "identity drift, repeated pose",
+      creativeOptions: { seriesSize: 1 },
+      generationIntent: "REGENERATE",
+      variationRequest: null,
+    })
+
+    expect(prompt).toContain("POST-GENERATION MODE — REGENERATE")
+    expect(prompt).toContain("new interpretation")
+    expect(prompt).toContain("No previous generated result is supplied")
   })
 })

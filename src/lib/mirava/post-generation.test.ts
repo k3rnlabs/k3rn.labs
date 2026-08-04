@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   buildPoseVariationChildDraft,
+  buildPostGenerationPromptSegment,
   buildRegenerationChildDraft,
   isMatchingPostGenerationReplay,
   postGenerationCreationId,
@@ -134,5 +135,42 @@ describe("MIRAVA post-generation planning", () => {
       .toBe("mirava-post-generation-reservation:pg_123")
     expect(postGenerationDebitKey("pg_123"))
       .toBe("mirava-post-generation-debit:pg_123")
+  })
+
+  it("compiles a strict same-session pose continuity instruction", () => {
+    const draft = buildPoseVariationChildDraft(source, {
+      sourceResultIndex: 0,
+      presetId: "three-quarter-confident",
+      userInstruction: "Shift the weight onto the back leg.",
+      poseDelta: {
+        gazeDirection: "Look directly into the lens.",
+        minorCropAdjustment: false,
+      },
+      idempotencyKey: "pose_variation_01HZZZZZZZZZZZZW",
+    })
+
+    const segment = buildPostGenerationPromptSegment(draft)
+
+    expect(segment).toContain("POST-GENERATION MODE — CHANGE POSE")
+    expect(segment).toContain("sole biometric and anatomical authority")
+    expect(segment).toContain("continuity reference only")
+    expect(segment).toContain("Shift the weight onto the back leg")
+    expect(segment).toContain("Look directly into the lens")
+    expect(segment).toContain("Preserve the source framing and crop")
+    expect(segment).toContain("exact same real session")
+  })
+
+  it("rejects an invalid persisted pose variation contract", () => {
+    expect(() => buildPostGenerationPromptSegment({
+      generationIntent: "POSE_VARIATION",
+      variationRequest: { version: "broken" },
+    })).toThrow("INVALID_POSE_VARIATION_REQUEST")
+  })
+
+  it("does not add a post-generation segment to an initial creation", () => {
+    expect(buildPostGenerationPromptSegment({
+      generationIntent: "INITIAL",
+      variationRequest: null,
+    })).toBe("")
   })
 })
