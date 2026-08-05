@@ -72,6 +72,12 @@ export type StudioCreationRecord = {
 
 export type StudioPublicStatus = Exclude<StudioStatus, "MASTER_PROMPT_READY"> | "IDENTITY_READY"
 
+export type StudioPublicFailureKind =
+  | "SAFETY_REFUSAL"
+  | "INVALID_IMAGE"
+  | "TECHNICAL_ERROR"
+  | null
+
 export type StudioCreationPublic = Pick<StudioCreationRecord,
   | "id"
   | "studioProfileId"
@@ -82,6 +88,7 @@ export type StudioCreationPublic = Pick<StudioCreationRecord,
   | "completedAt"
 > & {
   status: StudioPublicStatus
+  failureKind: StudioPublicFailureKind
   requestedResultCount: number
 }
 
@@ -161,12 +168,36 @@ function asAsset(value: unknown): StudioAssetRecord {
 
 function asProfile(value: unknown): StudioProfileRecord { return value as StudioProfileRecord }
 
+function studioPublicFailureKind(
+  code: string | null,
+): StudioPublicFailureKind {
+  if (!code) return null
+
+  /*
+   * OPENAI_400_moderation_blocked permet aussi de présenter correctement
+   * les créations ayant échoué avant le déploiement de la normalisation.
+   */
+  if (
+    code === "SAFETY_REFUSAL" ||
+    code === "OPENAI_400_moderation_blocked"
+  ) {
+    return "SAFETY_REFUSAL"
+  }
+
+  if (code === "INVALID_IMAGE") {
+    return "INVALID_IMAGE"
+  }
+
+  return "TECHNICAL_ERROR"
+}
+
 export function studioCreationPublic(creation: StudioCreationRecord): StudioCreationPublic {
   return {
     id: creation.id,
     studioProfileId: creation.studioProfileId,
     presetId: creation.presetId,
     status: creation.status === "MASTER_PROMPT_READY" ? "IDENTITY_READY" : creation.status,
+    failureKind: studioPublicFailureKind(creation.failureCode),
     failureMessage: creation.failureMessage,
     createdAt: creation.createdAt,
     updatedAt: creation.updatedAt,
@@ -1669,7 +1700,8 @@ async function generateStudioImage(
 
       const safetyRefusal =
         providerCode === "content_policy_violation" ||
-        providerCode === "safety_violations"
+        providerCode === "safety_violations" ||
+        providerCode === "moderation_blocked"
 
       if (safetyRefusal) {
         throw new StudioError(
@@ -1732,7 +1764,16 @@ function retryDelayMs(attempts: number): number {
 }
 
 async function finishJob(job: StudioJobRecord): Promise<void> {
-  await db.studioJob.update({ where: { id: job.id }, data: { status: "DONE", lockedAt: null } })
+  await db.studioJob.update({
+    where: {
+      id: job.id,
+    },
+    data: {
+      status: "DONE",
+      lockedAt: null,
+      failureCode: null,
+    },
+  })
 }
 
 async function failJob(job: StudioJobRecord, creation: StudioCreationRecord, error: unknown): Promise<void> {
@@ -1776,7 +1817,10 @@ async function failJob(job: StudioJobRecord, creation: StudioCreationRecord, err
 }
 
 function publicFailureMessage(code: string): string {
-  if (code === "SAFETY_REFUSAL") {
+  if (
+    code === "SAFETY_REFUSAL" ||
+    code === "OPENAI_400_moderation_blocked"
+  ) {
     return "Cette direction ne peut pas être générée dans sa forme actuelle. Votre crédit a été restauré."
   }
   if (code === "INVALID_IMAGE") return "Une image n’est pas exploitable. Remplacez-la avant de réessayer."

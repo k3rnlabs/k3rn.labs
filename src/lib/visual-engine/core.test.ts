@@ -39,6 +39,7 @@ describe("MIRAVA private creation engine", () => {
     expect(studioCreationPublic(creation)).toEqual({
       id: "creation-1",
       status: "IDENTITY_READY",
+      failureKind: null,
       failureMessage: null,
       createdAt: "2026-07-28T00:00:00.000Z",
       updatedAt: "2026-07-28T00:00:00.000Z",

@@ -63,5 +63,30 @@ describe(
         )
       },
     )
+
+    it(
+      "normalizes moderation_blocked as a non-retryable safety refusal",
+      () => {
+        expect(core).toContain(
+          'providerCode === "moderation_blocked"',
+        )
+        expect(core).toContain(
+          'code === "OPENAI_400_moderation_blocked"',
+        )
+      },
+    )
+
+    it(
+      "clears an obsolete failure code when a retried job succeeds",
+      () => {
+        expect(core).toContain(
+          "failureCode: null",
+        )
+        expect(core).toContain(
+          "async function finishJob",
+        )
+      },
+    )
+
   },
 )

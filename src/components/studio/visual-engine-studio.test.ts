@@ -438,4 +438,23 @@ describe("MIRAVA studio entry contracts", () => {
     )
   })
 
+
+  it("explains safety refusals and restored credits in both locales", () => {
+    expect(studio).toContain(
+      'current.creation.failureKind ===',
+    )
+    expect(studio).toContain(
+      '"SAFETY_REFUSAL"',
+    )
+    expect(studio).toContain(
+      "Aucun crédit ne reste débité",
+    )
+    expect(studio).toContain(
+      "No queda ningún crédito descontado",
+    )
+    expect(studio).toContain(
+      "{failureExplanation}",
+    )
+  })
+
 })

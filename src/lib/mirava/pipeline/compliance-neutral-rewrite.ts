@@ -17,7 +17,11 @@ export function complianceNeutralRewrite(compiledPrompt: CompiledGenerationPromp
     [/\bprovocative\b/gi, "striking"],
     [/\bseductive\b/gi, "engaging"],
     [/\bsensual\b/gi, "expressive"],
-    [/\blingerie\b/gi, "fashion apparel"],
+    /*
+     * Lingerie reste une catégorie commerciale légitime. La réduction du
+     * risque est assurée plus bas par la couverture opaque, la pose et le
+     * cadrage, plutôt que par la suppression de la catégorie elle-même.
+     */
     [/\bbikini\b/gi, "swimwear"],
     [/\bcleavage\b/gi, "neckline"],
     [/\bbARE\b/gi, "visible"],

@@ -75,6 +75,11 @@ type Creation = {
   presetId: string | null
   status: Status
   failureMessage: string | null
+  failureKind?:
+    | "SAFETY_REFUSAL"
+    | "INVALID_IMAGE"
+    | "TECHNICAL_ERROR"
+    | null
   createdAt: string
   completedAt?: string | null
   requestedResultCount: number
@@ -2385,6 +2390,22 @@ function CreationView({
   const busy = pendingStatuses.includes(status)
   const statusLabel = (t.status as Record<string, string>)[status] ?? t.identityReady
 
+  const failureExplanation =
+    current.creation.failureKind ===
+      "SAFETY_REFUSAL"
+      ? locale === "fr"
+        ? "Cette direction visuelle n’a pas pu être générée dans sa forme actuelle. La combinaison du stylisme, de la pose, du cadrage ou de la couverture du vêtement a dépassé les limites acceptées par le moteur d’image. Aucun crédit ne reste débité : votre crédit a été restauré. Lancez une nouvelle séance avec une pose, un cadrage ou une transparence légèrement moins intense."
+        : "Esta dirección visual no pudo generarse en su forma actual. La combinación del estilismo, la pose, el encuadre o la cobertura de la prenda superó los límites aceptados por el motor de imágenes. No queda ningún crédito descontado: tu crédito ha sido restaurado. Inicia una nueva sesión con una pose, un encuadre o una transparencia ligeramente menos intensos."
+      : current.creation.failureKind ===
+          "INVALID_IMAGE"
+        ? locale === "fr"
+          ? "Une des images fournies n’a pas pu être utilisée. Remplacez-la par une photo nette, correctement éclairée et sans obstruction, puis lancez une nouvelle séance."
+          : "Una de las imágenes proporcionadas no se pudo utilizar. Sustitúyela por una foto nítida, correctamente iluminada y sin obstrucciones, y luego inicia una nueva sesión."
+        : locale === "fr"
+          ? current.creation.failureMessage ??
+            "Cette tentative est terminée et aucune image n’a été ajoutée à votre portfolio. Lancez une nouvelle séance ou supprimez cette tentative."
+          : "Este intento ha terminado y no se ha añadido ninguna imagen a tu portfolio. Inicia una nueva sesión o elimina este intento."
+
   if (status === "FAILED" || status === "CANCELLED") {
     return (
       <section className="mx-auto max-w-3xl py-8 sm:py-14">
@@ -2393,16 +2414,19 @@ function CreationView({
         </p>
 
         <h1 className="mirava-section-title mt-3 text-4xl sm:text-5xl">
-          {locale === "fr"
-            ? "Aucune image n’a été créée"
-            : "No se ha creado ninguna imagen"}
+          {current.creation.failureKind ===
+          "SAFETY_REFUSAL"
+            ? locale === "fr"
+              ? "Direction à ajuster"
+              : "Dirección por ajustar"
+            : locale === "fr"
+              ? "Aucune image n’a été créée"
+              : "No se ha creado ninguna imagen"}
         </h1>
 
         <Surface className="mt-7">
           <p className="mirava-copy text-sm leading-6">
-            {locale === "fr"
-              ? "Cette tentative est terminée et aucune image n’a été ajoutée à votre portfolio. Lancez une nouvelle séance ou supprimez cette tentative."
-              : "Este intento ha terminado y no se ha añadido ninguna imagen a tu portfolio. Inicia una nueva sesión o elimina este intento."}
+            {failureExplanation}
           </p>
 
           <div className="mt-6 grid gap-3 sm:grid-cols-2">

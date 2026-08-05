@@ -283,4 +283,44 @@ A vertical photograph of a model in a blazer.
       expect(rewritten.positivePrompt).toContain("editorial")
     })
   })
+
+  it("preserves an adult lingerie campaign category during the conservative retry", () => {
+    const rewritten = complianceNeutralRewrite({
+      positivePrompt:
+        "A premium adult lingerie campaign with sheer lace, confident editorial posture and directional studio light.",
+      negativeGuardrails:
+        "identity drift",
+      sceneProfile:
+        "standard_fashion" as const,
+      metadata: {
+        extractorVersion:
+          "2.0.0",
+        classifierVersion:
+          "1.0.0",
+        compilerVersion:
+          "1.0.0",
+        compiledAt:
+          new Date().toISOString(),
+      },
+    })
+
+    expect(
+      rewritten.positivePrompt.toLowerCase(),
+    ).toContain(
+      "lingerie",
+    )
+
+    expect(
+      rewritten.positivePrompt.toLowerCase(),
+    ).not.toContain(
+      "fashion apparel",
+    )
+
+    expect(
+      rewritten.positivePrompt.toLowerCase(),
+    ).toContain(
+      "opaque",
+    )
+  })
+
 })
