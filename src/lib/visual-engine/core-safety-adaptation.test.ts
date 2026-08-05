@@ -16,16 +16,31 @@ describe(
   "MIRAVA generation safety adaptation contracts",
   () => {
     it(
-      "adapts coverage before the first image-provider call",
+      "keeps the first provider attempt free of preventive coverage rewriting",
       () => {
-        expect(core).toContain(
+        expect(core).not.toContain(
+          'import { adaptMiravaCoverageForGeneration } from "@/lib/mirava/pipeline/coverage-safety-adaptation"',
+        )
+
+        const primaryStart =
+          core.indexOf(
+            "const primaryPrompt",
+          )
+
+        const executeStart =
+          core.indexOf(
+            "const executeCall",
+            primaryStart,
+          )
+
+        const primarySection =
+          core.slice(
+            primaryStart,
+            executeStart,
+          )
+
+        expect(primarySection).not.toContain(
           "adaptMiravaCoverageForGeneration",
-        )
-        expect(core).toContain(
-          'rawPrompt,\n      "standard"',
-        )
-        expect(core).toContain(
-          "const prompt =\n    coverageAdaptation.prompt",
         )
       },
     )
@@ -33,11 +48,40 @@ describe(
     it(
       "keeps one conservative semantic retry after a safety refusal",
       () => {
-        expect(core).toContain(
-          "complianceNeutralRewrite(fakeCompiled)",
+        const fallbackStart =
+          core.indexOf(
+            "const rewritten =",
+          )
+
+        const fallbackEnd =
+          core.indexOf(
+            '"semantic-fallback"',
+            fallbackStart,
+          )
+
+        expect(fallbackStart).toBeGreaterThan(
+          -1,
         )
-        expect(core).toContain(
-          "return await executeCall(rewritten.positivePrompt)",
+        expect(fallbackEnd).toBeGreaterThan(
+          fallbackStart,
+        )
+
+        const fallbackSection =
+          core.slice(
+            fallbackStart,
+            fallbackEnd + 40,
+          )
+
+        expect(fallbackSection).toContain(
+          "complianceNeutralRewrite({",
+        )
+
+        expect(fallbackSection).toContain(
+          "primaryPrompt",
+        )
+
+        expect(fallbackSection).toContain(
+          'negativeGuardrails:\n          ""',
         )
       },
     )
@@ -58,6 +102,7 @@ describe(
         expect(compensationBlock).not.toContain(
           'studioError.code !== "SAFETY_REFUSAL"',
         )
+
         expect(core).toContain(
           "Votre crédit a été restauré.",
         )
@@ -68,10 +113,15 @@ describe(
       "normalizes moderation_blocked as a non-retryable safety refusal",
       () => {
         expect(core).toContain(
-          'providerCode === "moderation_blocked"',
+          '"moderation_blocked"',
         )
+
         expect(core).toContain(
-          'code === "OPENAI_400_moderation_blocked"',
+          '"SAFETY_REFUSAL"',
+        )
+
+        expect(core).toContain(
+          'const retryable =',
         )
       },
     )
@@ -79,14 +129,31 @@ describe(
     it(
       "clears an obsolete failure code when a retried job succeeds",
       () => {
-        expect(core).toContain(
-          "failureCode: null",
+        const finishStart =
+          core.indexOf(
+            "async function finishJob",
+          )
+
+        const finishEnd =
+          core.indexOf(
+            "async function failJob",
+            finishStart,
+          )
+
+        const finishSection =
+          core.slice(
+            finishStart,
+            finishEnd,
+          )
+
+        expect(finishSection).toContain(
+          'status: "DONE"',
         )
-        expect(core).toContain(
-          "async function finishJob",
+
+        expect(finishSection).toContain(
+          "failureCode: null",
         )
       },
     )
-
   },
 )

@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto"
+import { createHash, randomUUID } from "crypto"
 import sharp from "sharp"
 import { db } from "@/lib/db"
 import { supabaseAdmin } from "@/lib/supabase-admin"
@@ -31,7 +31,6 @@ import {
 } from "@/lib/mirava/pipeline/classify-scene-context"
 import { compileGenerationPrompt } from "@/lib/mirava/pipeline/compile-generation-prompt"
 import { complianceNeutralRewrite } from "@/lib/mirava/pipeline/compliance-neutral-rewrite"
-import { adaptMiravaCoverageForGeneration } from "@/lib/mirava/pipeline/coverage-safety-adaptation"
 import { assertNoArtisticReferenceInGenerationPayload, assertAtLeastOneValidatedIdentityImage } from "@/lib/mirava/security/assert-image-role-separation"
 import type { VisualDirectionBlueprint } from "@/lib/mirava/schemas/visual-direction-blueprint.schema"
 
@@ -1553,6 +1552,30 @@ async function extractMasterPrompt(reference: StudioAssetRecord): Promise<{ crea
   }
 }
 
+const MIRAVA_PRIMARY_IDENTITY_ASSET_COUNT = 3
+
+export function selectMiravaPrimaryIdentityAssets<T>(
+  assets: T[],
+): T[] {
+  return assets.slice(
+    0,
+    MIRAVA_PRIMARY_IDENTITY_ASSET_COUNT,
+  )
+}
+
+export function buildMiravaPrimaryGenerationPrompt(
+  creation: Pick<
+    StudioCreationRecord,
+    "masterPrompt"
+  >,
+): string {
+  /*
+   * Le master prompt extrait contient déjà le contrat d’identité.
+   * Le conserver intact reproduit le chemin manuel validé dans ChatGPT.
+   */
+  return creation.masterPrompt?.trim() ?? ""
+}
+
 export function buildMiravaGenerationPrompt(
   creation: Pick<StudioCreationRecord, "masterPrompt" | "negativePrompt" | "creativeOptions">,
   frameIndex = 0,
@@ -1651,137 +1674,298 @@ export function buildMiravaGenerationPrompt(
 
 async function generateStudioImage(
   creation: StudioCreationRecord,
-  identityAssets: Array<StudioAssetRecord | StudioIdentityAssetRecord>,
+  identityAssets: Array<
+    StudioAssetRecord |
+    StudioIdentityAssetRecord
+  >,
   frameIndex = 0,
-  physicalTraits: PhysicalTrait[] = []
+  physicalTraits: PhysicalTrait[] = [],
 ): Promise<Buffer> {
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) throw new StudioError("Le moteur Studio n’est pas configuré.", "PROVIDER_CONFIGURATION")
+  const apiKey =
+    process.env.OPENAI_API_KEY
 
-  // ASSERT STRICT IMAGE ROLE SEPARATION
-  assertNoArtisticReferenceInGenerationPayload({ assets: identityAssets })
-  assertAtLeastOneValidatedIdentityImage(identityAssets)
-
-  const rawPrompt =
-    buildMiravaGenerationPrompt(
-      creation,
-      frameIndex,
-      physicalTraits,
-    )
-
-  const coverageAdaptation =
-    adaptMiravaCoverageForGeneration(
-      rawPrompt,
-      "standard",
-    )
-
-  const prompt =
-    coverageAdaptation.prompt
-
-  if (coverageAdaptation.adapted) {
-    console.info(
-      "[mirava-coverage-safety] adapted",
-      JSON.stringify({
-        creationId: creation.id,
-        riskScore:
-          coverageAdaptation.riskScore,
-        reasons:
-          coverageAdaptation.reasons,
-      }),
+  if (!apiKey) {
+    throw new StudioError(
+      "Le moteur Studio n’est pas configuré.",
+      "PROVIDER_CONFIGURATION",
     )
   }
 
-  const executeCall = async (promptText: string): Promise<Buffer> => {
-    const form = new FormData()
-    form.append("model", MIRAVA_IMAGE_MODEL)
-    form.append("prompt", promptText)
-    form.append("size", "1024x1536")
-    form.append("quality", "high")
-    form.append("output_format", "png")
+  assertNoArtisticReferenceInGenerationPayload({
+    assets: identityAssets,
+  })
+  assertAtLeastOneValidatedIdentityImage(
+    identityAssets,
+  )
 
-    for (const asset of identityAssets) {
-      const buffer = await downloadAsset(asset)
-      form.append("image[]", new Blob([new Uint8Array(buffer)], { type: asset.mimeType }), `identity-${asset.id}.${extensionForMime(asset.mimeType)}`)
+  /*
+   * La première image reproduit le chemin qui fonctionne lors du test
+   * manuel : master prompt presque intact + trois références d’identité.
+   *
+   * Les images suivantes d’une série conservent le compilateur de
+   * variations, car elles doivent connaître les axes autorisés.
+   */
+  const isReferenceAnchor =
+    frameIndex === 0
+
+  const primaryPrompt =
+    isReferenceAnchor
+      ? buildMiravaPrimaryGenerationPrompt(
+          creation,
+        )
+      : buildMiravaGenerationPrompt(
+          creation,
+          frameIndex,
+          physicalTraits,
+        )
+
+  const primaryIdentityAssets =
+    isReferenceAnchor
+      ? selectMiravaPrimaryIdentityAssets(
+          identityAssets,
+        )
+      : identityAssets
+
+  const executeCall = async (
+    promptText: string,
+    assets: Array<
+      StudioAssetRecord |
+      StudioIdentityAssetRecord
+    >,
+    variant:
+      | "parity-primary"
+      | "series-primary"
+      | "semantic-fallback",
+  ): Promise<Buffer> => {
+    const promptHash =
+      createHash("sha256")
+        .update(promptText)
+        .digest("hex")
+        .slice(0, 16)
+
+    console.info(
+      "[mirava-image-attempt]",
+      JSON.stringify({
+        creationId: creation.id,
+        frameIndex,
+        variant,
+        promptHash,
+        promptLength:
+          promptText.length,
+        identityAssetCount:
+          assets.length,
+        model:
+          MIRAVA_IMAGE_MODEL,
+      }),
+    )
+
+    const form = new FormData()
+
+    form.append(
+      "model",
+      MIRAVA_IMAGE_MODEL,
+    )
+    form.append(
+      "prompt",
+      promptText,
+    )
+    form.append(
+      "size",
+      "1024x1536",
+    )
+    form.append(
+      "quality",
+      "high",
+    )
+    form.append(
+      "output_format",
+      "png",
+    )
+
+    for (const asset of assets) {
+      const buffer =
+        await downloadAsset(asset)
+
+      form.append(
+        "image[]",
+        new Blob(
+          [
+            new Uint8Array(
+              buffer,
+            ),
+          ],
+          {
+            type:
+              asset.mimeType,
+          },
+        ),
+        `identity-${asset.id}.${extensionForMime(asset.mimeType)}`,
+      )
     }
 
-    const response = await fetch("https://api.openai.com/v1/images/edits", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}` },
-      body: form,
-      signal: AbortSignal.timeout(120_000),
-    })
+    const response = await fetch(
+      "https://api.openai.com/v1/images/edits",
+      {
+        method: "POST",
+        headers: {
+          Authorization:
+            `Bearer ${apiKey}`,
+        },
+        body: form,
+        signal:
+          AbortSignal.timeout(
+            120_000,
+          ),
+      },
+    )
 
     if (!response.ok) {
-      const retryable = response.status === 429 || response.status >= 500
-      const providerBody = await response.text()
+      const retryable =
+        response.status === 429 ||
+        response.status >= 500
+
+      const providerBody =
+        await response.text()
 
       console.error(
         "[Studio image provider error]",
         JSON.stringify({
-          status: response.status,
-          model: MIRAVA_IMAGE_MODEL,
-          body: providerBody.slice(0, 4000),
-        })
+          status:
+            response.status,
+          model:
+            MIRAVA_IMAGE_MODEL,
+          variant,
+          promptHash,
+          promptLength:
+            promptText.length,
+          identityAssetCount:
+            assets.length,
+          body:
+            providerBody.slice(
+              0,
+              4000,
+            ),
+        }),
       )
 
       let providerCode = ""
+
       try {
-        const parsed = JSON.parse(providerBody) as {
-          error?: {
-            code?: string
-            type?: string
+        const parsed =
+          JSON.parse(
+            providerBody,
+          ) as {
+            error?: {
+              code?: string
+              type?: string
+            }
           }
-        }
-        providerCode = parsed.error?.code ?? parsed.error?.type ?? ""
+
+        providerCode =
+          parsed.error?.code ??
+          parsed.error?.type ??
+          ""
       } catch {
         providerCode = ""
       }
 
       const safetyRefusal =
-        providerCode === "content_policy_violation" ||
-        providerCode === "safety_violations" ||
-        providerCode === "moderation_blocked"
+        providerCode ===
+          "content_policy_violation" ||
+        providerCode ===
+          "safety_violations" ||
+        providerCode ===
+          "moderation_blocked"
 
       if (safetyRefusal) {
         throw new StudioError(
           "La génération n’a pas été autorisée par les règles de sécurité.",
-          "SAFETY_REFUSAL"
+          "SAFETY_REFUSAL",
         )
       }
 
       throw new StudioError(
         "La génération est temporairement indisponible.",
         `OPENAI_${response.status}${providerCode ? `_${providerCode}` : ""}`,
-        retryable
+        retryable,
       )
     }
 
-    const data = await response.json() as { data?: Array<{ b64_json?: string }> }
-    const encoded = data.data?.[0]?.b64_json
-    if (!encoded) throw new StudioError("La génération est incomplète.", "INVALID_PROVIDER_RESPONSE", true)
-    return Buffer.from(encoded, "base64")
+    const data =
+      await response.json() as {
+        data?: Array<{
+          b64_json?: string
+        }>
+      }
+
+    const encoded =
+      data.data?.[0]?.b64_json
+
+    if (!encoded) {
+      throw new StudioError(
+        "La génération est incomplète.",
+        "INVALID_PROVIDER_RESPONSE",
+        true,
+      )
+    }
+
+    return Buffer.from(
+      encoded,
+      "base64",
+    )
   }
 
   try {
-    return await executeCall(prompt)
+    return await executeCall(
+      primaryPrompt,
+      primaryIdentityAssets,
+      isReferenceAnchor
+        ? "parity-primary"
+        : "series-primary",
+    )
   } catch (error) {
-    if (error instanceof StudioError && error.code === "SAFETY_REFUSAL") {
-      // Execute compliance_neutral_rewrite single fallback attempt
-      const fakeCompiled = {
-        positivePrompt: prompt,
-        negativeGuardrails: creation.negativePrompt ?? "",
-        sceneProfile: "standard_fashion" as const,
-        metadata: {
-          extractorVersion: "2.0.0",
-          classifierVersion: "1.0.0",
-          compilerVersion: "1.0.0",
-          compiledAt: new Date().toISOString(),
-        },
-      }
-      const rewritten = complianceNeutralRewrite(fakeCompiled)
-      return await executeCall(rewritten.positivePrompt)
+    if (
+      !(
+        error instanceof
+          StudioError
+      ) ||
+      error.code !==
+        "SAFETY_REFUSAL"
+    ) {
+      throw error
     }
-    throw error
+
+    /*
+     * Un seul repli sémantique. La pose, l’architecture, le cadrage et
+     * la tenue restent issus du même master prompt. Seule la formulation
+     * potentiellement ambiguë est rendue plus neutre.
+     */
+    const rewritten =
+      complianceNeutralRewrite({
+        positivePrompt:
+          primaryPrompt,
+        negativeGuardrails:
+          "",
+        sceneProfile:
+          "standard_fashion",
+        metadata: {
+          extractorVersion:
+            "2.0.0",
+          classifierVersion:
+            "1.0.0",
+          compilerVersion:
+            "1.0.0",
+          compiledAt:
+            new Date()
+              .toISOString(),
+        },
+      })
+
+    return await executeCall(
+      rewritten.positivePrompt,
+      primaryIdentityAssets,
+      "semantic-fallback",
+    )
   }
 }
 
