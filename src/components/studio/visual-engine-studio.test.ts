@@ -386,4 +386,56 @@ describe("MIRAVA studio entry contracts", () => {
     )
   })
 
+  it("renews withdrawn identity consent before uploading photos", () => {
+    const consentMatches =
+      studio.match(
+        /initialConsentAccepted=\{privacyStatus\?\.requiredAccepted === true\}/g,
+      )
+
+    expect(consentMatches).toHaveLength(2)
+
+    expect(studio).not.toContain(
+      "initialConsentAccepted={true}",
+    )
+
+    expect(studio).not.toContain(
+      "initialConsentAccepted={Boolean(miravaOnboarding?.identityConsentAt)}",
+    )
+
+    const uploadFlow = studio.slice(
+      studio.indexOf(
+        "const uploadIdentityFiles",
+      ),
+      studio.indexOf(
+        "const replaceIdentityAsset",
+      ),
+    )
+
+    const privacyRequestIndex =
+      uploadFlow.indexOf(
+        '"/api/visual-engine/privacy"',
+      )
+
+    const uploadIndex =
+      uploadFlow.indexOf(
+        "await uploadMiravaIdentityProfile",
+      )
+
+    expect(privacyRequestIndex).toBeGreaterThan(-1)
+    expect(uploadIndex).toBeGreaterThan(-1)
+    expect(privacyRequestIndex).toBeLessThan(uploadIndex)
+
+    expect(uploadFlow).toContain(
+      'action:',
+    )
+
+    expect(uploadFlow).toContain(
+      '"accept_required"',
+    )
+
+    expect(uploadFlow).toContain(
+      "Profil identité enregistré.",
+    )
+  })
+
 })

@@ -114,7 +114,40 @@ export async function POST(req: NextRequest) {
     })
     await recordMiravaAudit(session.userId, mode === "append" ? "IDENTITY_PROFILE_EXTENDED" : "IDENTITY_PROFILE_UPDATED", normalizedCreationId ?? "identity-onboarding")
     return apiSuccess({ profile })
-  } catch (error) { const mapped = studioErrorResponse(error); return apiError(mapped.message, mapped.status) }
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message ===
+        "MIRAVA_IDENTITY_CONSENT_MISSING"
+    ) {
+      return apiError(
+        "Le consentement au traitement du Profil identité doit être renouvelé avant l’enregistrement.",
+        409,
+      )
+    }
+
+    console.error(
+      "[mirava-identity-profile] finalize_failed",
+      {
+        name:
+          error instanceof Error
+            ? error.name
+            : "UnknownError",
+        code:
+          error instanceof Error
+            ? error.message
+            : "UNKNOWN",
+      },
+    )
+
+    const mapped =
+      studioErrorResponse(error)
+
+    return apiError(
+      mapped.message,
+      mapped.status,
+    )
+  }
 }
 
 export async function DELETE() {

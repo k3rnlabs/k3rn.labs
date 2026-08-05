@@ -166,6 +166,31 @@ describe("MIRAVA identity profile route", () => {
     )
   })
 
+  it("returns a conflict when identity consent was withdrawn", async () => {
+    mocks.requireMiravaIdentityConsent.mockRejectedValueOnce(
+      new Error(
+        "MIRAVA_IDENTITY_CONSENT_MISSING",
+      ),
+    )
+
+    const response = await POST(
+      stagedIdentityUpload(),
+    )
+
+    expect(response.status).toBe(409)
+
+    await expect(
+      response.json(),
+    ).resolves.toEqual({
+      error:
+        "Le consentement au traitement du Profil identité doit être renouvelé avant l’enregistrement.",
+    })
+
+    expect(
+      mocks.replaceIdentityProfileFromStagedUploads,
+    ).not.toHaveBeenCalled()
+  })
+
   it("permits a single additional view only through append mode", async () => {
     const response = await POST(identityUpload({ mode: "append", count: 1 }))
 

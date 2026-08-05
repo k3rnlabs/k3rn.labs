@@ -1492,6 +1492,56 @@ export function VisualEngineStudio() {
           openaiDisclosureAccepted: true,
         }
 
+      if (
+        privacyStatus?.requiredAccepted !==
+        true
+      ) {
+        if (!consent) {
+          throw new Error(
+            locale === "fr"
+              ? "Vous devez renouveler votre consentement avant d’enregistrer votre Profil identité."
+              : "Debes renovar tu consentimiento antes de guardar tu Perfil de identidad.",
+          )
+        }
+
+        const privacyData =
+          await api<{
+            privacy: PrivacyStatus
+          }>(
+            "/api/visual-engine/privacy",
+            {
+              method: "PATCH",
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+              body: JSON.stringify({
+                action:
+                  "accept_required",
+                termsAccepted: true,
+                identityProcessingAccepted:
+                  true,
+                locale,
+              }),
+            },
+          )
+
+        if (
+          !privacyData.privacy
+            .requiredAccepted
+        ) {
+          throw new Error(
+            locale === "fr"
+              ? "Votre consentement n’a pas pu être enregistré."
+              : "No se pudo registrar tu consentimiento.",
+          )
+        }
+
+        setPrivacyStatus(
+          privacyData.privacy,
+        )
+      }
+
       await uploadMiravaIdentityProfile({
         files,
         consent: effectiveConsent,
@@ -1503,8 +1553,13 @@ export function VisualEngineStudio() {
         if (!consent) throw new Error(locale === "fr" ? "Le consentement est requis avant de préparer la séance." : "Se requiere el consentimiento antes de preparar la sesión.")
         refreshCreationId = await prepareOnboardingSession(miravaOnboarding, consent)
       }
-      closeCapture()
       await refresh(refreshCreationId)
+      closeCapture()
+      showNotice(
+        locale === "fr"
+          ? "Profil identité enregistré."
+          : "Perfil de identidad guardado.",
+      )
     } catch (reason) {
       const msg = reason instanceof Error && reason.message !== "MIRAVA_REQUEST_FAILED" ? reason.message : (locale === "fr" ? "MIRAVA n’a pas pu enregistrer le profil." : "MIRAVA no ha podido guardar el perfil.")
       setError(msg)
@@ -1680,7 +1735,7 @@ export function VisualEngineStudio() {
         <div ref={studioBackgroundRef}>
           <MiravaStudioOnboarding key={miravaOnboarding?.updatedAt ?? "new"} locale={locale} firstName={miravaFirstName} initialUniverseId={entryUniverseId} initialState={miravaOnboarding} onStartCapture={(state) => void startOrResumeOnboarding(state)} onCompleted={completeMiravaOnboarding} />
         </div>
-        {captureContext && <MiravaIdentityCapture inline={false} locale={locale} context={captureContext} existingCount={0} initialConsentAccepted={Boolean(miravaOnboarding?.identityConsentAt)} onClose={closeCapture} onComplete={(files, consent) => uploadIdentityFiles(files, consent)} />}
+        {captureContext && <MiravaIdentityCapture inline={false} locale={locale} context={captureContext} existingCount={0} initialConsentAccepted={privacyStatus?.requiredAccepted === true} onClose={closeCapture} onComplete={(files, consent) => uploadIdentityFiles(files, consent)} />}
       </main>
     )
   }
@@ -1740,7 +1795,7 @@ export function VisualEngineStudio() {
       {consentTarget !== undefined && <ConsentGate locale={locale} t={t} consents={consents} setConsents={setConsents} pending={pending} onClose={() => { setConsentTarget(undefined); setConsentReference(null) }} onConfirm={() => void acceptRequiredConsentsAndCreate()} />}
       {directorOpen && <MiravaCreativeDirector locale={locale} universeId={selectedUniverseId} options={options} onApply={applyAlmaDirection} onOpenReference={openReferenceFromAlma} onClose={closeDirector} />}
       </div>
-      {captureContext && <MiravaIdentityCapture inline={false} locale={locale} context={captureContext} existingCount={identityProfile?.assetCount ?? 0} initialConsentAccepted={true} onClose={closeCapture} onComplete={(files, consent) => uploadIdentityFiles(files, consent, captureContext === "append" ? "append" : "replace")} />}
+      {captureContext && <MiravaIdentityCapture inline={false} locale={locale} context={captureContext} existingCount={identityProfile?.assetCount ?? 0} initialConsentAccepted={privacyStatus?.requiredAccepted === true} onClose={closeCapture} onComplete={(files, consent) => uploadIdentityFiles(files, consent, captureContext === "append" ? "append" : "replace")} />}
     </main>
   )
 }
