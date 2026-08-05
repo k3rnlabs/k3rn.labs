@@ -514,26 +514,6 @@ function MiravaDarkroomLoading({
           }}
         />
 
-        <div className="absolute left-1/2 top-1/2 h-[66%] w-[78%] -translate-x-1/2 -translate-y-1/2">
-          <motion.div
-            className="h-full w-full rounded-full border border-white/[0.055]"
-            animate={
-              reduceMotion
-                ? undefined
-                : {
-                    rotate: 360,
-                  }
-            }
-            transition={{
-              duration: 28,
-              repeat: Infinity,
-              ease: "linear",
-            }}
-          />
-        </div>
-
-        <div className="absolute left-1/2 top-1/2 h-[51%] w-[61%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/[0.04]" />
-
         <motion.div
           className="absolute -inset-x-[30%] top-0 h-[16%] blur-xl"
           style={{
@@ -1656,6 +1636,13 @@ export function VisualEngineStudio() {
       selectView(id)
     }
   }
+
+  const startFreshCreation = () => {
+    setCurrent(null)
+    setCreateStep(0)
+    selectView("create")
+  }
+
   const isCreateFlow = view === "create" && !current && !directorOpen
   const sessionReadyForFlow = Boolean(options.seriesSize) && options.seriesSize! <= (account?.credits ?? 0) && (options.referenceMode !== "variations" || Boolean(options.variationAxes?.length))
   const nextStepDisabled = (createStep === 0 && entryIntent === "reference" && !options.referenceMode)
@@ -1690,10 +1677,10 @@ export function VisualEngineStudio() {
       <main lang={locale} className="mirava-theme mirava-app-shell bg-mirava-canvas text-mirava-ink">
         <MiravaGrain />
         <div className="mirava-ambient pointer-events-none fixed inset-0" />
-        <div ref={studioBackgroundRef} aria-hidden={modalOpen ? true : undefined}>
+        <div ref={studioBackgroundRef}>
           <MiravaStudioOnboarding key={miravaOnboarding?.updatedAt ?? "new"} locale={locale} firstName={miravaFirstName} initialUniverseId={entryUniverseId} initialState={miravaOnboarding} onStartCapture={(state) => void startOrResumeOnboarding(state)} onCompleted={completeMiravaOnboarding} />
         </div>
-        {captureContext && <MiravaIdentityCapture locale={locale} context={captureContext} existingCount={0} initialConsentAccepted={Boolean(miravaOnboarding?.identityConsentAt)} onClose={closeCapture} onComplete={(files, consent) => uploadIdentityFiles(files, consent)} />}
+        {captureContext && <MiravaIdentityCapture inline={false} locale={locale} context={captureContext} existingCount={0} initialConsentAccepted={Boolean(miravaOnboarding?.identityConsentAt)} onClose={closeCapture} onComplete={(files, consent) => uploadIdentityFiles(files, consent)} />}
       </main>
     )
   }
@@ -1702,7 +1689,7 @@ export function VisualEngineStudio() {
     <main lang={locale} className="mirava-theme mirava-app-shell mirava-native-shell bg-mirava-canvas text-mirava-ink">
       <MiravaGrain />
       <div className="mirava-ambient pointer-events-none fixed inset-0" />
-      <div ref={studioBackgroundRef} aria-hidden={modalOpen ? true : undefined} className="mirava-native-frame">
+      <div ref={studioBackgroundRef} className="mirava-native-frame">
       <Header
         brand={<Link href="/visual-engine/studio" aria-label={locale === "fr" ? "Accueil MIRAVA Studio" : "Inicio MIRAVA Studio"} className="mirava-button mirava-button-quiet min-h-12 px-1"><MiravaWordmark /></Link>}
         desktopNavigation={
@@ -1735,10 +1722,10 @@ export function VisualEngineStudio() {
         {displayedNotice && <div role="status" aria-live="polite" aria-atomic="true" className="mirava-notice mb-6 p-4 text-sm shadow-lg">{displayedNotice}</div>}
         {view === "create" && (!current
           ? <StartView locale={locale} t={t} firstName={miravaFirstName} step={createStep} selectedUniverseId={selectedUniverseId} setSelectedUniverseId={setSelectedUniverseId} options={options} setOptions={setOptions} identityProfile={identityProfile} availableCredits={account?.credits ?? 0} pending={pending} entryIntent={entryIntent} onCreate={requestCreate} onDirector={() => openDirector()} onOpenAccount={() => selectView("account")} onOpenCapture={() => openCapture(identityProfile ? (identityProfile.assetCount < MIRAVA_MAX_IDENTITY_PHOTOS ? "append" : "replace") : "onboarding")} />
-          : <CreationView locale={locale} t={t} current={current} identityProfile={identityProfile} pending={pending} onUploadReference={uploadReference} onAnalyze={analyze} onOpenCapture={() => openCapture(identityProfile ? (identityProfile.assetCount < MIRAVA_MAX_IDENTITY_PHOTOS ? "append" : "replace") : "onboarding")} onGenerate={generate} onDelete={removeCreation} onContinue={(studioId) => void reuse(studioId)} onUnlock={(creationId) => void checkoutDiscovery(creationId)} />)}
+          : <CreationView locale={locale} t={t} current={current} identityProfile={identityProfile} pending={pending} onUploadReference={uploadReference} onAnalyze={analyze} onOpenCapture={() => openCapture(identityProfile ? (identityProfile.assetCount < MIRAVA_MAX_IDENTITY_PHOTOS ? "append" : "replace") : "onboarding")} onGenerate={generate} onDelete={removeCreation} onStartCreate={startFreshCreation} onContinue={(studioId) => void reuse(studioId)} onUnlock={(creationId) => void checkoutDiscovery(creationId)} />)}
         {view === "universes" && <UniversesView locale={locale} t={t} selectedUniverseId={selectedUniverseId} setSelectedUniverseId={setSelectedUniverseId} onChoose={(brief) => { setOptions((value) => ({ ...(value.seriesSize ? { seriesSize: value.seriesSize } : {}), ...(value.seriesSize && value.seriesSize > 1 && value.seriesStrategy ? { seriesStrategy: value.seriesStrategy } : {}), ...(brief ? { note: brief } : {}) })); setCreateStep(1); selectView("create") }} />}
-        {view === "library" && <LibraryView locale={locale} t={t} studios={studios} creations={creations} onStartCreate={() => { setCurrent(null); setCreateStep(0); selectView("create") }} onReuse={(id) => void reuse(id)} onSelect={(id) => void run("select", async () => { setCurrent(await api<Detail>(`/api/visual-engine/creations/${id}`)); selectView("create") })} />}
-        {view === "account" && <AccountView locale={locale} t={t} account={account} identityProfile={identityProfile} highlightedOfferId={highlightedOfferId} pending={pending} onCheckout={checkout} onPortal={portal} onStartCreate={() => { setCurrent(null); setCreateStep(0); selectView("create") }} onOpenCapture={() => openCapture(identityProfile ? "append" : "onboarding")} onReplaceIdentity={() => openCapture("replace")} onReplaceIdentityAsset={replaceIdentityAsset} onDeleteIdentityAsset={deleteIdentityAsset} onDeleteIdentity={removeIdentity} />}
+        {view === "library" && <LibraryView locale={locale} t={t} studios={studios} creations={creations} onStartCreate={startFreshCreation} onReuse={(id) => void reuse(id)} onSelect={(id) => void run("select", async () => { setCurrent(await api<Detail>(`/api/visual-engine/creations/${id}`)); selectView("create") })} />}
+        {view === "account" && <AccountView locale={locale} t={t} account={account} identityProfile={identityProfile} highlightedOfferId={highlightedOfferId} pending={pending} onCheckout={checkout} onPortal={portal} onStartCreate={startFreshCreation} onOpenCapture={() => openCapture(identityProfile ? "append" : "onboarding")} onReplaceIdentity={() => openCapture("replace")} onReplaceIdentityAsset={replaceIdentityAsset} onDeleteIdentityAsset={deleteIdentityAsset} onDeleteIdentity={removeIdentity} />}
         </div>
       </div>
 
@@ -1753,7 +1740,7 @@ export function VisualEngineStudio() {
       {consentTarget !== undefined && <ConsentGate locale={locale} t={t} consents={consents} setConsents={setConsents} pending={pending} onClose={() => { setConsentTarget(undefined); setConsentReference(null) }} onConfirm={() => void acceptRequiredConsentsAndCreate()} />}
       {directorOpen && <MiravaCreativeDirector locale={locale} universeId={selectedUniverseId} options={options} onApply={applyAlmaDirection} onOpenReference={openReferenceFromAlma} onClose={closeDirector} />}
       </div>
-      {captureContext && <MiravaIdentityCapture locale={locale} context={captureContext} existingCount={identityProfile?.assetCount ?? 0} initialConsentAccepted={true} onClose={closeCapture} onComplete={(files, consent) => uploadIdentityFiles(files, consent, captureContext === "append" ? "append" : "replace")} />}
+      {captureContext && <MiravaIdentityCapture inline={false} locale={locale} context={captureContext} existingCount={identityProfile?.assetCount ?? 0} initialConsentAccepted={true} onClose={closeCapture} onComplete={(files, consent) => uploadIdentityFiles(files, consent, captureContext === "append" ? "append" : "replace")} />}
     </main>
   )
 }
@@ -2316,6 +2303,7 @@ function CreationView({
   onOpenCapture,
   onGenerate,
   onDelete,
+  onStartCreate,
   onContinue,
   onUnlock,
 }: {
@@ -2329,6 +2317,7 @@ function CreationView({
   onOpenCapture: () => void
   onGenerate: () => void
   onDelete: () => void
+  onStartCreate: () => void
   onContinue: (studioId: string) => void
   onUnlock: (creationId: string) => void
 }) {
@@ -2340,6 +2329,59 @@ function CreationView({
   const referenceCount = current.assets.filter((asset) => asset.kind === "REFERENCE").length
   const busy = pendingStatuses.includes(status)
   const statusLabel = (t.status as Record<string, string>)[status] ?? t.identityReady
+
+  if (status === "FAILED" || status === "CANCELLED") {
+    return (
+      <section className="mx-auto max-w-3xl py-8 sm:py-14">
+        <p className="mirava-label">
+          MIRAVA / {locale === "fr" ? "SÉANCE TERMINÉE" : "SESIÓN FINALIZADA"}
+        </p>
+
+        <h1 className="mirava-section-title mt-3 text-4xl sm:text-5xl">
+          {locale === "fr"
+            ? "Aucune image n’a été créée"
+            : "No se ha creado ninguna imagen"}
+        </h1>
+
+        <Surface className="mt-7">
+          <p className="mirava-copy text-sm leading-6">
+            {locale === "fr"
+              ? "Cette tentative est terminée et aucune image n’a été ajoutée à votre portfolio. Lancez une nouvelle séance ou supprimez cette tentative."
+              : "Este intento ha terminado y no se ha añadido ninguna imagen a tu portfolio. Inicia una nueva sesión o elimina este intento."}
+          </p>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={onStartCreate}
+              className="mirava-button mirava-button-primary min-h-12 px-5 text-sm"
+            >
+              <Camera className="mr-2 h-4 w-4" />
+              {locale === "fr"
+                ? "Créer une nouvelle séance"
+                : "Crear una nueva sesión"}
+            </button>
+
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={pending === "delete"}
+              className="mirava-button mirava-button-danger min-h-12 px-5 text-sm"
+            >
+              {pending === "delete" ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="mr-2 h-4 w-4" />
+              )}
+              {locale === "fr"
+                ? "Supprimer cette tentative"
+                : "Eliminar este intento"}
+            </button>
+          </div>
+        </Surface>
+      </section>
+    )
+  }
 
   if (
     status === "COMPLETED" &&
@@ -2480,7 +2522,6 @@ function CreationView({
           }
         />
       )}
-      {status === "FAILED" && <div role="alert" className="mirava-alert mt-7 p-5 text-sm">{current.creation.failureMessage ?? t.failure}</div>}
     </section>
   )
 }
@@ -2512,6 +2553,14 @@ function UniversesView({ locale, t, selectedUniverseId, setSelectedUniverseId, o
 }
 
 function LibraryView({ locale, t, studios, creations, onStartCreate, onReuse, onSelect }: { locale: Locale; t: Copy; studios: Studio[]; creations: Creation[]; onStartCreate: () => void; onReuse: (id: string) => void; onSelect: (id: string) => void }) {
+  const visibleCreations = creations.filter(
+    (creation) =>
+      creation.status !== "FAILED" &&
+      creation.status !== "CANCELLED",
+  )
+  const hiddenAttemptCount =
+    creations.length - visibleCreations.length
+
   return (
     <section className="py-8 sm:py-14">
       <p className="mirava-label">MIRAVA / {locale === "fr" ? "ARCHIVE PRIVÉE" : "ARCHIVO PRIVADO"}</p>
@@ -2536,7 +2585,27 @@ function LibraryView({ locale, t, studios, creations, onStartCreate, onReuse, on
       </div>
       <h2 className="mirava-section-title mt-12 text-2xl">{t.imagesTitle}</h2>
       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        {creations.map((creation, index) => {
+        {hiddenAttemptCount > 0 && (
+          <Surface className="col-span-full flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+            <p className="mirava-copy text-sm leading-6">
+              {locale === "fr"
+                ? `${hiddenAttemptCount} tentative${hiddenAttemptCount > 1 ? "s" : ""} sans image retirée${hiddenAttemptCount > 1 ? "s" : ""} de votre portfolio.`
+                : `${hiddenAttemptCount} intento${hiddenAttemptCount > 1 ? "s" : ""} sin imagen eliminado${hiddenAttemptCount > 1 ? "s" : ""} de tu portfolio.`}
+            </p>
+            <button
+              type="button"
+              onClick={onStartCreate}
+              className="mirava-button mirava-button-secondary min-h-11 shrink-0 px-4 text-xs"
+            >
+              <Camera className="mr-2 h-4 w-4" />
+              {locale === "fr"
+                ? "Créer une nouvelle séance"
+                : "Crear una nueva sesión"}
+            </button>
+          </Surface>
+        )}
+
+        {visibleCreations.map((creation, index) => {
           const statusLabel = t.status[creation.status] ?? (locale === "fr" ? "Préparation en cours" : "Preparación en curso")
           return (
             <button key={creation.id} onClick={() => onSelect(creation.id)} aria-label={locale === "fr" ? `Ouvrir la création ${index + 1} : ${statusLabel}` : `Abrir creación ${index + 1}: ${statusLabel}`} className="mirava-surface overflow-hidden text-left">
@@ -2545,7 +2614,7 @@ function LibraryView({ locale, t, studios, creations, onStartCreate, onReuse, on
             </button>
           )
         })}
-        {!creations.length && <Surface className="col-span-full">
+        {!visibleCreations.length && hiddenAttemptCount === 0 && <Surface className="col-span-full">
           <p className="mirava-copy text-sm leading-6">{locale === "fr" ? "Votre galerie reste privée et vide jusqu’à votre première image." : "Tu galería es privada y permanece vacía hasta tu primera imagen."}</p>
           <button onClick={onStartCreate} className="mirava-button mirava-button-secondary mt-4 min-h-12 px-4 text-sm"><Camera className="mr-2 h-4 w-4" />{locale === "fr" ? "Commencer une séance" : "Empezar una sesión"}</button>
         </Surface>}
@@ -3074,17 +3143,100 @@ function AccountView({
         </DialogPrimitive.Portal>
       </DialogPrimitive.Root>
 
-      <DialogPrimitive.Root open={deleteIdentityOpen} onOpenChange={(open) => { if (open) setDeleteIdentityOpen(true); else closeIdentityDeletionDialog() }}>
+      <DialogPrimitive.Root
+        open={deleteIdentityOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            setDeleteIdentityOpen(true)
+          } else {
+            closeIdentityDeletionDialog()
+          }
+        }}
+      >
         <DialogPrimitive.Portal>
-          <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm" />
-          <DialogPrimitive.Content onCloseAutoFocus={(event) => { event.preventDefault(); deleteIdentityTriggerRef.current?.focus() }} className="mirava-modal fixed inset-x-0 bottom-0 z-50 max-h-dvh w-full max-w-md overflow-y-auto p-5 outline-none sm:left-1/2 sm:bottom-auto sm:top-1/2 sm:max-h-[94dvh] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:p-7">
-            <p className="mirava-label">MIRAVA / {locale === "fr" ? "CONFIDENTIALITÉ" : "PRIVACIDAD"}</p>
-            <DialogPrimitive.Title className="mirava-section-title mt-3 text-3xl">{locale === "fr" ? "Supprimer votre Profil identité ?" : "¿Eliminar tu Perfil de identidad?"}</DialogPrimitive.Title>
-            <DialogPrimitive.Description className="mirava-copy mt-4 text-sm leading-6">{locale === "fr" ? "Vos photos d’identité privées seront supprimées immédiatement. Cette action est définitive." : "Tus fotos de identidad privadas se eliminarán inmediatamente. Esta acción es definitiva."}</DialogPrimitive.Description>
-            {deleteIdentityError && <p role="alert" className="mirava-alert mt-4 p-3 text-xs leading-5">{deleteIdentityError}</p>}
-            <div className="mt-7 grid gap-3 sm:grid-cols-2">
-              <button onClick={closeIdentityDeletionDialog} className="mirava-button mirava-button-secondary min-h-12 px-4 text-sm font-semibold">{locale === "fr" ? "Garder mes photos" : "Conservar mis fotos"}</button>
-              <button onClick={() => void confirmIdentityDeletion()} disabled={pending === "identity-delete"} className="mirava-button mirava-button-danger min-h-12 px-4 text-sm font-semibold">{pending === "identity-delete" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}{locale === "fr" ? "Supprimer définitivement" : "Eliminar definitivamente"}</button>
+          <DialogPrimitive.Overlay className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-md" />
+
+          <DialogPrimitive.Content
+            onCloseAutoFocus={(event) => {
+              event.preventDefault()
+              deleteIdentityTriggerRef.current?.focus()
+            }}
+            className="mirava-theme fixed left-1/2 top-1/2 z-[71] max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[1.75rem] border border-white/15 bg-[#111212] p-5 text-white shadow-[0_32px_120px_rgba(0,0,0,0.78)] outline-none sm:p-7"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-red-400/25 bg-red-500/10 text-red-200">
+                <Trash2 className="h-5 w-5" />
+              </div>
+
+              <DialogPrimitive.Close
+                aria-label={
+                  locale === "fr"
+                    ? "Fermer la confirmation"
+                    : "Cerrar la confirmación"
+                }
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/15 bg-white/5 text-white/70 transition hover:bg-white/10 hover:text-white"
+              >
+                <X className="h-5 w-5" />
+              </DialogPrimitive.Close>
+            </div>
+
+            <p className="mirava-label mt-5">
+              MIRAVA /{" "}
+              {locale === "fr"
+                ? "CONFIDENTIALITÉ"
+                : "PRIVACIDAD"}
+            </p>
+
+            <DialogPrimitive.Title className="mt-3 font-jakarta text-2xl font-semibold leading-tight tracking-[-0.035em] text-white sm:text-3xl">
+              {locale === "fr"
+                ? "Supprimer votre Profil identité ?"
+                : "¿Eliminar tu Perfil de identidad?"}
+            </DialogPrimitive.Title>
+
+            <DialogPrimitive.Description className="mt-4 text-sm leading-6 text-white/65">
+              {locale === "fr"
+                ? "Toutes vos références d’identité privées seront supprimées immédiatement. Cette action est définitive."
+                : "Todas tus referencias de identidad privadas se eliminarán inmediatamente. Esta acción es definitiva."}
+            </DialogPrimitive.Description>
+
+            {deleteIdentityError ? (
+              <p
+                role="alert"
+                className="mirava-alert mt-4 p-3 text-xs leading-5"
+              >
+                {deleteIdentityError}
+              </p>
+            ) : null}
+
+            <div className="mt-6 grid gap-3">
+              <button
+                type="button"
+                onClick={closeIdentityDeletionDialog}
+                className="mirava-button mirava-button-primary min-h-12 w-full px-4 text-sm font-semibold"
+              >
+                {locale === "fr"
+                  ? "Garder mes photos"
+                  : "Conservar mis fotos"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  void confirmIdentityDeletion()
+                }
+                disabled={pending === "identity-delete"}
+                className="mirava-button mirava-button-danger min-h-12 w-full px-4 text-sm font-semibold"
+              >
+                {pending === "identity-delete" ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="mr-2 h-4 w-4" />
+                )}
+
+                {locale === "fr"
+                  ? "Supprimer définitivement"
+                  : "Eliminar definitivamente"}
+              </button>
             </div>
           </DialogPrimitive.Content>
         </DialogPrimitive.Portal>

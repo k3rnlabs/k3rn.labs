@@ -8,12 +8,43 @@ const miravaSupabaseOrigin = (() => {
   }
 })()
 
+const miravaPostHogOrigin = (() => {
+  try {
+    return process.env.NEXT_PUBLIC_POSTHOG_HOST
+      ? new URL(process.env.NEXT_PUBLIC_POSTHOG_HOST).origin
+      : ""
+  } catch {
+    return ""
+  }
+})()
+
+const miravaPostHogAssetsOrigin = (() => {
+  if (!miravaPostHogOrigin) return ""
+
+  try {
+    const url = new URL(miravaPostHogOrigin)
+    const assetsHostname =
+      url.hostname.replace(
+        /^([a-z0-9-]+)\.i\.posthog\.com$/i,
+        "$1-assets.i.posthog.com",
+      )
+
+    return assetsHostname === url.hostname
+      ? ""
+      : `${url.protocol}//${assetsHostname}`
+  } catch {
+    return ""
+  }
+})()
+
 const miravaConnectSources = [
   "'self'",
   process.env.NODE_ENV === "development"
     ? "ws://localhost:*"
     : "",
   miravaSupabaseOrigin,
+  miravaPostHogAssetsOrigin,
+  miravaPostHogOrigin,
 ].filter(Boolean).join(" ")
 
 const miravaImageSources = [
@@ -22,9 +53,14 @@ const miravaImageSources = [
   "blob:",
   miravaSupabaseOrigin,
 ].filter(Boolean).join(" ")
-const miravaScriptSources = process.env.NODE_ENV === "development"
-  ? "'self' 'unsafe-inline' 'unsafe-eval'"
-  : "'self' 'unsafe-inline' 'wasm-unsafe-eval'"
+const miravaScriptSources = [
+  "'self'",
+  "'unsafe-inline'",
+  process.env.NODE_ENV === "development"
+    ? "'unsafe-eval'"
+    : "'wasm-unsafe-eval'",
+  miravaPostHogAssetsOrigin,
+].filter(Boolean).join(" ")
 const miravaContentSecurityPolicy = [
   "default-src 'self'",
   "base-uri 'self'",

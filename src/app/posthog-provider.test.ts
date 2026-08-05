@@ -20,6 +20,21 @@ describe("MIRAVA analytics consent", () => {
     expect(guard).toContain('readMiravaAnalyticsConsent() !== "accepted"')
   })
 
+  it("restores the durable account choice before showing the prompt", () => {
+    expect(provider).toMatch(
+      /fetch\(\s*["']\/api\/visual-engine\/privacy["']/,
+    )
+    expect(provider).toContain(
+      "analyticsAccepted",
+    )
+    expect(provider).toContain(
+      "consentHydrated && consent === null",
+    )
+    expect(guard).toContain(
+      "cacheMiravaAnalyticsConsent",
+    )
+  })
+
   it("offers refusal and acceptance with separate actions", () => {
     expect(provider).toContain('setMiravaAnalyticsConsent("refused")')
     expect(provider).toContain('setMiravaAnalyticsConsent("accepted")')

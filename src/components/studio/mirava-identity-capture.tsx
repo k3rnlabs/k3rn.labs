@@ -1,5 +1,6 @@
 "use client"
 
+import { createPortal } from "react-dom"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ArrowLeft,
@@ -615,6 +616,30 @@ export function MiravaIdentityCapture({
   const draftCompletedRef = useRef(false)
   const identityDraftKey =
     `mirava-identity-draft:${context}`
+
+  useEffect(() => {
+    const root =
+      document.documentElement
+    const body =
+      document.body
+
+    const previousRootOverscroll =
+      root.style.overscrollBehaviorX
+    const previousBodyOverscroll =
+      body.style.overscrollBehaviorX
+
+    root.style.overscrollBehaviorX =
+      "none"
+    body.style.overscrollBehaviorX =
+      "none"
+
+    return () => {
+      root.style.overscrollBehaviorX =
+        previousRootOverscroll
+      body.style.overscrollBehaviorX =
+        previousBodyOverscroll
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -1304,38 +1329,47 @@ export function MiravaIdentityCapture({
                   {currentSlot.instruction[locale]}
                 </p>
 
-                {/* EXAMPLE MODEL REFERENCE CARD */}
-                {currentSlot.exampleImage && (
-                  <div className="mt-4 flex items-center gap-3.5 rounded-xl border border-white/10 bg-black/40 p-3 text-left">
-                    <div className="relative h-16 w-14 shrink-0 overflow-hidden rounded-lg border border-white/20 shadow-md">
+                {/* LARGE MODEL REFERENCE — REPLACED BY THE USER PHOTO */}
+                {currentSlot.exampleImage &&
+                !currentSlotState.preview ? (
+                  <div className="mt-4 overflow-hidden rounded-2xl border border-white/15 bg-black/50 shadow-2xl">
+                    <div className="relative aspect-[4/5] w-full overflow-hidden bg-black">
                       <img
                         src={currentSlot.exampleImage}
-                        alt="Exemple recommandé"
-                        className="h-full w-full object-cover"
+                        alt={
+                          locale === "fr"
+                            ? `Exemple MIRAVA pour ${currentSlot.title.fr}`
+                            : `Ejemplo MIRAVA para ${currentSlot.title.es}`
+                        }
+                        className="h-full w-full object-contain"
                       />
                     </div>
-                    <div className="space-y-1 font-jakarta text-xs">
-                      <span className="inline-block rounded bg-[#ede8df]/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#ede8df]">
-                        {locale === "fr" ? "Exemple recommandé" : "Ejemplo recomendado"}
+
+                    <div className="border-t border-white/10 p-4">
+                      <span className="inline-flex rounded-full border border-[#ede8df]/25 bg-[#ede8df]/10 px-2.5 py-1 font-jakarta text-[9px] font-bold uppercase tracking-[0.12em] text-[#ede8df]">
+                        {locale === "fr"
+                          ? "Exemple recommandé"
+                          : "Ejemplo recomendado"}
                       </span>
-                      <p className="text-[11px] text-white/80 leading-snug">
+
+                      <p className="mt-2 font-jakarta text-xs leading-5 text-white/75">
                         {locale === "fr"
                           ? "Reproduisez ce cadrage, cette posture et cet éclairage naturel."
                           : "Reproduce este encuadre, postura e iluminación natural."}
                       </p>
                     </div>
                   </div>
-                )}
+                ) : null}
               </div>
 
-              {/* PHOTO PREVIEW IN ITS ORIGINAL ASPECT RATIO */}
+              {/* USER PHOTO REPLACES THE MIRAVA REFERENCE FRAME */}
               {currentSlotState.preview ? (
-                <div className="flex w-full justify-center">
-                  <div className="relative inline-block max-w-full overflow-hidden rounded-2xl border border-white/20 bg-black shadow-2xl">
+                <div className="w-full">
+                  <div className="relative mx-auto aspect-[4/5] w-full overflow-hidden rounded-2xl border border-white/20 bg-black shadow-2xl">
                     <img
                       src={currentSlotState.preview}
                       alt={currentSlot.title[locale]}
-                      className="block h-auto max-h-[68svh] w-auto max-w-full"
+                      className="h-full w-full object-contain"
                     />
 
                     {currentSlotState.status === "scanning" && (
@@ -1833,13 +1867,31 @@ export function MiravaIdentityCapture({
     return contentUI
   }
 
-  return (
+  if (typeof document === "undefined") {
+    return null
+  }
+
+  return createPortal(
     <div
       ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-label={locale === "fr" ? "Capture guidée de votre Profil identité" : "Captura guiada de tu Perfil de identidad"}
-      className="mirava-theme fixed inset-0 z-50 flex flex-col bg-[#0b0c0d] text-[#f1f1ed] selection:bg-[#d5c6b0] selection:text-[#090a0a]"
+      className="mirava-theme fixed inset-0 z-[100] flex touch-pan-y flex-col overscroll-x-none bg-[#0b0c0d] text-[#f1f1ed] selection:bg-[#d5c6b0] selection:text-[#090a0a]"
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 2147483647,
+        display: "flex",
+        flexDirection: "column",
+        width: "100vw",
+        height: "100dvh",
+        overflow: "hidden",
+        backgroundColor: "#0b0c0d",
+        color: "#f1f1ed",
+        isolation: "isolate",
+      }}
+      data-mirava-identity-dialog
       data-dialog-initial-focus
     >
       <MiravaGrain />
@@ -1879,7 +1931,8 @@ export function MiravaIdentityCapture({
       <main className="flex-1 overflow-y-auto p-4 sm:p-6">
         {contentUI}
       </main>
-    </div>
+    </div>,
+    document.body,
   )
 }
 

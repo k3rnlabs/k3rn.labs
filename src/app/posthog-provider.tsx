@@ -10,6 +10,7 @@ import {
   useState,
 } from "react"
 import {
+  cacheMiravaAnalyticsConsent,
   MIRAVA_ANALYTICS_EVENT,
   readMiravaAnalyticsConsent,
   setMiravaAnalyticsConsent,
@@ -36,7 +37,10 @@ function PostHogPageView({ enabled }: { enabled: boolean }) {
 }
 
 export function PostHogProvider({ children }: { children: React.ReactNode }) {
-  const [consent, setConsent] = useState<MiravaAnalyticsConsent>(null)
+  const [consent, setConsent] =
+    useState<MiravaAnalyticsConsent>(null)
+  const [consentHydrated, setConsentHydrated] =
+    useState(false)
 
   const applyConsent = useCallback((next: MiravaAnalyticsConsent) => {
     setConsent(next)
@@ -70,15 +74,103 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   useEffect(() => {
-    applyConsent(readMiravaAnalyticsConsent())
+    let active = true
 
-    const onConsentChanged = (event: Event) => {
-      const next = (event as CustomEvent<MiravaAnalyticsConsent>).detail
+    const onConsentChanged = (
+      event: Event,
+    ) => {
+      const next = (
+        event as CustomEvent<MiravaAnalyticsConsent>
+      ).detail
+
       applyConsent(next)
     }
 
-    window.addEventListener(MIRAVA_ANALYTICS_EVENT, onConsentChanged)
-    return () => window.removeEventListener(MIRAVA_ANALYTICS_EVENT, onConsentChanged)
+    window.addEventListener(
+      MIRAVA_ANALYTICS_EVENT,
+      onConsentChanged,
+    )
+
+    const localConsent =
+      readMiravaAnalyticsConsent()
+
+    if (localConsent !== null) {
+      applyConsent(localConsent)
+      setConsentHydrated(true)
+    } else {
+      /*
+       * localStorage est propre à chaque origine. Une décision enregistrée
+       * sur le compte doit donc être restaurée lors d'un changement de
+       * domaine, de navigateur ou après un nettoyage du stockage local.
+       */
+      void fetch(
+        "/api/visual-engine/privacy",
+        {
+          method: "GET",
+          credentials: "same-origin",
+          cache: "no-store",
+        },
+      )
+        .then(async (response) => {
+          if (!response.ok) return null
+
+          const data =
+            await response
+              .json()
+              .catch(() => null) as {
+                privacy?: {
+                  analyticsAccepted?:
+                    boolean | null
+                }
+              } | null
+
+          const accepted =
+            data?.privacy
+              ?.analyticsAccepted
+
+          if (
+            typeof accepted !==
+            "boolean"
+          ) {
+            return null
+          }
+
+          return accepted
+            ? "accepted" as const
+            : "refused" as const
+        })
+        .then((serverConsent) => {
+          if (!active) return
+
+          if (serverConsent !== null) {
+            cacheMiravaAnalyticsConsent(
+              serverConsent,
+            )
+            return
+          }
+
+          applyConsent(null)
+        })
+        .catch(() => {
+          if (active) {
+            applyConsent(null)
+          }
+        })
+        .finally(() => {
+          if (active) {
+            setConsentHydrated(true)
+          }
+        })
+    }
+
+    return () => {
+      active = false
+
+      window.removeEventListener(
+        MIRAVA_ANALYTICS_EVENT,
+        onConsentChanged,
+      )
+    }
   }, [applyConsent])
 
   return (
@@ -89,7 +181,7 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
 
       {children}
 
-      {consent === null ? (
+      {consentHydrated && consent === null ? (
         <aside
           role="dialog"
           aria-label="Préférences de mesure d’audience"

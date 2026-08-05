@@ -22,15 +22,29 @@ describe("MIRAVA studio entry contracts", () => {
   })
 
   it("keeps identity deletion behind an explicit, dismissible confirmation", () => {
-    expect(studio).toContain("<DialogPrimitive.Root open={deleteIdentityOpen}")
-    expect(studio).toContain("Supprimer votre Profil identité ?")
-    expect(studio).toContain("Vos photos d’identité privées seront supprimées immédiatement")
-    expect(studio).toContain("Garder mes photos")
-    expect(studio).toContain("Supprimer définitivement")
-    expect(studio).toContain("setDeleteIdentityError(null)")
-    expect(studio).toContain("setDeleteIdentityOpen(true)")
-    expect(studio).toContain("const deleteIdentityTriggerRef = useRef<HTMLButtonElement>(null)")
-    expect(studio).toContain("onCloseAutoFocus={(event) => { event.preventDefault(); deleteIdentityTriggerRef.current?.focus() }}")
+    expect(studio).toContain(
+      "open={deleteIdentityOpen}",
+    )
+
+    expect(studio).toContain(
+      "Supprimer votre Profil identité ?",
+    )
+
+    expect(studio).toContain(
+      "Toutes vos références d’identité privées seront supprimées immédiatement.",
+    )
+
+    expect(studio).toContain(
+      "Garder mes photos",
+    )
+
+    expect(studio).toContain(
+      "Supprimer définitivement",
+    )
+
+    expect(studio).toContain(
+      "closeIdentityDeletionDialog",
+    )
   })
 
   it("validates an onboarding universe before making it the active studio universe", () => {
@@ -143,9 +157,21 @@ describe("MIRAVA studio entry contracts", () => {
   })
 
   it("makes the underlying studio inert whenever a MIRAVA modal is open", () => {
-    expect(studio).toContain("const modalOpen = Boolean(captureContext) || directorOpen || consentTarget !== undefined")
-    expect(studio).toContain("background.inert = modalOpen")
-    expect(studio).toContain('ref={studioBackgroundRef} aria-hidden={modalOpen ? true : undefined}')
+    expect(studio).toContain(
+      "const modalOpen = Boolean(captureContext) || directorOpen || consentTarget !== undefined",
+    )
+
+    expect(studio).toContain(
+      "background.inert = modalOpen",
+    )
+
+    expect(studio).toMatch(
+      /<div\s+ref=\{studioBackgroundRef\}/,
+    )
+
+    expect(studio).not.toContain(
+      "aria-hidden={modalOpen ? true : undefined}",
+    )
   })
 
   it("returns keyboard focus to the control that opened Alma", () => {
@@ -224,7 +250,8 @@ describe("MIRAVA studio entry contracts", () => {
     expect(studio).toContain("const availableCredits = account?.credits ?? 0")
     expect(studio).toContain('availableCredits > 0 ? (')
     expect(studio).toContain('"Créer ma séance"')
-    expect(studio).toContain("onStartCreate={() => { setCurrent(null); setCreateStep(0); selectView(\"create\") }}")
+    expect(studio).toMatch(/const startFreshCreation = \(\) => \{\s*setCurrent\(null\)\s*setCreateStep\(0\)\s*selectView\("create"\)\s*\}/)
+    expect(studio).toMatch(/<AccountView[^>]*onStartCreate=\{startFreshCreation\}/)
   })
 
   it("does not block creation when identity previews are temporarily unavailable", () => {
@@ -248,7 +275,8 @@ describe("MIRAVA studio entry contracts", () => {
   it("keeps an empty private gallery actionable rather than blank", () => {
     expect(studio).toContain("Votre premier studio apparaîtra ici après votre première séance.")
     expect(studio).toContain("Votre galerie reste privée et vide jusqu’à votre première image.")
-    expect(studio).toContain('onStartCreate={() => { setCurrent(null); setCreateStep(0); selectView("create") }}')
+    expect(studio).toMatch(/const startFreshCreation = \(\) => \{\s*setCurrent\(null\)\s*setCreateStep\(0\)\s*selectView\("create"\)\s*\}/)
+    expect(studio).toMatch(/<LibraryView[^>]*onStartCreate=\{startFreshCreation\}/)
   })
 
   it("resets a mobile destination to its beginning and announces non-error feedback", () => {
