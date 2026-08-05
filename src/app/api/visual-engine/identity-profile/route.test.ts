@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   deleteIdentityProfile: vi.fn(),
   studioErrorResponse: vi.fn(),
   recordMiravaAudit: vi.fn(),
+  requireMiravaIdentityConsent: vi.fn(),
+  withdrawMiravaIdentityConsent: vi.fn(),
 }))
 
 vi.mock("@/lib/auth", () => ({ verifySession: mocks.verifySession }))
@@ -30,6 +32,10 @@ vi.mock("@/lib/visual-engine/core", () => ({
   studioErrorResponse: mocks.studioErrorResponse,
 }))
 vi.mock("@/lib/visual-engine/audit", () => ({ recordMiravaAudit: mocks.recordMiravaAudit }))
+vi.mock("@/lib/visual-engine/privacy", () => ({
+  requireMiravaIdentityConsent: mocks.requireMiravaIdentityConsent,
+  withdrawMiravaIdentityConsent: mocks.withdrawMiravaIdentityConsent,
+}))
 
 import { DELETE, POST } from "./route"
 
@@ -95,6 +101,8 @@ describe("MIRAVA identity profile route", () => {
     vi.clearAllMocks()
     mocks.verifySession.mockResolvedValue({ userId: "user-1" })
     mocks.checkRateLimit.mockResolvedValue({ success: true, remaining: 9 })
+    mocks.requireMiravaIdentityConsent.mockResolvedValue({ identityProcessingAccepted: true })
+    mocks.withdrawMiravaIdentityConsent.mockResolvedValue({ identityProcessingAccepted: false })
     mocks.replaceIdentityProfile.mockResolvedValue({ id: "profile-1", assetCount: 3, previews: [] })
     mocks.replaceIdentityProfileFromStagedUploads.mockResolvedValue({ id: "profile-1", assetCount: 3, previews: [] })
     mocks.appendIdentityProfileFromStagedUploads.mockResolvedValue({ id: "profile-1", assetCount: 4, previews: [] })
@@ -171,6 +179,10 @@ describe("MIRAVA identity profile route", () => {
 
     expect(response.status).toBe(200)
     expect(mocks.deleteIdentityProfile).toHaveBeenCalledWith("user-1")
+    expect(mocks.withdrawMiravaIdentityConsent).toHaveBeenCalledWith({
+      userId: "user-1",
+      source: "identity-profile-delete",
+    })
     expect(mocks.recordMiravaAudit).toHaveBeenCalledWith("user-1", "IDENTITY_PROFILE_DELETED", "identity-profile")
   })
 })

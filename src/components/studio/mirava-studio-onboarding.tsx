@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
 import { GlassSurface } from "@/components/ui/glass-surface"
 import { ArrowLeft, ArrowRight, Check, Clock3, Loader2, LockKeyhole, ShieldCheck, Sparkles, Upload, UserCheck } from "lucide-react"
-import posthog from "posthog-js"
+import { captureMiravaAnalytics } from "@/lib/mirava/analytics-consent.client"
 import { MiravaWordmark } from "@/components/mirava/mirava-wordmark"
 import {
   MIRAVA_ONBOARDING_STEPS,
@@ -512,6 +512,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
       ?.sessionType,
   )
 
+  const [termsAccepted, setTermsAccepted] = useState(Boolean(initialState?.termsAcceptedAt))
   const [identityConsentAccepted, setIdentityConsentAccepted] = useState(Boolean(initialState?.identityConsentAt))
   const [photosUploaded, setPhotosUploaded] = useState(0)
   const [identityProfileReceipt, setIdentityProfileReceipt] =
@@ -596,12 +597,12 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
     setOnboardingState(initialState)
     if (initialState) setStepId(initialState.currentStep)
   }, [initialState])
-  useEffect(() => { posthog.capture(initialState ? "onboarding_resumed" : "onboarding_started", { onboarding_version: MIRAVA_ONBOARDING_VERSION, step_id: initialState?.currentStep ?? "promise_name" }) }, [initialState])
+  useEffect(() => { captureMiravaAnalytics(initialState ? "onboarding_resumed" : "onboarding_started", { onboarding_version: MIRAVA_ONBOARDING_VERSION, step_id: initialState?.currentStep ?? "promise_name" }) }, [initialState])
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" })
     panelRef.current?.focus({ preventScroll: true })
-    posthog.capture("onboarding_step_viewed", { onboarding_version: MIRAVA_ONBOARDING_VERSION, step_id: stepId })
-    if (stepId === "identity_permission") posthog.capture("identity_explanation_viewed", { onboarding_version: MIRAVA_ONBOARDING_VERSION })
+    captureMiravaAnalytics("onboarding_step_viewed", { onboarding_version: MIRAVA_ONBOARDING_VERSION, step_id: stepId })
+    if (stepId === "identity_permission") captureMiravaAnalytics("identity_explanation_viewed", { onboarding_version: MIRAVA_ONBOARDING_VERSION })
     // Reset identity phase when navigating away from identity step
     if (stepId !== "identity_permission") setIdentityPhase("intro")
   }, [stepId])
@@ -713,7 +714,9 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
       universeIds?: string[]
       primaryUniverseId?: string
       direction?: MiravaOnboardingDirection
+      termsAccepted?: true
       identityConsentAccepted?: true
+      locale?: Locale
     } = {},
   ) => {
     setPending(true)
@@ -800,7 +803,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
         )
 
       if (saved) {
-        posthog.capture(
+        captureMiravaAnalytics(
           "name_saved",
           {
             onboarding_version:
@@ -881,7 +884,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
         )
 
       if (saved) {
-        posthog.capture(
+        captureMiravaAnalytics(
           "direction_confirmed",
           {
             onboarding_version:
@@ -900,14 +903,16 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
       stepId ===
         "identity_permission" &&
       identityPhase === "intro" &&
+      termsAccepted &&
       identityConsentAccepted
     ) {
       const saved =
         await persist(
           "identity_permission",
           {
-            identityConsentAccepted:
-              true,
+            termsAccepted: true,
+            identityConsentAccepted: true,
+            locale,
           },
         )
 
@@ -917,7 +922,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
         "capture",
       )
 
-      posthog.capture(
+      captureMiravaAnalytics(
         "identity_consent_accepted",
         {
           onboarding_version:
@@ -970,7 +975,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
           )
         }
 
-        posthog.capture(
+        captureMiravaAnalytics(
           "onboarding_activated",
           {
             onboarding_version:
@@ -995,7 +1000,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
   const chooseGoal = (choice: MiravaOnboardingGoal) => {
     setGoal(choice)
     setSessionType(undefined)
-    posthog.capture("objective_selected", { onboarding_version: MIRAVA_ONBOARDING_VERSION, objective: choice })
+    captureMiravaAnalytics("objective_selected", { onboarding_version: MIRAVA_ONBOARDING_VERSION, objective: choice })
     if (goalAdvanceTimerRef.current !== null) window.clearTimeout(goalAdvanceTimerRef.current)
     goalAdvanceTimerRef.current = window.setTimeout(() => { goalAdvanceTimerRef.current = null; void persist("visual_universes", { goal: choice }) }, 360)
   }
@@ -1009,7 +1014,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
   }
 
   const back = async () => {
-    posthog.capture("onboarding_back_clicked", { onboarding_version: MIRAVA_ONBOARDING_VERSION, step_id: stepId })
+    captureMiravaAnalytics("onboarding_back_clicked", { onboarding_version: MIRAVA_ONBOARDING_VERSION, step_id: stepId })
     // Une fois le Profil identité enregistré, l'activation devient un
     // parcours linéaire : ne jamais retourner vers une capture vide.
     if (
@@ -1051,7 +1056,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
               )
             }
 
-            posthog.capture(
+            captureMiravaAnalytics(
               "universe_selected",
               {
                 onboarding_version:
@@ -1082,7 +1087,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
             null,
           )
 
-          posthog.capture(
+          captureMiravaAnalytics(
             "universe_selected",
             {
               onboarding_version:
@@ -1114,7 +1119,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
       : stepId === "direction_review"
       ? Boolean(direction)
       : stepId === "identity_permission"
-      ? identityConsentAccepted
+      ? termsAccepted && identityConsentAccepted
       : stepId === "capture_activation"
       ? onboardingState?.status ===
         "session_ready"
@@ -1276,7 +1281,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                             setSessionType(
                               undefined,
                             )
-                            posthog.capture(
+                            captureMiravaAnalytics(
                               "first_universe_selected",
                               {
                                 onboarding_version:
@@ -1357,7 +1362,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                               setSessionType(
                                 item.id,
                               )
-                              posthog.capture(
+                              captureMiravaAnalytics(
                                 "session_type_selected",
                                 {
                                   onboarding_version:
@@ -1530,19 +1535,27 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                     </div>
                   </section>
 
-                  <MiravaCustomCheckbox
-                    checked={
-                      identityConsentAccepted
-                    }
-                    onChange={
-                      setIdentityConsentAccepted
-                    }
-                    label={
-                      locale === "fr"
-                        ? "J’accepte l’ensemble de ces conditions et j’autorise MIRAVA à utiliser mes photos uniquement pour les créations que je demande."
-                        : "Acepto todas estas condiciones y autorizo a MIRAVA a utilizar mis fotos únicamente para las creaciones que solicito."
-                    }
-                  />
+                  <div className="space-y-3">
+                    <MiravaCustomCheckbox
+                      checked={termsAccepted}
+                      onChange={setTermsAccepted}
+                      label={
+                        locale === "fr"
+                          ? "J’accepte les Conditions d’utilisation de MIRAVA et je confirme être majeure ainsi que disposer des droits nécessaires sur les images envoyées."
+                          : "Acepto las Condiciones de uso de MIRAVA y confirmo ser mayor de edad y disponer de los derechos necesarios sobre las imágenes enviadas."
+                      }
+                    />
+
+                    <MiravaCustomCheckbox
+                      checked={identityConsentAccepted}
+                      onChange={setIdentityConsentAccepted}
+                      label={
+                        locale === "fr"
+                          ? "Je consens explicitement au traitement de mes photos de visage et de mon Profil identité par MIRAVA et ses prestataires techniques, dont OpenAI, uniquement pour les créations que je demande."
+                          : "Consiento explícitamente el tratamiento de mis fotos faciales y de mi Perfil de identidad por MIRAVA y sus proveedores técnicos, incluido OpenAI, únicamente para las creaciones que solicito."
+                      }
+                    />
+                  </div>
 
                   <div className="flex items-start gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.07] p-4">
                     <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
@@ -1635,7 +1648,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                         setIdentityProfileReceipt(profile)
                         setPhotosUploaded(profile.assetCount)
 
-                        posthog.capture(
+                        captureMiravaAnalytics(
                           "identity_profile_persisted",
                           {
                             onboarding_version:

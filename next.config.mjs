@@ -15,6 +15,13 @@ const miravaConnectSources = [
     : "",
   miravaSupabaseOrigin,
 ].filter(Boolean).join(" ")
+
+const miravaImageSources = [
+  "'self'",
+  "data:",
+  "blob:",
+  miravaSupabaseOrigin,
+].filter(Boolean).join(" ")
 const miravaScriptSources = process.env.NODE_ENV === "development"
   ? "'self' 'unsafe-inline' 'unsafe-eval'"
   : "'self' 'unsafe-inline' 'wasm-unsafe-eval'"
@@ -26,7 +33,7 @@ const miravaContentSecurityPolicy = [
   `script-src ${miravaScriptSources}`,
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self' data:",
-  "img-src 'self' data: blob:",
+  `img-src ${miravaImageSources}`,
   "media-src 'self' blob:",
   `connect-src ${miravaConnectSources}`,
   "worker-src 'self' blob:",

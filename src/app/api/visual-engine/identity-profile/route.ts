@@ -4,6 +4,10 @@ import { checkRateLimit } from "@/lib/rate-limit"
 import { miravaApiError as apiError, miravaApiSuccess as apiSuccess } from "@/lib/visual-engine/http"
 import { appendIdentityProfile, appendIdentityProfileFromStagedUploads, deleteIdentityProfile, getIdentityProfilePublic, MAX_IDENTITY_ASSETS, MIN_IDENTITY_ASSETS, replaceIdentityProfile, replaceIdentityProfileFromStagedUploads, studioErrorResponse } from "@/lib/visual-engine/core"
 import { recordMiravaAudit } from "@/lib/visual-engine/audit"
+import {
+  requireMiravaIdentityConsent,
+  withdrawMiravaIdentityConsent,
+} from "@/lib/visual-engine/privacy"
 
 export async function GET() {
   const session = await verifySession()
@@ -18,6 +22,7 @@ export async function POST(req: NextRequest) {
   const limit = await checkRateLimit("studioUpload", `${session.userId}:${req.headers.get("x-forwarded-for") ?? "local"}`)
   if (!limit.success) return apiError("Trop d’envois MIRAVA. Réessayez plus tard.", 429)
   try {
+    await requireMiravaIdentityConsent(session.userId)
     const contentType =
       req.headers.get("content-type") ?? ""
 
@@ -115,6 +120,16 @@ export async function POST(req: NextRequest) {
 export async function DELETE() {
   const session = await verifySession()
   if (!session) return apiError("Unauthorized", 401)
-  try { await deleteIdentityProfile(session.userId); await recordMiravaAudit(session.userId, "IDENTITY_PROFILE_DELETED", "identity-profile"); return apiSuccess({ deleted: true }) }
-  catch (error) { const mapped = studioErrorResponse(error); return apiError(mapped.message, mapped.status) }
+  try {
+    await deleteIdentityProfile(session.userId)
+    await withdrawMiravaIdentityConsent({
+      userId: session.userId,
+      source: "identity-profile-delete",
+    })
+    await recordMiravaAudit(session.userId, "IDENTITY_PROFILE_DELETED", "identity-profile")
+    return apiSuccess({ deleted: true, consentWithdrawn: true })
+  } catch (error) {
+    const mapped = studioErrorResponse(error)
+    return apiError(mapped.message, mapped.status)
+  }
 }

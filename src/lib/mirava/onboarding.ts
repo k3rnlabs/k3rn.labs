@@ -52,6 +52,7 @@ export type MiravaOnboardingState = {
   primaryUniverseId?: string
   goal?: MiravaOnboardingGoal
   direction?: MiravaOnboardingDirection
+  termsAcceptedAt?: string
   identityConsentAt?: string
   firstSessionId?: string
   updatedAt: string

@@ -134,11 +134,12 @@ describe("MIRAVA studio entry contracts", () => {
     expect(studio).toContain("Direction Alma prête pour votre prochaine séance. Votre création en cours reste inchangée.")
   })
 
-  it("frames consent as the final creation action, not as a second studio entry", () => {
-    expect(studio).toContain('consent: "Avant de lancer votre création"')
-    expect(studio).toContain('enter: "Confirmer et lancer"')
-    expect(studio).toContain('consent: "Antes de crear tu sesión"')
-    expect(studio).toContain('enter: "Confirmar y crear"')
+  it("uses the server privacy status and two distinct legal choices", () => {
+    expect(studio).toContain("privacyStatus?.requiredAccepted === true")
+    expect(studio).toContain('action: "accept_required"')
+    expect(studio).toContain("consents.terms && consents.identity")
+    expect(studio).toContain("Je consens explicitement au traitement de mes photos de visage")
+    expect(studio).toContain("Retirer mon consentement et supprimer le Profil identité")
   })
 
   it("makes the underlying studio inert whenever a MIRAVA modal is open", () => {

@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import posthog from "posthog-js"
+import { captureMiravaAnalytics } from "@/lib/mirava/analytics-consent.client"
 import { ArrowRight, Check, Sparkles, ShieldCheck, RefreshCw, Zap, ChevronDown } from "lucide-react"
 
 interface MiravaPricingProps {
@@ -133,14 +133,14 @@ export function MiravaPricing({ locale }: MiravaPricingProps) {
   const handleTabChange = (newTab: "subscription" | "pack") => {
     setTab(newTab)
     try {
-      posthog.capture("pricing_plan_viewed", { plan_type: newTab })
+      captureMiravaAnalytics("pricing_plan_viewed", { plan_type: newTab })
     } catch (_) {}
   }
 
   const handleCtaClick = (planId: string, planName: string, price: number) => {
     try {
-      posthog.capture("pricing_cta_clicked", { plan_id: planId, plan_name: planName, price })
-      posthog.capture("checkout_started", { plan_id: planId, price })
+      captureMiravaAnalytics("pricing_cta_clicked", { plan_id: planId, plan_name: planName, price })
+      captureMiravaAnalytics("checkout_started", { plan_id: planId, price })
     } catch (_) {}
   }
 

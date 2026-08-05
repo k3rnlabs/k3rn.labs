@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   studioCreationPublic: vi.fn(),
   studioErrorResponse: vi.fn(),
   recordMiravaAudit: vi.fn(),
+  requireMiravaRequiredConsents: vi.fn(),
 }))
 
 vi.mock("@/lib/auth", () => ({ verifySession: mocks.verifySession }))
@@ -24,6 +25,7 @@ vi.mock("@/lib/visual-engine/core", () => ({
   studioErrorResponse: mocks.studioErrorResponse,
 }))
 vi.mock("@/lib/visual-engine/audit", () => ({ recordMiravaAudit: mocks.recordMiravaAudit }))
+vi.mock("@/lib/visual-engine/privacy", () => ({ requireMiravaRequiredConsents: mocks.requireMiravaRequiredConsents }))
 
 import { GET, POST } from "./route"
 
@@ -52,6 +54,7 @@ describe("MIRAVA creations route", () => {
     mocks.isMiravaPublicLaunchEnabled.mockReturnValue(true)
     mocks.ensureStudioActivation.mockResolvedValue(3)
     mocks.listStudioCreations.mockResolvedValue([])
+    mocks.requireMiravaRequiredConsents.mockResolvedValue({ requiredAccepted: true })
     mocks.createStudioCreation.mockResolvedValue({ id: "creation-1", masterPrompt: "server-only" })
     mocks.studioCreationPublic.mockReturnValue({ id: "creation-1", status: "DRAFT", requestedResultCount: 1 })
     mocks.studioErrorResponse.mockReturnValue({ message: "Une erreur Studio est survenue.", status: 500 })
@@ -91,6 +94,7 @@ describe("MIRAVA creations route", () => {
     expect(response.status).toBe(201)
     await expect(response.json()).resolves.toEqual({ creation: { id: "creation-1", status: "DRAFT", requestedResultCount: 1 } })
     expect(mocks.checkRateLimit).toHaveBeenCalledWith("studioCreation", "user-1:198.51.100.20")
+    expect(mocks.requireMiravaRequiredConsents).toHaveBeenCalledWith("user-1")
     expect(mocks.createStudioCreation).toHaveBeenCalledWith(expect.objectContaining({ userId: "user-1", presetId: "escapade-solaire" }))
     expect(mocks.studioCreationPublic).toHaveBeenCalledWith(expect.objectContaining({ masterPrompt: "server-only" }))
     expect(mocks.recordMiravaAudit).toHaveBeenCalledWith("user-1", "CREATED", "creation-1")

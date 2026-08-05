@@ -260,6 +260,7 @@ model User {
   studioProfiles       StudioProfile[]
   studioIdentityProfile StudioIdentityProfile?
   studioIdentityAssets StudioIdentityAsset[]
+  studioConsentEvents StudioConsentEvent[]
 }
 
 model ReferralLog {
@@ -869,6 +870,21 @@ model StudioConsent {
   user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+model StudioConsentEvent {
+  id              String   @id @default(cuid())
+  userId          String
+  purpose         String
+  decision        String
+  documentVersion String
+  locale          String   @default("fr")
+  metadata        Json     @default("{}")
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose, createdAt])
 }
 
 model StudioJob {

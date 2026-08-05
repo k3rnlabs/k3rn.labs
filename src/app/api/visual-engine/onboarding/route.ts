@@ -14,6 +14,7 @@ import {
 } from "@/lib/mirava/onboarding"
 import { MIRAVA_UNIVERSES } from "@/lib/mirava/universes"
 import { validateBody } from "@/lib/validate"
+import { acceptMiravaRequiredConsents } from "@/lib/visual-engine/privacy"
 import {
   miravaApiError as apiError,
   miravaApiSuccess as apiSuccess,
@@ -84,6 +85,8 @@ const stateSchema = z.object({
     goalSchema.optional(),
   direction:
     directionSchema.optional(),
+  termsAcceptedAt:
+    z.string().optional(),
   identityConsentAt:
     z.string().optional(),
   firstSessionId:
@@ -182,8 +185,12 @@ const progressSchema = z.object({
     goalSchema.optional(),
   direction:
     directionSchema.optional(),
+  termsAccepted:
+    z.literal(true).optional(),
   identityConsentAccepted:
     z.literal(true).optional(),
+  locale:
+    z.enum(["fr", "es"]).optional(),
 })
 
 const sessionReadySchema =
@@ -761,6 +768,12 @@ export async function PATCH(
       )
     }
 
+    const termsAcceptedAt =
+      action.termsAccepted
+        ? now
+        : existing
+            ?.termsAcceptedAt
+
     const identityConsentAt =
       action.identityConsentAccepted
         ? now
@@ -769,7 +782,7 @@ export async function PATCH(
 
     if (
       targetIndex >= 7 &&
-      !identityConsentAt
+      (!termsAcceptedAt || !identityConsentAt)
     ) {
       return apiError(
         "Identity consent missing",
@@ -801,6 +814,10 @@ export async function PATCH(
         )
       ) ||
       (
+        action.termsAccepted === true &&
+        !existing?.termsAcceptedAt
+      ) ||
+      (
         action
           .identityConsentAccepted ===
           true &&
@@ -827,6 +844,7 @@ export async function PATCH(
       primaryUniverseId,
       goal,
       direction,
+      termsAcceptedAt,
       identityConsentAt,
       ...(
         keepPreparedSession
@@ -858,8 +876,8 @@ export async function PATCH(
     }
 
     if (
-      !existing
-        .identityConsentAt
+      !existing.termsAcceptedAt ||
+      !existing.identityConsentAt
     ) {
       return apiError(
         "Identity consent missing",
@@ -993,6 +1011,18 @@ export async function PATCH(
       activatedAt: now,
       updatedAt: now,
     }
+  }
+
+  if (
+    action.action === "progress" &&
+    action.termsAccepted === true &&
+    action.identityConsentAccepted === true
+  ) {
+    await acceptMiravaRequiredConsents({
+      userId: session.userId,
+      locale: action.locale ?? "fr",
+      source: "onboarding-v4",
+    })
   }
 
   await db.user.update({

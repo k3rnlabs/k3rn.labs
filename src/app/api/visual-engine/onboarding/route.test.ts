@@ -8,9 +8,13 @@ const mocks = vi.hoisted(() => ({
   findIdentityProfile: vi.fn(),
   findCreation: vi.fn(),
   update: vi.fn(),
+  acceptMiravaRequiredConsents: vi.fn(),
 }))
 
 vi.mock("@/lib/auth", () => ({ verifySession: mocks.verifySession }))
+vi.mock("@/lib/visual-engine/privacy", () => ({
+  acceptMiravaRequiredConsents: mocks.acceptMiravaRequiredConsents,
+}))
 vi.mock("@/lib/db", () => ({ db: {
   user: { findUnique: mocks.findUnique, update: mocks.update },
   studioIdentityProfile: { findUnique: mocks.findIdentityProfile },
@@ -33,6 +37,7 @@ describe("MIRAVA first-access onboarding", () => {
     mocks.verifySession.mockResolvedValue({ userId: "user-1" })
     mocks.findUnique.mockResolvedValue({ firstName: null, preferences: { keep: "existing" } })
     mocks.update.mockResolvedValue({})
+    mocks.acceptMiravaRequiredConsents.mockResolvedValue({ requiredAccepted: true })
   })
 
   it("requires an authenticated owner before reading their onboarding state", async () => {
@@ -86,11 +91,19 @@ describe("MIRAVA first-access onboarding", () => {
       universeIds: [MIRAVA_UNIVERSES[0].id],
       primaryUniverseId: MIRAVA_UNIVERSES[0].id,
       direction: { primaryUniverseId: MIRAVA_UNIVERSES[0].id, sessionType: "profile_premium", recommendedFormats: ["portrait", "profile"] },
+      termsAccepted: true,
       identityConsentAccepted: true,
+      locale: "fr",
     }))
 
     expect(response.status).toBe(200)
+    expect(mocks.update.mock.calls[0][0].data.preferences.miravaOnboarding.termsAcceptedAt).toEqual(expect.any(String))
     expect(mocks.update.mock.calls[0][0].data.preferences.miravaOnboarding.identityConsentAt).toEqual(expect.any(String))
+    expect(mocks.acceptMiravaRequiredConsents).toHaveBeenCalledWith({
+      userId: "user-1",
+      locale: "fr",
+      source: "onboarding-v4",
+    })
   })
 
   it("rejects a jump to identity capture when required answers are missing", async () => {
@@ -105,7 +118,7 @@ describe("MIRAVA first-access onboarding", () => {
       version: 4, status: "session_ready", currentStep: "capture_activation", universeIds: [MIRAVA_UNIVERSES[0].id], goal: "presence",
       primaryUniverseId: MIRAVA_UNIVERSES[0].id,
       direction: { primaryUniverseId: MIRAVA_UNIVERSES[0].id, sessionType: "profile_premium", recommendedFormats: ["portrait", "profile"] },
-      identityConsentAt: new Date().toISOString(), firstSessionId: "creation-1", updatedAt: new Date().toISOString(),
+      termsAcceptedAt: new Date().toISOString(), identityConsentAt: new Date().toISOString(), firstSessionId: "creation-1", updatedAt: new Date().toISOString(),
     } } })
 
     const response = await PATCH(request({ action: "progress", currentStep: "identity_permission" }))
@@ -135,7 +148,7 @@ describe("MIRAVA first-access onboarding", () => {
       version: 4, status: "in_progress", currentStep: "capture_activation", universeIds: [MIRAVA_UNIVERSES[0].id], goal: "presence",
       primaryUniverseId: MIRAVA_UNIVERSES[0].id,
       direction: { primaryUniverseId: MIRAVA_UNIVERSES[0].id, sessionType: "profile_premium", recommendedFormats: ["portrait", "profile"] },
-      identityConsentAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+      termsAcceptedAt: new Date().toISOString(), identityConsentAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
     } } })
     mocks.findIdentityProfile.mockResolvedValue({ id: "profile-1", _count: { assets: 2 } })
     mocks.findCreation.mockResolvedValue({ id: "creation-1", identityProfileId: "profile-1" })
@@ -151,7 +164,7 @@ describe("MIRAVA first-access onboarding", () => {
       version: 4, status: "session_ready", currentStep: "capture_activation", universeIds: [MIRAVA_UNIVERSES[0].id], goal: "presence",
       primaryUniverseId: MIRAVA_UNIVERSES[0].id,
       direction: { primaryUniverseId: MIRAVA_UNIVERSES[0].id, sessionType: "profile_premium", recommendedFormats: ["portrait", "profile"] },
-      identityConsentAt: new Date().toISOString(), firstSessionId: "creation-1", updatedAt: new Date().toISOString(),
+      termsAcceptedAt: new Date().toISOString(), identityConsentAt: new Date().toISOString(), firstSessionId: "creation-1", updatedAt: new Date().toISOString(),
     } } })
     mocks.findIdentityProfile.mockResolvedValue({ id: "profile-1", _count: { assets: 3 } })
     mocks.findCreation.mockResolvedValue({ id: "creation-1", identityProfileId: "profile-1" })

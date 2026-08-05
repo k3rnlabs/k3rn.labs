@@ -403,6 +403,7 @@ class DbClient {
   studioCreation = new DbModel("StudioCreation")
   studioAsset = new DbModel("StudioAsset")
   studioConsent = new DbModel("StudioConsent")
+  studioConsentEvent = new DbModel("StudioConsentEvent")
   studioJob = new DbModel("StudioJob")
   studioCreditLedger = new DbModel("StudioCreditLedger")
   studioCreditLot = new DbModel("StudioCreditLot")

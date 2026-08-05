@@ -2,7 +2,7 @@
 
 import Image from "next/image"
 import Link from "next/link"
-import posthog from "posthog-js"
+import { captureMiravaAnalytics } from "@/lib/mirava/analytics-consent.client"
 import { motion, useReducedMotion } from "framer-motion"
 import { ArrowRight, Camera, Check, LockKeyhole, ShieldCheck, Sparkles, Sliders, Layers, UserCheck, CheckCircle2, Sparkle } from "lucide-react"
 import { MiravaInstallButton } from "@/components/mirava/mirava-pwa"
@@ -149,7 +149,7 @@ export default function MiravaLandingPage() {
 
   const trackHeroCta = () => {
     try {
-      posthog.capture("hero_cta_clicked", { location: "hero" })
+      captureMiravaAnalytics("hero_cta_clicked", { location: "hero" })
     } catch (_) {}
   }
 

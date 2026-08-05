@@ -19,7 +19,7 @@ import {
   X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import posthog from "posthog-js"
+import { captureMiravaAnalytics } from "@/lib/mirava/analytics-consent.client"
 import { MiravaGrain } from "@/components/mirava/mirava-grain"
 import { analyzeMiravaIdentityPhoto } from "./mirava-import-analyzer"
 import type { MiravaVisionIssue, MiravaVisionResult, MiravaVisionStep } from "./mirava-vision.types"

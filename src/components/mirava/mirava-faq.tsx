@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import posthog from "posthog-js"
+import { captureMiravaAnalytics } from "@/lib/mirava/analytics-consent.client"
 import { motion, AnimatePresence } from "framer-motion"
 import { ChevronDown, HelpCircle, ShieldCheck, Sparkles } from "lucide-react"
 
@@ -77,7 +77,7 @@ export function MiravaFaq({ locale }: MiravaFaqProps) {
     setOpenId(isOpening ? id : null)
     if (isOpening) {
       try {
-        posthog.capture("faq_opened", { faq_id: id })
+        captureMiravaAnalytics("faq_opened", { faq_id: id })
       } catch (_) {}
     }
   }

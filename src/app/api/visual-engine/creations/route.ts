@@ -9,6 +9,7 @@ import { recordMiravaAudit } from "@/lib/visual-engine/audit"
 import { MIRAVA_STUDIO_PRESETS, type MiravaStudioPresetId } from "@/lib/mirava/brand"
 import { miravaCreativeOptionsSchema } from "@/lib/mirava/creative-options"
 import { isMiravaPublicLaunchEnabled } from "@/lib/mirava/server-config"
+import { requireMiravaRequiredConsents } from "@/lib/visual-engine/privacy"
 
 const createSchema = z.object({
   ageConfirmed: z.literal(true),
@@ -41,10 +42,14 @@ export async function POST(req: NextRequest) {
   const result = await validateBody(createSchema, req)
   if ("error" in result) return withMiravaPrivateHeaders(result.error)
   try {
+    await requireMiravaRequiredConsents(session.userId)
     const creation = await createStudioCreation({ userId: session.userId, ...result.data, presetId: result.data.presetId as MiravaStudioPresetId | undefined })
     await recordMiravaAudit(session.userId, "CREATED", creation.id)
     return apiSuccess({ creation: studioCreationPublic(creation) }, 201)
   } catch (error) {
+    if (error instanceof Error && error.message === "MIRAVA_REQUIRED_CONSENT_MISSING") {
+      return apiError("Les conditions et le consentement explicite aux images doivent être acceptés.", 409)
+    }
     const mapped = studioErrorResponse(error)
     return apiError(mapped.message, mapped.status)
   }

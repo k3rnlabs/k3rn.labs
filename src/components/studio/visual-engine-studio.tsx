@@ -63,7 +63,7 @@ import {
 } from "@/lib/mirava/identity-profile-upload.client"
 import { MIRAVA_UNIVERSES, getMiravaUniverse, type MiravaUniverse } from "@/lib/mirava/universes"
 import { cn } from "@/lib/utils"
-import posthog from "posthog-js"
+import { captureMiravaAnalytics } from "@/lib/mirava/analytics-consent.client"
 
 type Locale = "fr" | "es"
 type Status = "DRAFT" | "ANALYSIS_QUEUED" | "ANALYSING" | "IDENTITY_READY" | "GENERATION_QUEUED" | "GENERATING" | "COMPLETED" | "FAILED" | "CANCELLED"
@@ -88,7 +88,14 @@ type Studio = { id: string; name: string; presetId: string | null; createdAt: st
 type IdentityProfile = { id: string; assetCount: number; updatedAt: string; previews: Array<{ id: string; url: string; createdAt: string }> } | null
 type Offer = { id: string; name: string; credits: number; priceEur: number; kind: "pack" | "subscription" }
 type Account = { credits: number; subscription: { planId: string | null; status: string | null; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean } | null; plans: Offer[]; packs: Offer[] }
-type Consents = { adult: boolean; rights: boolean; privacy: boolean; provider: boolean }
+type Consents = { terms: boolean; identity: boolean }
+type PrivacyStatus = {
+  termsAccepted: boolean
+  identityProcessingAccepted: boolean
+  analyticsAccepted: boolean | null
+  requiredAccepted: boolean
+  identityWithdrawnAt: string | null
+}
 
 const pendingStatuses: Status[] = ["ANALYSIS_QUEUED", "ANALYSING", "GENERATION_QUEUED", "GENERATING"]
 
@@ -976,12 +983,13 @@ export function VisualEngineStudio() {
   const [miravaOnboarding, setMiravaOnboarding] = useState<MiravaOnboardingState | null | undefined>(undefined)
   const [miravaFirstName, setMiravaFirstName] = useState<string | null>(null)
   const [account, setAccount] = useState<Account | null>(null)
+  const [privacyStatus, setPrivacyStatus] = useState<PrivacyStatus | null>(null)
   const [highlightedOfferId, setHighlightedOfferId] = useState<string | null>(null)
   const [selectedUniverseId, setSelectedUniverseId] = useState(MIRAVA_UNIVERSES[0].id)
   const [entryUniverseId, setEntryUniverseId] = useState<string | undefined>(undefined)
   const [entryIntent, setEntryIntent] = useState<"reference" | null>(null)
   const [options, setOptions] = useState<MiravaCreativeOptions>({})
-  const [consents, setConsents] = useState<Consents>({ adult: false, rights: false, privacy: false, provider: false })
+  const [consents, setConsents] = useState<Consents>({ terms: false, identity: false })
   const [consentTarget, setConsentTarget] = useState<string | null | undefined>(undefined)
   const [consentReference, setConsentReference] = useState<File | null>(null)
   const [directorOpen, setDirectorOpen] = useState(false)
@@ -1036,17 +1044,19 @@ export function VisualEngineStudio() {
   }, [])
 
   const refresh = useCallback(async (creationId?: string) => {
-    const [libraryData, studioData, profileData, accountData, onboardingData] = await Promise.all([
+    const [libraryData, studioData, profileData, accountData, onboardingData, privacyData] = await Promise.all([
       api<{ studioCredits: number; creations: Creation[] }>("/api/visual-engine/creations"),
       api<{ studios: Studio[] }>("/api/visual-engine/studios"),
       api<{ profile: IdentityProfile }>("/api/visual-engine/identity-profile"),
       api<Account>("/api/visual-engine/account"),
       api<{ firstName: string | null; onboarding: MiravaOnboardingState | null }>("/api/visual-engine/onboarding"),
+      api<{ privacy: PrivacyStatus }>("/api/visual-engine/privacy"),
     ])
     setCreations(libraryData.creations)
     setStudios(studioData.studios)
     setIdentityProfile(profileData.profile)
     setAccount(accountData)
+    setPrivacyStatus(privacyData.privacy)
     setMiravaOnboarding(onboardingData.onboarding)
     setMiravaFirstName(onboardingData.firstName)
     // À la première entrée d'une cliente déjà onboardée, reprendre son univers
@@ -1245,22 +1255,7 @@ export function VisualEngineStudio() {
     }
   }
 
-  // Le parcours d’onboarding enregistre désormais l’accord avant
-  // la capture. Les comptes déjà activés ont également terminé
-  // l’ancien parcours de validation.
-  const hasSavedLegalConsent =
-    Boolean(
-      miravaOnboarding
-        ?.identityConsentAt,
-    ) ||
-    isMiravaOnboardingCompleted(
-      miravaOnboarding,
-    )
-
-  const ready =
-    hasSavedLegalConsent ||
-    Object.values(consents)
-      .every(Boolean)
+  const ready = privacyStatus?.requiredAccepted === true
 
   const selectView = (next: View) => {
     setDirectorOpen(false)
@@ -1330,6 +1325,31 @@ export function VisualEngineStudio() {
     })
   }
 
+  const acceptRequiredConsentsAndCreate = async () => {
+    const target = consentTarget
+    const reference = consentReference
+
+    const accepted = await run("consent", async () => {
+      const data = await api<{ privacy: PrivacyStatus }>("/api/visual-engine/privacy", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "accept_required",
+          termsAccepted: true,
+          identityProcessingAccepted: true,
+          locale,
+        }),
+      })
+
+      setPrivacyStatus(data.privacy)
+      setConsents({ terms: false, identity: false })
+    })
+
+    if (accepted) {
+      await create(target, reference)
+    }
+  }
+
   const requestCreate = (presetId?: string | null, brief?: string, referenceFile?: File | null) => {
     if (brief) setOptions((value) => ({ ...value, note: brief }))
     if (ready) {
@@ -1393,7 +1413,7 @@ export function VisualEngineStudio() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "session_ready", firstSessionId: session.creation.id }),
     })
-    posthog.capture("first_session_created", { onboarding_version: onboarding.version, objective: onboarding.goal, primary_universe_id: presetId })
+    captureMiravaAnalytics("first_session_created", { onboarding_version: onboarding.version, objective: onboarding.goal, primary_universe_id: presetId })
     // The onboarding direction is a preset and the private identity profile is
     // already complete. Queue the first image while the client confirms the
     // final activation, so there is no additional production choice to make.
@@ -1656,7 +1676,7 @@ export function VisualEngineStudio() {
     setCreateStepValue(0)
     setFurthestCreateStep(0)
     if (state.firstSessionId) {
-      posthog.capture("first_session_opened", { onboarding_version: state.version, objective: state.goal, primary_universe_id: state.direction?.primaryUniverseId })
+      captureMiravaAnalytics("first_session_opened", { onboarding_version: state.version, objective: state.goal, primary_universe_id: state.direction?.primaryUniverseId })
       void refresh(state.firstSessionId)
     }
   }
@@ -1730,7 +1750,7 @@ export function VisualEngineStudio() {
         className="fixed inset-x-0 z-30 mx-auto lg:hidden"
       />
 
-      {consentTarget !== undefined && <ConsentGate locale={locale} t={t} consents={consents} setConsents={setConsents} pending={pending} onClose={() => { setConsentTarget(undefined); setConsentReference(null) }} onConfirm={() => void create(consentTarget, consentReference)} />}
+      {consentTarget !== undefined && <ConsentGate locale={locale} t={t} consents={consents} setConsents={setConsents} pending={pending} onClose={() => { setConsentTarget(undefined); setConsentReference(null) }} onConfirm={() => void acceptRequiredConsentsAndCreate()} />}
       {directorOpen && <MiravaCreativeDirector locale={locale} universeId={selectedUniverseId} options={options} onApply={applyAlmaDirection} onOpenReference={openReferenceFromAlma} onClose={closeDirector} />}
       </div>
       {captureContext && <MiravaIdentityCapture locale={locale} context={captureContext} existingCount={identityProfile?.assetCount ?? 0} initialConsentAccepted={true} onClose={closeCapture} onComplete={(files, consent) => uploadIdentityFiles(files, consent, captureContext === "append" ? "append" : "replace")} />}
@@ -2126,30 +2146,46 @@ function SeriesDirection({ locale, options, setOptions }: { locale: Locale; opti
 }
 
 function ConsentGate({ locale, t, consents, setConsents, pending, onClose, onConfirm }: { locale: Locale; t: Copy; consents: Consents; setConsents: Dispatch<SetStateAction<Consents>>; pending: string | null; onClose: () => void; onConfirm: () => void }) {
-  const rows: Array<[keyof Consents, string]> = [["adult", t.adult], ["rights", t.rights], ["privacy", t.privacy], ["provider", t.provider]]
-  const ready = Object.values(consents).every(Boolean)
+  const ready = consents.terms && consents.identity
   return (
     <DialogPrimitive.Root open onOpenChange={(open) => { if (!open) onClose() }}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="mirava-modal-backdrop fixed inset-0 z-50 flex items-end justify-center p-0 backdrop-blur-sm sm:items-center sm:p-5" />
         <DialogPrimitive.Content className="mirava-modal fixed inset-x-0 bottom-0 z-50 max-h-dvh w-full max-w-xl overflow-y-auto p-5 outline-none sm:left-1/2 sm:bottom-auto sm:top-1/2 sm:max-h-[94dvh] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:p-7">
-        <div className="flex items-start justify-between">
-          <div><p className="mirava-label">MIRAVA / {locale === "fr" ? "ACCÈS PRIVÉ" : "ACCESO PRIVADO"}</p><DialogPrimitive.Title className="mirava-section-title mt-2 text-3xl">{t.consent}</DialogPrimitive.Title></div>
-          <button onClick={onClose} aria-label={locale === "fr" ? "Fermer" : "Cerrar"} className="mirava-button mirava-button-secondary h-12 w-12"><X className="h-4 w-4" /></button>
-        </div>
-        <div className="mt-6 space-y-2">
-          {rows.map(([key, label]) => (
-            <label key={key} className="mirava-control flex min-h-14 cursor-pointer gap-3 p-4 text-sm leading-5">
-              <input type="checkbox" checked={consents[key]} onChange={() => setConsents((value) => ({ ...value, [key]: !value[key] }))} className="mt-0.5 h-4 w-4 accent-mirava-accent" />
-              {label}
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="mirava-label">MIRAVA / {locale === "fr" ? "ACCORDS REQUIS" : "ACUERDOS REQUERIDOS"}</p>
+              <DialogPrimitive.Title className="mirava-section-title mt-2 text-3xl">{t.consent}</DialogPrimitive.Title>
+            </div>
+            <button onClick={onClose} aria-label={locale === "fr" ? "Fermer" : "Cerrar"} className="mirava-button mirava-button-secondary h-12 w-12 shrink-0"><X className="h-4 w-4" /></button>
+          </div>
+
+          <DialogPrimitive.Description className="mirava-copy mt-4 text-sm leading-6">
+            {locale === "fr"
+              ? "L’acceptation contractuelle et le consentement au traitement du Profil identité sont enregistrés séparément."
+              : "La aceptación contractual y el consentimiento al tratamiento del Perfil de identidad se registran por separado."}
+          </DialogPrimitive.Description>
+
+          <div className="mt-6 space-y-3">
+            <label className="mirava-control flex min-h-16 cursor-pointer items-start gap-3 p-4 text-sm leading-6">
+              <input type="checkbox" checked={consents.terms} onChange={(event) => setConsents((value) => ({ ...value, terms: event.target.checked }))} className="mt-1 h-4 w-4 shrink-0 accent-mirava-accent" />
+              <span>{locale === "fr"
+                ? "J’accepte les Conditions d’utilisation et je confirme être majeure ainsi que disposer des droits nécessaires sur les images envoyées."
+                : "Acepto las Condiciones de uso y confirmo ser mayor de edad y disponer de los derechos necesarios sobre las imágenes enviadas."}</span>
             </label>
-          ))}
-        </div>
-        <button onClick={onConfirm} disabled={!ready || pending === "create"} className="mirava-button mirava-button-primary mt-6 min-h-13 w-full gap-2 px-5 text-sm">
-          {pending === "create" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-          {t.enter}
-        </button>
-        <DialogPrimitive.Description className="mirava-muted mt-4 text-center text-[10px] leading-4">{locale === "fr" ? "Le consentement ne contourne jamais les règles de sécurité du fournisseur." : "El consentimiento nunca elude las reglas de seguridad del proveedor."}</DialogPrimitive.Description>
+
+            <label className="mirava-control flex min-h-16 cursor-pointer items-start gap-3 p-4 text-sm leading-6">
+              <input type="checkbox" checked={consents.identity} onChange={(event) => setConsents((value) => ({ ...value, identity: event.target.checked }))} className="mt-1 h-4 w-4 shrink-0 accent-mirava-accent" />
+              <span>{locale === "fr"
+                ? "Je consens explicitement au traitement de mes photos de visage et de mon Profil identité par MIRAVA et ses prestataires techniques, dont OpenAI, uniquement pour les créations que je demande."
+                : "Consiento explícitamente el tratamiento de mis fotos faciales y de mi Perfil de identidad por MIRAVA y sus proveedores técnicos, incluido OpenAI, únicamente para las creaciones que solicito."}</span>
+            </label>
+          </div>
+
+          <button onClick={onConfirm} disabled={!ready || pending === "consent"} className="mirava-button mirava-button-primary mt-6 min-h-13 w-full gap-2 px-5 text-sm">
+            {pending === "consent" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+            {locale === "fr" ? "Accepter et continuer" : "Aceptar y continuar"}
+          </button>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
@@ -2870,8 +2906,8 @@ function AccountView({
                 )}
 
                 {locale === "fr"
-                  ? "Supprimer le Profil identité"
-                  : "Eliminar el Perfil de identidad"}
+                  ? "Retirer mon consentement et supprimer le Profil identité"
+                  : "Retirar mi consentimiento y eliminar el Perfil de identidad"}
               </button>
             ) : null}
           </div>

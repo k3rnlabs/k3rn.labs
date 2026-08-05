@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import posthog from "posthog-js"
+import { captureMiravaAnalytics } from "@/lib/mirava/analytics-consent.client"
 import { motion, AnimatePresence } from "framer-motion"
 import { ArrowRight, Sparkles, CheckCircle2 } from "lucide-react"
 import { MIRAVA_UNIVERSES } from "@/lib/mirava/universes"
@@ -38,7 +38,7 @@ export function MiravaUniverseShowcase({ locale }: MiravaUniverseShowcaseProps) 
   const handleSelectUniverse = (id: string, name: string) => {
     setSelectedId(id)
     try {
-      posthog.capture("style_selected", { universe_id: id, universe_name: name })
+      captureMiravaAnalytics("style_selected", { universe_id: id, universe_name: name })
     } catch (_) {}
   }
 

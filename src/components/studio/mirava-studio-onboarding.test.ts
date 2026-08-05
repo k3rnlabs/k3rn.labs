@@ -51,6 +51,14 @@ describe("MIRAVA onboarding localization contracts", () => {
     expect(onboarding).toContain("sustituirlas o eliminarlas")
   })
 
+  it("separates contractual acceptance from explicit identity processing consent", () => {
+    expect(onboarding).toContain("const [termsAccepted")
+    expect(onboarding).toContain("termsAccepted: true")
+    expect(onboarding).toContain("identityConsentAccepted: true")
+    expect(onboarding).toContain("Je consens explicitement au traitement de mes photos de visage")
+    expect(onboarding).toContain("J’accepte les Conditions d’utilisation de MIRAVA")
+  })
+
   it("saves meaningful progress and records only non-sensitive onboarding analytics", () => {
     expect(onboarding).toContain('action: "progress"')
     expect(onboarding).toContain('objective_selected')
