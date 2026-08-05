@@ -234,7 +234,7 @@ A vertical photograph of a model in a blazer.
       expect(compiled.negativeGuardrails).toContain(
         "four-toed feet",
       )
-      expect(compiled.metadata.compilerVersion).toBe("1.3.0")
+      expect(compiled.metadata.compilerVersion).toBe("1.4.0")
     })
   })
 

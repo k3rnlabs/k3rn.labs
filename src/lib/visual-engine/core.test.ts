@@ -59,7 +59,7 @@ describe("MIRAVA private creation engine", () => {
     expect(prompt).toContain("Do not copy the identity photos’ pose")
     expect(prompt).toContain("SERIES FRAME 2/3")
     expect(prompt).toContain("must not repeat another frame’s pose")
-    expect(prompt).toContain("same adult identity, destination family")
+    expect(prompt).toContain("same adult identity, architectural era and material system")
   })
 
   it("selects authentic phone-camera realism for selfie scenes", () => {

@@ -70,8 +70,31 @@ export function buildMiravaSeriesShotBrief(value: unknown, frameIndex: number): 
     5: [0, 1, 2, 3, 5],
     6: [0, 1, 2, 3, 4, 5],
   }
-  const safeIndex = Math.max(0, Math.min(frameIndex, size - 1))
-  const shot = sixShotArc[selectedIndices[size][safeIndex]]
+  const safeIndex =
+    Math.max(
+      0,
+      Math.min(
+        frameIndex,
+        size - 1,
+      ),
+    )
+
+  if (safeIndex === 0) {
+    return [
+      `SERIES FRAME 1/${size} — Reference fidelity hero.`,
+      "Framing: preserve the exact extracted reference crop, subject scale, camera height, camera angle, focal feel, perspective strength, negative space and frame-edge contacts.",
+      "Action: reproduce the extracted pose skeleton, arm and hand anchors, body orientation, head angle, gaze, expression and hairstyle arrangement rather than inventing an opener activity.",
+      "Light: reproduce the exact approved light direction, hardness, exposure balance, shadow architecture and subject-to-background relationship.",
+      settingStrategy,
+      "REFERENCE FIDELITY ANCHOR — Keep the approved architecture, material system, wardrobe topology, pose, expression, hair silhouette, camera construction and visual hierarchy. This frame must be the closest structural reconstruction of the reference.",
+      "Do not replace the reference pose with arrival, walking, generic standing, direct eye contact, a default smile, or a different gesture.",
+    ].join("\n")
+  }
+
+  const shot =
+    sixShotArc[
+      selectedIndices[size][safeIndex]
+    ]
 
   return [
     `SERIES FRAME ${safeIndex + 1}/${size} — ${shot.role}.`,
@@ -79,8 +102,9 @@ export function buildMiravaSeriesShotBrief(value: unknown, frameIndex: number): 
     `Action: ${shot.action}.`,
     `Light: ${shot.light}.`,
     settingStrategy,
-    "SERIES CONTINUITY — Keep the exact same adult identity, destination family, campaign palette, photographic finish and believable chronology across the series.",
-    "MANDATORY VARIATION — This frame must not repeat another frame’s pose, gaze, facial expression, gesture, crop, camera height, camera angle, focal distance, activity, sub-location or light beat. Do not reuse identity-reference poses or accessories.",
-    "The full set must read as one real editorial trip photographed over time, not as duplicated portraits against interchangeable backgrounds.",
+    "SERIES CONTINUITY — Keep the exact same adult identity, architectural era and material system, wardrobe topology, campaign palette, photographic finish and believable chronology across the series.",
+    "MANDATORY VARIATION — This frame must not repeat another frame’s pose, gaze, facial expression, gesture, crop, camera height, camera angle, focal distance, activity, sub-location or light beat. Vary only approved series dimensions and preserve every non-varied reference constraint.",
+    "Do not replace specific architecture, garment construction, hairstyle logic or campaign lighting with generic equivalents.",
+    "The full set must read as one real editorial sequence photographed over time, not as duplicated portraits against interchangeable backgrounds.",
   ].join("\n")
 }

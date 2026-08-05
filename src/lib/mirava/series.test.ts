@@ -16,13 +16,18 @@ describe("MIRAVA editorial series", () => {
   it("gives every frame a different narrative and photographic role", () => {
     const briefs = Array.from({ length: 6 }, (_, index) => buildMiravaSeriesShotBrief({ seriesSize: 6 }, index))
     expect(new Set(briefs).size).toBe(6)
-    expect(briefs[0]).toContain("Destination opener")
+    expect(briefs[0]).toContain("Reference fidelity hero")
     expect(briefs[1]).toContain("Lived-in moment")
     expect(briefs[2]).toContain("Intimate signature")
     expect(briefs[3]).toContain("Movement and scale")
     expect(briefs[4]).toContain("Social detail")
     expect(briefs[5]).toContain("Closing frame")
-    briefs.forEach((brief) => expect(brief).toContain("MANDATORY VARIATION"))
+    expect(briefs[0]).toContain("REFERENCE FIDELITY ANCHOR")
+    briefs
+      .slice(1)
+      .forEach((brief) =>
+        expect(brief).toContain("MANDATORY VARIATION"),
+      )
   })
 
   it("makes the selected setting strategy explicit in the production brief", () => {

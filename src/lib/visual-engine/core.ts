@@ -1558,9 +1558,26 @@ export function buildMiravaGenerationPrompt(
   frameIndex = 0,
   physicalTraits: PhysicalTrait[] = []
 ): string {
-  const creativePreferences = formatMiravaCreativeOptions(creation.creativeOptions)
-  const seriesBrief = buildMiravaSeriesShotBrief(creation.creativeOptions, frameIndex)
-  const physicalTraitsSegment = formatPhysicalTraitsForPrompt(physicalTraits)
+  const creativePreferences =
+    formatMiravaCreativeOptions(
+      creation.creativeOptions,
+    )
+
+  const seriesSize =
+    getMiravaSeriesSize(
+      creation.creativeOptions,
+    )
+
+  const seriesBrief =
+    buildMiravaSeriesShotBrief(
+      creation.creativeOptions,
+      frameIndex,
+    )
+
+  const physicalTraitsSegment =
+    formatPhysicalTraitsForPrompt(
+      physicalTraits,
+    )
 
   const inferredSceneContext =
     heuristicSceneClassification({
@@ -1595,19 +1612,41 @@ export function buildMiravaGenerationPrompt(
     },
   }
 
-  const compiled = compileGenerationPrompt({
-    blueprint: fakeBlueprint,
-    sceneContext: inferredSceneContext,
-    generation: { frameIndex },
-  })
+  const compiled =
+    compileGenerationPrompt({
+      blueprint:
+        fakeBlueprint,
+      sceneContext:
+        inferredSceneContext,
+      generation: {
+        frameIndex,
+        imageCount:
+          seriesSize,
+      },
+    })
+
+  const downstreamFidelityPrecedence = [
+    "DOWNSTREAM FIDELITY PRECEDENCE — The approved reference art direction remains authoritative after all identity, series, physical-trait, and client-preference segments are combined.",
+    seriesSize === 1
+      ? "SINGLE-IMAGE SESSION — Preserve the extracted crop, composition, pose skeleton, expression, gaze, hairstyle silhouette, wardrobe topology, architecture, camera perspective, lighting, and visual hierarchy. Do not introduce a series-style crop, new pose, new setting, or generic replacement."
+      : frameIndex === 0
+        ? "SERIES FIDELITY ANCHOR — Frame 1 must remain the closest structural reconstruction of the approved reference. Do not vary its pose, expression, crop, camera geometry, hairstyle arrangement, wardrobe topology, architecture, or lighting."
+        : "SERIES VARIATION — Vary only the dimensions authorized by the series brief and client-approved variation axes. Preserve every non-varied reference constraint and do not replace specific architecture, garment construction, expression, or styling with generic equivalents.",
+    "When two instructions conflict, preserve identity and required safety coverage first, then preserve the approved reference construction, then apply only compatible preferences or series variation.",
+  ].join(" ")
 
   return [
     compiled.positivePrompt,
     physicalTraitsSegment,
     seriesBrief,
     creativePreferences,
-    compiled.negativeGuardrails ? `Avoid: ${compiled.negativeGuardrails}` : "",
-  ].filter(Boolean).join("\n\n")
+    downstreamFidelityPrecedence,
+    compiled.negativeGuardrails
+      ? `Avoid: ${compiled.negativeGuardrails}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n")
 }
 
 async function generateStudioImage(

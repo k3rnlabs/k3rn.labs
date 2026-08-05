@@ -28,7 +28,7 @@ export type GenerationPromptCompilerInput = {
 }
 
 export const COMPILER_METADATA = {
-  compilerVersion: "1.3.0",
+  compilerVersion: "1.4.0",
 } as const
 
 /**
@@ -54,10 +54,21 @@ export function compileGenerationPrompt(input: GenerationPromptCompilerInput): C
   // C. COMPOSITION & CAMERA
   const basePrompt = blueprint.baseGenerationPrompt.trim()
 
-  // D. FIDELITY CONTRACT
-  const fidelityContract = blueprint.transferMode === "FIDELITY"
-    ? "TRANSFER_MODE = FIDELITY. Reproduce extracted camera geometry, lighting architecture, pose anchors, exposure relationships, and wardrobe silhouette faithfully. Do not add fill light, HDR shadow lifting, artificial skin glow, or cinematic relighting."
-    : "TRANSFER_MODE = POLISHED. Refine technical execution while preserving extracted lighting, pose, composition, and wardrobe construction."
+  // D. REFERENCE FIDELITY LOCK
+  const referenceFidelityLockClause =
+    blueprint.transferMode === "FIDELITY"
+      ? [
+          "REFERENCE FIDELITY LOCK — The approved art direction is authoritative for architecture, environment, camera geometry, subject scale, perspective strength, pose skeleton, arm and hand anchors, frame-edge contacts, expression, gaze, hairstyle arrangement, wardrobe topology, lighting architecture, exposure relationships, palette, and photographic finish.",
+          "The identity photographs control only recognizable identity, natural facial and body anatomy, skin characteristics, hairline, authentic hair traits, and validated physical traits. They must not override the approved pose, expression, gaze, hairstyle arrangement, wardrobe construction, environment, crop, camera, or lighting.",
+          "Preserve every specific reference element rather than replacing it with a generic equivalent. Contemporary architecture must remain contemporary; glass balustrades must not become traditional railings; distinctive fixtures must not become generic lights; a specific pose must not become a semantically similar pose; a specific garment topology must not become a generic garment.",
+          "Preserve the extracted visual hierarchy. Do not intensify low-angle distortion, enlarge the nearest thigh, hip, hand, chest, or other foreground element beyond the approved perspective, and do not change which element visually dominates the frame.",
+          "Coverage-safe adaptation may change only the minimum garment coverage required for a neutral commercial result. It must not alter architecture, pose skeleton, expression, hairstyle silhouette, camera geometry, lighting, or overall photographic character.",
+          "TRANSFER_MODE = FIDELITY.",
+        ].join(" ")
+      : [
+          "TRANSFER_MODE = POLISHED.",
+          "Refine technical execution while preserving the approved architecture, pose structure, expression, composition, wardrobe construction, and lighting system.",
+        ].join(" ")
 
   const microAnatomyAndObjectCoherenceClause = [
     "MICRO-ANATOMY AND OBJECT COHERENCE — Preserve topological, anatomical, and physical continuity in every visible high-detail region.",
@@ -85,28 +96,49 @@ export function compileGenerationPrompt(input: GenerationPromptCompilerInput): C
   }
 
   // F. FRAME INDEX BRIEF (FOR SERIES)
+  const seriesImageCount =
+    generation?.imageCount ?? 1
+
   let frameSegment = ""
-  if (typeof generation?.frameIndex === "number") {
-    const index = generation.frameIndex
+
+  if (
+    seriesImageCount > 1 &&
+    typeof generation?.frameIndex === "number"
+  ) {
+    const index =
+      generation.frameIndex
+
     if (index === 0) {
-      frameSegment = "SERIES VARIATION 1 — Wide/Medium environmental shot capturing the full scene composition and pose."
-    } else if (index === 1) {
-      frameSegment = "SERIES VARIATION 2 — Medium crop waist-up focus, emphasizing facial lighting fidelity and garment details."
-    } else if (index === 2) {
-      frameSegment = "SERIES VARIATION 3 — Intimate close-up portrait focus on facial expression, gaze, and key lighting highlights."
+      frameSegment = [
+        "REFERENCE HERO FRAME — This first image is the fidelity anchor for the series.",
+        "Preserve the extracted crop, subject scale, camera height, perspective strength, pose skeleton, arm and hand anchors, frame-edge contacts, expression, gaze, hairstyle silhouette, wardrobe topology, architecture, and lighting without creative substitution.",
+      ].join(" ")
+    } else {
+      frameSegment = [
+        `SERIES VARIATION ${index + 1} — Variation is subordinate to the approved art direction.`,
+        "Vary only the dimensions explicitly authorized by the series brief or client-approved preferences.",
+        "Preserve architectural era and materials, wardrobe topology, identity, coverage rules, palette, photographic finish, and all non-varied reference constraints.",
+      ].join(" ")
     }
   }
+
+  const referenceFidelityVerificationClause = [
+    "FINAL REFERENCE FIDELITY CHECK — Before rendering, verify that the output still matches the approved architecture and material system, exact pose skeleton, arm and hand anchors, expression and gaze mechanics, hairstyle silhouette, wardrobe topology, camera perspective, frame-edge relationships, lighting direction, exposure balance, and visual hierarchy.",
+    "Reject generic substitutions, silent modernization or aging of the environment, pose simplification, default direct eye contact, default smiling, hairstyle flattening, garment redesign, exaggerated foreground anatomy, or a different compositional emphasis.",
+    "Later instructions may refine technical quality or approved series variation, but they must not erase or contradict the approved art direction.",
+  ].join(" ")
 
   // G. CONSTRUCT FINAL POSITIVE PROMPT
   const positivePromptParts = [
     identityClause,
     profileFramingSegment,
+    referenceFidelityLockClause,
     basePrompt,
     microAnatomyAndObjectCoherenceClause,
     adaptiveRealismLayer,
-    fidelityContract,
     frameSegment,
     userNoteSegment,
+    referenceFidelityVerificationClause,
   ].filter(Boolean)
 
   const positivePrompt = positivePromptParts.join("\n\n")
@@ -125,6 +157,12 @@ export function compileGenerationPrompt(input: GenerationPromptCompilerInput): C
     "broken straps, duplicated buttons, discontinuous seams, impossible garment openings, floating fabric, warped held objects, intersecting props",
     "inconsistent mirrors, different reflected identity, altered reflected pose, contradictory shadows, duplicated background objects, malformed secondary faces, ownerless body parts",
     "invented tattoos, mirrored tattoos, relocated tattoos, duplicated tattoos, transformed scars, invented birthmarks, copied artistic-reference identity marks",
+    "generic architecture substitution, dated interior replacing contemporary architecture, changed balustrade materials, generic fixtures replacing specific fixtures, altered stair geometry, generic domestic environment replacing approved architecture",
+    "pose skeleton drift, semantically similar but geometrically different pose, arm-anchor substitution, changed hand contact points, altered frame-edge exits, upright posture replacing an approved diagonal lean",
+    "expression drift, open eyes replacing closed eyes, direct gaze replacing the approved gaze, neutral smile replacing a kiss expression or specified mouth shape, changed chin angle or head tilt",
+    "hair arrangement drift, flattened hair volume, changed parting, forward waves moved behind the shoulders, straight-back hair replacing the approved silhouette",
+    "wardrobe topology drift, generic garment replacing a sculptural garment, added bra cups, invented straps, changed cutout geometry, changed mesh and opaque panel boundaries, altered seam routes",
+    "perspective exaggeration, extreme low angle replacing a moderate low angle, enlarged foreground thigh, enlarged hip, enlarged hand, changed subject scale, changed visual hierarchy",
     "changed garment coverage, unintended transparency, incorrect wardrobe construction",
     "invented fill light, HDR flattening, plastic skin, excessive retouching, studio relighting, cinematic reinterpretation",
   ].filter(Boolean)
