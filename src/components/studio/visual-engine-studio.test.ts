@@ -347,7 +347,7 @@ describe("MIRAVA studio entry contracts", () => {
     )
   })
 
-  it("turns generation waiting into a premium darkroom reveal", () => {
+  it("turns generation waiting into a premium photographic workflow", () => {
     expect(studio).toContain(
       "function MiravaDarkroomLoading",
     )
@@ -358,7 +358,16 @@ describe("MIRAVA studio entry contracts", () => {
       "Votre séance prend forme",
     )
     expect(studio).toContain(
-      "Construction de la lumière",
+      "Analyse de l’architecture et du décor",
+    )
+    expect(studio).toContain(
+      "Cartographie de la pose",
+    )
+    expect(studio).toContain(
+      "Transfert de la direction artistique",
+    )
+    expect(studio).toContain(
+      "Développement du rendu photographique",
     )
     expect(studio).toContain(
       "<MiravaDarkroomLoading",
@@ -458,57 +467,133 @@ describe("MIRAVA studio entry contracts", () => {
   })
 
 
-  it("keeps the darkroom frame free of the blurred silhouette", () => {
-    expect(studio).not.toContain(
-      'top-[18%] h-[17%] w-[24%]',
+  it("keeps the darkroom card free of decorative scan ornaments", () => {
+    const darkroom = studio.slice(
+      studio.indexOf(
+        "function MiravaDarkroomLoading",
+      ),
+      studio.indexOf(
+        "function ResultSaveButton",
+      ),
     )
 
-    expect(studio).not.toContain(
-      'bottom-[8%] left-1/2 h-[64%] w-[54%]',
+    expect(darkroom).toContain(
+      "data-mirava-darkroom-card",
     )
-
-    expect(studio).not.toContain(
-      "radial-gradient(circle at 50% 35%",
+    expect(darkroom).toContain(
+      "data-mirava-darkroom-dot-grid",
     )
-
-    expect(studio).not.toContain(
-      "radial-gradient(circle at 50% 70%",
+    expect(darkroom).not.toContain(
+      "darkroomCopy.frame",
     )
-
-    expect(studio).toContain(
+    expect(darkroom).not.toContain(
       "bottom-11 left-1/2 flex -translate-x-1/2",
     )
+    expect(darkroom).not.toContain(
+      "border-l border-t border-white/35",
+    )
+    expect(darkroom).not.toContain(
+      "border-b border-r border-white/35",
+    )
   })
 
-
-  it("replaces the technical scan line with a liquid golden halo", () => {
-    expect(studio).not.toContain(
-      '-inset-x-[30%] top-0 h-[16%]',
+  it("replaces the local liquid halo with a full-card golden Grainient field", () => {
+    const darkroom = studio.slice(
+      studio.indexOf(
+        "function MiravaDarkroomLoading",
+      ),
+      studio.indexOf(
+        "function ResultSaveButton",
+      ),
     )
 
     expect(studio).toContain(
+      'import { Grainient } from "@/components/mirava/grainient"',
+    )
+    expect(darkroom).toContain(
+      "data-mirava-darkroom-grainient",
+    )
+    expect(darkroom).toContain(
+      "<Grainient",
+    )
+    expect(darkroom).toContain(
+      'color1="#b49a68"',
+    )
+    expect(darkroom).toContain(
+      'color3="#6b5130"',
+    )
+    expect(darkroom).toContain(
+      "animated={!reduceMotion}",
+    )
+    expect(darkroom).not.toContain(
       "data-mirava-liquid-gold-halo",
     )
-
-    expect(studio).toContain(
-      'mixBlendMode:',
-    )
-
-    expect(studio).toContain(
-      '"screen"',
-    )
-
-    expect(studio).toContain(
+    expect(darkroom).not.toContain(
       "borderRadius: [",
     )
-
-    expect(studio).toContain(
-      'left: [',
-    )
-
-    expect(studio).toContain(
-      'top: [',
-    )
   })
+
+  it(
+    "polls only the active creation while production is pending",
+    () => {
+      expect(studio).toContain(
+        "const refreshCreation =",
+      )
+
+      expect(studio).toContain(
+        "`/api/visual-engine/creations/${creationId}`",
+      )
+
+      const pollingStart =
+        studio.indexOf(
+          "const poll = async () =>",
+        )
+
+      const pollingEnd =
+        studio.indexOf(
+          "const run = async",
+          pollingStart,
+        )
+
+      const pollingSection =
+        studio.slice(
+          pollingStart,
+          pollingEnd,
+        )
+
+      expect(pollingSection).toContain(
+        "refreshCreation(",
+      )
+
+      expect(pollingSection).not.toContain(
+        "void refresh(",
+      )
+
+      expect(pollingSection).not.toContain(
+        "setInterval",
+      )
+    },
+  )
+
+  it(
+    "explains analysis and generation timeouts explicitly",
+    () => {
+      expect(studio).toContain(
+        '"ANALYSIS_TIMEOUT"',
+      )
+
+      expect(studio).toContain(
+        '"GENERATION_TIMEOUT"',
+      )
+
+      expect(studio).toContain(
+        "Référence non analysée",
+      )
+
+      expect(studio).toContain(
+        "Création interrompue",
+      )
+    },
+  )
 
 })

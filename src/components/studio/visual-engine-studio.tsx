@@ -40,6 +40,7 @@ import {
 } from "lucide-react"
 import { MiravaWordmark } from "@/components/mirava/mirava-wordmark"
 import { MiravaGrain } from "@/components/mirava/mirava-grain"
+import { Grainient } from "@/components/mirava/grainient"
 import { BlurText } from "@/components/mirava/blur-text"
 import { enableMiravaPush, MiravaInstallButton } from "@/components/mirava/mirava-pwa"
 import { useMiravaLocale } from "@/components/mirava/mirava-locale"
@@ -78,6 +79,8 @@ type Creation = {
   failureKind?:
     | "SAFETY_REFUSAL"
     | "INVALID_IMAGE"
+    | "ANALYSIS_TIMEOUT"
+    | "GENERATION_TIMEOUT"
     | "TECHNICAL_ERROR"
     | null
   createdAt: string
@@ -265,27 +268,35 @@ const MIRAVA_DARKROOM_PHASES = {
   fr: {
     analysis: [
       "Lecture de la composition",
-      "Extraction de la lumière",
-      "Construction de votre univers",
+      "Analyse de l’architecture et du décor",
+      "Cartographie de la pose",
+      "Calibration de la lumière",
+      "Construction de la direction artistique",
     ],
     generation: [
-      "Préservation de votre identité",
-      "Construction de la lumière",
-      "Création du cliché",
-      "Finalisation haute qualité",
+      "Ancrage de votre identité",
+      "Transfert de la direction artistique",
+      "Composition du cadrage",
+      "Calibration des matières et de la lumière",
+      "Développement du rendu photographique",
+      "Finalisation haute définition",
     ],
   },
   es: {
     analysis: [
       "Lectura de la composición",
-      "Extracción de la luz",
-      "Construcción de tu universo",
+      "Análisis de la arquitectura y el escenario",
+      "Cartografía de la pose",
+      "Calibración de la luz",
+      "Construcción de la dirección artística",
     ],
     generation: [
-      "Preservación de tu identidad",
-      "Construcción de la luz",
-      "Creación de la imagen",
-      "Finalización en alta calidad",
+      "Anclaje de tu identidad",
+      "Transferencia de la dirección artística",
+      "Composición del encuadre",
+      "Calibración de materiales y luz",
+      "Revelado del acabado fotográfico",
+      "Finalización en alta definición",
     ],
   },
 } as const
@@ -342,8 +353,6 @@ function MiravaDarkroomLoading({
             "MIRAVA compose votre image en préservant votre identité.",
           background:
             "Vous pouvez quitter cet écran : la création continue en privé.",
-          frame:
-            "Exposition en cours",
           shot:
             "Cliché",
           ready:
@@ -362,8 +371,6 @@ function MiravaDarkroomLoading({
             "MIRAVA compone tu imagen preservando tu identidad.",
           background:
             "Puedes salir de esta pantalla: la creación continúa en privado.",
-          frame:
-            "Exposición en curso",
           shot:
             "Imagen",
           ready:
@@ -391,7 +398,7 @@ function MiravaDarkroomLoading({
             (current + 1) %
             phases.length,
         )
-      }, 3200)
+      }, 3600)
 
     return () => {
       window.clearInterval(timer)
@@ -438,7 +445,8 @@ function MiravaDarkroomLoading({
 
       <div
         aria-hidden="true"
-        className="relative mx-auto mt-7 aspect-[4/5] w-full max-w-[350px] overflow-hidden rounded-[1.75rem] border border-white/10 bg-[#090a09] shadow-[0_30px_90px_rgba(0,0,0,0.65)]"
+        data-mirava-darkroom-card
+        className="relative isolate mx-auto mt-7 aspect-[4/5] w-full max-w-[350px] overflow-hidden rounded-[1.75rem] border border-white/10 bg-[#090a09] shadow-[0_30px_90px_rgba(0,0,0,0.65)]"
       >
         <div
           className="absolute inset-0"
@@ -448,170 +456,66 @@ function MiravaDarkroomLoading({
           }}
         />
 
-        <motion.div
+        <div
           aria-hidden="true"
-          data-mirava-liquid-gold-halo
-          className="pointer-events-none absolute h-[34%] w-[40%]"
-          style={{
-            left: "18%",
-            top: "16%",
-            willChange:
-              "left, top",
-          }}
-          animate={
-            reduceMotion
-              ? undefined
-              : {
-                  left: [
-                    "18%",
-                    "60%",
-                    "45%",
-                    "13%",
-                    "63%",
-                    "30%",
-                    "18%",
-                  ],
-                  top: [
-                    "16%",
-                    "25%",
-                    "66%",
-                    "55%",
-                    "39%",
-                    "70%",
-                    "16%",
-                  ],
-                }
-          }
-          transition={{
-            duration: 16.5,
-            repeat: Infinity,
-            ease: "easeInOut",
-            times: [
-              0,
-              0.16,
-              0.34,
-              0.51,
-              0.68,
-              0.84,
-              1,
-            ],
-          }}
+          data-mirava-darkroom-grainient
+          className="pointer-events-none absolute inset-0"
         >
-          <motion.div
-            className="h-full w-full"
-            style={{
-              background:
-                "radial-gradient(ellipse at 34% 30%, rgba(246,226,177,0.58) 0%, rgba(217,180,101,0.34) 30%, rgba(169,123,52,0.16) 55%, rgba(111,77,28,0.05) 70%, transparent 80%)",
-              borderRadius:
-                "58% 42% 64% 36% / 46% 62% 38% 54%",
-              filter:
-                "blur(20px)",
-              mixBlendMode:
-                "screen",
-              opacity: 0.48,
-              willChange:
-                "transform, border-radius, opacity",
-            }}
-            animate={
-              reduceMotion
-                ? undefined
-                : {
-                    borderRadius: [
-                      "58% 42% 64% 36% / 46% 62% 38% 54%",
-                      "34% 66% 42% 58% / 61% 38% 62% 39%",
-                      "63% 37% 31% 69% / 42% 57% 43% 58%",
-                      "41% 59% 67% 33% / 65% 35% 55% 45%",
-                      "58% 42% 64% 36% / 46% 62% 38% 54%",
-                    ],
-                    rotate: [
-                      -8,
-                      17,
-                      -13,
-                      11,
-                      -8,
-                    ],
-                    scaleX: [
-                      0.88,
-                      1.18,
-                      0.95,
-                      1.12,
-                      0.88,
-                    ],
-                    scaleY: [
-                      1.08,
-                      0.82,
-                      1.16,
-                      0.91,
-                      1.08,
-                    ],
-                    opacity: [
-                      0.38,
-                      0.62,
-                      0.44,
-                      0.58,
-                      0.38,
-                    ],
-                  }
-            }
-            transition={{
-              duration: 9.8,
-              repeat: Infinity,
-              ease: "easeInOut",
-            }}
+          <Grainient
+            className="absolute inset-0 h-full w-full"
+            color1="#b49a68"
+            color2="#171915"
+            color3="#6b5130"
+            timeSpeed={0.72}
+            colorBalance={-0.12}
+            warpStrength={1.75}
+            warpFrequency={5.6}
+            warpSpeed={1.25}
+            warpAmplitude={30}
+            blendAngle={-14}
+            blendSoftness={0.16}
+            rotationAmount={620}
+            noiseScale={1.35}
+            grainAmount={0.035}
+            grainScale={1.8}
+            grainAnimated={false}
+            contrast={1.35}
+            gamma={1}
+            saturation={0.82}
+            centerX={-0.12}
+            centerY={0.03}
+            zoom={1.08}
+            animated={!reduceMotion}
           />
-        </motion.div>
+        </div>
 
-        <motion.div
-          className="absolute inset-0 opacity-[0.12]"
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 bg-black/24"
+        />
+
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0"
           style={{
-            backgroundImage:
-              "radial-gradient(rgba(255,255,255,0.9) 0.55px, transparent 0.8px)",
-            backgroundSize:
-              "5px 5px",
-          }}
-          animate={
-            reduceMotion
-              ? undefined
-              : {
-                  x: [
-                    0,
-                    2,
-                    -1,
-                    1,
-                    0,
-                  ],
-                  y: [
-                    0,
-                    -1,
-                    2,
-                    0,
-                  ],
-                }
-          }
-          transition={{
-            duration: 0.8,
-            repeat: Infinity,
-            ease: "linear",
+            background:
+              "radial-gradient(ellipse at 48% 46%, transparent 0%, rgba(4,5,4,0.08) 50%, rgba(2,3,2,0.68) 100%)",
           }}
         />
 
-        <div className="absolute left-4 top-4 h-6 w-6 border-l border-t border-white/35" />
-        <div className="absolute right-4 top-4 h-6 w-6 border-r border-t border-white/35" />
-        <div className="absolute bottom-4 left-4 h-6 w-6 border-b border-l border-white/35" />
-        <div className="absolute bottom-4 right-4 h-6 w-6 border-b border-r border-white/35" />
+        <div
+          aria-hidden="true"
+          data-mirava-darkroom-dot-grid
+          className="pointer-events-none absolute inset-0 opacity-[0.16]"
+          style={{
+            backgroundImage:
+              "radial-gradient(rgba(255,255,255,0.82) 0.55px, transparent 0.8px)",
+            backgroundSize:
+              "5px 5px",
+          }}
+        />
 
-        <div className="absolute bottom-11 left-1/2 flex -translate-x-1/2 items-center gap-2.5 whitespace-nowrap rounded-full border border-white/10 bg-black/40 px-3.5 py-2 text-[8px] font-semibold uppercase tracking-[0.2em] text-white/40">
-          <span>MIRAVA</span>
 
-          <span
-            aria-hidden="true"
-            className="h-1 w-1 rounded-full bg-white/25"
-          />
-
-          <span>
-            {darkroomCopy.frame}
-          </span>
-        </div>
       </div>
 
       <div className="relative mt-6 min-h-[72px] text-center">
@@ -1090,6 +994,44 @@ export function VisualEngineStudio() {
     if (creationId) setCurrent(await api<Detail>(`/api/visual-engine/creations/${creationId}`))
   }, [])
 
+  const refreshCreation =
+    useCallback(
+      async (
+        creationId: string,
+      ): Promise<Detail> => {
+        const detail =
+          await api<Detail>(
+            `/api/visual-engine/creations/${creationId}`,
+          )
+
+        setCurrent(detail)
+
+        setCreations((items) =>
+          items.map((item) =>
+            item.id === creationId
+              ? {
+                  ...item,
+                  ...detail.creation,
+                }
+              : item,
+          ),
+        )
+
+        setAccount((value) =>
+          value
+            ? {
+                ...value,
+                credits:
+                  detail.studioCredits,
+              }
+            : value,
+        )
+
+        return detail
+      },
+      [],
+    )
+
   useEffect(() => {
     if (!isLocaleReady) return
     const params = new URLSearchParams(window.location.search)
@@ -1204,13 +1146,76 @@ export function VisualEngineStudio() {
   }, [modalOpen])
 
   useEffect(() => {
-    if (!current || !pendingStatuses.includes(current.creation.status)) return
-    const timer = window.setInterval(() => void refresh(current.creation.id), 2500)
-    return () => window.clearInterval(timer)
-  }, [current, refresh])
+    const creationId =
+      current?.creation.id
+
+    const creationStatus =
+      current?.creation.status
+
+    if (
+      !creationId ||
+      !creationStatus ||
+      !pendingStatuses.includes(
+        creationStatus,
+      )
+    ) {
+      return
+    }
+
+    let active = true
+    let timer:
+      number | undefined
+
+    const poll = async () => {
+      try {
+        await refreshCreation(
+          creationId,
+        )
+      } catch (reason) {
+        console.error(
+          "[MIRAVA] creation status polling failed",
+          reason instanceof Error
+            ? reason.name
+            : "unknown",
+        )
+      }
+
+      if (active) {
+        timer =
+          window.setTimeout(
+            poll,
+            3_000,
+          )
+      }
+    }
+
+    timer =
+      window.setTimeout(
+        poll,
+        3_000,
+      )
+
+    return () => {
+      active = false
+
+      if (timer !== undefined) {
+        window.clearTimeout(
+          timer,
+        )
+      }
+    }
+  }, [
+    current?.creation.id,
+    current?.creation.status,
+    refreshCreation,
+  ])
 
   useEffect(() => {
+    const creationId =
+      current?.creation.id
+
     if (
+      !creationId ||
       !current?.resultLocked ||
       checkoutNotice !==
         "discovery-success"
@@ -1218,23 +1223,54 @@ export function VisualEngineStudio() {
       return
     }
 
-    const timer =
-      window.setInterval(
-        () =>
-          void refresh(
-            current.creation.id,
-          ),
-        1800,
+    let active = true
+    let timer:
+      number | undefined
+
+    const pollDiscoveryUnlock =
+      async () => {
+        try {
+          await refreshCreation(
+            creationId,
+          )
+        } catch (reason) {
+          console.error(
+            "[MIRAVA] discovery unlock polling failed",
+            reason instanceof Error
+              ? reason.name
+              : "unknown",
+          )
+        }
+
+        if (active) {
+          timer =
+            window.setTimeout(
+              pollDiscoveryUnlock,
+              1_800,
+            )
+        }
+      }
+
+    timer =
+      window.setTimeout(
+        pollDiscoveryUnlock,
+        1_800,
       )
 
-    return () =>
-      window.clearInterval(
-        timer,
-      )
+    return () => {
+      active = false
+
+      if (timer !== undefined) {
+        window.clearTimeout(
+          timer,
+        )
+      }
+    }
   }, [
     checkoutNotice,
-    current,
-    refresh,
+    current?.creation.id,
+    current?.resultLocked,
+    refreshCreation,
   ])
 
   const run = async (name: string, action: () => Promise<void>): Promise<boolean> => {
@@ -2417,10 +2453,21 @@ function CreationView({
         ? locale === "fr"
           ? "Une des images fournies n’a pas pu être utilisée. Remplacez-la par une photo nette, correctement éclairée et sans obstruction, puis lancez une nouvelle séance."
           : "Una de las imágenes proporcionadas no se pudo utilizar. Sustitúyela por una foto nítida, correctamente iluminada y sin obstrucciones, y luego inicia una nueva sesión."
-        : locale === "fr"
-          ? current.creation.failureMessage ??
-            "Cette tentative est terminée et aucune image n’a été ajoutée à votre portfolio. Lancez une nouvelle séance ou supprimez cette tentative."
-          : "Este intento ha terminado y no se ha añadido ninguna imagen a tu portfolio. Inicia una nueva sesión o elimina este intento."
+        : current.creation.failureKind ===
+            "ANALYSIS_TIMEOUT"
+          ? locale === "fr"
+            ? "MIRAVA n’a pas pu terminer la lecture de votre référence dans le délai prévu. Votre crédit a été restauré. Relancez une nouvelle séance : votre Profil identité est toujours prêt et aucune photo privée n’a été perdue."
+            : "MIRAVA no pudo terminar de leer tu referencia dentro del tiempo previsto. Tu crédito ha sido restaurado. Inicia una nueva sesión: tu Perfil de identidad sigue listo y no se ha perdido ninguna foto privada."
+          : current.creation.failureKind ===
+              "GENERATION_TIMEOUT"
+            ? locale === "fr"
+              ? "Le moteur d’image n’a pas terminé votre création dans le délai prévu. Votre crédit a été restauré. Vous pouvez relancer la séance sans importer à nouveau vos photos d’identité."
+              : "El motor de imágenes no terminó tu creación dentro del tiempo previsto. Tu crédito ha sido restaurado. Puedes reiniciar la sesión sin volver a subir tus fotos de identidad."
+            : locale === "fr"
+              ? current.creation.failureMessage ??
+                "Cette tentative est terminée et aucune image n’a été ajoutée à votre portfolio. Lancez une nouvelle séance ou supprimez cette tentative."
+              : current.creation.failureMessage ??
+                "Este intento ha terminado y no se ha añadido ninguna imagen a tu portfolio. Inicia una nueva sesión o elimina este intento."
 
   if (status === "FAILED" || status === "CANCELLED") {
     return (
@@ -2435,9 +2482,19 @@ function CreationView({
             ? locale === "fr"
               ? "Direction à ajuster"
               : "Dirección por ajustar"
-            : locale === "fr"
-              ? "Aucune image n’a été créée"
-              : "No se ha creado ninguna imagen"}
+            : current.creation.failureKind ===
+                "ANALYSIS_TIMEOUT"
+              ? locale === "fr"
+                ? "Référence non analysée"
+                : "Referencia no analizada"
+              : current.creation.failureKind ===
+                  "GENERATION_TIMEOUT"
+                ? locale === "fr"
+                  ? "Création interrompue"
+                  : "Creación interrumpida"
+                : locale === "fr"
+                  ? "Aucune image n’a été créée"
+                  : "No se ha creado ninguna imagen"}
         </h1>
 
         <Surface className="mt-7">
