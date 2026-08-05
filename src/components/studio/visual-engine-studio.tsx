@@ -1245,7 +1245,23 @@ export function VisualEngineStudio() {
     }
   }
 
-  const ready = Object.values(consents).every(Boolean)
+  // Le parcours d’onboarding enregistre désormais l’accord avant
+  // la capture. Les comptes déjà activés ont également terminé
+  // l’ancien parcours de validation.
+  const hasSavedLegalConsent =
+    Boolean(
+      miravaOnboarding
+        ?.identityConsentAt,
+    ) ||
+    isMiravaOnboardingCompleted(
+      miravaOnboarding,
+    )
+
+  const ready =
+    hasSavedLegalConsent ||
+    Object.values(consents)
+      .every(Boolean)
+
   const selectView = (next: View) => {
     setDirectorOpen(false)
     clearNotice()
@@ -1668,7 +1684,7 @@ export function VisualEngineStudio() {
       <div className="mirava-ambient pointer-events-none fixed inset-0" />
       <div ref={studioBackgroundRef} aria-hidden={modalOpen ? true : undefined} className="mirava-native-frame">
       <Header
-        brand={<Link href="/visual-engine" aria-label={locale === "fr" ? "Accueil MIRAVA Studio" : "Inicio MIRAVA Studio"} className="mirava-button mirava-button-quiet min-h-12 px-1"><MiravaWordmark /></Link>}
+        brand={<Link href="/visual-engine/studio" aria-label={locale === "fr" ? "Accueil MIRAVA Studio" : "Inicio MIRAVA Studio"} className="mirava-button mirava-button-quiet min-h-12 px-1"><MiravaWordmark /></Link>}
         desktopNavigation={
           <nav aria-label="Navigation principale" className="mirava-desktop-nav hidden items-center gap-1 p-1 lg:flex">
             <DesktopNavButton active={view === "create" && !directorOpen} primary label={t.create} onClick={() => { setDirectorOpen(false); selectView("create") }} />

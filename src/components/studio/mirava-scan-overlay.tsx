@@ -10,6 +10,8 @@ type MiravaScanOverlayProps = {
   variant?: "face" | "body" | "detail"
   target?: MiravaVisionResult
   showStatus?: boolean
+  fallbackCenterY?: string
+  fallbackFrameClassName?: string
   className?: string
 }
 
@@ -28,6 +30,8 @@ export function MiravaScanOverlay({
   variant = "face",
   target,
   showStatus = true,
+  fallbackCenterY = "50%",
+  fallbackFrameClassName,
   className,
 }: MiravaScanOverlayProps) {
   const reducedMotion = useReducedMotion()
@@ -141,12 +145,14 @@ export function MiravaScanOverlay({
           style={
             detectedFrame ?? {
               left: "50%",
-              top: "50%",
+              top: fallbackCenterY,
             }
           }
           className={cn(
             "absolute -translate-x-1/2 -translate-y-1/2",
             !detectedFrame && FALLBACK_FRAME_STYLES[variant],
+            !detectedFrame &&
+              fallbackFrameClassName,
           )}
         >
           <motion.div

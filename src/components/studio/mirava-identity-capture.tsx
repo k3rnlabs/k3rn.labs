@@ -1740,32 +1740,59 @@ export function MiravaIdentityCapture({
                   ))}
                 </div>
               </div>
+              {/* LEGAL DISCLOSURE */}
+              {initialConsentAccepted ? (
+                <div className="flex items-start gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.07] p-4">
+                  <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
 
-              {/* LEGAL & OPENAI DISCLOSURE CHECKBOXES */}
-              <div className="rounded-2xl border border-white/15 bg-white/10 p-5 backdrop-blur-xl space-y-3">
-                <div
-                  onClick={() => setLegalAccepted(!legalAccepted)}
-                  className="flex cursor-pointer items-start gap-3 select-none"
-                >
-                  <div
-                    className={cn(
-                      "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-all",
-                      legalAccepted ? "border-[#ede8df] bg-[#ede8df] text-black" : "border-white/30 bg-black/40",
-                    )}
-                  >
-                    <Check className={cn("h-3.5 w-3.5 stroke-[3]", legalAccepted ? "scale-100" : "scale-0")} />
-                  </div>
-                  <div className="text-xs leading-relaxed text-white/80 font-jakarta">
-                    {locale === "fr"
-                      ? "J’accepte que mes photos soient analysées de manière privée et leur traitement par OpenAI pour préparer ma première séance."
-                      : "Acepto que mis fotos sean analizadas de forma privada y su tratamiento por OpenAI para preparar mi primera sesión."}
+                  <div>
+                    <p className="font-jakarta text-xs font-semibold text-white">
+                      {locale === "fr"
+                        ? "Conditions déjà acceptées"
+                        : "Condiciones ya aceptadas"}
+                    </p>
+
+                    <p className="mt-1 font-jakarta text-xs leading-5 text-white/62">
+                      {locale === "fr"
+                        ? "Votre accord unique a été enregistré pendant l’onboarding."
+                        : "Tu acuerdo único se registró durante el onboarding."}
+                    </p>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-3 rounded-2xl border border-white/15 bg-white/10 p-5 backdrop-blur-xl">
+                  <div
+                    onClick={() =>
+                      setLegalAccepted(
+                        !legalAccepted,
+                      )
+                    }
+                    className="flex cursor-pointer select-none items-start gap-3"
+                  >
+                    <div
+                      className={cn(
+                        "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-all",
+                        legalAccepted
+                          ? "border-[#ede8df] bg-[#ede8df] text-black"
+                          : "border-white/30 bg-black/40",
+                      )}
+                    >
+                      <Check
+                        className={cn(
+                          "h-3.5 w-3.5 stroke-[3]",
+                          legalAccepted
+                            ? "scale-100"
+                            : "scale-0",
+                        )}
+                      />
+                    </div>
 
-              {submitError && (
-                <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-xs text-red-200">
-                  {submitError}
+                    <div className="font-jakarta text-xs leading-relaxed text-white/80">
+                      {locale === "fr"
+                        ? "J’accepte que mes photos soient analysées de manière privée et leur traitement par OpenAI pour préparer ma première séance."
+                        : "Acepto que mis fotos sean analizadas de forma privada y su tratamiento por OpenAI para preparar mi primera sesión."}
+                    </div>
+                  </div>
                 </div>
               )}
 

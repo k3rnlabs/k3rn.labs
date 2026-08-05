@@ -2,7 +2,7 @@
   "name": "MIRAVA Studio",
   "short_name": "MIRAVA Studio",
   "description": "Votre direction. Votre présence.",
-  "start_url": "/visual-engine",
+  "start_url": "/visual-engine/studio",
   "scope": "/visual-engine/",
   "display": "standalone",
   "background_color": "#0b0c10",

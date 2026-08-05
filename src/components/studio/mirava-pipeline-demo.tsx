@@ -146,6 +146,8 @@ export function OnboardingPipelineDemo({ locale, className }: PipelineDemoProps)
                 locale={locale}
                 variant="face"
                 showStatus={false}
+                fallbackCenterY="44%"
+                fallbackFrameClassName="h-[72%] w-[58%] max-h-80 max-w-60"
               />
             )}
 

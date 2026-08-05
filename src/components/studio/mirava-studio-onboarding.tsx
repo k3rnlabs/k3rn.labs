@@ -140,6 +140,59 @@ const SESSION_CHOICES: Record<
   ],
 }
 
+const LEGAL_POINTS: Record<
+  Locale,
+  Array<{
+    title: string
+    body: string
+  }>
+> = {
+  fr: [
+    {
+      title: "Majorité et droits",
+      body:
+        "Je confirme avoir au moins 18 ans, disposer des droits nécessaires sur les photos envoyées et du consentement explicite de toute personne qui y apparaît.",
+    },
+    {
+      title: "Profil identité privé",
+      body:
+        "Les photos validées rejoignent mon Profil identité privé. Je peux les consulter, les remplacer ou les supprimer depuis mon compte.",
+    },
+    {
+      title: "Traitement demandé",
+      body:
+        "Mes photos sont transmises à l’API OpenAI uniquement lorsque je demande personnellement une création MIRAVA.",
+    },
+    {
+      title: "Références et retrait",
+      body:
+        "Les références artistiques sont supprimées après leur analyse. Mon Profil identité reste conservé jusqu’à sa suppression depuis mon compte.",
+    },
+  ],
+  es: [
+    {
+      title: "Mayoría de edad y derechos",
+      body:
+        "Confirmo que tengo al menos 18 años, que dispongo de los derechos necesarios sobre las fotos y del consentimiento explícito de toda persona que aparezca en ellas.",
+    },
+    {
+      title: "Perfil de identidad privado",
+      body:
+        "Las fotos validadas se incorporan a mi Perfil de identidad privado. Puedo consultarlas, sustituirlas o eliminarlas desde mi cuenta.",
+    },
+    {
+      title: "Tratamiento solicitado",
+      body:
+        "Mis fotos se transmiten a la API de OpenAI únicamente cuando solicito personalmente una creación MIRAVA.",
+    },
+    {
+      title: "Referencias y retirada",
+      body:
+        "Las referencias artísticas se eliminan después de su análisis. Mi Perfil de identidad se conserva hasta que lo elimine desde mi cuenta.",
+    },
+  ],
+}
+
 const COPY = {
   fr: {
     phases: [
@@ -849,6 +902,17 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
       identityPhase === "intro" &&
       identityConsentAccepted
     ) {
+      const saved =
+        await persist(
+          "identity_permission",
+          {
+            identityConsentAccepted:
+              true,
+          },
+        )
+
+      if (!saved) return
+
       setIdentityPhase(
         "capture",
       )
@@ -1399,41 +1463,100 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                   </div>
                 </div>
               )}
-
-              {/* STEP 5A: IDENTITY INTRO — consent + trust (identityPhase = "intro") */}
-              {stepId === "identity_permission" && identityPhase === "intro" && (
-                <div className="space-y-6 pt-2 sm:pt-3">
+              {/* STEP 7A: AGREEMENT — one validation */}
+              {stepId === "identity_permission" &&
+                identityPhase === "intro" && (
+                <div className="space-y-5 pt-2 sm:pt-3">
                   <div>
                     <span className="block font-jakarta text-[10px] font-bold tracking-[0.16em] text-[#d5c6b0] uppercase">
-                      MIRAVA / IDENTITÉ ET CONTRÔLE
+                      MIRAVA / ACCORD & IDENTITÉ
                     </span>
-                    <h1 className="mt-3 font-jakarta text-2xl font-semibold tracking-[-0.04em] text-white sm:text-3xl leading-[1.15]">
-                      {labels.identity}
+
+                    <h1 className="mt-3 font-jakarta text-2xl font-semibold leading-[1.15] tracking-[-0.04em] text-white sm:text-3xl">
+                      {locale === "fr"
+                        ? "Une seule validation, puis vous gardez le contrôle."
+                        : "Una sola validación y tú mantienes el control."}
                     </h1>
+
+                    <p className="mt-3 font-jakarta text-sm leading-6 text-white/58">
+                      {locale === "fr"
+                        ? "Tous les points sont regroupés ci-dessous. Vous pouvez les parcourir, puis les accepter en une seule fois."
+                        : "Todos los puntos están reunidos a continuación. Puedes revisarlos y aceptarlos una sola vez."}
+                    </p>
                   </div>
 
-                  {/* Consent Checkbox */}
+                  <section className="overflow-hidden rounded-[22px] border border-white/15 bg-white/10 shadow-2xl backdrop-blur-xl">
+                    <div className="flex items-center gap-3 border-b border-white/10 px-4 py-3">
+                      <LockKeyhole className="h-4 w-4 shrink-0 text-[#ede8df]" />
+
+                      <h2 className="font-jakarta text-sm font-semibold text-white">
+                        {locale === "fr"
+                          ? "Conditions d’utilisation de vos images"
+                          : "Condiciones de uso de tus imágenes"}
+                      </h2>
+                    </div>
+
+                    <div
+                      tabIndex={0}
+                      aria-label={
+                        locale === "fr"
+                          ? "Conditions d’utilisation de vos images"
+                          : "Condiciones de uso de tus imágenes"
+                      }
+                      className="max-h-56 space-y-4 overflow-y-auto px-4 py-4 pr-3"
+                    >
+                      {LEGAL_POINTS[locale].map(
+                        (item, index) => (
+                          <article
+                            key={item.title}
+                            className="border-b border-white/8 pb-4 last:border-b-0 last:pb-0"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-white/15 bg-white/5 font-jakarta text-[10px] font-semibold text-white/60">
+                                {index + 1}
+                              </span>
+
+                              <h3 className="font-jakarta text-xs font-semibold text-white">
+                                {item.title}
+                              </h3>
+                            </div>
+
+                            <p className="mt-2 pl-8 font-jakarta text-xs leading-5 text-white/62">
+                              {item.body}
+                            </p>
+                          </article>
+                        ),
+                      )}
+                    </div>
+                  </section>
+
                   <MiravaCustomCheckbox
-                    checked={identityConsentAccepted}
-                    onChange={setIdentityConsentAccepted}
-                    label={labels.consent}
+                    checked={
+                      identityConsentAccepted
+                    }
+                    onChange={
+                      setIdentityConsentAccepted
+                    }
+                    label={
+                      locale === "fr"
+                        ? "J’accepte l’ensemble de ces conditions et j’autorise MIRAVA à utiliser mes photos uniquement pour les créations que je demande."
+                        : "Acepto todas estas condiciones y autorizo a MIRAVA a utilizar mis fotos únicamente para las creaciones que solicito."
+                    }
                   />
 
-                  {/* Trust Bullet Cards */}
-                  <div className="space-y-2.5 rounded-2xl border border-white/15 bg-white/10 p-4 text-xs leading-relaxed text-white/70 backdrop-blur-xl">
-                    <div className="flex gap-3 items-start">
-                      <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0 text-[#ede8df]" />
-                      <span>{labels.privacy}</span>
-                    </div>
-                    <div className="flex gap-3 items-start pt-2 border-t border-white/5">
-                      <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#ede8df]" />
-                      <span>{labels.processing}</span>
-                    </div>
+                  <div className="flex items-start gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.07] p-4">
+                    <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
+
+                    <p className="font-jakarta text-xs leading-5 text-white/68">
+                      {locale === "fr"
+                        ? "Cet accord est enregistré avec votre onboarding. Il ne sera pas redemandé avant chaque création."
+                        : "Este acuerdo queda registrado con tu onboarding. No volverá a solicitarse antes de cada creación."}
+                    </p>
                   </div>
                 </div>
               )}
 
-              {/* STEP 5B: IDENTITY CAPTURE — photo slots only (identityPhase = "capture") */}
+              {/* STEP 7B: IDENTITY CAPTURE — photo slots only (identityPhase = "capture") */}
               {stepId === "identity_permission" && identityPhase === "capture" && (
                 <div className="pt-2 sm:pt-3">
                   <MiravaIdentityCapture
