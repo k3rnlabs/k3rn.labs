@@ -6,7 +6,17 @@ import { GlassSurface } from "@/components/ui/glass-surface"
 import { ArrowLeft, ArrowRight, Check, Clock3, Loader2, LockKeyhole, ShieldCheck, Sparkles, Upload, UserCheck } from "lucide-react"
 import posthog from "posthog-js"
 import { MiravaWordmark } from "@/components/mirava/mirava-wordmark"
-import { MIRAVA_ONBOARDING_STEPS, MIRAVA_ONBOARDING_VERSION, onboardingStepIndex, type MiravaOnboardingDirection, type MiravaOnboardingGoal, type MiravaOnboardingState, type MiravaOnboardingStepId } from "@/lib/mirava/onboarding"
+import {
+  MIRAVA_ONBOARDING_STEPS,
+  MIRAVA_ONBOARDING_VERSION,
+  onboardingStepIndex,
+  type MiravaOnboardingDirection,
+  type MiravaOnboardingFormat,
+  type MiravaOnboardingGoal,
+  type MiravaOnboardingSessionType,
+  type MiravaOnboardingState,
+  type MiravaOnboardingStepId,
+} from "@/lib/mirava/onboarding"
 import { MIRAVA_UNIVERSES, getMiravaUniverse } from "@/lib/mirava/universes"
 import {
   MIRAVA_MAX_IDENTITY_PHOTOS,
@@ -68,17 +78,335 @@ const GOALS: Record<Locale, Array<{ id: MiravaOnboardingGoal; title: string; ses
   ],
 }
 
+const SESSION_CHOICES: Record<
+  Locale,
+  Array<{
+    id: MiravaOnboardingSessionType
+    title: string
+    reason: string
+  }>
+> = {
+  fr: [
+    {
+      id: "portrait_signature",
+      title: "Portrait signature",
+      reason:
+        "Une image éditoriale forte pour incarner votre univers.",
+    },
+    {
+      id: "profile_premium",
+      title: "Photo de profil premium",
+      reason:
+        "Un cadrage rapproché, lisible et magnétique.",
+    },
+    {
+      id: "lifestyle_editorial",
+      title: "Portrait lifestyle",
+      reason:
+        "Une présence naturelle dans une scène plus vivante.",
+    },
+    {
+      id: "mini_campaign",
+      title: "Mini-campagne",
+      reason:
+        "Une première image qui ouvre une série cohérente de trois créations.",
+    },
+  ],
+  es: [
+    {
+      id: "portrait_signature",
+      title: "Retrato distintivo",
+      reason:
+        "Una imagen editorial fuerte para encarnar tu universo.",
+    },
+    {
+      id: "profile_premium",
+      title: "Foto de perfil premium",
+      reason:
+        "Un encuadre cercano, claro y magnético.",
+    },
+    {
+      id: "lifestyle_editorial",
+      title: "Retrato lifestyle",
+      reason:
+        "Una presencia natural dentro de una escena más viva.",
+    },
+    {
+      id: "mini_campaign",
+      title: "Mini campaña",
+      reason:
+        "Una primera imagen que abre una serie coherente de tres creaciones.",
+    },
+  ],
+}
+
 const COPY = {
-  fr: { phases: ["Votre studio", "Votre objectif", "Vos univers", "Votre direction", "Votre identité", "Activation"], step: "Étape", back: "Retour", saving: "Enregistrement…", start: "Construire mon studio", name: "Comment Mirava doit-elle vous appeler ?", placeholder: "Votre prénom", promise: "Votre studio photo personnel, guidé de la direction au premier résultat.", objective: "Que voulez-vous rendre visible en premier ?", objectiveCta: "Choisir mes univers", universes: "Choisissez jusqu’à trois univers.", universeLimit: "Trois univers maximum. Retirez-en un pour en choisir un autre.", use: "Utiliser ces univers", direction: "Votre première direction", confirm: "Confirmer ma direction", identity: "Préparons les photos qui permettront à Mirava de vous ressembler.", photos: "3 vues essentielles · environ 2 minutes", privacy: "Vos photos rejoignent votre Profil Identité privé. Vous pourrez les consulter, les remplacer ou les supprimer.", processing: "Le cadrage est analysé sur votre appareil. Les photos validées sont ensuite utilisées pour vos créations Mirava.", consent: "J’ai au moins 18 ans, j’ai les droits sur ces photos et j’accepte leur conservation privée. Je comprends que les photos validées seront traitées par l’API OpenAI uniquement lorsque je demande une création MIRAVA.", camera: "Commencer mes photos", resume: "Reprendre mes photos", preparing: "Terminez votre Profil Identité pour préparer votre première séance.", ready: "Votre première séance est prête", open: "Ouvrir ma première séance", formats: "Formats recommandés", why: "Pourquoi cette direction", goalLabel: "Objectif", primaryDirection: "Direction dominante", firstSession: "Première séance", editGoal: "Modifier l’objectif", editUniverses: "Modifier les univers", saveError: "MIRAVA n’a pas pu enregistrer cette étape. Réessayez." },
-  es: { phases: ["Tu estudio", "Tu objetivo", "Tus universos", "Tu dirección", "Tu identidad", "Activación"], step: "Paso", back: "Volver", saving: "Guardando…", start: "Construir mi estudio", name: "¿Cómo debe llamarte Mirava?", placeholder: "Tu nombre", promise: "Tu estudio fotográfico personal, guiado desde la dirección hasta el primer resultado.", objective: "¿Qué quieres hacer visible primero?", objectiveCta: "Elegir mis universos", universes: "Elige hasta tres universos.", universeLimit: "Máximo tres universos. Elimina uno para elegir otro.", use: "Usar estos universos", direction: "Tu primera dirección", confirm: "Confirmar mi dirección", identity: "Preparemos las fotos que permitirán a Mirava parecerse a ti.", photos: "3 vistas esenciales · unos 2 minutos", privacy: "Tus fotos se incorporan a tu Perfil de Identidad privado. Podrás consultarlas, sustituirlas o eliminarlas.", processing: "El encuadre se analiza en tu dispositivo. Las fotos validadas se utilizan después para tus creaciones Mirava.", consent: "Tengo al menos 18 años, tengo los derechos sobre estas fotos y acepto su conservación privada. Entiendo que las fotos validadas serán tratadas por la API de OpenAI únicamente cuando solicite una creación MIRAVA.", camera: "Empezar mis fotos", resume: "Retomar mis fotos", preparing: "Termina tu Perfil de Identidad para preparar tu primera sesión.", ready: "Tu primera sesión está lista", open: "Abrir mi primera sesión", formats: "Formatos recomendados", why: "Por qué esta dirección", goalLabel: "Objetivo", primaryDirection: "Dirección dominante", firstSession: "Primera sesión", editGoal: "Modificar el objetivo", editUniverses: "Modificar los universos", saveError: "MIRAVA no ha podido guardar este paso. Inténtalo de nuevo." },
+  fr: {
+    phases: [
+      "Votre studio",
+      "Votre objectif",
+      "Vos univers",
+      "Première séance",
+      "Résultat",
+      "Validation",
+      "Votre identité",
+      "Activation",
+    ],
+    step: "Étape",
+    back: "Retour",
+    saving: "Enregistrement…",
+    start: "Construire mon studio",
+    name:
+      "Comment Mirava doit-elle vous appeler ?",
+    placeholder: "Votre prénom",
+    promise:
+      "Votre studio photo personnel, guidé de la direction au premier résultat.",
+    objective:
+      "Que voulez-vous rendre visible en premier ?",
+    objectiveCta:
+      "Choisir mes univers",
+    universes:
+      "Choisissez jusqu’à trois univers qui vous ressemblent.",
+    universeHint:
+      "Ils personnaliseront votre Studio. Vous choisirez ensuite celui de votre première séance.",
+    universeLimit:
+      "Trois univers maximum. Retirez-en un pour en choisir un autre.",
+    use:
+      "Enregistrer mes univers",
+    primary:
+      "Quel univers souhaitez-vous créer en premier ?",
+    primaryHint:
+      "Les autres restent enregistrés dans votre Studio pour vos prochaines séances.",
+    primaryCta:
+      "Choisir mon résultat",
+    session:
+      "Que souhaitez-vous créer en premier ?",
+    sessionHint:
+      "MIRAVA recommande un format selon votre objectif, mais la décision reste la vôtre.",
+    sessionCta:
+      "Composer ma direction",
+    recommended:
+      "Recommandé pour votre objectif",
+    direction:
+      "Votre première direction",
+    confirm:
+      "Confirmer ma séance",
+    identity:
+      "Préparons les photos qui permettront à Mirava de vous ressembler.",
+    photos:
+      "3 vues essentielles · environ 2 minutes",
+    privacy:
+      "Vos photos rejoignent votre Profil Identité privé. Vous pourrez les consulter, les remplacer ou les supprimer.",
+    processing:
+      "Le cadrage est analysé sur votre appareil. Les photos validées sont ensuite utilisées pour vos créations Mirava.",
+    consent:
+      "J’ai au moins 18 ans, j’ai les droits sur ces photos et j’accepte leur conservation privée. Je comprends que les photos validées seront traitées par l’API OpenAI uniquement lorsque je demande une création MIRAVA.",
+    camera:
+      "Commencer mes photos",
+    resume:
+      "Reprendre mes photos",
+    preparing:
+      "Terminez votre Profil Identité pour préparer votre première séance.",
+    ready:
+      "Votre première séance est prête",
+    open:
+      "Ouvrir ma première séance",
+    formats:
+      "Formats recommandés",
+    why:
+      "Pourquoi cette direction",
+    goalLabel:
+      "Objectif",
+    primaryDirection:
+      "Univers de cette séance",
+    savedUniverses:
+      "Univers enregistrés",
+    firstSession:
+      "Résultat choisi",
+    editGoal:
+      "Modifier l’objectif",
+    editUniverses:
+      "Modifier les univers",
+    editSession:
+      "Modifier le résultat",
+    saveError:
+      "MIRAVA n’a pas pu enregistrer cette étape. Réessayez.",
+  },
+  es: {
+    phases: [
+      "Tu estudio",
+      "Tu objetivo",
+      "Tus universos",
+      "Primera sesión",
+      "Resultado",
+      "Validación",
+      "Tu identidad",
+      "Activación",
+    ],
+    step: "Paso",
+    back: "Volver",
+    saving: "Guardando…",
+    start: "Construir mi estudio",
+    name:
+      "¿Cómo debe llamarte Mirava?",
+    placeholder: "Tu nombre",
+    promise:
+      "Tu estudio fotográfico personal, guiado desde la dirección hasta el primer resultado.",
+    objective:
+      "¿Qué quieres hacer visible primero?",
+    objectiveCta:
+      "Elegir mis universos",
+    universes:
+      "Elige hasta tres universos que te representen.",
+    universeHint:
+      "Personalizarán tu Studio. Después elegirás el de tu primera sesión.",
+    universeLimit:
+      "Máximo tres universos. Elimina uno para elegir otro.",
+    use:
+      "Guardar mis universos",
+    primary:
+      "¿En qué universo quieres crear primero?",
+    primaryHint:
+      "Los demás quedan guardados en tu Studio para futuras sesiones.",
+    primaryCta:
+      "Elegir mi resultado",
+    session:
+      "¿Qué quieres crear primero?",
+    sessionHint:
+      "MIRAVA recomienda un formato según tu objetivo, pero la decisión sigue siendo tuya.",
+    sessionCta:
+      "Componer mi dirección",
+    recommended:
+      "Recomendado para tu objetivo",
+    direction:
+      "Tu primera dirección",
+    confirm:
+      "Confirmar mi sesión",
+    identity:
+      "Preparemos las fotos que permitirán a Mirava parecerse a ti.",
+    photos:
+      "3 vistas esenciales · unos 2 minutos",
+    privacy:
+      "Tus fotos se incorporan a tu Perfil de Identidad privado. Podrás consultarlas, sustituirlas o eliminarlas.",
+    processing:
+      "El encuadre se analiza en tu dispositivo. Las fotos validadas se utilizan después para tus creaciones Mirava.",
+    consent:
+      "Tengo al menos 18 años, tengo los derechos sobre estas fotos y acepto su conservación privada. Entiendo que las fotos validadas serán tratadas por la API de OpenAI únicamente cuando solicite una creación MIRAVA.",
+    camera:
+      "Empezar mis fotos",
+    resume:
+      "Retomar mis fotos",
+    preparing:
+      "Termina tu Perfil de Identidad para preparar tu primera sesión.",
+    ready:
+      "Tu primera sesión está lista",
+    open:
+      "Abrir mi primera sesión",
+    formats:
+      "Formatos recomendados",
+    why:
+      "Por qué esta dirección",
+    goalLabel:
+      "Objetivo",
+    primaryDirection:
+      "Universo de esta sesión",
+    savedUniverses:
+      "Universos guardados",
+    firstSession:
+      "Resultado elegido",
+    editGoal:
+      "Modificar el objetivo",
+    editUniverses:
+      "Modificar los universos",
+    editSession:
+      "Modificar el resultado",
+    saveError:
+      "MIRAVA no ha podido guardar este paso. Inténtalo de nuevo.",
+  },
 } as const
 
-function directionFor(goal: MiravaOnboardingGoal, universeIds: string[], locale: Locale): MiravaOnboardingDirection {
-  const primaryUniverseId = universeIds[0]
-  if (!primaryUniverseId) throw new Error("MIRAVA_DIRECTION_REQUIRES_UNIVERSE")
-  if (goal === "campaign") return { primaryUniverseId, sessionType: "campaign_series", recommendedFormats: locale === "fr" ? ["Publication", "Story", "Bannière"] : ["Publicación", "Story", "Banner"] }
-  if (goal === "portfolio") return { primaryUniverseId, sessionType: "signature_series", recommendedFormats: locale === "fr" ? ["Portrait", "Portfolio", "Bannière"] : ["Retrato", "Portfolio", "Banner"] }
-  return { primaryUniverseId, sessionType: "portrait_editorial", recommendedFormats: locale === "fr" ? ["Portrait", "Publication", "Photo de profil"] : ["Retrato", "Publicación", "Foto de perfil"] }
+function recommendedSessionForGoal(
+  goal: MiravaOnboardingGoal,
+): MiravaOnboardingSessionType {
+  if (goal === "campaign") {
+    return "mini_campaign"
+  }
+
+  if (goal === "portfolio") {
+    return "portrait_signature"
+  }
+
+  return "profile_premium"
+}
+
+function formatsForSession(
+  sessionType: MiravaOnboardingSessionType,
+): MiravaOnboardingFormat[] {
+  if (sessionType === "mini_campaign") {
+    return [
+      "publication",
+      "story",
+      "banner",
+    ]
+  }
+
+  if (sessionType === "profile_premium") {
+    return [
+      "portrait",
+      "profile",
+    ]
+  }
+
+  if (sessionType === "lifestyle_editorial") {
+    return [
+      "portrait",
+      "publication",
+    ]
+  }
+
+  return [
+    "portrait",
+    "publication",
+    "portfolio",
+  ]
+}
+
+function directionFor(
+  primaryUniverseId: string,
+  sessionType: MiravaOnboardingSessionType,
+): MiravaOnboardingDirection {
+  return {
+    primaryUniverseId,
+    sessionType,
+    recommendedFormats:
+      formatsForSession(sessionType),
+  }
+}
+
+function formatLabel(
+  format: MiravaOnboardingFormat,
+  locale: Locale,
+): string {
+  const labels = {
+    fr: {
+      portrait: "Portrait",
+      publication: "Publication",
+      profile: "Photo de profil",
+      story: "Story",
+      banner: "Bannière",
+      portfolio: "Portfolio",
+    },
+    es: {
+      portrait: "Retrato",
+      publication: "Publicación",
+      profile: "Foto de perfil",
+      story: "Story",
+      banner: "Banner",
+      portfolio: "Portfolio",
+    },
+  } as const
+
+  return labels[locale][format]
 }
 
 export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, initialState, onStartCapture, onCompleted }: { locale: Locale; firstName: string | null; initialUniverseId?: string; initialState: MiravaOnboardingState | null; onStartCapture: (state: MiravaOnboardingState) => void; onCompleted: (state: MiravaOnboardingState, firstName: string) => void }) {
@@ -87,8 +415,50 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
   const [onboardingState, setOnboardingState] = useState<MiravaOnboardingState | null>(initialState)
   const [stepId, setStepId] = useState<MiravaOnboardingStepId>(initialState?.currentStep ?? "promise_name")
   const [name, setName] = useState(firstName ?? "")
-  const [goal, setGoal] = useState<MiravaOnboardingGoal | undefined>(initialState?.goal)
-  const [universeIds, setUniverseIds] = useState<string[]>(initialState?.universeIds.length ? initialState.universeIds : initialUniverseId && getMiravaUniverse(initialUniverseId) ? [initialUniverseId] : [])
+  const [goal, setGoal] =
+    useState<
+      MiravaOnboardingGoal |
+      undefined
+    >(initialState?.goal)
+
+  const [universeIds, setUniverseIds] =
+    useState<string[]>(
+      initialState?.universeIds
+        .length
+        ? initialState.universeIds
+        : initialUniverseId &&
+          getMiravaUniverse(
+            initialUniverseId,
+          )
+          ? [initialUniverseId]
+          : [],
+    )
+
+  const [
+    primaryUniverseId,
+    setPrimaryUniverseId,
+  ] = useState<
+    string | undefined
+  >(
+    initialState
+      ?.primaryUniverseId ??
+      initialState
+        ?.direction
+        ?.primaryUniverseId,
+  )
+
+  const [
+    sessionType,
+    setSessionType,
+  ] = useState<
+    MiravaOnboardingSessionType |
+    undefined
+  >(
+    initialState
+      ?.direction
+      ?.sessionType,
+  )
+
   const [identityConsentAccepted, setIdentityConsentAccepted] = useState(Boolean(initialState?.identityConsentAt))
   const [photosUploaded, setPhotosUploaded] = useState(0)
   const [identityProfileReceipt, setIdentityProfileReceipt] =
@@ -101,10 +471,62 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
   const panelRef = useRef<HTMLDivElement>(null)
   const goalAdvanceTimerRef = useRef<number | null>(null)
   const activationRequestRef = useRef<string | null>(null)
-  const step = onboardingStepIndex(stepId)
-  const direction = useMemo(() => goal && universeIds.length ? directionFor(goal, universeIds, locale) : undefined, [goal, locale, universeIds])
-  const selectedGoal = GOALS[locale].find((item) => item.id === goal)
-  const primaryUniverse = getMiravaUniverse(direction?.primaryUniverseId)
+  const step =
+    onboardingStepIndex(stepId)
+
+  const direction =
+    useMemo(
+      () =>
+        primaryUniverseId &&
+        sessionType
+          ? directionFor(
+              primaryUniverseId,
+              sessionType,
+            )
+          : undefined,
+      [
+        primaryUniverseId,
+        sessionType,
+      ],
+    )
+
+  const selectedGoal =
+    GOALS[locale].find(
+      (item) =>
+        item.id === goal,
+    )
+
+  const selectedSession =
+    SESSION_CHOICES[locale]
+      .find(
+        (item) =>
+          item.id ===
+          sessionType,
+      )
+
+  const recommendedSessionType =
+    goal
+      ? recommendedSessionForGoal(
+          goal,
+        )
+      : undefined
+
+  const primaryUniverse =
+    getMiravaUniverse(
+      primaryUniverseId,
+    )
+
+  const selectedUniverses =
+    universeIds.flatMap(
+      (id) => {
+        const universe =
+          getMiravaUniverse(id)
+
+        return universe
+          ? [universe]
+          : []
+      },
+    )
 
   const identityProfileReady = Boolean(
     identityProfileReceipt?.id &&
@@ -236,6 +658,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
       firstName?: string
       goal?: MiravaOnboardingGoal
       universeIds?: string[]
+      primaryUniverseId?: string
       direction?: MiravaOnboardingDirection
       identityConsentAccepted?: true
     } = {},
@@ -311,25 +734,203 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
   }
 
   const next = async () => {
-    if (stepId === "promise_name") { const saved = await persist("objective", { firstName: name.trim() }); if (saved) posthog.capture("name_saved", { onboarding_version: MIRAVA_ONBOARDING_VERSION }) }
-    else if (stepId === "objective" && goal) { if (goalAdvanceTimerRef.current !== null) window.clearTimeout(goalAdvanceTimerRef.current); await persist("visual_universes", { goal }) }
-    else if (stepId === "visual_universes" && direction) await persist("direction_review", { universeIds, direction })
-    else if (stepId === "direction_review" && direction) { const saved = await persist("identity_permission", { direction }); if (saved) posthog.capture("direction_confirmed", { onboarding_version: MIRAVA_ONBOARDING_VERSION, objective: goal, primary_universe_id: direction.primaryUniverseId }) }
-    // identity_permission intro phase: advance to capture phase (no backend call yet)
-    else if (stepId === "identity_permission" && identityPhase === "intro" && identityConsentAccepted) { setIdentityPhase("capture"); posthog.capture("identity_consent_accepted", { onboarding_version: MIRAVA_ONBOARDING_VERSION }) }
-    else if (stepId === "capture_activation" && onboardingState?.status === "session_ready") {
-      setPending(true); setError(null)
+    if (
+      stepId === "promise_name"
+    ) {
+      const saved =
+        await persist(
+          "objective",
+          {
+            firstName:
+              name.trim(),
+          },
+        )
+
+      if (saved) {
+        posthog.capture(
+          "name_saved",
+          {
+            onboarding_version:
+              MIRAVA_ONBOARDING_VERSION,
+          },
+        )
+      }
+    } else if (
+      stepId === "objective" &&
+      goal
+    ) {
+      if (
+        goalAdvanceTimerRef
+          .current !== null
+      ) {
+        window.clearTimeout(
+          goalAdvanceTimerRef
+            .current,
+        )
+      }
+
+      await persist(
+        "visual_universes",
+        {
+          goal,
+        },
+      )
+    } else if (
+      stepId ===
+        "visual_universes" &&
+      universeIds.length > 0
+    ) {
+      await persist(
+        "first_universe",
+        {
+          universeIds,
+        },
+      )
+    } else if (
+      stepId ===
+        "first_universe" &&
+      primaryUniverseId
+    ) {
+      await persist(
+        "session_intent",
+        {
+          primaryUniverseId,
+        },
+      )
+    } else if (
+      stepId ===
+        "session_intent" &&
+      direction
+    ) {
+      await persist(
+        "direction_review",
+        {
+          primaryUniverseId:
+            direction
+              .primaryUniverseId,
+          direction,
+        },
+      )
+    } else if (
+      stepId ===
+        "direction_review" &&
+      direction
+    ) {
+      const saved =
+        await persist(
+          "identity_permission",
+          {
+            primaryUniverseId:
+              direction
+                .primaryUniverseId,
+            direction,
+          },
+        )
+
+      if (saved) {
+        posthog.capture(
+          "direction_confirmed",
+          {
+            onboarding_version:
+              MIRAVA_ONBOARDING_VERSION,
+            objective: goal,
+            primary_universe_id:
+              direction
+                .primaryUniverseId,
+            session_type:
+              direction
+                .sessionType,
+          },
+        )
+      }
+    } else if (
+      stepId ===
+        "identity_permission" &&
+      identityPhase === "intro" &&
+      identityConsentAccepted
+    ) {
+      setIdentityPhase(
+        "capture",
+      )
+
+      posthog.capture(
+        "identity_consent_accepted",
+        {
+          onboarding_version:
+            MIRAVA_ONBOARDING_VERSION,
+        },
+      )
+    } else if (
+      stepId ===
+        "capture_activation" &&
+      onboardingState?.status ===
+        "session_ready"
+    ) {
+      setPending(true)
+      setError(null)
+
       try {
-        const response = await fetch("/api/visual-engine/onboarding", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "activate" }) })
-        const data = await response.json().catch(() => ({})) as { onboarding?: MiravaOnboardingState }
-        if (!response.ok || !data.onboarding) throw new Error("MIRAVA_ONBOARDING_FAILED")
-        posthog.capture("onboarding_activated", { onboarding_version: MIRAVA_ONBOARDING_VERSION }); onCompleted(data.onboarding, name.trim())
-      } catch { setError(labels.saveError) } finally { setPending(false) }
+        const response =
+          await fetch(
+            "/api/visual-engine/onboarding",
+            {
+              method: "PATCH",
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+              body:
+                JSON.stringify({
+                  action:
+                    "activate",
+                }),
+            },
+          )
+
+        const data =
+          await response
+            .json()
+            .catch(
+              () => ({}),
+            ) as {
+              onboarding?:
+                MiravaOnboardingState
+            }
+
+        if (
+          !response.ok ||
+          !data.onboarding
+        ) {
+          throw new Error(
+            "MIRAVA_ONBOARDING_FAILED",
+          )
+        }
+
+        posthog.capture(
+          "onboarding_activated",
+          {
+            onboarding_version:
+              MIRAVA_ONBOARDING_VERSION,
+          },
+        )
+
+        onCompleted(
+          data.onboarding,
+          name.trim(),
+        )
+      } catch {
+        setError(
+          labels.saveError,
+        )
+      } finally {
+        setPending(false)
+      }
     }
   }
 
   const chooseGoal = (choice: MiravaOnboardingGoal) => {
     setGoal(choice)
+    setSessionType(undefined)
     posthog.capture("objective_selected", { onboarding_version: MIRAVA_ONBOARDING_VERSION, objective: choice })
     if (goalAdvanceTimerRef.current !== null) window.clearTimeout(goalAdvanceTimerRef.current)
     goalAdvanceTimerRef.current = window.setTimeout(() => { goalAdvanceTimerRef.current = null; void persist("visual_universes", { goal: choice }) }, 360)
@@ -363,20 +964,76 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
     await goToStep(target)
   }
 
-  const toggleUniverse = (id: string) => setUniverseIds((current) => {
-    if (current.includes(id)) {
-      setUniverseLimitNotice(null)
-      posthog.capture("universe_selected", { onboarding_version: MIRAVA_ONBOARDING_VERSION, universe_id: id, selected: false })
-      return current.filter((value) => value !== id)
-    }
-    if (current.length >= 3) {
-      setUniverseLimitNotice(labels.universeLimit)
-      return current
-    }
-    setUniverseLimitNotice(null)
-    posthog.capture("universe_selected", { onboarding_version: MIRAVA_ONBOARDING_VERSION, universe_id: id, selected: true })
-    return [...current, id]
-  })
+  const toggleUniverse =
+    (id: string) =>
+      setUniverseIds(
+        (current) => {
+          if (
+            current.includes(id)
+          ) {
+            setUniverseLimitNotice(
+              null,
+            )
+
+            if (
+              primaryUniverseId ===
+                id
+            ) {
+              setPrimaryUniverseId(
+                undefined,
+              )
+              setSessionType(
+                undefined,
+              )
+            }
+
+            posthog.capture(
+              "universe_selected",
+              {
+                onboarding_version:
+                  MIRAVA_ONBOARDING_VERSION,
+                universe_id: id,
+                selected: false,
+              },
+            )
+
+            return current
+              .filter(
+                (value) =>
+                  value !== id,
+              )
+          }
+
+          if (
+            current.length >= 3
+          ) {
+            setUniverseLimitNotice(
+              labels.universeLimit,
+            )
+
+            return current
+          }
+
+          setUniverseLimitNotice(
+            null,
+          )
+
+          posthog.capture(
+            "universe_selected",
+            {
+              onboarding_version:
+                MIRAVA_ONBOARDING_VERSION,
+              universe_id: id,
+              selected: true,
+            },
+          )
+
+          return [
+            ...current,
+            id,
+          ]
+        },
+      )
 
   // identity_permission intro: need consent. capture phase: dock has no CTA (capture handles it)
   const canContinue =
@@ -386,10 +1043,17 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
       ? Boolean(goal)
       : stepId === "visual_universes"
       ? universeIds.length > 0
+      : stepId === "first_universe"
+      ? Boolean(primaryUniverseId)
+      : stepId === "session_intent"
+      ? Boolean(sessionType)
+      : stepId === "direction_review"
+      ? Boolean(direction)
       : stepId === "identity_permission"
       ? identityConsentAccepted
       : stepId === "capture_activation"
-      ? onboardingState?.status === "session_ready"
+      ? onboardingState?.status ===
+        "session_ready"
       : true
 
   return (
@@ -398,15 +1062,15 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
         {/* Progress Header */}
         <MobileProgressHeader
           step={step}
-          totalSteps={6}
+          totalSteps={8}
           locale={locale}
           onBack={() => void back()}
           canGoBack={step > 0 && !pending}
         />
 
         {/* Accessibility Progress Bar Metadata Contract */}
-        <div className="sr-only" role="progressbar" aria-valuemin={1} aria-valuemax={6} aria-valuenow={step + 1}>
-          <motion.span animate={{ width: `${((step + 1) / 6) * 100}%` }} />
+        <div className="sr-only" role="progressbar" aria-valuemin={1} aria-valuemax={8} aria-valuenow={step + 1}>
+          <motion.span animate={{ width: `${((step + 1) / 8) * 100}%` }} />
         </div>
 
         {/* Animated Step Panel */}
@@ -487,6 +1151,9 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                       <h1 className="mt-2 font-jakarta text-2xl font-semibold tracking-[-0.04em] text-white sm:text-3xl">
                         {labels.universes}
                       </h1>
+                      <p className="mt-2 max-w-md font-jakarta text-xs leading-5 text-white/55">
+                        {labels.universeHint}
+                      </p>
                     </div>
                     <div className="mirava-onboarding-selection rounded-lg border border-white/15 bg-white/5 px-2.5 py-1 font-jakarta text-xs font-bold tabular-nums text-[#ede8df]">
                       {locale === "fr" ? `${universeIds.length} sur 3 univers` : `${universeIds.length} de 3 universos`}
@@ -513,7 +1180,139 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                 </div>
               )}
 
-              {/* STEP 4: DIRECTION REVIEW */}
+              {/* STEP 4: FIRST SESSION UNIVERSE */}
+              {stepId === "first_universe" && (
+                <div className="space-y-5 pt-2 sm:pt-3">
+                  <div>
+                    <span className="block font-jakarta text-[10px] font-bold tracking-[0.16em] text-[#d5c6b0] uppercase">
+                      MIRAVA / PREMIÈRE SÉANCE
+                    </span>
+                    <h1 className="mt-3 font-jakarta text-3xl font-semibold tracking-[-0.04em] text-white sm:text-4xl leading-[1.12]">
+                      {labels.primary}
+                    </h1>
+                    <p className="mt-3 font-jakarta text-sm leading-6 text-white/58">
+                      {labels.primaryHint}
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    {selectedUniverses.map(
+                      (universe) => (
+                        <button
+                          key={universe.id}
+                          type="button"
+                          aria-pressed={
+                            primaryUniverseId ===
+                            universe.id
+                          }
+                          onClick={() => {
+                            setPrimaryUniverseId(
+                              universe.id,
+                            )
+                            setSessionType(
+                              undefined,
+                            )
+                            posthog.capture(
+                              "first_universe_selected",
+                              {
+                                onboarding_version:
+                                  MIRAVA_ONBOARDING_VERSION,
+                                universe_id:
+                                  universe.id,
+                              },
+                            )
+                          }}
+                          className={cn(
+                            "flex w-full items-center gap-4 overflow-hidden rounded-[22px] border p-3 text-left transition-all",
+                            primaryUniverseId ===
+                              universe.id
+                              ? "border-[#ede8df]/70 bg-white/15 shadow-xl"
+                              : "border-white/12 bg-white/[0.06]",
+                          )}
+                        >
+                          <img
+                            src={universe.image}
+                            alt=""
+                            className="h-20 w-16 shrink-0 rounded-xl object-cover"
+                          />
+                          <span className="min-w-0 flex-1">
+                            <strong className="block font-jakarta text-base font-semibold text-white">
+                              {universe.name[locale]}
+                            </strong>
+                            <span className="mt-1 block font-jakarta text-xs leading-5 text-white/55">
+                              {universe.tagline[locale]}
+                            </span>
+                          </span>
+                          {primaryUniverseId ===
+                          universe.id ? (
+                            <Check className="h-5 w-5 shrink-0 text-[#ede8df]" />
+                          ) : null}
+                        </button>
+                      ),
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 5: SESSION INTENT */}
+              {stepId === "session_intent" && (
+                <div className="space-y-6 pt-2 sm:pt-3">
+                  <div>
+                    <span className="block font-jakarta text-[10px] font-bold tracking-[0.16em] text-[#d5c6b0] uppercase">
+                      MIRAVA / RÉSULTAT
+                    </span>
+                    <h1 className="mt-3 font-jakarta text-3xl font-semibold tracking-[-0.04em] text-white sm:text-4xl leading-[1.12]">
+                      {labels.session}
+                    </h1>
+                    <p className="mt-3 font-jakarta text-sm leading-6 text-white/58">
+                      {labels.sessionHint}
+                    </p>
+                  </div>
+
+                  <div className="space-y-3.5">
+                    {SESSION_CHOICES[locale].map(
+                      (item) => {
+                        const recommended =
+                          item.id ===
+                          recommendedSessionType
+
+                        return (
+                          <MiravaSelectionCard
+                            key={item.id}
+                            title={item.title}
+                            subtitle={
+                              recommended
+                                ? `${labels.recommended} · ${item.reason}`
+                                : item.reason
+                            }
+                            selected={
+                              sessionType ===
+                              item.id
+                            }
+                            onClick={() => {
+                              setSessionType(
+                                item.id,
+                              )
+                              posthog.capture(
+                                "session_type_selected",
+                                {
+                                  onboarding_version:
+                                    MIRAVA_ONBOARDING_VERSION,
+                                  session_type:
+                                    item.id,
+                                  recommended,
+                                },
+                              )
+                            }}
+                          />
+                        )
+                      },
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 6: DIRECTION REVIEW */}
               {stepId === "direction_review" && direction && (
                 <div className="space-y-6 pt-2 sm:pt-3">
                   <div>
@@ -554,15 +1353,34 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                         <span className="text-white/50 uppercase tracking-wider font-semibold">{labels.primaryDirection}</span>
                         <span className="font-semibold text-white text-sm">{primaryUniverse?.name[locale]}</span>
                       </div>
+                      <div className="py-3 flex justify-between items-center gap-5">
+                        <span className="text-white/50 uppercase tracking-wider font-semibold">
+                          {labels.savedUniverses}
+                        </span>
+                        <span className="font-medium text-white/80 text-right">
+                          {selectedUniverses
+                            .map(
+                              (universe) =>
+                                universe.name[locale],
+                            )
+                            .join(" · ")}
+                        </span>
+                      </div>
                       <div className="py-3 flex justify-between items-center">
                         <span className="text-white/50 uppercase tracking-wider font-semibold">{labels.firstSession}</span>
-                        <span className="font-semibold text-[#ede8df] text-sm">{selectedGoal?.session}</span>
+                        <span className="font-semibold text-[#ede8df] text-sm">{selectedSession?.title}</span>
                       </div>
                       <div className="py-3 flex justify-between items-center">
                         <span className="text-white/50 uppercase tracking-wider font-semibold">{labels.formats}</span>
-                        <span className="font-medium text-white/80 text-right">{direction.recommendedFormats.join(" · ")}</span>
+                        <span className="font-medium text-white/80 text-right">{direction.recommendedFormats.map((format) => formatLabel(format, locale)).join(" · ")}</span>
                       </div>
                     </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-[#d5c6b0]/25 bg-[#d5c6b0]/10 p-4 font-jakarta text-xs leading-5 text-white/72">
+                    {locale === "fr"
+                      ? "MIRAVA crée l’aperçu personnalisé de votre première image. Après sa génération, vous pourrez débloquer le fichier haute qualité et deux créations supplémentaires pour 2,99 € TTC, paiement unique et sans abonnement."
+                      : "MIRAVA crea la vista previa personalizada de tu primera imagen. Después de generarla, podrás desbloquear el archivo en alta calidad y dos creaciones adicionales por 2,99 € IVA incluido, pago único y sin suscripción."}
                   </div>
 
                   {/* Edit Links */}
@@ -573,6 +1391,10 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                     <span>·</span>
                     <button onClick={() => void goToStep("visual_universes")} className="underline underline-offset-4 transition-colors hover:text-white">
                       {labels.editUniverses}
+                    </button>
+                    <span>·</span>
+                    <button onClick={() => void goToStep("session_intent")} className="underline underline-offset-4 transition-colors hover:text-white">
+                      {labels.editSession}
                     </button>
                   </div>
                 </div>
@@ -672,6 +1494,8 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                           {
                             goal,
                             universeIds,
+                            primaryUniverseId:
+                              direction.primaryUniverseId,
                             direction,
                             identityConsentAccepted: true,
                           },
@@ -834,7 +1658,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                         </span>
 
                         <strong className="mt-1 block text-sm font-semibold text-white">
-                          {selectedGoal?.session} —{" "}
+                          {selectedSession?.title} —{" "}
                           {primaryUniverse?.name[locale]}
                         </strong>
                       </div>
@@ -933,6 +1757,10 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                       ? labels.objectiveCta
                       : stepId === "visual_universes"
                       ? labels.use
+                      : stepId === "first_universe"
+                      ? labels.primaryCta
+                      : stepId === "session_intent"
+                      ? labels.sessionCta
                       : stepId === "direction_review"
                       ? labels.confirm
                       : stepId === "identity_permission" &&

@@ -3,7 +3,7 @@ import { db } from "@/lib/db"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 import { MIRAVA_STRIPE_PRODUCT, MIRAVA_SUBSCRIPTION_PLANS, type MiravaOfferId } from "@/lib/mirava/brand"
 
-export const MIRAVA_ACTIVATION_CREDITS = 3
+export const MIRAVA_ACTIVATION_CREDITS = 1
 
 export type MiravaCreditLotKind = "ACTIVATION" | "SUBSCRIPTION" | "PURCHASE" | "COMPENSATION" | "MIGRATION"
 type MiravaLedgerKind = "ACTIVATION_GRANT" | "SUBSCRIPTION_GRANT" | "PURCHASE" | "COMPENSATION"

@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
 import { db as prisma } from "./db"
+import { isNextDynamicServerError } from "./next-dynamic-error"
 import type { UserRole, Plan } from "@prisma/client"
 
 export interface SessionUser {
@@ -54,7 +55,17 @@ export async function verifySession(): Promise<SessionUser | null> {
     // Synchronisation idempotente et résiliente avec la base Prisma
     return await ensureUserSynced(user.id, user.email!)
   } catch (err) {
-    console.error("[verifySession] Exception lors de la vérification de session :", err)
+    // Laisser Next.js gérer son signal interne de rendu dynamique.
+    // Sans cela, le build l'affiche comme une fausse erreur de session.
+    if (isNextDynamicServerError(err)) {
+      throw err
+    }
+
+    console.error(
+      "[verifySession] Exception lors de la vérification de session :",
+      err,
+    )
+
     return null
   }
 }

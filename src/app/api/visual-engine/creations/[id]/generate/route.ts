@@ -3,6 +3,10 @@ import { checkRateLimit } from "@/lib/rate-limit"
 import { miravaApiError as apiError, miravaApiSuccess as apiSuccess } from "@/lib/visual-engine/http"
 import { queueStudioGeneration, studioErrorResponse } from "@/lib/visual-engine/core"
 import { recordMiravaAudit } from "@/lib/visual-engine/audit"
+import { scheduleMiravaStudioWork } from "@/lib/visual-engine/vercel-worker"
+
+export const runtime = "nodejs"
+export const maxDuration = 300
 
 type RouteContext = { params: { id: string } }
 
@@ -12,8 +16,21 @@ export async function POST(req: Request, { params }: RouteContext) {
   const limit = await checkRateLimit("studioGeneration", `${session.userId}:${req.headers.get("x-forwarded-for") ?? "local"}`)
   if (!limit.success) return apiError("Trop de générations Studio. Réessayez plus tard.", 429)
   try {
-    await queueStudioGeneration({ userId: session.userId, creationId: params.id })
-    await recordMiravaAudit(session.userId, "GENERATION_QUEUED", params.id)
+    await queueStudioGeneration({
+      userId: session.userId,
+      creationId: params.id,
+    })
+
+    scheduleMiravaStudioWork(
+      req,
+      params.id,
+    )
+
+    await recordMiravaAudit(
+      session.userId,
+      "GENERATION_QUEUED",
+      params.id,
+    )
     return apiSuccess({ queued: true, status: "GENERATION_QUEUED" }, 202)
   } catch (error) {
     const mapped = studioErrorResponse(error)

@@ -14,6 +14,11 @@ import Image from "next/image"
 import Link from "next/link"
 import * as DialogPrimitive from "@radix-ui/react-dialog"
 import {
+  AnimatePresence,
+  motion,
+  useReducedMotion,
+} from "framer-motion"
+import {
   ArrowRight,
   ArrowLeft,
   Bell,
@@ -25,6 +30,7 @@ import {
   Download,
   Images,
   Loader2,
+  LockKeyhole,
   MessageCircle,
   RotateCcw,
   ShieldCheck,
@@ -45,7 +51,11 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Header } from "@/components/ui/header-2"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import type { MiravaCreativeOptions } from "@/lib/mirava/creative-options"
-import { isMiravaOnboardingCompleted, type MiravaOnboardingState } from "@/lib/mirava/onboarding"
+import {
+  isMiravaOnboardingCompleted,
+  type MiravaOnboardingSessionType,
+  type MiravaOnboardingState,
+} from "@/lib/mirava/onboarding"
 import { isMiravaIdentityProfileReady, MIRAVA_MAX_IDENTITY_PHOTOS, MIRAVA_MIN_IDENTITY_PHOTOS } from "@/lib/mirava/identity-profile"
 import {
   uploadMiravaIdentityAsset,
@@ -71,8 +81,9 @@ type Creation = {
   completedResultCount?: number
   resultUrl?: string | null
   resultUrls?: string[]
+  resultLocked?: boolean
 }
-type Detail = { creation: Creation; assets: Asset[]; resultUrl: string | null; resultUrls: string[]; completedResultCount: number; studioCredits: number }
+type Detail = { creation: Creation; assets: Asset[]; resultUrl: string | null; resultUrls: string[]; resultLocked: boolean; completedResultCount: number; studioCredits: number }
 type Studio = { id: string; name: string; presetId: string | null; createdAt: string; updatedAt: string }
 type IdentityProfile = { id: string; assetCount: number; updatedAt: string; previews: Array<{ id: string; url: string; createdAt: string }> } | null
 type Offer = { id: string; name: string; credits: number; priceEur: number; kind: "pack" | "subscription" }
@@ -237,6 +248,539 @@ type MiravaShareNavigator = Navigator & {
   canShare?: (data: MiravaShareData) => boolean
 }
 
+
+const MIRAVA_DARKROOM_PHASES = {
+  fr: {
+    analysis: [
+      "Lecture de la composition",
+      "Extraction de la lumière",
+      "Construction de votre univers",
+    ],
+    generation: [
+      "Préservation de votre identité",
+      "Construction de la lumière",
+      "Création du cliché",
+      "Finalisation haute qualité",
+    ],
+  },
+  es: {
+    analysis: [
+      "Lectura de la composición",
+      "Extracción de la luz",
+      "Construcción de tu universo",
+    ],
+    generation: [
+      "Preservación de tu identidad",
+      "Construcción de la luz",
+      "Creación de la imagen",
+      "Finalización en alta calidad",
+    ],
+  },
+} as const
+
+function MiravaDarkroomLoading({
+  locale,
+  status,
+  completed,
+  total,
+}: {
+  locale: Locale
+  status: Status
+  completed: number
+  total: number
+}) {
+  const reduceMotion = useReducedMotion()
+  const [phaseIndex, setPhaseIndex] =
+    useState(0)
+
+  const phaseKey:
+    | "analysis"
+    | "generation" =
+    status === "ANALYSIS_QUEUED" ||
+    status === "ANALYSING"
+      ? "analysis"
+      : "generation"
+
+  const phases =
+    MIRAVA_DARKROOM_PHASES[locale][phaseKey]
+
+  const safeTotal = Math.max(
+    1,
+    total,
+  )
+
+  const safeCompleted = Math.min(
+    Math.max(0, completed),
+    safeTotal,
+  )
+
+  const activeFrame = Math.min(
+    safeCompleted,
+    safeTotal - 1,
+  )
+
+  const darkroomCopy =
+    locale === "fr"
+      ? {
+          eyebrow:
+            "MIRAVA / CHAMBRE NOIRE",
+          title:
+            "Votre séance prend forme",
+          intro:
+            "MIRAVA compose votre image en préservant votre identité.",
+          background:
+            "Vous pouvez quitter cet écran : la création continue en privé.",
+          frame:
+            "Exposition en cours",
+          shot:
+            "Cliché",
+          ready:
+            "prêt",
+          active:
+            "en création",
+          waiting:
+            "à venir",
+        }
+      : {
+          eyebrow:
+            "MIRAVA / CUARTO OSCURO",
+          title:
+            "Tu sesión está tomando forma",
+          intro:
+            "MIRAVA compone tu imagen preservando tu identidad.",
+          background:
+            "Puedes salir de esta pantalla: la creación continúa en privado.",
+          frame:
+            "Exposición en curso",
+          shot:
+            "Imagen",
+          ready:
+            "lista",
+          active:
+            "en creación",
+          waiting:
+            "pendiente",
+        }
+
+  useEffect(() => {
+    setPhaseIndex(0)
+
+    if (
+      reduceMotion ||
+      phases.length <= 1
+    ) {
+      return
+    }
+
+    const timer =
+      window.setInterval(() => {
+        setPhaseIndex(
+          (current) =>
+            (current + 1) %
+            phases.length,
+        )
+      }, 3200)
+
+    return () => {
+      window.clearInterval(timer)
+    }
+  }, [
+    phases,
+    reduceMotion,
+  ])
+
+  const activePhase =
+    phases[
+      phaseIndex % phases.length
+    ]
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+      className="relative mt-7 overflow-hidden rounded-[2rem] border border-white/10 bg-[#070807] px-4 py-6 text-white shadow-[0_28px_80px_rgba(0,0,0,0.45)] sm:px-8 sm:py-9"
+    >
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 opacity-70"
+        style={{
+          background:
+            "radial-gradient(circle at 50% 5%, rgba(214,207,185,0.15), transparent 32%), radial-gradient(circle at 10% 90%, rgba(154,143,116,0.08), transparent 35%)",
+        }}
+      />
+
+      <div className="relative text-center">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-white/45">
+          {darkroomCopy.eyebrow}
+        </p>
+
+        <h2 className="mt-3 font-jakarta text-3xl font-semibold tracking-[-0.045em] text-white sm:text-4xl">
+          {darkroomCopy.title}
+        </h2>
+
+        <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-white/58">
+          {darkroomCopy.intro}
+        </p>
+      </div>
+
+      <div
+        aria-hidden="true"
+        className="relative mx-auto mt-7 aspect-[4/5] w-full max-w-[350px] overflow-hidden rounded-[1.75rem] border border-white/10 bg-[#090a09] shadow-[0_30px_90px_rgba(0,0,0,0.65)]"
+      >
+        <motion.div
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(circle at 50% 35%, rgba(225,217,194,0.22), transparent 23%), radial-gradient(circle at 50% 70%, rgba(153,142,117,0.18), transparent 37%), linear-gradient(160deg, #101210 0%, #080908 50%, #11120f 100%)",
+          }}
+          animate={
+            reduceMotion
+              ? undefined
+              : {
+                  opacity: [
+                    0.72,
+                    1,
+                    0.72,
+                  ],
+                  scale: [
+                    1,
+                    1.035,
+                    1,
+                  ],
+                }
+          }
+          transition={{
+            duration: 6,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+        />
+
+        <motion.div
+          className="absolute left-1/2 top-[18%] h-[17%] w-[24%] -translate-x-1/2 rounded-full bg-[#c8c0aa]/25 blur-xl"
+          animate={
+            reduceMotion
+              ? undefined
+              : {
+                  opacity: [
+                    0.28,
+                    0.58,
+                    0.28,
+                  ],
+                  scale: [
+                    0.94,
+                    1.05,
+                    0.94,
+                  ],
+                }
+          }
+          transition={{
+            duration: 4.8,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+        />
+
+        <motion.div
+          className="absolute bottom-[8%] left-1/2 h-[64%] w-[54%] -translate-x-1/2 rounded-[48%_48%_22%_22%/28%_28%_15%_15%] bg-gradient-to-b from-[#d2c9b1]/20 via-[#988e75]/15 to-transparent blur-2xl"
+          animate={
+            reduceMotion
+              ? undefined
+              : {
+                  opacity: [
+                    0.3,
+                    0.62,
+                    0.3,
+                  ],
+                  scaleX: [
+                    0.96,
+                    1.025,
+                    0.96,
+                  ],
+                }
+          }
+          transition={{
+            duration: 5.6,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+        />
+
+        <div className="absolute left-1/2 top-1/2 h-[66%] w-[78%] -translate-x-1/2 -translate-y-1/2">
+          <motion.div
+            className="h-full w-full rounded-full border border-white/[0.055]"
+            animate={
+              reduceMotion
+                ? undefined
+                : {
+                    rotate: 360,
+                  }
+            }
+            transition={{
+              duration: 28,
+              repeat: Infinity,
+              ease: "linear",
+            }}
+          />
+        </div>
+
+        <div className="absolute left-1/2 top-1/2 h-[51%] w-[61%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/[0.04]" />
+
+        <motion.div
+          className="absolute -inset-x-[30%] top-0 h-[16%] blur-xl"
+          style={{
+            background:
+              "linear-gradient(180deg, transparent 0%, rgba(255,250,230,0.03) 12%, rgba(255,245,214,0.42) 50%, rgba(255,250,230,0.04) 88%, transparent 100%)",
+          }}
+          animate={
+            reduceMotion
+              ? {
+                  y: "230%",
+                  opacity: 0.28,
+                }
+              : {
+                  y: [
+                    "-120%",
+                    "620%",
+                  ],
+                  opacity: [
+                    0,
+                    0.95,
+                    0,
+                  ],
+                }
+          }
+          transition={{
+            duration: 4.6,
+            repeat: Infinity,
+            ease: "easeInOut",
+            repeatDelay: 0.7,
+          }}
+        />
+
+        <motion.div
+          className="absolute inset-0 opacity-[0.12]"
+          style={{
+            backgroundImage:
+              "radial-gradient(rgba(255,255,255,0.9) 0.55px, transparent 0.8px)",
+            backgroundSize:
+              "5px 5px",
+          }}
+          animate={
+            reduceMotion
+              ? undefined
+              : {
+                  x: [
+                    0,
+                    2,
+                    -1,
+                    1,
+                    0,
+                  ],
+                  y: [
+                    0,
+                    -1,
+                    2,
+                    0,
+                  ],
+                }
+          }
+          transition={{
+            duration: 0.8,
+            repeat: Infinity,
+            ease: "linear",
+          }}
+        />
+
+        <div className="absolute left-4 top-4 h-6 w-6 border-l border-t border-white/35" />
+        <div className="absolute right-4 top-4 h-6 w-6 border-r border-t border-white/35" />
+        <div className="absolute bottom-4 left-4 h-6 w-6 border-b border-l border-white/35" />
+        <div className="absolute bottom-4 right-4 h-6 w-6 border-b border-r border-white/35" />
+
+        <div className="absolute inset-x-5 bottom-5 flex items-center justify-between text-[9px] font-semibold uppercase tracking-[0.2em] text-white/35">
+          <span>MIRAVA</span>
+          <span>
+            {darkroomCopy.frame}
+          </span>
+        </div>
+      </div>
+
+      <div className="relative mt-6 min-h-[72px] text-center">
+        <AnimatePresence
+          mode="wait"
+          initial={false}
+        >
+          <motion.p
+            key={`${phaseKey}-${phaseIndex}`}
+            initial={
+              reduceMotion
+                ? false
+                : {
+                    opacity: 0,
+                    y: 8,
+                    filter:
+                      "blur(5px)",
+                  }
+            }
+            animate={{
+              opacity: 1,
+              y: 0,
+              filter: "blur(0px)",
+            }}
+            exit={
+              reduceMotion
+                ? undefined
+                : {
+                    opacity: 0,
+                    y: -8,
+                    filter:
+                      "blur(5px)",
+                  }
+            }
+            transition={{
+              duration: 0.45,
+              ease: "easeOut",
+            }}
+            className="font-jakarta text-lg font-semibold tracking-[-0.025em] text-white"
+          >
+            {activePhase}
+          </motion.p>
+        </AnimatePresence>
+
+        <div
+          aria-hidden="true"
+          className="mt-4 flex justify-center gap-1.5"
+        >
+          {phases.map(
+            (_, index) => (
+              <motion.span
+                key={index}
+                className="h-1 rounded-full bg-white"
+                animate={{
+                  width:
+                    index ===
+                    phaseIndex %
+                      phases.length
+                      ? 22
+                      : 5,
+                  opacity:
+                    index ===
+                    phaseIndex %
+                      phases.length
+                      ? 0.8
+                      : 0.2,
+                }}
+                transition={{
+                  duration: 0.35,
+                  ease: "easeOut",
+                }}
+              />
+            ),
+          )}
+        </div>
+      </div>
+
+      {safeTotal > 1 ? (
+        <div className="relative mt-5">
+          <p className="text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">
+            {safeCompleted}/
+            {safeTotal}{" "}
+            {locale === "fr"
+              ? "clichés révélés"
+              : "imágenes reveladas"}
+          </p>
+
+          <div
+            aria-hidden="true"
+            className="mt-3 flex justify-center gap-2"
+          >
+            {Array.from(
+              {
+                length: safeTotal,
+              },
+              (_, index) => {
+                const isReady =
+                  index <
+                  safeCompleted
+
+                const isActive =
+                  !isReady &&
+                  index === activeFrame
+
+                return (
+                  <motion.div
+                    key={index}
+                    className={cn(
+                      "flex h-10 w-8 items-center justify-center rounded-lg border text-xs font-semibold",
+                      isReady &&
+                        "border-white/30 bg-white text-black",
+                      isActive &&
+                        "border-[#d7cfb9]/55 bg-[#d7cfb9]/10 text-[#e9e2d1]",
+                      !isReady &&
+                        !isActive &&
+                        "border-white/10 bg-white/[0.025] text-white/25",
+                    )}
+                    animate={
+                      isActive &&
+                      !reduceMotion
+                        ? {
+                            boxShadow: [
+                              "0 0 0 rgba(215,207,185,0)",
+                              "0 0 24px rgba(215,207,185,0.24)",
+                              "0 0 0 rgba(215,207,185,0)",
+                            ],
+                          }
+                        : undefined
+                    }
+                    transition={{
+                      duration: 2.2,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                    }}
+                  >
+                    {isReady ? (
+                      <Check className="h-4 w-4" />
+                    ) : (
+                      index + 1
+                    )}
+                  </motion.div>
+                )
+              },
+            )}
+          </div>
+
+          <p className="sr-only">
+            {Array.from(
+              {
+                length: safeTotal,
+              },
+              (_, index) => {
+                const state =
+                  index <
+                  safeCompleted
+                    ? darkroomCopy.ready
+                    : index ===
+                        activeFrame
+                      ? darkroomCopy.active
+                      : darkroomCopy.waiting
+
+                return `${darkroomCopy.shot} ${index + 1}: ${state}.`
+              },
+            ).join(" ")}
+          </p>
+        </div>
+      ) : null}
+
+      <div className="relative mt-6 border-t border-white/8 pt-5">
+        <p className="text-center text-xs leading-5 text-white/42">
+          {darkroomCopy.background}
+        </p>
+      </div>
+    </div>
+  )
+}
+
 function ResultSaveButton({
   url,
   index,
@@ -362,6 +906,34 @@ function ResultSaveButton({
   )
 }
 
+function onboardingSessionInstruction(
+  sessionType:
+    MiravaOnboardingSessionType,
+): string {
+  if (
+    sessionType ===
+    "profile_premium"
+  ) {
+    return "Create a premium close-up profile portrait with precise facial readability, refined editorial light, direct presence and a clean social-profile crop."
+  }
+
+  if (
+    sessionType ===
+    "lifestyle_editorial"
+  ) {
+    return "Create an elevated lifestyle portrait with natural movement, environmental context, authentic presence and polished editorial composition."
+  }
+
+  if (
+    sessionType ===
+    "mini_campaign"
+  ) {
+    return "Create the opening image of a coherent three-image campaign, with a strong hero composition that can be extended through two related follow-up creations."
+  }
+
+  return "Create a strong editorial signature portrait with memorable posture, premium visual hierarchy and a distinctive campaign-ready presence."
+}
+
 const studioStageCopy = {
   fr: [
     { label: "Moodboard", title: "Où voulez-vous être vue ?", text: "Choisissez un univers MIRAVA ou partez d’une image qui vous inspire." },
@@ -417,7 +989,7 @@ export function VisualEngineStudio() {
   const [pending, setPending] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  const [checkoutNotice, setCheckoutNotice] = useState<"success" | "cancelled" | null>(null)
+  const [checkoutNotice, setCheckoutNotice] = useState<"success" | "cancelled" | "discovery-success" | "discovery-cancelled" | null>(null)
   const studioBackgroundRef = useRef<HTMLDivElement>(null)
   const studioScrollRef = useRef<HTMLDivElement>(null)
   const hasHydratedStudioPreferenceRef = useRef(false)
@@ -431,10 +1003,31 @@ export function VisualEngineStudio() {
     setCheckoutNotice(null)
     setNotice(message)
   }
-  const displayedNotice = checkoutNotice === "success"
-    ? (locale === "fr" ? "Retour de paiement reçu. Votre accès est actualisé dès la confirmation Stripe." : "Hemos recibido el regreso del pago. Tu acceso se actualizará en cuanto Stripe lo confirme.")
-    : checkoutNotice === "cancelled"
-      ? (locale === "fr" ? "Paiement annulé. Aucun changement n’a été apporté à votre accès." : "Pago cancelado. No se ha realizado ningún cambio en tu acceso.")
+  const displayedNotice =
+    checkoutNotice === "discovery-success"
+      ? (
+          locale === "fr"
+            ? "Paiement reçu. MIRAVA révèle votre séance dès la confirmation sécurisée de Stripe."
+            : "Pago recibido. MIRAVA revelará tu sesión en cuanto Stripe confirme el pago de forma segura."
+        )
+      : checkoutNotice === "discovery-cancelled"
+      ? (
+          locale === "fr"
+            ? "Paiement annulé. Votre aperçu reste disponible et aucun montant n’a été débité."
+            : "Pago cancelado. Tu vista previa sigue disponible y no se ha realizado ningún cargo."
+        )
+      : checkoutNotice === "success"
+      ? (
+          locale === "fr"
+            ? "Retour de paiement reçu. Votre accès est actualisé dès la confirmation Stripe."
+            : "Hemos recibido el regreso del pago. Tu acceso se actualizará en cuanto Stripe lo confirme."
+        )
+      : checkoutNotice === "cancelled"
+      ? (
+          locale === "fr"
+            ? "Paiement annulé. Aucun changement n’a été apporté à votre accès."
+            : "Pago cancelado. No se ha realizado ningún cambio en tu acceso."
+        )
       : notice
   const setCreateStep = useCallback((step: number) => {
     const safeStep = Math.max(0, Math.min(2, step))
@@ -463,7 +1056,14 @@ export function VisualEngineStudio() {
       const requestedUniverse = typeof window === "undefined"
         ? undefined
         : getMiravaUniverse(new URLSearchParams(window.location.search).get("preset"))
-      const preferredUniverse = requestedUniverse ?? getMiravaUniverse(onboardingData.onboarding?.universeIds[0])
+      const preferredUniverse =
+        requestedUniverse ??
+        getMiravaUniverse(
+          onboardingData.onboarding
+            ?.primaryUniverseId ??
+            onboardingData.onboarding
+              ?.universeIds[0],
+        )
       if (preferredUniverse) setSelectedUniverseId(preferredUniverse.id)
       if (isMiravaOnboardingCompleted(onboardingData.onboarding)) {
         setOptions((current) => current.seriesSize ? current : {
@@ -506,13 +1106,34 @@ export function VisualEngineStudio() {
       const nextSearch = params.toString()
       window.history.replaceState(null, "", `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}`)
     }
-    if (checkoutState === "success" || checkoutState === "cancelled") {
+    if (
+      checkoutState === "discovery-success" ||
+      checkoutState === "discovery-cancelled"
+    ) {
+      setView("create")
+      setNotice(null)
+      setCheckoutNotice(checkoutState)
+      params.delete("checkout")
+      const nextSearch = params.toString()
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}`,
+      )
+    } else if (
+      checkoutState === "success" ||
+      checkoutState === "cancelled"
+    ) {
       setView("account")
       setNotice(null)
       setCheckoutNotice(checkoutState)
       params.delete("checkout")
       const nextSearch = params.toString()
-      window.history.replaceState(null, "", `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}`)
+      window.history.replaceState(
+        null,
+        "",
+        `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}`,
+      )
     }
 
     // Si on arrive depuis la confirmation d'email (?confirmed=true), on attend 800ms
@@ -576,6 +1197,34 @@ export function VisualEngineStudio() {
     const timer = window.setInterval(() => void refresh(current.creation.id), 2500)
     return () => window.clearInterval(timer)
   }, [current, refresh])
+
+  useEffect(() => {
+    if (
+      !current?.resultLocked ||
+      checkoutNotice !==
+        "discovery-success"
+    ) {
+      return
+    }
+
+    const timer =
+      window.setInterval(
+        () =>
+          void refresh(
+            current.creation.id,
+          ),
+        1800,
+      )
+
+    return () =>
+      window.clearInterval(
+        timer,
+      )
+  }, [
+    checkoutNotice,
+    current,
+    refresh,
+  ])
 
   const run = async (name: string, action: () => Promise<void>): Promise<boolean> => {
     setPending(name)
@@ -714,7 +1363,13 @@ export function VisualEngineStudio() {
         privacyAccepted: consent.privacyAccepted,
         openaiDisclosureAccepted: consent.openaiDisclosureAccepted,
         presetId,
-        creativeOptions: { seriesSize: 1, note: onboarding.goal ? `onboarding:${onboarding.goal}` : "onboarding" },
+        creativeOptions: {
+          seriesSize: 1,
+          note: onboardingSessionInstruction(
+            onboarding.direction?.sessionType ??
+              "portrait_signature",
+          ),
+        },
       }),
     })
     const activation = await api<{ onboarding: MiravaOnboardingState }>("/api/visual-engine/onboarding", {
@@ -919,6 +1574,37 @@ export function VisualEngineStudio() {
   const removeCreation = () => current && run("delete", async () => { await api(`/api/visual-engine/creations/${current.creation.id}`, { method: "DELETE" }); setCurrent(null); await refresh() })
   const removeIdentity = () => run("identity-delete", async () => { await api("/api/visual-engine/identity-profile", { method: "DELETE" }); await refresh() })
   const checkout = (offerId: string) => run(`offer-${offerId}`, async () => { const data = await api<{ url: string }>("/api/visual-engine/billing/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ offerId }) }); window.location.assign(data.url) })
+
+  const checkoutDiscovery =
+    (creationId: string) =>
+      run(
+        "discovery-checkout",
+        async () => {
+          const data =
+            await api<{
+              url: string
+            }>(
+              "/api/visual-engine/billing/checkout",
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type":
+                    "application/json",
+                },
+                body:
+                  JSON.stringify({
+                    offerId:
+                      "mirava-discovery",
+                    creationId,
+                  }),
+              },
+            )
+
+          window.location.assign(
+            data.url,
+          )
+        },
+      )
   const portal = () => run("portal", async () => { const data = await api<{ url: string }>("/api/visual-engine/billing/portal", { method: "POST" }); window.location.assign(data.url) })
   // Mobile navigation deliberately contains destinations only. Universes and
   // Alma remain available in the creation flow, where their result can be
@@ -941,7 +1627,11 @@ export function VisualEngineStudio() {
   const completeMiravaOnboarding = (state: MiravaOnboardingState, firstName: string) => {
     setMiravaOnboarding(state)
     setMiravaFirstName(firstName)
-    const preferredUniverse = getMiravaUniverse(state.universeIds[0]) ?? MIRAVA_UNIVERSES[0]
+    const preferredUniverse =
+      getMiravaUniverse(
+        state.primaryUniverseId ??
+          state.universeIds[0],
+      ) ?? MIRAVA_UNIVERSES[0]
     setSelectedUniverseId(preferredUniverse.id)
     setOptions((current) => current.seriesSize ? current : {
       ...current,
@@ -1009,7 +1699,7 @@ export function VisualEngineStudio() {
         {displayedNotice && <div role="status" aria-live="polite" aria-atomic="true" className="mirava-notice mb-6 p-4 text-sm shadow-lg">{displayedNotice}</div>}
         {view === "create" && (!current
           ? <StartView locale={locale} t={t} firstName={miravaFirstName} step={createStep} selectedUniverseId={selectedUniverseId} setSelectedUniverseId={setSelectedUniverseId} options={options} setOptions={setOptions} identityProfile={identityProfile} availableCredits={account?.credits ?? 0} pending={pending} entryIntent={entryIntent} onCreate={requestCreate} onDirector={() => openDirector()} onOpenAccount={() => selectView("account")} onOpenCapture={() => openCapture(identityProfile ? (identityProfile.assetCount < MIRAVA_MAX_IDENTITY_PHOTOS ? "append" : "replace") : "onboarding")} />
-          : <CreationView locale={locale} t={t} current={current} identityProfile={identityProfile} pending={pending} onUploadReference={uploadReference} onAnalyze={analyze} onOpenCapture={() => openCapture(identityProfile ? (identityProfile.assetCount < MIRAVA_MAX_IDENTITY_PHOTOS ? "append" : "replace") : "onboarding")} onGenerate={generate} onDelete={removeCreation} onContinue={(studioId) => void reuse(studioId)} />)}
+          : <CreationView locale={locale} t={t} current={current} identityProfile={identityProfile} pending={pending} onUploadReference={uploadReference} onAnalyze={analyze} onOpenCapture={() => openCapture(identityProfile ? (identityProfile.assetCount < MIRAVA_MAX_IDENTITY_PHOTOS ? "append" : "replace") : "onboarding")} onGenerate={generate} onDelete={removeCreation} onContinue={(studioId) => void reuse(studioId)} onUnlock={(creationId) => void checkoutDiscovery(creationId)} />)}
         {view === "universes" && <UniversesView locale={locale} t={t} selectedUniverseId={selectedUniverseId} setSelectedUniverseId={setSelectedUniverseId} onChoose={(brief) => { setOptions((value) => ({ ...(value.seriesSize ? { seriesSize: value.seriesSize } : {}), ...(value.seriesSize && value.seriesSize > 1 && value.seriesStrategy ? { seriesStrategy: value.seriesStrategy } : {}), ...(brief ? { note: brief } : {}) })); setCreateStep(1); selectView("create") }} />}
         {view === "library" && <LibraryView locale={locale} t={t} studios={studios} creations={creations} onStartCreate={() => { setCurrent(null); setCreateStep(0); selectView("create") }} onReuse={(id) => void reuse(id)} onSelect={(id) => void run("select", async () => { setCurrent(await api<Detail>(`/api/visual-engine/creations/${id}`)); selectView("create") })} />}
         {view === "account" && <AccountView locale={locale} t={t} account={account} identityProfile={identityProfile} highlightedOfferId={highlightedOfferId} pending={pending} onCheckout={checkout} onPortal={portal} onStartCreate={() => { setCurrent(null); setCreateStep(0); selectView("create") }} onOpenCapture={() => openCapture(identityProfile ? "append" : "onboarding")} onReplaceIdentity={() => openCapture("replace")} onReplaceIdentityAsset={replaceIdentityAsset} onDeleteIdentityAsset={deleteIdentityAsset} onDeleteIdentity={removeIdentity} />}
@@ -1450,6 +2140,119 @@ function ConsentGate({ locale, t, consents, setConsents, pending, onClose, onCon
   )
 }
 
+function MiravaDiscoveryPaywall({
+  locale,
+  current,
+  pending,
+  onUnlock,
+}: {
+  locale: Locale
+  current: Detail
+  pending: string | null
+  onUnlock:
+    (creationId: string) => void
+}) {
+  const preview =
+    current.resultUrls?.[0] ??
+    current.resultUrl
+
+  return (
+    <section className="mx-auto max-w-3xl py-8 sm:py-14">
+      <p className="mirava-label">
+        MIRAVA / SÉANCE DÉCOUVERTE
+      </p>
+
+      <h1 className="mirava-section-title mt-3 text-4xl sm:text-5xl">
+        <BlurText
+          text={
+            locale === "fr"
+              ? "Votre première séance est prête."
+              : "Tu primera sesión está lista."
+          }
+        />
+      </h1>
+
+      <p className="mirava-copy mt-4 max-w-xl text-sm leading-6">
+        {locale === "fr"
+          ? "Votre aperçu personnalisé a été créé. Le fichier original reste protégé jusqu’au déverrouillage."
+          : "Tu vista previa personalizada ya está creada. El archivo original permanece protegido hasta el desbloqueo."}
+      </p>
+
+      <div className="mirava-dark-panel relative mt-7 overflow-hidden p-2">
+        {preview ? (
+          <img
+            src={preview}
+            alt={
+              locale === "fr"
+                ? "Aperçu protégé de la première séance"
+                : "Vista previa protegida de la primera sesión"
+            }
+            className="aspect-[4/5] w-full object-cover"
+          />
+        ) : null}
+
+        <div className="absolute inset-2 flex items-center justify-center bg-black/20">
+          <div className="rounded-full border border-white/25 bg-black/55 p-4 text-white shadow-2xl backdrop-blur-md">
+            <LockKeyhole className="h-6 w-6" />
+          </div>
+        </div>
+      </div>
+
+      <Surface className="mt-5">
+        <p className="mirava-label">
+          {locale === "fr"
+            ? "PAIEMENT UNIQUE"
+            : "PAGO ÚNICO"}
+        </p>
+
+        <h2 className="mt-2 font-jakarta text-2xl font-semibold tracking-[-.04em]">
+          {locale === "fr"
+            ? "Débloquez votre séance découverte"
+            : "Desbloquea tu sesión de descubrimiento"}
+        </h2>
+
+        <div className="mirava-copy mt-4 space-y-2 text-sm leading-6">
+          <p>✓ {locale === "fr" ? "Votre photo en haute qualité" : "Tu foto en alta calidad"}</p>
+          <p>✓ {locale === "fr" ? "Téléchargement dans Photos" : "Descarga en Fotos"}</p>
+          <p>✓ {locale === "fr" ? "2 nouvelles créations" : "2 nuevas creaciones"}</p>
+          <p>✓ {locale === "fr" ? "Sans abonnement" : "Sin suscripción"}</p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() =>
+            onUnlock(
+              current.creation.id,
+            )
+          }
+          disabled={
+            pending ===
+              "discovery-checkout"
+          }
+          className="mirava-button mirava-button-primary mt-6 min-h-14 w-full gap-2 px-5 text-sm"
+        >
+          {pending ===
+          "discovery-checkout" ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <LockKeyhole className="h-4 w-4" />
+          )}
+
+          {locale === "fr"
+            ? "Débloquer pour 2,99 € TTC"
+            : "Desbloquear por 2,99 € IVA incluido"}
+        </button>
+
+        <p className="mirava-muted mt-3 text-center text-[10px] leading-4">
+          {locale === "fr"
+            ? "Paiement unique · aucune reconduction automatique"
+            : "Pago único · sin renovación automática"}
+        </p>
+      </Surface>
+    </section>
+  )
+}
+
 function CreationView({
   locale,
   t,
@@ -1462,6 +2265,7 @@ function CreationView({
   onGenerate,
   onDelete,
   onContinue,
+  onUnlock,
 }: {
   locale: Locale
   t: Copy
@@ -1474,6 +2278,7 @@ function CreationView({
   onGenerate: () => void
   onDelete: () => void
   onContinue: (studioId: string) => void
+  onUnlock: (creationId: string) => void
 }) {
   const rawStatus = current.creation.status
   // The public API only exposes public states. Keep the screen resilient if an
@@ -1484,7 +2289,21 @@ function CreationView({
   const busy = pendingStatuses.includes(status)
   const statusLabel = (t.status as Record<string, string>)[status] ?? t.identityReady
 
-  if (status === "COMPLETED" && current.resultUrl) {
+  if (
+    status === "COMPLETED" &&
+    current.resultUrl
+  ) {
+    if (current.resultLocked) {
+      return (
+        <MiravaDiscoveryPaywall
+          locale={locale}
+          current={current}
+          pending={pending}
+          onUnlock={onUnlock}
+        />
+      )
+    }
+
     const resultUrls = current.resultUrls?.length ? current.resultUrls : [current.resultUrl]
     return (
       <section className="mx-auto max-w-3xl py-8 sm:py-14">
@@ -1595,15 +2414,20 @@ function CreationView({
         </>
       )}
 
-      {busy && <Surface className="mt-7">
-        <div className="h-1 overflow-hidden bg-mirava-surface-raised"><div className="h-full w-2/3 animate-pulse bg-mirava-accent" /></div>
-        <p className="mirava-copy mt-4 text-sm leading-6">{t.busy}</p>
-        {current.creation.requestedResultCount > 1 && (
-          <p className="mt-2 text-xs font-semibold text-mirava-accent">
-            {locale === "fr" ? `Série : ${current.completedResultCount}/${current.creation.requestedResultCount} image(s) prête(s)` : `Serie: ${current.completedResultCount}/${current.creation.requestedResultCount} imagen(es) lista(s)`}
-          </p>
-        )}
-      </Surface>}
+
+      {busy && (
+        <MiravaDarkroomLoading
+          locale={locale}
+          status={status}
+          completed={
+            current.completedResultCount ??
+            0
+          }
+          total={
+            current.creation.requestedResultCount
+          }
+        />
+      )}
       {status === "FAILED" && <div role="alert" className="mirava-alert mt-7 p-5 text-sm">{current.creation.failureMessage ?? t.failure}</div>}
     </section>
   )

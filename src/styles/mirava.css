@@ -78,6 +78,16 @@
   outline-offset: 3px;
 }
 
+/*
+ * Le panneau d'étape reçoit le focus programmatiquement pour annoncer
+ * son nouveau contenu aux technologies d'assistance. Ce conteneur n'est
+ * toutefois pas une commande interactive : il ne doit pas afficher un
+ * cadre de focus autour de toute la page.
+ */
+.mirava-theme .mirava-onboarding-step-panel:focus-visible {
+  outline: none;
+}
+
 .mirava-theme :is(h1, h2, h3) {
   text-wrap: balance;
 }
@@ -598,6 +608,48 @@
   min-height: 100dvh;
   padding-bottom: calc(8rem + env(safe-area-inset-bottom));
   scroll-padding-bottom: calc(7.5rem + env(safe-area-inset-bottom));
+}
+
+
+/* Application PWA : le viewport ne scrolle jamais.
+   Seule la zone centrale se déplace, comme dans une app native. */
+.mirava-native-shell {
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+  padding-bottom: 0;
+}
+
+.mirava-native-frame {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.mirava-native-frame > .mirava-app-header {
+  flex: 0 0 auto;
+  position: relative;
+  top: auto;
+}
+
+.mirava-native-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding-bottom:
+    calc(8rem + env(safe-area-inset-bottom));
+  scroll-padding-bottom:
+    calc(7.5rem + env(safe-area-inset-bottom));
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mirava-native-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 .mirava-app-header {

@@ -39,6 +39,17 @@ export function getMiravaStudioPreset(id: string | null | undefined) {
 
 export const MIRAVA_STRIPE_PRODUCT = "mirava_studio"
 
+export const MIRAVA_DISCOVERY_OFFER = {
+  id: "mirava-discovery",
+  name: "Première séance MIRAVA",
+  credits: 2,
+  priceEur: 2.99,
+  kind: "discovery" as const,
+  stripePriceId:
+    process.env
+      .STRIPE_PRICE_MIRAVA_DISCOVERY,
+}
+
 export const MIRAVA_CREDIT_PACKS = [
   { id: "mirava-10", name: "Recarga Esencia — 10", credits: 10, priceEur: 29, kind: "pack" as const, stripePriceId: process.env.STRIPE_PRICE_MIRAVA_10 },
   { id: "mirava-30", name: "Recarga Aura — 30", credits: 30, priceEur: 79, kind: "pack" as const, stripePriceId: process.env.STRIPE_PRICE_MIRAVA_30 },
@@ -51,7 +62,7 @@ export const MIRAVA_SUBSCRIPTION_PLANS = [
   { id: "mirava-150", name: "MIRAVA Studio Círculo — 150", credits: 150, priceEur: 249, kind: "subscription" as const, stripePriceId: process.env.STRIPE_PRICE_MIRAVA_150 },
 ] as const
 
-export const MIRAVA_OFFERS = [...MIRAVA_SUBSCRIPTION_PLANS, ...MIRAVA_CREDIT_PACKS] as const
+export const MIRAVA_OFFERS = [MIRAVA_DISCOVERY_OFFER, ...MIRAVA_SUBSCRIPTION_PLANS, ...MIRAVA_CREDIT_PACKS] as const
 
 export type MiravaOfferId = (typeof MIRAVA_OFFERS)[number]["id"]
 

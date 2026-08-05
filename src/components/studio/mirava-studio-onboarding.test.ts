@@ -23,16 +23,25 @@ describe("MIRAVA onboarding localization contracts", () => {
   )
 
   it("localizes every visible onboarding section label", () => {
-    expect(onboarding).toContain('promise: "Votre studio photo personnel, guidé de la direction au premier résultat."')
-    expect(onboarding).toContain('promise: "Tu estudio fotográfico personal, guiado desde la dirección hasta el primer resultado."')
-    expect(onboarding).toContain('objectiveCta: "Choisir mes univers"')
-    expect(onboarding).toContain('objectiveCta: "Elegir mis universos"')
+    expect(onboarding).toContain(
+      "Votre studio photo personnel, guidé de la direction au premier résultat.",
+    )
+    expect(onboarding).toContain(
+      "Tu estudio fotográfico personal, guiado desde la dirección hasta el primer resultado.",
+    )
+    expect(onboarding).toContain(
+      "Choisir mes univers",
+    )
+    expect(onboarding).toContain(
+      "Elegir mis universos",
+    )
     expect(onboarding).toContain('autoFocus autoComplete="given-name"')
   })
 
   it("honors an editorial universe chosen before the onboarding begins", () => {
     expect(onboarding).toContain("initialUniverseId?: string")
-    expect(onboarding).toContain("initialUniverseId && getMiravaUniverse(initialUniverseId) ? [initialUniverseId] : []")
+    expect(onboarding).toContain("initialUniverseId &&")
+    expect(onboarding).toContain("getMiravaUniverse(")
   })
 
   it("makes both identity routes clear before the user chooses to create a profile", () => {
@@ -50,7 +59,9 @@ describe("MIRAVA onboarding localization contracts", () => {
     expect(onboarding).toContain('MIRAVA_ONBOARDING_STEPS[Math.max(0, step - 1)]')
     expect(onboarding).toContain('useReducedMotion')
     expect(onboarding).not.toContain('posthog.capture("objective_selected", { firstName')
-    expect(onboarding).toContain('onCompleted(data.onboarding, name.trim())')
+    expect(onboarding).toMatch(
+      /onCompleted\(\s*data\.onboarding,\s*name\.trim\(\),?\s*\)/,
+    )
   })
 
   it("bypasses the Vercel media payload limit with signed direct uploads", () => {
@@ -117,7 +128,7 @@ describe("MIRAVA onboarding localization contracts", () => {
   it("exposes the onboarding sequence as an actual progress indicator", () => {
     expect(onboarding).toContain('role="progressbar"')
     expect(onboarding).toContain('aria-valuemin={1}')
-    expect(onboarding).toContain('aria-valuemax={6}')
+    expect(onboarding).toContain('aria-valuemax={8}')
     expect(onboarding).toContain('aria-valuenow={step + 1}')
   })
 
@@ -142,8 +153,12 @@ describe("MIRAVA onboarding localization contracts", () => {
   })
 
   it("confirms the goal, then auto-advances briefly while keeping back navigation", () => {
-    expect(onboarding).toContain('objectiveCta: "Choisir mes univers"')
-    expect(onboarding).toContain('objectiveCta: "Elegir mis universos"')
+    expect(onboarding).toContain(
+      "Choisir mes univers",
+    )
+    expect(onboarding).toContain(
+      "Elegir mis universos",
+    )
     expect(onboarding).toMatch(
       /stepId === "objective"\s*\? labels\.objectiveCta/,
     )
@@ -157,15 +172,44 @@ describe("MIRAVA onboarding localization contracts", () => {
 
   it("keeps direction, identity and activation in the actual production order", () => {
     expect(MIRAVA_ONBOARDING_STEPS).toEqual([
-      "promise_name", "objective", "visual_universes", "direction_review", "identity_permission", "capture_activation",
+      "promise_name", "objective", "visual_universes", "first_universe", "session_intent", "direction_review", "identity_permission", "capture_activation",
     ])
-    expect(onboarding).toContain('action: "activate"')
+    expect(onboarding).toMatch(
+      /action:\s*"activate"/,
+    )
+  })
+
+  it("separates favorite universes from the explicit first-session choice", () => {
+    expect(onboarding).toContain(
+      'stepId === "first_universe"',
+    )
+    expect(onboarding).toContain(
+      'stepId === "session_intent"',
+    )
+    expect(onboarding).toContain(
+      "first_universe_selected",
+    )
+    expect(onboarding).toContain(
+      "session_type_selected",
+    )
+    expect(onboarding).toContain(
+      "2,99 € TTC",
+    )
+    expect(onboarding).not.toContain(
+      "const primaryUniverseId = universeIds[0]",
+    )
   })
 
   it("explains the three-universe limit instead of silently ignoring a fourth choice", () => {
-    expect(onboarding).toContain('universeLimit: "Trois univers maximum. Retirez-en un pour en choisir un autre."')
-    expect(onboarding).toContain('universeLimit: "Máximo tres universos. Elimina uno para elegir otro."')
-    expect(onboarding).toContain('setUniverseLimitNotice(labels.universeLimit)')
+    expect(onboarding).toContain(
+      "Trois univers maximum. Retirez-en un pour en choisir un autre.",
+    )
+    expect(onboarding).toContain(
+      "Máximo tres universos. Elimina uno para elegir otro.",
+    )
+    expect(onboarding).toMatch(
+      /setUniverseLimitNotice\(\s*labels\.universeLimit,?\s*\)/,
+    )
     expect(onboarding).toContain('role="status">{universeLimitNotice}</p>')
   })
 

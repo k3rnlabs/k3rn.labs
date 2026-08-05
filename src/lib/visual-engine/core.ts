@@ -17,6 +17,11 @@ import {
   reserveMiravaCredit,
 } from "./credits"
 import { notifyMiravaCreationReady } from "./push"
+import {
+  getMiravaDiscoveryAccess,
+  isMiravaDiscoveryCreationLocked,
+  isMiravaDiscoveryResultLocked,
+} from "./discovery"
 import { MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_METADATA, MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_PROMPT } from "@/lib/mirava/prompts/visual-direction-extractor-v2"
 import { MIRAVA_SCENE_CONTEXT_CLASSIFIER_V1_METADATA } from "@/lib/mirava/prompts/scene-context-classifier-v1"
 import { parseV2Extraction } from "@/lib/mirava/pipeline/parse-v2-extraction"
@@ -1083,16 +1088,135 @@ export async function getStudioAssets(creationId: string, kind?: StudioAssetReco
   })).map(asAsset)
 }
 
-export async function downloadStudioResultForUser(userId: string, creationId: string): Promise<{ buffer: Buffer; mimeType: string }> {
-  return downloadStudioResultAtIndexForUser(userId, creationId, 0)
+async function getStudioResultAssetForUser(
+  userId: string,
+  creationId: string,
+  index: number,
+): Promise<StudioAssetRecord> {
+  await getStudioCreationForUser(
+    userId,
+    creationId,
+  )
+
+  if (
+    !Number.isInteger(index) ||
+    index < 0 ||
+    index > 5
+  ) {
+    throw new StudioError(
+      "Résultat MIRAVA introuvable.",
+      "NOT_FOUND",
+    )
+  }
+
+  const result =
+    (
+      await getStudioAssets(
+        creationId,
+        "RESULT",
+      )
+    )[index]
+
+  if (!result) {
+    throw new StudioError(
+      "Résultat MIRAVA introuvable.",
+      "NOT_FOUND",
+    )
+  }
+
+  return result
 }
 
-export async function downloadStudioResultAtIndexForUser(userId: string, creationId: string, index: number): Promise<{ buffer: Buffer; mimeType: string }> {
-  await getStudioCreationForUser(userId, creationId)
-  if (!Number.isInteger(index) || index < 0 || index > 5) throw new StudioError("Résultat MIRAVA introuvable.", "NOT_FOUND")
-  const result = (await getStudioAssets(creationId, "RESULT"))[index]
-  if (!result) throw new StudioError("Résultat MIRAVA introuvable.", "NOT_FOUND")
-  return { buffer: await downloadAsset(result), mimeType: result.mimeType }
+export async function downloadStudioResultForUser(
+  userId: string,
+  creationId: string,
+): Promise<{
+  buffer: Buffer
+  mimeType: string
+}> {
+  return downloadStudioResultAtIndexForUser(
+    userId,
+    creationId,
+    0,
+  )
+}
+
+export async function downloadStudioResultAtIndexForUser(
+  userId: string,
+  creationId: string,
+  index: number,
+): Promise<{
+  buffer: Buffer
+  mimeType: string
+}> {
+  if (
+    await isMiravaDiscoveryResultLocked(
+      userId,
+      creationId,
+    )
+  ) {
+    throw new StudioError(
+      "Débloquez votre première séance pour accéder au fichier haute qualité.",
+      "PAYMENT_REQUIRED",
+    )
+  }
+
+  const result =
+    await getStudioResultAssetForUser(
+      userId,
+      creationId,
+      index,
+    )
+
+  return {
+    buffer:
+      await downloadAsset(result),
+    mimeType:
+      result.mimeType,
+  }
+}
+
+export async function previewStudioResultAtIndexForUser(
+  userId: string,
+  creationId: string,
+  index: number,
+): Promise<{
+  buffer: Buffer
+  mimeType: "image/jpeg"
+}> {
+  const result =
+    await getStudioResultAssetForUser(
+      userId,
+      creationId,
+      index,
+    )
+
+  const original =
+    await downloadAsset(result)
+
+  const preview =
+    await sharp(original)
+      .resize({
+        width: 360,
+        height: 450,
+        fit: "cover",
+        position: "attention",
+      })
+      .blur(20)
+      .modulate({
+        brightness: 0.72,
+        saturation: 0.72,
+      })
+      .jpeg({
+        quality: 48,
+        progressive: true,
+      })
+      .toBuffer()
+
+  return {
+    buffer: preview,
+    mimeType: "image/jpeg",
+  }
 }
 
 export async function queueStudioAnalysis(userId: string, creationId: string): Promise<void> {
@@ -1154,33 +1278,161 @@ async function getIdentityAssetsForCreation(creation: StudioCreationRecord): Pro
   return getStudioAssets(creation.id, "IDENTITY")
 }
 
-export async function listStudioCreations(userId: string): Promise<Array<StudioCreationPublic & { resultUrl: string | null }>> {
-  const creations = (await db.studioCreation.findMany({ where: { userId }, orderBy: { createdAt: "desc" }, take: 50 })).map(asCreation)
-  return Promise.all(creations.map(async (creation) => {
-    const results = await getStudioAssets(creation.id, "RESULT")
-    const resultUrls = results.map((_, index) => `/api/visual-engine/creations/${creation.id}/result?index=${index}`)
-    return {
-      ...studioCreationPublic(creation),
-      resultUrl: resultUrls[0] ?? null,
-      resultUrls,
-      completedResultCount: results.length,
+export async function listStudioCreations(
+  userId: string,
+): Promise<
+  Array<
+    StudioCreationPublic & {
+      resultUrl: string | null
+      resultUrls: string[]
+      resultLocked: boolean
+      completedResultCount: number
     }
-  }))
+  >
+> {
+  const [
+    creations,
+    discoveryAccess,
+  ] = await Promise.all([
+    db.studioCreation
+      .findMany({
+        where: {
+          userId,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 50,
+      })
+      .then((items) =>
+        items.map(asCreation),
+      ),
+    getMiravaDiscoveryAccess(
+      userId,
+    ),
+  ])
+
+  return Promise.all(
+    creations.map(
+      async (creation) => {
+        const results =
+          await getStudioAssets(
+            creation.id,
+            "RESULT",
+          )
+
+        const resultLocked =
+          isMiravaDiscoveryCreationLocked(
+            discoveryAccess,
+            creation.id,
+          )
+
+        const endpoint =
+          resultLocked
+            ? "preview"
+            : "result"
+
+        const resultUrls =
+          results.map(
+            (_, index) =>
+              `/api/visual-engine/creations/${creation.id}/${endpoint}?index=${index}`,
+          )
+
+        return {
+          ...studioCreationPublic(
+            creation,
+          ),
+          resultUrl:
+            resultUrls[0] ??
+            null,
+          resultUrls,
+          resultLocked,
+          completedResultCount:
+            results.length,
+        }
+      },
+    ),
+  )
 }
 
-export async function studioCreationDTO(userId: string, creationId: string) {
-  const creation = await getStudioCreationForUser(userId, creationId)
-  const assets = await getStudioAssets(creationId)
-  const results = assets.filter((asset) => asset.kind === "RESULT")
-  const resultUrls = results.map((_, index) => `/api/visual-engine/creations/${creation.id}/result?index=${index}`)
-  const user = await db.user.findUnique({ where: { id: userId }, select: { studioCredits: true } })
+export async function studioCreationDTO(
+  userId: string,
+  creationId: string,
+) {
+  const [
+    creation,
+    assets,
+    user,
+    discoveryAccess,
+  ] = await Promise.all([
+    getStudioCreationForUser(
+      userId,
+      creationId,
+    ),
+    getStudioAssets(
+      creationId,
+    ),
+    db.user.findUnique({
+      where: {
+        id: userId,
+      },
+      select: {
+        studioCredits: true,
+      },
+    }),
+    getMiravaDiscoveryAccess(
+      userId,
+    ),
+  ])
+
+  const results =
+    assets.filter(
+      (asset) =>
+        asset.kind === "RESULT",
+    )
+
+  const resultLocked =
+    isMiravaDiscoveryCreationLocked(
+      discoveryAccess,
+      creation.id,
+    )
+
+  const endpoint =
+    resultLocked
+      ? "preview"
+      : "result"
+
+  const resultUrls =
+    results.map(
+      (_, index) =>
+        `/api/visual-engine/creations/${creation.id}/${endpoint}?index=${index}`,
+    )
+
   return {
-    creation: studioCreationPublic(creation),
-    assets: assets.map((asset) => ({ id: asset.id, kind: asset.kind, createdAt: asset.createdAt })),
-    resultUrl: resultUrls[0] ?? null,
+    creation:
+      studioCreationPublic(
+        creation,
+      ),
+    assets:
+      assets.map(
+        (asset) => ({
+          id: asset.id,
+          kind: asset.kind,
+          createdAt:
+            asset.createdAt,
+        }),
+      ),
+    resultUrl:
+      resultUrls[0] ?? null,
     resultUrls,
-    completedResultCount: results.length,
-    studioCredits: Number(user?.studioCredits ?? 0),
+    resultLocked,
+    completedResultCount:
+      results.length,
+    studioCredits:
+      Number(
+        user?.studioCredits ??
+          0,
+      ),
   }
 }
 
@@ -1551,17 +1803,212 @@ async function processStudioJob(job: StudioJobRecord): Promise<void> {
         ? await db.studioIdentityProfile.findUnique({ where: { id: currentCreation.identityProfileId } })
         : await db.studioIdentityProfile.findUnique({ where: { userId: currentCreation.userId } })
       const physicalTraits = parsePhysicalTraits((identityProfile as unknown as Record<string, unknown> | null)?.physicalTraits)
-      for (let frameIndex = existingResults.length; frameIndex < requestedResultCount; frameIndex += 1) {
-        const output = await generateStudioImage(creation, identities, frameIndex, physicalTraits)
-        await storeResultAsset(creation, output)
+      /*
+       * Une invocation Vercel produit une seule image.
+       *
+       * Une série de six images devient donc six invocations courtes et
+       * récupérables, au lieu d'une fonction unique susceptible de dépasser
+       * sa durée maximale.
+       */
+      const frameIndex = existingResults.length
+      const output = await generateStudioImage(
+        creation,
+        identities,
+        frameIndex,
+        physicalTraits,
+      )
+
+      await storeResultAsset(
+        creation,
+        output,
+      )
+
+      const completedResultCount =
+        frameIndex + 1
+
+      if (
+        completedResultCount <
+        requestedResultCount
+      ) {
+        await db.studioJob.update({
+          where: {
+            id: job.id,
+          },
+          data: {
+            status: "PENDING",
+            lockedAt: null,
+            nextRunAt:
+              new Date().toISOString(),
+            failureCode: null,
+          },
+        })
+
+        await db.studioCreation.update({
+          where: {
+            id: creation.id,
+          },
+          data: {
+            status: "GENERATING",
+          },
+        })
+
+        return
       }
-      await db.studioCreation.update({ where: { id: creation.id }, data: { status: "COMPLETED", completedAt: new Date().toISOString() } })
-      void notifyMiravaCreationReady(creation.userId, creation.id)
+
+      await db.studioCreation.update({
+        where: {
+          id: creation.id,
+        },
+        data: {
+          status: "COMPLETED",
+          completedAt:
+            new Date().toISOString(),
+        },
+      })
+
+      void notifyMiravaCreationReady(
+        creation.userId,
+        creation.id,
+      )
     }
     await finishJob(job)
   } catch (error) {
     await failJob(job, creation, error)
   }
+}
+
+export async function recoverStaleStudioJobsForCreation(
+  creationId: string,
+): Promise<number> {
+  /*
+   * Une fonction Vercel Hobby peut être interrompue après sa durée
+   * maximale. Un verrou plus ancien que six minutes est donc considéré
+   * comme abandonné et redevient disponible.
+   */
+  const staleAt = new Date(
+    Date.now() - 6 * 60_000,
+  ).toISOString()
+
+  const { data, error } =
+    await supabaseAdmin
+      .from("StudioJob")
+      .update({
+        status: "PENDING",
+        lockedAt: null,
+        nextRunAt:
+          new Date().toISOString(),
+      })
+      .eq("creationId", creationId)
+      .eq("status", "RUNNING")
+      .lte("lockedAt", staleAt)
+      .select("id")
+
+  if (error) {
+    throw new Error(
+      `Studio stale recovery failed: ${error.message}`,
+    )
+  }
+
+  return data?.length ?? 0
+}
+
+export async function processNextStudioJobForCreation(
+  creationId: string,
+): Promise<boolean> {
+  const now =
+    new Date().toISOString()
+
+  const { data: candidates, error } =
+    await supabaseAdmin
+      .from("StudioJob")
+      .select("*")
+      .eq("creationId", creationId)
+      .eq("status", "PENDING")
+      .lte("nextRunAt", now)
+      .order("nextRunAt", {
+        ascending: true,
+      })
+      .limit(1)
+
+  if (error) {
+    throw new Error(
+      `Studio job selection failed: ${error.message}`,
+    )
+  }
+
+  if (!candidates?.[0]) {
+    return false
+  }
+
+  const candidate =
+    candidates[0] as StudioJobRecord
+
+  /*
+   * Le verrou conditionnel garantit qu'une seule invocation Vercel
+   * traite cette étape, même si le navigateur et la chaîne interne
+   * relancent simultanément le moteur.
+   */
+  const { data: locked, error: lockError } =
+    await supabaseAdmin
+      .from("StudioJob")
+      .update({
+        status: "RUNNING",
+        lockedAt: now,
+      })
+      .eq("id", candidate.id)
+      .eq("status", "PENDING")
+      .select()
+      .maybeSingle()
+
+  if (lockError) {
+    throw new Error(
+      `Studio job locking failed: ${lockError.message}`,
+    )
+  }
+
+  if (!locked) {
+    return false
+  }
+
+  await processStudioJob(
+    locked as StudioJobRecord,
+  )
+
+  return true
+}
+
+export async function nextStudioJobDelayForCreation(
+  creationId: string,
+): Promise<number | null> {
+  const { data, error } =
+    await supabaseAdmin
+      .from("StudioJob")
+      .select("nextRunAt")
+      .eq("creationId", creationId)
+      .eq("status", "PENDING")
+      .order("nextRunAt", {
+        ascending: true,
+      })
+      .limit(1)
+
+  if (error) {
+    throw new Error(
+      `Studio pending job lookup failed: ${error.message}`,
+    )
+  }
+
+  const nextRunAt =
+    data?.[0]?.nextRunAt
+
+  if (!nextRunAt) {
+    return null
+  }
+
+  return Math.max(
+    0,
+    new Date(nextRunAt).getTime() -
+      Date.now(),
+  )
 }
 
 export async function processNextStudioJob(): Promise<boolean> {
@@ -1620,7 +2067,7 @@ export function studioErrorResponse(error: unknown): { message: string; status: 
   }
   if (error instanceof StudioError) {
     const status = error.code === "NOT_FOUND" || error.code === "DOSSIER_NOT_FOUND" ? 404
-      : error.code === "INSUFFICIENT_CREDITS" ? 402
+      : error.code === "INSUFFICIENT_CREDITS" || error.code === "PAYMENT_REQUIRED" ? 402
         : error.code === "CREDIT_ERROR" || error.code === "STORAGE_ERROR" || error.code === "PROVIDER_CONFIGURATION" ? 500
           : 400
     return { message: error.message, status }

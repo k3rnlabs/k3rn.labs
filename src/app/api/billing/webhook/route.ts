@@ -6,6 +6,9 @@ import { creditTopUpMissions } from "@/lib/mission-budget"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 import { getMiravaOffer, getMiravaPlanByPriceId, MIRAVA_STRIPE_PRODUCT } from "@/lib/mirava/brand"
 import { grantMiravaCredits, recordMiravaSubscription } from "@/lib/visual-engine/credits"
+import {
+  grantMiravaDiscoveryUnlock,
+} from "@/lib/visual-engine/discovery"
 import { getStripe } from "@/lib/stripe"
 import Stripe from "stripe"
 
@@ -41,25 +44,126 @@ export async function POST(req: NextRequest) {
       }
 
       if (product === MIRAVA_STRIPE_PRODUCT) {
-        const pack = getMiravaOffer(offerId ?? "")
-        if (pack?.kind !== "pack") {
-          console.error("[billing] mirava-studio top-up: unknown offer", checkoutSession.metadata)
-          return NextResponse.json({ error: "Unknown MIRAVA Studio offer" }, { status: 400 })
+        const offer =
+          getMiravaOffer(
+            offerId ?? "",
+          )
+
+        if (
+          offer?.kind ===
+            "discovery"
+        ) {
+          const creationId =
+            checkoutSession
+              .metadata
+              ?.creationId
+
+          if (!creationId) {
+            console.error(
+              "[billing] mirava discovery: missing creationId",
+              checkoutSession.metadata,
+            )
+
+            return NextResponse.json(
+              {
+                error:
+                  "Missing MIRAVA discovery creation",
+              },
+              {
+                status: 400,
+              },
+            )
+          }
+
+          try {
+            await grantMiravaDiscoveryUnlock({
+              userId,
+              creationId,
+              stripeSessionId:
+                checkoutSession.id,
+            })
+
+            console.log(
+              `[billing] MIRAVA discovery unlocked → user ${userId} (creation: ${creationId})`,
+            )
+
+            return NextResponse.json({
+              received: true,
+            })
+          } catch (error) {
+            console.error(
+              "[billing] MIRAVA discovery unlock failed",
+              error,
+            )
+
+            return NextResponse.json(
+              {
+                error:
+                  "Studio discovery unlock failed",
+              },
+              {
+                status: 500,
+              },
+            )
+          }
         }
+
+        if (
+          offer?.kind !== "pack"
+        ) {
+          console.error(
+            "[billing] mirava-studio top-up: unknown offer",
+            checkoutSession.metadata,
+          )
+
+          return NextResponse.json(
+            {
+              error:
+                "Unknown MIRAVA Studio offer",
+            },
+            {
+              status: 400,
+            },
+          )
+        }
+
         try {
           await grantMiravaCredits({
             userId,
             kind: "PURCHASE",
-            ledgerKind: "PURCHASE",
-            amount: pack.credits,
-            key: `mirava-studio-stripe:${checkoutSession.id}`,
-            stripeSessionId: checkoutSession.id,
-            metadata: { product: MIRAVA_STRIPE_PRODUCT, offerId: pack.id },
+            ledgerKind:
+              "PURCHASE",
+            amount:
+              offer.credits,
+            key:
+              `mirava-studio-stripe:${checkoutSession.id}`,
+            stripeSessionId:
+              checkoutSession.id,
+            metadata: {
+              product:
+                MIRAVA_STRIPE_PRODUCT,
+              offerId:
+                offer.id,
+            },
           })
-          console.log(`[billing] MIRAVA Studio credits applied → user ${userId} (offer: ${pack.id})`)
-          return NextResponse.json({ received: true })
+
+          console.log(
+            `[billing] MIRAVA Studio credits applied → user ${userId} (offer: ${offer.id})`,
+          )
+
+          return NextResponse.json({
+            received: true,
+          })
         } catch {
-          return NextResponse.json({ error: "Studio credit application failed" }, { status: 500 })
+          return NextResponse.json(
+            {
+              error:
+                "Studio credit application failed",
+            },
+            {
+              status: 500,
+            },
+          )
         }
       }
 

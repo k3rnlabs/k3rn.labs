@@ -34,7 +34,7 @@ describe("MIRAVA studio entry contracts", () => {
   })
 
   it("validates an onboarding universe before making it the active studio universe", () => {
-    expect(studio).toContain("getMiravaUniverse(state.universeIds[0]) ?? MIRAVA_UNIVERSES[0]")
+    expect(studio).toContain("state.primaryUniverseId ??")
     expect(studio).toContain("setSelectedUniverseId(preferredUniverse.id)")
   })
 
@@ -85,8 +85,9 @@ describe("MIRAVA studio entry contracts", () => {
   it("restores a returning client's saved universe without overriding an explicit landing choice", () => {
     expect(studio).toContain("hasHydratedStudioPreferenceRef")
     expect(studio).toContain("getMiravaUniverse(new URLSearchParams(window.location.search).get(\"preset\"))")
-    expect(studio).toContain("getMiravaUniverse(onboardingData.onboarding?.universeIds[0])")
-    expect(studio).toContain("const preferredUniverse = requestedUniverse ??")
+    expect(studio).toContain("?.primaryUniverseId ??")
+    expect(studio).toContain("const preferredUniverse =")
+    expect(studio).toContain("requestedUniverse ??")
   })
 
   it("confirms a personal reference without promoting its raw filename into the creative brief", () => {
@@ -314,6 +315,45 @@ describe("MIRAVA studio entry contracts", () => {
     )
     expect(uploadBlock).not.toContain(
       'form.append("file"',
+    )
+  })
+
+  it("turns generation waiting into a premium darkroom reveal", () => {
+    expect(studio).toContain(
+      "function MiravaDarkroomLoading",
+    )
+    expect(studio).toContain(
+      "useReducedMotion",
+    )
+    expect(studio).toContain(
+      "Votre séance prend forme",
+    )
+    expect(studio).toContain(
+      "Construction de la lumière",
+    )
+    expect(studio).toContain(
+      "<MiravaDarkroomLoading",
+    )
+    expect(studio).not.toContain(
+      'className="h-1 overflow-hidden bg-mirava-surface-raised"',
+    )
+  })
+
+  it("protects the discovery result with a server-rendered preview and an explicit one-time checkout", () => {
+    expect(studio).toContain(
+      "function MiravaDiscoveryPaywall",
+    )
+    expect(studio).toContain(
+      "mirava-discovery",
+    )
+    expect(studio).toContain(
+      "Débloquer pour 2,99 € TTC",
+    )
+    expect(studio).toContain(
+      "current.resultLocked",
+    )
+    expect(studio).not.toContain(
+      "filter: blur(",
     )
   })
 

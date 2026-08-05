@@ -57,7 +57,7 @@ describe("MIRAVA first-access onboarding", () => {
     expect(update.data.firstName).toBe("Amina")
     expect(update.data.preferences.keep).toBe("existing")
     expect(update.data.preferences.miravaOnboarding).toMatchObject({
-      version: 3, status: "in_progress", currentStep: "objective", universeIds: [],
+      version: 4, status: "in_progress", currentStep: "objective", universeIds: [],
     })
     expect(update.data).not.toHaveProperty("onboardingCompleted")
   })
@@ -67,13 +67,14 @@ describe("MIRAVA first-access onboarding", () => {
       action: "progress",
       currentStep: "direction_review",
       universeIds: [MIRAVA_UNIVERSES[1].id],
+      primaryUniverseId: MIRAVA_UNIVERSES[1].id,
       goal: "campaign",
-      direction: { primaryUniverseId: MIRAVA_UNIVERSES[1].id, sessionType: "campaign_series", recommendedFormats: ["Publication", "Story"] },
+      direction: { primaryUniverseId: MIRAVA_UNIVERSES[1].id, sessionType: "mini_campaign", recommendedFormats: ["publication", "story", "banner"] },
     }))
 
     expect(response.status).toBe(200)
     expect(mocks.update.mock.calls[0][0].data.preferences.miravaOnboarding).toMatchObject({
-      version: 3, status: "in_progress", currentStep: "direction_review", universeIds: [MIRAVA_UNIVERSES[1].id], goal: "campaign",
+      version: 4, status: "in_progress", currentStep: "direction_review", universeIds: [MIRAVA_UNIVERSES[1].id], goal: "campaign",
     })
   })
 
@@ -83,7 +84,8 @@ describe("MIRAVA first-access onboarding", () => {
       currentStep: "capture_activation",
       goal: "presence",
       universeIds: [MIRAVA_UNIVERSES[0].id],
-      direction: { primaryUniverseId: MIRAVA_UNIVERSES[0].id, sessionType: "portrait_editorial", recommendedFormats: ["Portrait"] },
+      primaryUniverseId: MIRAVA_UNIVERSES[0].id,
+      direction: { primaryUniverseId: MIRAVA_UNIVERSES[0].id, sessionType: "profile_premium", recommendedFormats: ["portrait", "profile"] },
       identityConsentAccepted: true,
     }))
 
@@ -100,8 +102,9 @@ describe("MIRAVA first-access onboarding", () => {
 
   it("keeps an already prepared session when the user only navigates backward", async () => {
     mocks.findUnique.mockResolvedValue({ preferences: { miravaOnboarding: {
-      version: 3, status: "session_ready", currentStep: "capture_activation", universeIds: [MIRAVA_UNIVERSES[0].id], goal: "presence",
-      direction: { primaryUniverseId: MIRAVA_UNIVERSES[0].id, sessionType: "portrait_editorial", recommendedFormats: ["Portrait"] },
+      version: 4, status: "session_ready", currentStep: "capture_activation", universeIds: [MIRAVA_UNIVERSES[0].id], goal: "presence",
+      primaryUniverseId: MIRAVA_UNIVERSES[0].id,
+      direction: { primaryUniverseId: MIRAVA_UNIVERSES[0].id, sessionType: "profile_premium", recommendedFormats: ["portrait", "profile"] },
       identityConsentAt: new Date().toISOString(), firstSessionId: "creation-1", updatedAt: new Date().toISOString(),
     } } })
 
@@ -123,14 +126,15 @@ describe("MIRAVA first-access onboarding", () => {
     const data = await response.json()
 
     expect(response.status).toBe(200)
-    expect(data.onboarding).toMatchObject({ version: 3, status: "in_progress", currentStep: "identity_permission", goal: "campaign" })
+    expect(data.onboarding).toMatchObject({ version: 4, status: "in_progress", currentStep: "first_universe", goal: "campaign" })
     expect(data.onboarding).not.toHaveProperty("firstSessionId")
   })
 
   it("does not declare a session ready without a complete owned identity profile", async () => {
     mocks.findUnique.mockResolvedValue({ preferences: { miravaOnboarding: {
-      version: 3, status: "in_progress", currentStep: "capture_activation", universeIds: [MIRAVA_UNIVERSES[0].id], goal: "presence",
-      direction: { primaryUniverseId: MIRAVA_UNIVERSES[0].id, sessionType: "portrait_editorial", recommendedFormats: ["Portrait"] },
+      version: 4, status: "in_progress", currentStep: "capture_activation", universeIds: [MIRAVA_UNIVERSES[0].id], goal: "presence",
+      primaryUniverseId: MIRAVA_UNIVERSES[0].id,
+      direction: { primaryUniverseId: MIRAVA_UNIVERSES[0].id, sessionType: "profile_premium", recommendedFormats: ["portrait", "profile"] },
       identityConsentAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
     } } })
     mocks.findIdentityProfile.mockResolvedValue({ id: "profile-1", _count: { assets: 2 } })
@@ -144,8 +148,9 @@ describe("MIRAVA first-access onboarding", () => {
 
   it("activates only while the real first session remains linked to a valid profile", async () => {
     mocks.findUnique.mockResolvedValue({ preferences: { miravaOnboarding: {
-      version: 3, status: "session_ready", currentStep: "capture_activation", universeIds: [MIRAVA_UNIVERSES[0].id], goal: "presence",
-      direction: { primaryUniverseId: MIRAVA_UNIVERSES[0].id, sessionType: "portrait_editorial", recommendedFormats: ["Portrait"] },
+      version: 4, status: "session_ready", currentStep: "capture_activation", universeIds: [MIRAVA_UNIVERSES[0].id], goal: "presence",
+      primaryUniverseId: MIRAVA_UNIVERSES[0].id,
+      direction: { primaryUniverseId: MIRAVA_UNIVERSES[0].id, sessionType: "profile_premium", recommendedFormats: ["portrait", "profile"] },
       identityConsentAt: new Date().toISOString(), firstSessionId: "creation-1", updatedAt: new Date().toISOString(),
     } } })
     mocks.findIdentityProfile.mockResolvedValue({ id: "profile-1", _count: { assets: 3 } })

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import { isMiravaOnboardingCompleted, type MiravaOnboardingState } from "./onboarding"
 
 const base: MiravaOnboardingState = {
-  version: 3,
+  version: 4,
   status: "in_progress",
   currentStep: "capture_activation",
   universeIds: ["escapade-solaire"],
