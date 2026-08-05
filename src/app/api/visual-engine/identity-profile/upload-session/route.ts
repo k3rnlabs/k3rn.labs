@@ -68,6 +68,7 @@ export async function POST(
     .json()
     .catch(() => null) as
       | {
+          purpose?: unknown
           files?: Array<{
             mimeType?: unknown
             bytes?: unknown
@@ -76,14 +77,32 @@ export async function POST(
       | null
 
   const files = body?.files
+  const purpose =
+    body?.purpose === "profile-append"
+      ? "profile-append"
+      : body?.purpose === "asset-replacement"
+      ? "asset-replacement"
+      : "profile-replace"
 
-  if (
-    !Array.isArray(files) ||
-    files.length < MIN_IDENTITY_ASSETS ||
-    files.length > MAX_IDENTITY_ASSETS
-  ) {
+  const validFileCount =
+    Array.isArray(files) &&
+    (
+      purpose === "profile-replace"
+        ? files.length >= MIN_IDENTITY_ASSETS &&
+          files.length <= MAX_IDENTITY_ASSETS
+        : purpose === "profile-append"
+        ? files.length >= 1 &&
+          files.length <= MAX_IDENTITY_ASSETS
+        : files.length === 1
+    )
+
+  if (!validFileCount || !Array.isArray(files)) {
     return apiError(
-      "Entre trois et dix photos sont requises.",
+      purpose === "profile-replace"
+        ? "Entre trois et dix photos sont requises."
+        : purpose === "profile-append"
+        ? "Ajoutez au moins une photo."
+        : "Une seule photo de remplacement est requise.",
       400,
     )
   }

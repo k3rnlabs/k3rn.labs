@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   getIdentityProfilePublic: vi.fn(),
   replaceIdentityProfile: vi.fn(),
   replaceIdentityProfileFromStagedUploads: vi.fn(),
+  appendIdentityProfileFromStagedUploads: vi.fn(),
   appendIdentityProfile: vi.fn(),
   deleteIdentityProfile: vi.fn(),
   studioErrorResponse: vi.fn(),
@@ -22,6 +23,8 @@ vi.mock("@/lib/visual-engine/core", () => ({
   replaceIdentityProfile: mocks.replaceIdentityProfile,
   replaceIdentityProfileFromStagedUploads:
     mocks.replaceIdentityProfileFromStagedUploads,
+  appendIdentityProfileFromStagedUploads:
+    mocks.appendIdentityProfileFromStagedUploads,
   appendIdentityProfile: mocks.appendIdentityProfile,
   deleteIdentityProfile: mocks.deleteIdentityProfile,
   studioErrorResponse: mocks.studioErrorResponse,
@@ -94,6 +97,7 @@ describe("MIRAVA identity profile route", () => {
     mocks.checkRateLimit.mockResolvedValue({ success: true, remaining: 9 })
     mocks.replaceIdentityProfile.mockResolvedValue({ id: "profile-1", assetCount: 3, previews: [] })
     mocks.replaceIdentityProfileFromStagedUploads.mockResolvedValue({ id: "profile-1", assetCount: 3, previews: [] })
+    mocks.appendIdentityProfileFromStagedUploads.mockResolvedValue({ id: "profile-1", assetCount: 4, previews: [] })
     mocks.appendIdentityProfile.mockResolvedValue({ id: "profile-1", assetCount: 4, previews: [] })
     mocks.studioErrorResponse.mockReturnValue({ message: "Une erreur Studio est survenue.", status: 500 })
   })

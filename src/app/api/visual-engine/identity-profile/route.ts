@@ -2,7 +2,7 @@ import { NextRequest } from "next/server"
 import { verifySession } from "@/lib/auth"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { miravaApiError as apiError, miravaApiSuccess as apiSuccess } from "@/lib/visual-engine/http"
-import { appendIdentityProfile, deleteIdentityProfile, getIdentityProfilePublic, MAX_IDENTITY_ASSETS, MIN_IDENTITY_ASSETS, replaceIdentityProfile, replaceIdentityProfileFromStagedUploads, studioErrorResponse } from "@/lib/visual-engine/core"
+import { appendIdentityProfile, appendIdentityProfileFromStagedUploads, deleteIdentityProfile, getIdentityProfilePublic, MAX_IDENTITY_ASSETS, MIN_IDENTITY_ASSETS, replaceIdentityProfile, replaceIdentityProfileFromStagedUploads, studioErrorResponse } from "@/lib/visual-engine/core"
 import { recordMiravaAudit } from "@/lib/visual-engine/audit"
 
 export async function GET() {
@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
     ) {
       const body = await req.json() as {
         mode?: string
+        creationId?: string
         batchId?: string
         uploads?: Array<{
           path: string
@@ -38,7 +39,10 @@ export async function POST(req: NextRequest) {
       }
 
       if (
-        body.mode !== "replace-staged" ||
+        ![
+          "replace-staged",
+          "append-staged",
+        ].includes(body.mode ?? "") ||
         typeof body.batchId !== "string" ||
         !Array.isArray(body.uploads)
       ) {
@@ -48,23 +52,39 @@ export async function POST(req: NextRequest) {
         )
       }
 
+      const common = {
+        userId: session.userId,
+        creationId:
+          typeof body.creationId === "string" &&
+          body.creationId.length > 0
+            ? body.creationId
+            : undefined,
+        batchId: body.batchId,
+        uploads: body.uploads,
+        ageConfirmed:
+          body.ageConfirmed === true,
+        rightsConfirmed:
+          body.rightsConfirmed === true,
+        retentionAccepted:
+          body.retentionAccepted === true,
+      }
+
       const profile =
-        await replaceIdentityProfileFromStagedUploads({
-          userId: session.userId,
-          batchId: body.batchId,
-          uploads: body.uploads,
-          ageConfirmed:
-            body.ageConfirmed === true,
-          rightsConfirmed:
-            body.rightsConfirmed === true,
-          retentionAccepted:
-            body.retentionAccepted === true,
-        })
+        body.mode === "append-staged"
+          ? await appendIdentityProfileFromStagedUploads(
+              common,
+            )
+          : await replaceIdentityProfileFromStagedUploads(
+              common,
+            )
 
       await recordMiravaAudit(
         session.userId,
-        "IDENTITY_PROFILE_UPDATED",
-        "identity-onboarding",
+        body.mode === "append-staged"
+          ? "IDENTITY_PROFILE_EXTENDED"
+          : "IDENTITY_PROFILE_UPDATED",
+        common.creationId ??
+          "identity-profile",
       )
 
       return apiSuccess({ profile })

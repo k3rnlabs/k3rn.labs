@@ -346,10 +346,14 @@ export async function uploadMiravaIdentityProfile({
   files,
   consent,
   locale,
+  mode = "replace",
+  creationId,
 }: {
   files: File[]
   consent: MiravaIdentityUploadConsent
   locale: Locale
+  mode?: "replace" | "append"
+  creationId?: string
 }): Promise<MiravaIdentityProfileReceipt> {
   const masters: File[] = []
 
@@ -380,6 +384,10 @@ export async function uploadMiravaIdentityProfile({
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
+        purpose:
+          mode === "append"
+            ? "profile-append"
+            : "profile-replace",
         files: masters.map((file) => ({
           mimeType: file.type,
           bytes: file.size,
@@ -449,8 +457,12 @@ export async function uploadMiravaIdentityProfile({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          mode: "replace-staged",
+          mode:
+            mode === "append"
+              ? "append-staged"
+              : "replace-staged",
           batchId,
+          creationId,
           uploads: uploads.map(
             (upload, index) => ({
               path: upload.path,
@@ -508,6 +520,159 @@ export async function uploadMiravaIdentityProfile({
         locale,
         "L’envoi privé d’une photo a échoué. Vérifiez votre connexion puis réessayez.",
         "Falló el envío privado de una foto. Comprueba tu conexión e inténtalo de nuevo.",
+      ),
+    )
+  }
+}
+
+
+export async function uploadMiravaIdentityAsset({
+  assetId,
+  file,
+  locale,
+}: {
+  assetId: string
+  file: File
+  locale: Locale
+}): Promise<MiravaIdentityProfileReceipt> {
+  let master: File
+
+  try {
+    master = await prepareMiravaIdentityMaster(
+      file,
+      0,
+    )
+  } catch {
+    throw new Error(
+      message(
+        locale,
+        "Cette photo n’a pas pu être préparée en haute qualité.",
+        "No se pudo preparar esta foto en alta calidad.",
+      ),
+    )
+  }
+
+  const sessionResponse = await fetch(
+    "/api/visual-engine/identity-profile/upload-session",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        purpose: "asset-replacement",
+        files: [
+          {
+            mimeType: master.type,
+            bytes: master.size,
+          },
+        ],
+      }),
+    },
+  )
+
+  const sessionData = await sessionResponse
+    .json()
+    .catch(() => null) as
+      | UploadSessionResponse
+      | null
+
+  const upload = sessionData?.uploads?.[0]
+
+  if (
+    !sessionResponse.ok ||
+    !sessionData?.batchId ||
+    !sessionData.bucket ||
+    !upload
+  ) {
+    throw new Error(
+      sessionData?.error ??
+        message(
+          locale,
+          "Le stockage privé de la photo n’a pas pu être préparé.",
+          "No se pudo preparar el almacenamiento privado de la foto.",
+        ),
+    )
+  }
+
+  const paths = [upload.path]
+
+  try {
+    const storage = createSignedUploadClient()
+
+    const { error } = await storage.storage
+      .from(sessionData.bucket)
+      .uploadToSignedUrl(
+        upload.path,
+        upload.token,
+        master,
+        {
+          contentType: master.type,
+          cacheControl: "0",
+        },
+      )
+
+    if (error) {
+      throw new Error(
+        "MIRAVA_SIGNED_UPLOAD_FAILED",
+      )
+    }
+
+    const response = await fetch(
+      `/api/visual-engine/identity-profile/assets/${encodeURIComponent(assetId)}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          batchId: sessionData.batchId,
+          upload: {
+            path: upload.path,
+            mimeType: master.type,
+            bytes: master.size,
+          },
+        }),
+      },
+    )
+
+    const data = await response
+      .json()
+      .catch(() => null) as
+        | FinalizeResponse
+        | null
+
+    if (!response.ok || !data?.profile?.id) {
+      throw new Error(
+        data?.error ??
+          data?.message ??
+          message(
+            locale,
+            "La photo n’a pas pu être remplacée.",
+            "No se pudo sustituir la foto.",
+          ),
+      )
+    }
+
+    return data.profile
+  } catch (error) {
+    await abortUploadSession(
+      sessionData.batchId,
+      paths,
+    )
+
+    if (
+      error instanceof Error &&
+      !error.message.startsWith("MIRAVA_")
+    ) {
+      throw error
+    }
+
+    throw new Error(
+      message(
+        locale,
+        "Le remplacement privé de la photo a échoué.",
+        "Falló la sustitución privada de la foto.",
       ),
     )
   }
