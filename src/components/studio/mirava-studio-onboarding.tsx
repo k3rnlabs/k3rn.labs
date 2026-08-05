@@ -412,7 +412,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
         {/* Animated Step Panel */}
         <div className="flex-1 pb-8">
           <AnimatePresence mode="wait">
-            <motion.div ref={panelRef} key={stepId} tabIndex={-1} className="outline-none" initial={{ opacity: 0, y: reducedMotion ? 0 : 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25, ease: "easeOut" }}>
+            <motion.div ref={panelRef} key={stepId} tabIndex={-1} className="mirava-onboarding-step-panel outline-none" initial={{ opacity: 0, y: reducedMotion ? 0 : 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.25, ease: "easeOut" }}>
               {/* STEP 1: PROMISE NAME / STUDIO PERSONNEL */}
               {stepId === "promise_name" && (
                 <div className="space-y-6 pt-2 sm:pt-3">

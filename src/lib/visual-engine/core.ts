@@ -481,6 +481,7 @@ export async function replaceIdentityProfile(args: {
 
 export async function replaceIdentityProfileFromStagedUploads(args: {
   userId: string
+  creationId?: string
   batchId: string
   ageConfirmed?: boolean
   rightsConfirmed?: boolean
@@ -593,6 +594,7 @@ export async function replaceIdentityProfileFromStagedUploads(args: {
 
     return await replaceIdentityProfile({
       userId: args.userId,
+      creationId: args.creationId,
       ageConfirmed: args.ageConfirmed,
       rightsConfirmed: args.rightsConfirmed,
       retentionAccepted:
@@ -606,6 +608,373 @@ export async function replaceIdentityProfileFromStagedUploads(args: {
         .remove(paths)
     }
   }
+}
+
+export async function appendIdentityProfileFromStagedUploads(args: {
+  userId: string
+  creationId?: string
+  batchId: string
+  ageConfirmed?: boolean
+  rightsConfirmed?: boolean
+  retentionAccepted?: boolean
+  uploads: Array<{
+    path: string
+    mimeType: string
+    bytes: number
+  }>
+}) {
+  if (
+    args.uploads.length < 1 ||
+    args.uploads.length > MAX_IDENTITY_ASSETS
+  ) {
+    throw new StudioError(
+      "Ajoutez au moins une photo d’identité.",
+      "IDENTITY_REQUIRED",
+    )
+  }
+
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      args.batchId,
+    )
+  ) {
+    throw new StudioError(
+      "La session d’envoi est invalide.",
+      "INVALID_STATE",
+    )
+  }
+
+  const prefix =
+    `${args.userId}/identity-staging/` +
+    `${args.batchId}/`
+
+  const paths = args.uploads.map(
+    (upload) => upload.path,
+  )
+
+  if (
+    new Set(paths).size !== paths.length ||
+    paths.some(
+      (path) =>
+        !path.startsWith(prefix) ||
+        path.includes(".."),
+    )
+  ) {
+    throw new StudioError(
+      "Une référence d’image privée est invalide.",
+      "FORBIDDEN",
+    )
+  }
+
+  const files: Array<{
+    mimeType: string
+    buffer: Buffer
+  }> = []
+
+  try {
+    for (const upload of args.uploads) {
+      const { data, error } =
+        await supabaseAdmin.storage
+          .from(STUDIO_BUCKET)
+          .download(upload.path)
+
+      if (error || !data) {
+        throw new StudioError(
+          "Une photo privée n’a pas été reçue.",
+          "STORAGE_ERROR",
+          true,
+        )
+      }
+
+      const buffer = Buffer.from(
+        await data.arrayBuffer(),
+      )
+
+      if (
+        buffer.length !== upload.bytes ||
+        buffer.length >
+          MAX_STUDIO_IMAGE_BYTES
+      ) {
+        throw new StudioError(
+          "L’intégrité d’une photo n’a pas pu être confirmée.",
+          "INVALID_FILE",
+        )
+      }
+
+      await validateStudioImage(
+        buffer,
+        upload.mimeType,
+      )
+
+      files.push({
+        mimeType: upload.mimeType,
+        buffer,
+      })
+    }
+
+    return await appendIdentityProfile({
+      userId: args.userId,
+      creationId: args.creationId,
+      ageConfirmed: args.ageConfirmed,
+      rightsConfirmed: args.rightsConfirmed,
+      retentionAccepted:
+        args.retentionAccepted,
+      files,
+    })
+  } finally {
+    if (paths.length > 0) {
+      await supabaseAdmin.storage
+        .from(STUDIO_BUCKET)
+        .remove(paths)
+    }
+  }
+}
+
+export async function replaceIdentityAssetFromStagedUpload(args: {
+  userId: string
+  assetId: string
+  batchId: string
+  upload: {
+    path: string
+    mimeType: string
+    bytes: number
+  }
+}) {
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      args.batchId,
+    )
+  ) {
+    throw new StudioError(
+      "La session de remplacement est invalide.",
+      "INVALID_STATE",
+    )
+  }
+
+  const prefix =
+    `${args.userId}/identity-staging/` +
+    `${args.batchId}/`
+
+  if (
+    !args.upload.path.startsWith(prefix) ||
+    args.upload.path.includes("..")
+  ) {
+    throw new StudioError(
+      "La référence privée est invalide.",
+      "FORBIDDEN",
+    )
+  }
+
+  const profile =
+    await db.studioIdentityProfile.findUnique({
+      where: {
+        userId: args.userId,
+      },
+    })
+
+  if (!profile) {
+    throw new StudioError(
+      "Profil identité introuvable.",
+      "NOT_FOUND",
+    )
+  }
+
+  const asset =
+    await db.studioIdentityAsset.findFirst({
+      where: {
+        id: args.assetId,
+        userId: args.userId,
+        identityProfileId: profile.id,
+      },
+    })
+
+  if (!asset) {
+    throw new StudioError(
+      "Photo identité introuvable.",
+      "NOT_FOUND",
+    )
+  }
+
+  try {
+    const { data, error } =
+      await supabaseAdmin.storage
+        .from(STUDIO_BUCKET)
+        .download(args.upload.path)
+
+    if (error || !data) {
+      throw new StudioError(
+        "La nouvelle photo privée n’a pas été reçue.",
+        "STORAGE_ERROR",
+        true,
+      )
+    }
+
+    const buffer = Buffer.from(
+      await data.arrayBuffer(),
+    )
+
+    if (
+      buffer.length !== args.upload.bytes ||
+      buffer.length >
+        MAX_STUDIO_IMAGE_BYTES
+    ) {
+      throw new StudioError(
+        "L’intégrité de la nouvelle photo est invalide.",
+        "INVALID_FILE",
+      )
+    }
+
+    await validateStudioImage(
+      buffer,
+      args.upload.mimeType,
+    )
+
+    const nextStoragePath =
+      `${args.userId}/identity-profile/` +
+      `${randomUUID()}.` +
+      extensionForMime(args.upload.mimeType)
+
+    const { error: uploadError } =
+      await supabaseAdmin.storage
+        .from(STUDIO_BUCKET)
+        .upload(
+          nextStoragePath,
+          buffer,
+          {
+            contentType: args.upload.mimeType,
+            upsert: false,
+          },
+        )
+
+    if (uploadError) {
+      throw new StudioError(
+        "Le stockage de la nouvelle photo a échoué.",
+        "STORAGE_ERROR",
+      )
+    }
+
+    try {
+      await db.$transaction([
+        db.studioIdentityAsset.update({
+          where: {
+            id: asset.id,
+          },
+          data: {
+            storagePath: nextStoragePath,
+            mimeType: args.upload.mimeType,
+            bytes: buffer.length,
+          },
+        }),
+        db.studioIdentityProfile.update({
+          where: {
+            id: profile.id,
+          },
+          data: {
+            retentionAcceptedAt:
+              new Date().toISOString(),
+          },
+        }),
+      ])
+    } catch (error) {
+      await supabaseAdmin.storage
+        .from(STUDIO_BUCKET)
+        .remove([nextStoragePath])
+
+      throw error
+    }
+
+    await supabaseAdmin.storage
+      .from(STUDIO_BUCKET)
+      .remove([asset.storagePath])
+
+    return getIdentityProfilePublic(
+      args.userId,
+    )
+  } finally {
+    await supabaseAdmin.storage
+      .from(STUDIO_BUCKET)
+      .remove([args.upload.path])
+  }
+}
+
+export async function deleteIdentityAsset(args: {
+  userId: string
+  assetId: string
+}) {
+  const profile =
+    await db.studioIdentityProfile.findUnique({
+      where: {
+        userId: args.userId,
+      },
+    })
+
+  if (!profile) {
+    throw new StudioError(
+      "Profil identité introuvable.",
+      "NOT_FOUND",
+    )
+  }
+
+  const assets =
+    await db.studioIdentityAsset.findMany({
+      where: {
+        identityProfileId: profile.id,
+        userId: args.userId,
+      },
+    })
+
+  if (assets.length <= MIN_IDENTITY_ASSETS) {
+    throw new StudioError(
+      "Conservez au moins trois photos. Remplacez une photo au lieu de la supprimer.",
+      "IDENTITY_REQUIRED",
+    )
+  }
+
+  const asset = assets.find(
+    (candidate) =>
+      candidate.id === args.assetId,
+  )
+
+  if (!asset) {
+    throw new StudioError(
+      "Photo identité introuvable.",
+      "NOT_FOUND",
+    )
+  }
+
+  const { error: storageError } =
+    await supabaseAdmin.storage
+      .from(STUDIO_BUCKET)
+      .remove([asset.storagePath])
+
+  if (storageError) {
+    throw new StudioError(
+      "La suppression sécurisée de la photo a échoué.",
+      "STORAGE_ERROR",
+      true,
+    )
+  }
+
+  await db.$transaction([
+    db.studioIdentityAsset.delete({
+      where: {
+        id: asset.id,
+      },
+    }),
+    db.studioIdentityProfile.update({
+      where: {
+        id: profile.id,
+      },
+      data: {
+        retentionAcceptedAt:
+          new Date().toISOString(),
+      },
+    }),
+  ])
+
+  return getIdentityProfilePublic(
+    args.userId,
+  )
 }
 
 export async function appendIdentityProfile(args: {
@@ -978,7 +1347,6 @@ async function generateStudioImage(
     form.append("prompt", promptText)
     form.append("size", "1024x1536")
     form.append("quality", "high")
-    form.append("input_fidelity", "high")
     form.append("output_format", "png")
 
     for (const asset of identityAssets) {
@@ -995,10 +1363,46 @@ async function generateStudioImage(
 
     if (!response.ok) {
       const retryable = response.status === 429 || response.status >= 500
-      if (response.status >= 400 && response.status < 500 && !retryable) {
-        throw new StudioError("La génération n’a pas été autorisée par les règles de sécurité.", "SAFETY_REFUSAL")
+      const providerBody = await response.text()
+
+      console.error(
+        "[Studio image provider error]",
+        JSON.stringify({
+          status: response.status,
+          model: MIRAVA_IMAGE_MODEL,
+          body: providerBody.slice(0, 4000),
+        })
+      )
+
+      let providerCode = ""
+      try {
+        const parsed = JSON.parse(providerBody) as {
+          error?: {
+            code?: string
+            type?: string
+          }
+        }
+        providerCode = parsed.error?.code ?? parsed.error?.type ?? ""
+      } catch {
+        providerCode = ""
       }
-      throw new StudioError("La génération est temporairement indisponible.", `OPENAI_${response.status}`, retryable)
+
+      const safetyRefusal =
+        providerCode === "content_policy_violation" ||
+        providerCode === "safety_violations"
+
+      if (safetyRefusal) {
+        throw new StudioError(
+          "La génération n’a pas été autorisée par les règles de sécurité.",
+          "SAFETY_REFUSAL"
+        )
+      }
+
+      throw new StudioError(
+        "La génération est temporairement indisponible.",
+        `OPENAI_${response.status}${providerCode ? `_${providerCode}` : ""}`,
+        retryable
+      )
     }
 
     const data = await response.json() as { data?: Array<{ b64_json?: string }> }

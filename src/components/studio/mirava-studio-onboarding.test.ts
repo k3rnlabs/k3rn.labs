@@ -17,6 +17,10 @@ describe("MIRAVA onboarding localization contracts", () => {
     path.resolve(process.cwd(), "src/components/studio/mirava-floating-shell.css"),
     "utf8",
   )
+  const miravaStyles = readFileSync(
+    path.resolve(process.cwd(), "src/styles/mirava.css"),
+    "utf8",
+  )
 
   it("localizes every visible onboarding section label", () => {
     expect(onboarding).toContain('promise: "Votre studio photo personnel, guidé de la direction au premier résultat."')
@@ -126,6 +130,15 @@ describe("MIRAVA onboarding localization contracts", () => {
     expect(onboarding).toContain('panelRef.current?.focus({ preventScroll: true })')
     expect(onboarding).toContain('window.scrollTo({ top: 0, left: 0, behavior: "auto" })')
     expect(onboarding).toContain('key={stepId} tabIndex={-1}')
+    expect(onboarding).toContain(
+      'className="mirava-onboarding-step-panel outline-none"',
+    )
+    expect(miravaStyles).toContain(
+      ".mirava-theme .mirava-onboarding-step-panel:focus-visible",
+    )
+    expect(miravaStyles).toMatch(
+      /\.mirava-theme \.mirava-onboarding-step-panel:focus-visible\s*\{\s*outline: none;/,
+    )
   })
 
   it("confirms the goal, then auto-advances briefly while keeping back navigation", () => {
