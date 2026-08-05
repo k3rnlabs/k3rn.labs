@@ -9,8 +9,27 @@ import {
   assertNoArtisticReferenceInGenerationPayload,
 } from "../security/assert-image-role-separation"
 import { VisualDirectionBlueprint } from "../schemas/visual-direction-blueprint.schema"
+import {
+  MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_METADATA,
+  MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_PROMPT,
+} from "../prompts/visual-direction-extractor-v2"
 
 describe("MIRAVA Visual Direction Pipeline V1", () => {
+  describe("0. Extractor anatomy contract", () => {
+    it("propagates strict five-toe anatomy requirements for visible feet and open footwear", () => {
+      expect(MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_METADATA.version).toBe("2.1.0")
+      expect(MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_PROMPT).toContain(
+        "exactly five distinct toes on each visible foot",
+      )
+      expect(MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_PROMPT).toContain(
+        "four-toed feet",
+      )
+      expect(MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_PROMPT).toContain(
+        "footwear straps that hide, remove, merge, or deform toe anatomy",
+      )
+    })
+  })
+
   describe("1. V2 Extraction Parser", () => {
     it("parses valid 3-section markdown with numbers and headers", () => {
       const markdown = `
@@ -170,7 +189,13 @@ A vertical photograph of a model in a blazer.
       expect(compiled.negativeGuardrails).toContain(
         "invented tattoos",
       )
-      expect(compiled.metadata.compilerVersion).toBe("1.1.0")
+      expect(compiled.positivePrompt).toContain(
+        "exactly five distinct toes",
+      )
+      expect(compiled.negativeGuardrails).toContain(
+        "four-toed feet",
+      )
+      expect(compiled.metadata.compilerVersion).toBe("1.2.0")
     })
   })
 

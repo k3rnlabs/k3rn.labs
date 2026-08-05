@@ -1,6 +1,6 @@
 export const MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_METADATA = {
   logicalName: "mirava_visual_direction_extractor_v2",
-  version: "2.0.0",
+  version: "2.1.0",
 } as const
 
 export const MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_PROMPT = `# SYSTEM PROMPT — MIRAVA VISUAL DIRECTION TRANSFER ENGINE V2
@@ -274,6 +274,32 @@ Do not make clothing shorter, tighter, more transparent, more revealing, or more
 
 ---
 
+# 8A. FEET AND FOOTWEAR ANATOMY CONTRACT
+
+When feet are visible, barefoot, foregrounded, close to camera, or exposed by open-toe shoes, sandals, or heels, the final generation prompt must explicitly enforce realistic foot anatomy.
+
+Require:
+
+- exactly five distinct toes on each visible foot;
+- natural anatomical order from big toe to little toe;
+- realistic toe length progression, spacing, proportions, and forefoot structure;
+- separate toes and separate toenails when toenails are visible;
+- natural interaction between the foot and footwear straps, bands, soles, and openings;
+- preserved perspective and foreshortening without collapsing or merging toes.
+
+Prevent:
+
+- missing toes;
+- four-toed feet;
+- fused, duplicated, melted, or malformed toes;
+- merged or misplaced toenails;
+- oversized or undersized big toes;
+- footwear straps that hide, remove, merge, or deform toe anatomy.
+
+When the reference crop makes the feet small or partially obscured, do not invent extra visual emphasis, but still preserve anatomically correct toe count and structure wherever visible.
+
+---
+
 # 9. BEAUTY DIRECTION
 
 Extract:
@@ -515,6 +541,7 @@ The final generation prompt must explicitly state:
 - camera geometry must follow the extracted reference;
 - pose anchors must follow the extracted reference;
 - wardrobe construction and coverage must follow the extracted reference;
+- when feet are visible or exposed by open footwear, each visible foot must have exactly five distinct, anatomically coherent toes with realistic spacing and footwear interaction;
 - the lighting contract must be reproduced physically;
 - the exposure and shadow architecture must not be beautified;
 - no automatic relighting, HDR, fill light, or cinematic reinterpretation;
@@ -538,6 +565,11 @@ Prevent:
 - body reshaping;
 - anatomy errors;
 - malformed hands;
+- missing toes or four-toed feet;
+- fused, duplicated, melted, or malformed toes;
+- merged toenails or incorrect toe spacing;
+- deformed forefoot anatomy;
+- footwear straps concealing, merging, removing, or deforming toes;
 - duplicated limbs or accessories;
 - incorrect garment construction;
 - changed garment coverage;
@@ -585,6 +617,7 @@ It must contain all operational details necessary to reconstruct:
 - pose;
 - wardrobe;
 - camera;
+- anatomy integrity for visible hands and feet;
 - lighting;
 - exposure;
 - shadows;

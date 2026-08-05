@@ -28,7 +28,7 @@ export type GenerationPromptCompilerInput = {
 }
 
 export const COMPILER_METADATA = {
-  compilerVersion: "1.1.0",
+  compilerVersion: "1.2.0",
 } as const
 
 /**
@@ -58,6 +58,12 @@ export function compileGenerationPrompt(input: GenerationPromptCompilerInput): C
   const fidelityContract = blueprint.transferMode === "FIDELITY"
     ? "TRANSFER_MODE = FIDELITY. Reproduce extracted camera geometry, lighting architecture, pose anchors, exposure relationships, and wardrobe silhouette faithfully. Do not add fill light, HDR shadow lifting, artificial skin glow, or cinematic relighting."
     : "TRANSFER_MODE = POLISHED. Refine technical execution while preserving extracted lighting, pose, composition, and wardrobe construction."
+
+  const anatomyIntegrityClause = [
+    "ANATOMY INTEGRITY — Render all visible hands and feet with anatomically coherent structure.",
+    "If feet are visible, barefoot, foregrounded, or shown in open-toe footwear, each visible foot must have exactly five distinct toes in natural order from big toe to little toe, with realistic length progression, spacing, proportions, and separate toenails when visible.",
+    "Footwear straps, bands, soles, and openings must interact naturally with the feet and must not hide, merge, remove, duplicate, or deform toes.",
+  ].join(" ")
 
   // E. ADAPTIVE PHOTOGRAPHIC REALISM
   const adaptiveRealismLayer =
@@ -91,6 +97,7 @@ export function compileGenerationPrompt(input: GenerationPromptCompilerInput): C
     identityClause,
     profileFramingSegment,
     basePrompt,
+    anatomyIntegrityClause,
     adaptiveRealismLayer,
     fidelityContract,
     frameSegment,
@@ -104,6 +111,8 @@ export function compileGenerationPrompt(input: GenerationPromptCompilerInput): C
     blueprint.negativeGuardrails,
     adaptiveRealismNegativeGuardrails,
     "identity mixing, facial drift, altered facial anatomy, body reshaping, malformed hands, extra limbs",
+    "missing toes, four-toed feet, fused toes, duplicated toes, melted toes, malformed toe spacing, merged toenails, deformed forefoot anatomy",
+    "footwear straps concealing, merging, removing, duplicating, or deforming toes",
     "changed garment coverage, unintended transparency, incorrect wardrobe construction",
     "invented fill light, HDR flattening, plastic skin, excessive retouching, studio relighting, cinematic reinterpretation",
   ].filter(Boolean)
