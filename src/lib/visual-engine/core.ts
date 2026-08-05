@@ -5,6 +5,11 @@ import { supabaseAdmin } from "@/lib/supabase-admin"
 import { MIRAVA_ANALYSIS_MODEL, MIRAVA_IMAGE_MODEL } from "@/lib/mirava/server-config"
 import { MIRAVA_STRIPE_PRODUCT, getMiravaStudioPreset, type MiravaStudioPresetId } from "@/lib/mirava/brand"
 import { formatMiravaCreativeOptions, miravaCreativeOptionsSchema, type MiravaCreativeOptions } from "@/lib/mirava/creative-options"
+import {
+  buildMiravaOfficialUniversePrimaryPrompt,
+  getMiravaOfficialUniverseBlueprint,
+  renderMiravaOfficialUniverseMasterPrompt,
+} from "@/lib/mirava/official-universe-blueprints"
 import { MIRAVA_MAX_IDENTITY_PHOTOS, MIRAVA_MIN_IDENTITY_PHOTOS, MIRAVA_RECOMMENDED_IDENTITY_PHOTOS } from "@/lib/mirava/identity-profile"
 import { type PhysicalTrait, formatPhysicalTraitsForPrompt, parsePhysicalTraits } from "@/lib/mirava/physical-traits"
 import { buildMiravaSeriesShotBrief, getMiravaSeriesSize } from "@/lib/mirava/series"
@@ -219,53 +224,6 @@ function profileName(presetId?: string | null): string {
   return getMiravaStudioPreset(presetId)?.name ?? "Mon studio"
 }
 
-const PRESET_DIRECTIONS: Record<MiravaStudioPresetId, { masterPrompt: string; negativePrompt: string }> = {
-  "escapade-solaire": {
-    masterPrompt: "Premium sunlit resort editorial in pale mineral architecture beside clear water, warm late-afternoon light, refined gold styling, tactile natural skin and magnetic confidence, composed as a center-safe vertical social campaign.",
-    negativePrompt: "explicit nudity, sexual content, minors, distorted anatomy, identity drift, watermarks, text",
-  },
-  "destination-iconique": {
-    masterPrompt: "International destination editorial in an exceptional rooftop suite or architectural landmark setting, poised tailoring, cinematic skyline depth, refined jet-set confidence and controlled luxury lighting, composed as a center-safe vertical social campaign.",
-    negativePrompt: "explicit nudity, sexual content, minors, distorted anatomy, identity drift, visible brands, watermarks, text",
-  },
-  "beauty-close-up": {
-    masterPrompt: "High-precision editorial beauty close-up with honest luminous skin texture, sculpted direct flash, wet-look hair detail, refined jewelry and a strong direct gaze, composed as a center-safe vertical social campaign.",
-    negativePrompt: "explicit nudity, sexual content, minors, plastic skin, identity drift, distorted facial anatomy, watermarks, text",
-  },
-  "editorial-mode": {
-    masterPrompt: "Sculptural high-fashion editorial in a graphic architectural space, monochrome or restrained couture styling, strong geometric shadows, controlled posture and premium magazine finish, composed as a center-safe vertical social campaign.",
-    negativePrompt: "explicit nudity, sexual content, minors, distorted anatomy, identity drift, copyrighted logos, watermarks, text",
-  },
-  "night-glamour": {
-    masterPrompt: "Confidential night editorial with refined direct flash, velvet-black styling, a private hotel or arrival atmosphere, subtle cinematic grain and magnetic composure, composed as a center-safe vertical social campaign.",
-    negativePrompt: "explicit nudity, sexual content, minors, distorted anatomy, identity drift, visible car brands, watermarks, text",
-  },
-  "futuristic-muse": {
-    masterPrompt: "Minimal neo-studio editorial with shallow water, prismatic reflections, liquid-metal tailoring and restrained future-luxury styling, crisp skin fidelity and poised presence, composed as a center-safe vertical social campaign.",
-    negativePrompt: "explicit nudity, sexual content, minors, fantasy armor, distorted anatomy, identity drift, watermarks, text",
-  },
-  "lifestyle-creatrice": {
-    masterPrompt: "Elevated creator lifestyle editorial in a luminous private suite or cafe terrace setting, sipping coffee, reflecting with a leather notebook, relaxed chic tailoring, warm authentic daylight and candid confidence, composed as a center-safe vertical social campaign.",
-    negativePrompt: "explicit nudity, sexual content, minors, corporate stock-photo styling, distorted anatomy, identity drift, watermarks, text",
-  },
-  "athleisure-chic": {
-    masterPrompt: "Modern athleisure chic mirror selfie editorial in a brushed stainless-steel elevator, heather purple activewear romper, black tote bag, glowing skin, athletic effortless posture, composed as a center-safe vertical social campaign.",
-    negativePrompt: "explicit nudity, sexual content, minors, distorted anatomy, identity drift, phone logos, watermarks, text",
-  },
-  "dubai-glamour": {
-    masterPrompt: "Ultra-glamorous Dubai night editorial with direct flash in front of the illuminated Burj Khalifa and luxury architecture, black silk styling, golden jewelry and silk headscarf, confident captivating posture, composed as a center-safe vertical social campaign.",
-    negativePrompt: "explicit nudity, sexual content, minors, distorted anatomy, identity drift, watermarks, text",
-  },
-  "sport-glow": {
-    masterPrompt: "Sunlit tennis club editorial on a clay court, sculptural white and black mesh tennis dress, holding a racket by the net, radiant sunlit skin, athletic elegance and effortless posture, composed as a center-safe vertical social campaign.",
-    negativePrompt: "explicit nudity, sexual content, minors, distorted anatomy, identity drift, brand logos, watermarks, text",
-  },
-  "retro-lounge": {
-    masterPrompt: "Chic 70s retro film editorial in a pastel pink hotel suite, black lace top, shorts and knee-high leather boots, holding a vintage rotary telephone, alluring candid posture and warm nostalgic lighting, composed as a center-safe vertical social campaign.",
-    negativePrompt: "explicit nudity, sexual content, minors, distorted anatomy, identity drift, watermarks, text",
-  },
-}
-
 function nowPlus24Hours(): string {
   return new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
 }
@@ -361,7 +319,26 @@ export async function createStudioCreation(args: {
     throw new StudioError("Le consentement complet est requis avant l’utilisation du Studio.", "CONSENT_REQUIRED")
   }
 
-  const preset = args.presetId ? PRESET_DIRECTIONS[args.presetId] : undefined
+  const officialBlueprint =
+    args.presetId
+      ? getMiravaOfficialUniverseBlueprint(
+          args.presetId,
+        )
+      : undefined
+
+  const preset =
+    officialBlueprint
+      ? {
+          creativeDirectionSummary:
+            `[MIRAVA_OFFICIAL_UNIVERSE ${officialBlueprint.id}@${officialBlueprint.version}] ${officialBlueprint.creativeDirectionSummary}`,
+          masterPrompt:
+            renderMiravaOfficialUniverseMasterPrompt(
+              officialBlueprint,
+            ),
+          negativePrompt:
+            officialBlueprint.negativeGuardrails,
+        }
+      : undefined
   const identityProfile = await db.studioIdentityProfile.findUnique({ where: { userId: args.userId } })
   let studioProfileId: string | null = null
   if (preset && args.presetId) {
@@ -371,13 +348,71 @@ export async function createStudioCreation(args: {
       where: { userId: args.userId, presetId: args.presetId, sourceCreationId: null },
       orderBy: { createdAt: "asc" },
     })
-    const profile = existingProfile
-      ? asProfile(existingProfile)
-      : asProfile(await db.studioProfile.create({ data: {
-          userId: args.userId, presetId: args.presetId, name: profileName(args.presetId),
-          creativeDirectionSummary: null, masterPrompt: preset.masterPrompt, negativePrompt: preset.negativePrompt,
-        } }))
-    studioProfileId = profile.id
+    const currentProfile =
+      existingProfile
+        ? asProfile(existingProfile)
+        : null
+
+    const profileNeedsRefresh =
+      Boolean(currentProfile) &&
+      (
+        currentProfile?.creativeDirectionSummary !==
+          preset.creativeDirectionSummary ||
+        currentProfile?.masterPrompt !==
+          preset.masterPrompt ||
+        currentProfile?.negativePrompt !==
+          preset.negativePrompt
+      )
+
+    const profile =
+      !currentProfile
+        ? asProfile(
+            await db.studioProfile.create({
+              data: {
+                userId:
+                  args.userId,
+                presetId:
+                  args.presetId,
+                name:
+                  profileName(
+                    args.presetId,
+                  ),
+                creativeDirectionSummary:
+                  preset.creativeDirectionSummary,
+                masterPrompt:
+                  preset.masterPrompt,
+                negativePrompt:
+                  preset.negativePrompt,
+              },
+            }),
+          )
+        : profileNeedsRefresh
+          ? asProfile(
+              await db.studioProfile.update({
+                where: {
+                  id:
+                    currentProfile.id,
+                  userId:
+                    args.userId,
+                },
+                data: {
+                  name:
+                    profileName(
+                      args.presetId,
+                    ),
+                  creativeDirectionSummary:
+                    preset.creativeDirectionSummary,
+                  masterPrompt:
+                    preset.masterPrompt,
+                  negativePrompt:
+                    preset.negativePrompt,
+                },
+              }),
+            )
+          : currentProfile
+
+    studioProfileId =
+      profile.id
   }
   const creation = asCreation(await db.studioCreation.create({
     data: {
@@ -386,9 +421,15 @@ export async function createStudioCreation(args: {
       studioProfileId,
       identityProfileId: identityProfile?.id ?? null,
       presetId: args.presetId ?? null,
-      creativeOptions: args.creativeOptions ?? {},
-      masterPrompt: preset?.masterPrompt ?? null,
-      negativePrompt: preset?.negativePrompt ?? null,
+      creativeOptions:
+        args.creativeOptions ?? {},
+      creativeDirectionSummary:
+        preset?.creativeDirectionSummary ??
+        null,
+      masterPrompt:
+        preset?.masterPrompt ?? null,
+      negativePrompt:
+        preset?.negativePrompt ?? null,
     },
   }))
   await db.studioConsent.create({
@@ -413,20 +454,120 @@ export async function listStudioProfiles(userId: string) {
   return (await db.studioProfile.findMany({ where: { userId }, orderBy: { createdAt: "desc" }, take: 30 })).map(asProfile).map(studioProfilePublic)
 }
 
-export async function createCreationFromStudioProfile(args: { userId: string; studioProfileId: string; creativeOptions?: Record<string, unknown> }) {
-  const profile = asProfile(await db.studioProfile.findUnique({ where: { id: args.studioProfileId, userId: args.userId } }))
-  if (!profile || !profile.masterPrompt) throw new StudioError("Ce studio personnel n’est pas disponible.", "NOT_FOUND")
-  const identityProfile = await db.studioIdentityProfile.findUnique({ where: { userId: args.userId } })
-  return asCreation(await db.studioCreation.create({ data: {
-    userId: args.userId,
-    studioProfileId: profile.id,
-    identityProfileId: identityProfile?.id ?? null,
-    presetId: profile.presetId,
-    creativeOptions: args.creativeOptions ?? {},
-    status: "MASTER_PROMPT_READY",
-    masterPrompt: profile.masterPrompt,
-    negativePrompt: profile.negativePrompt,
-  } }))
+export async function createCreationFromStudioProfile(args: {
+  userId: string
+  studioProfileId: string
+  creativeOptions?: Record<string, unknown>
+}) {
+  const storedProfile =
+    asProfile(
+      await db.studioProfile.findUnique({
+        where: {
+          id:
+            args.studioProfileId,
+          userId:
+            args.userId,
+        },
+      }),
+    )
+
+  if (
+    !storedProfile ||
+    !storedProfile.masterPrompt
+  ) {
+    throw new StudioError(
+      "Ce studio personnel n’est pas disponible.",
+      "NOT_FOUND",
+    )
+  }
+
+  const officialBlueprint =
+    getMiravaOfficialUniverseBlueprint(
+      storedProfile.presetId,
+    )
+
+  const canonicalSnapshot =
+    officialBlueprint
+      ? {
+          creativeDirectionSummary:
+            `[MIRAVA_OFFICIAL_UNIVERSE ${officialBlueprint.id}@${officialBlueprint.version}] ${officialBlueprint.creativeDirectionSummary}`,
+          masterPrompt:
+            renderMiravaOfficialUniverseMasterPrompt(
+              officialBlueprint,
+            ),
+          negativePrompt:
+            officialBlueprint.negativeGuardrails,
+        }
+      : null
+
+  const profileNeedsRefresh =
+    Boolean(canonicalSnapshot) &&
+    (
+      storedProfile.creativeDirectionSummary !==
+        canonicalSnapshot?.creativeDirectionSummary ||
+      storedProfile.masterPrompt !==
+        canonicalSnapshot?.masterPrompt ||
+      storedProfile.negativePrompt !==
+        canonicalSnapshot?.negativePrompt
+    )
+
+  const profile =
+    profileNeedsRefresh &&
+    canonicalSnapshot
+      ? asProfile(
+          await db.studioProfile.update({
+            where: {
+              id:
+                storedProfile.id,
+              userId:
+                args.userId,
+            },
+            data: {
+              creativeDirectionSummary:
+                canonicalSnapshot.creativeDirectionSummary,
+              masterPrompt:
+                canonicalSnapshot.masterPrompt,
+              negativePrompt:
+                canonicalSnapshot.negativePrompt,
+            },
+          }),
+        )
+      : storedProfile
+
+  const identityProfile =
+    await db.studioIdentityProfile.findUnique({
+      where: {
+        userId:
+          args.userId,
+      },
+    })
+
+  return asCreation(
+    await db.studioCreation.create({
+      data: {
+        userId:
+          args.userId,
+        studioProfileId:
+          profile.id,
+        identityProfileId:
+          identityProfile?.id ??
+          null,
+        presetId:
+          profile.presetId,
+        creativeOptions:
+          args.creativeOptions ??
+          {},
+        status:
+          "MASTER_PROMPT_READY",
+        creativeDirectionSummary:
+          profile.creativeDirectionSummary,
+        masterPrompt:
+          profile.masterPrompt,
+        negativePrompt:
+          profile.negativePrompt,
+      },
+    }),
+  )
 }
 
 /**
@@ -1890,6 +2031,33 @@ export function buildMiravaPrimaryGenerationPrompt(
   return creation.masterPrompt?.trim() ?? ""
 }
 
+export function buildMiravaResolvedPrimaryGenerationPrompt(
+  creation: Pick<
+    StudioCreationRecord,
+    | "masterPrompt"
+    | "presetId"
+    | "creativeOptions"
+  >,
+): string {
+  const officialBlueprint =
+    getMiravaOfficialUniverseBlueprint(
+      creation.presetId,
+    )
+
+  if (officialBlueprint) {
+    return buildMiravaOfficialUniversePrimaryPrompt({
+      masterPrompt:
+        creation.masterPrompt,
+      creativeOptions:
+        creation.creativeOptions,
+    })
+  }
+
+  return buildMiravaPrimaryGenerationPrompt(
+    creation,
+  )
+}
+
 export function buildMiravaGenerationPrompt(
   creation: Pick<StudioCreationRecord, "masterPrompt" | "negativePrompt" | "creativeOptions">,
   frameIndex = 0,
@@ -2024,7 +2192,7 @@ async function generateStudioImage(
 
   const primaryPrompt =
     isReferenceAnchor
-      ? buildMiravaPrimaryGenerationPrompt(
+      ? buildMiravaResolvedPrimaryGenerationPrompt(
           creation,
         )
       : buildMiravaGenerationPrompt(

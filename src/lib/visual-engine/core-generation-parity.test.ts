@@ -27,7 +27,11 @@ describe(
         )
 
         expect(core).toContain(
-          'isReferenceAnchor\n      ? buildMiravaPrimaryGenerationPrompt',
+          "buildMiravaResolvedPrimaryGenerationPrompt",
+        )
+
+        expect(core).toContain(
+          "return buildMiravaPrimaryGenerationPrompt(",
         )
 
         expect(core).toContain(
