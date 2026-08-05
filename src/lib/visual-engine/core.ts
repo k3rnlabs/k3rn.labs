@@ -74,6 +74,8 @@ export type StudioPublicStatus = Exclude<StudioStatus, "MASTER_PROMPT_READY"> | 
 export type StudioPublicFailureKind =
   | "SAFETY_REFUSAL"
   | "INVALID_IMAGE"
+  | "ANALYSIS_TIMEOUT"
+  | "GENERATION_TIMEOUT"
   | "TECHNICAL_ERROR"
   | null
 
@@ -185,6 +187,14 @@ function studioPublicFailureKind(
 
   if (code === "INVALID_IMAGE") {
     return "INVALID_IMAGE"
+  }
+
+  if (code === "ANALYSIS_TIMEOUT") {
+    return "ANALYSIS_TIMEOUT"
+  }
+
+  if (code === "GENERATION_TIMEOUT") {
+    return "GENERATION_TIMEOUT"
   }
 
   return "TECHNICAL_ERROR"
@@ -1484,71 +1494,375 @@ function toDataUrl(buffer: Buffer, mimeType: string): string {
   return `data:${mimeType};base64,${buffer.toString("base64")}`
 }
 
-async function extractMasterPrompt(reference: StudioAssetRecord): Promise<{ creativeDirectionSummary: string; masterPrompt: string; negativePrompt: string }> {
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) throw new StudioError("Le moteur Studio n’est pas configuré.", "PROVIDER_CONFIGURATION")
-  const referenceBuffer = await downloadAsset(reference)
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model: MIRAVA_ANALYSIS_MODEL,
-      store: false,
-      max_completion_tokens: 2800,
-      messages: [
-        { role: "system", content: MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_PROMPT },
-        { role: "user", content: [
-          { type: "text", text: "Create the MIRAVA internal art direction from this single reference. Compose for a final 4:5 portrait-safe image." },
-          { type: "image_url", image_url: { url: toDataUrl(referenceBuffer, reference.mimeType), detail: "high" } },
-        ] },
-      ],
-    }),
-    signal: AbortSignal.timeout(60_000),
-  })
-  if (!response.ok) {
-    const retryable = response.status === 429 || response.status >= 500
-    throw new StudioError("L’analyse artistique est temporairement indisponible.", `OPENAI_${response.status}`, retryable)
-  }
-  const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> }
-  const content = data.choices?.[0]?.message?.content
-  if (!content) throw new StudioError("L’analyse artistique est incomplète.", "INVALID_PROVIDER_RESPONSE", true)
-  try {
-    const parsed = parseV2Extraction(content)
-    const sceneContext = await classifySceneContext(parsed)
+const MIRAVA_ANALYSIS_TIMEOUT_MS =
+  150_000
 
-    const blueprint: VisualDirectionBlueprint = {
-      id: randomUUID(),
-      status: "published",
-      transferMode: "FIDELITY",
-      creativeDirectionSummary: parsed.creativeDirectionSummary,
-      baseGenerationPrompt: parsed.baseGenerationPrompt,
-      negativeGuardrails: parsed.negativeGuardrails,
-      sceneProfile: sceneContext.sceneProfile,
-      photographicGenre: sceneContext.photographicGenre,
-      extractionMetadata: {
-        extractorVersion: MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_METADATA.version,
-        classifierVersion: MIRAVA_SCENE_CONTEXT_CLASSIFIER_V1_METADATA.version,
-        model: MIRAVA_ANALYSIS_MODEL,
-        createdAt: new Date().toISOString(),
-        referenceAssetId: reference.id,
+function providerExceptionName(
+  error: unknown,
+): string {
+  return error instanceof Error
+    ? error.name
+    : "UnknownError"
+}
+
+function providerExceptionMessage(
+  error: unknown,
+): string {
+  return error instanceof Error
+    ? error.message.slice(0, 500)
+    : "Unknown provider exception"
+}
+
+function isProviderTimeout(
+  error: unknown,
+): boolean {
+  const name =
+    providerExceptionName(error)
+
+  return (
+    name === "TimeoutError" ||
+    name === "AbortError"
+  )
+}
+
+async function extractMasterPrompt(
+  reference: StudioAssetRecord,
+): Promise<{
+  creativeDirectionSummary: string
+  masterPrompt: string
+  negativePrompt: string
+}> {
+  const apiKey =
+    process.env.OPENAI_API_KEY
+
+  if (!apiKey) {
+    throw new StudioError(
+      "Le moteur Studio n’est pas configuré.",
+      "PROVIDER_CONFIGURATION",
+    )
+  }
+
+  const referenceBuffer =
+    await downloadAsset(reference)
+
+  const startedAt =
+    Date.now()
+
+  console.info(
+    "[mirava-analysis-attempt]",
+    JSON.stringify({
+      creationId:
+        reference.creationId,
+      referenceAssetId:
+        reference.id,
+      model:
+        MIRAVA_ANALYSIS_MODEL,
+      timeoutMs:
+        MIRAVA_ANALYSIS_TIMEOUT_MS,
+      extractorVersion:
+        MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_METADATA.version,
+    }),
+  )
+
+  let response: Response
+
+  try {
+    response = await fetch(
+      "https://api.openai.com/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+          Authorization:
+            `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model:
+            MIRAVA_ANALYSIS_MODEL,
+          store: false,
+          max_completion_tokens:
+            2800,
+          messages: [
+            {
+              role: "system",
+              content:
+                MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_PROMPT,
+            },
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text:
+                    "Create the MIRAVA internal art direction from this single reference. Compose for a final 4:5 portrait-safe image.",
+                },
+                {
+                  type:
+                    "image_url",
+                  image_url: {
+                    url: toDataUrl(
+                      referenceBuffer,
+                      reference.mimeType,
+                    ),
+                    detail: "high",
+                  },
+                },
+              ],
+            },
+          ],
+        }),
+        signal:
+          AbortSignal.timeout(
+            MIRAVA_ANALYSIS_TIMEOUT_MS,
+          ),
       },
-      qualityFlags: {
-        lightingContractPresent: parsed.baseGenerationPrompt.toLowerCase().includes("light"),
-        cameraContractPresent: parsed.baseGenerationPrompt.toLowerCase().includes("camera") || parsed.baseGenerationPrompt.toLowerCase().includes("crop"),
-        poseContractPresent: parsed.baseGenerationPrompt.toLowerCase().includes("pose"),
-        wardrobeContractPresent: parsed.baseGenerationPrompt.toLowerCase().includes("wardrobe") || parsed.baseGenerationPrompt.toLowerCase().includes("garment"),
-        identityLanguageDetected: false,
-        requiresHumanReview: sceneContext.requiresHumanReview,
-      },
+    )
+  } catch (error) {
+    const durationMs =
+      Date.now() - startedAt
+
+    console.error(
+      "[mirava-analysis-exception]",
+      JSON.stringify({
+        creationId:
+          reference.creationId,
+        referenceAssetId:
+          reference.id,
+        model:
+          MIRAVA_ANALYSIS_MODEL,
+        durationMs,
+        name:
+          providerExceptionName(error),
+        message:
+          providerExceptionMessage(error),
+      }),
+    )
+
+    if (isProviderTimeout(error)) {
+      /*
+       * Ne pas répéter automatiquement un appel qui vient déjà de
+       * monopoliser 150 secondes. L’utilisatrice reçoit immédiatement
+       * une cause compréhensible et son crédit est libéré.
+       */
+      throw new StudioError(
+        "L’analyse de la référence a dépassé le temps disponible.",
+        "ANALYSIS_TIMEOUT",
+      )
     }
+
+    throw new StudioError(
+      "Le service d’analyse artistique n’a pas répondu correctement.",
+      "ANALYSIS_PROVIDER_ERROR",
+      true,
+    )
+  }
+
+  const durationMs =
+    Date.now() - startedAt
+
+  if (!response.ok) {
+    const providerBody =
+      await response.text()
+
+    let providerCode = ""
+
+    try {
+      const parsed =
+        JSON.parse(
+          providerBody,
+        ) as {
+          error?: {
+            code?: string
+            type?: string
+          }
+        }
+
+      providerCode =
+        parsed.error?.code ??
+        parsed.error?.type ??
+        ""
+    } catch {
+      providerCode = ""
+    }
+
+    console.error(
+      "[mirava-analysis-provider-error]",
+      JSON.stringify({
+        creationId:
+          reference.creationId,
+        referenceAssetId:
+          reference.id,
+        model:
+          MIRAVA_ANALYSIS_MODEL,
+        status:
+          response.status,
+        providerCode,
+        durationMs,
+        body:
+          providerBody.slice(
+            0,
+            2000,
+          ),
+      }),
+    )
+
+    const safetyRefusal =
+      providerCode ===
+        "content_policy_violation" ||
+      providerCode ===
+        "safety_violations" ||
+      providerCode ===
+        "moderation_blocked"
+
+    if (safetyRefusal) {
+      throw new StudioError(
+        "La référence n’a pas été autorisée pour l’analyse.",
+        "SAFETY_REFUSAL",
+      )
+    }
+
+    const retryable =
+      response.status === 429 ||
+      response.status >= 500
+
+    throw new StudioError(
+      "L’analyse artistique est temporairement indisponible.",
+      `OPENAI_ANALYSIS_${response.status}${providerCode ? `_${providerCode}` : ""}`,
+      retryable,
+    )
+  }
+
+  const data =
+    await response.json() as {
+      choices?: Array<{
+        message?: {
+          content?: string
+        }
+      }>
+    }
+
+  const content =
+    data.choices?.[0]?.message?.content
+
+  if (!content) {
+    throw new StudioError(
+      "L’analyse artistique est incomplète.",
+      "INVALID_PROVIDER_RESPONSE",
+      true,
+    )
+  }
+
+  console.info(
+    "[mirava-analysis-response]",
+    JSON.stringify({
+      creationId:
+        reference.creationId,
+      referenceAssetId:
+        reference.id,
+      model:
+        MIRAVA_ANALYSIS_MODEL,
+      durationMs,
+      contentLength:
+        content.length,
+    }),
+  )
+
+  try {
+    const parsed =
+      parseV2Extraction(content)
+
+    const sceneContext =
+      await classifySceneContext(parsed)
+
+    const blueprint:
+      VisualDirectionBlueprint = {
+        id: randomUUID(),
+        status: "published",
+        transferMode:
+          "FIDELITY",
+        creativeDirectionSummary:
+          parsed.creativeDirectionSummary,
+        baseGenerationPrompt:
+          parsed.baseGenerationPrompt,
+        negativeGuardrails:
+          parsed.negativeGuardrails,
+        sceneProfile:
+          sceneContext.sceneProfile,
+        photographicGenre:
+          sceneContext.photographicGenre,
+        extractionMetadata: {
+          extractorVersion:
+            MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_METADATA.version,
+          classifierVersion:
+            MIRAVA_SCENE_CONTEXT_CLASSIFIER_V1_METADATA.version,
+          model:
+            MIRAVA_ANALYSIS_MODEL,
+          createdAt:
+            new Date().toISOString(),
+          referenceAssetId:
+            reference.id,
+        },
+        qualityFlags: {
+          lightingContractPresent:
+            parsed.baseGenerationPrompt
+              .toLowerCase()
+              .includes("light"),
+          cameraContractPresent:
+            parsed.baseGenerationPrompt
+              .toLowerCase()
+              .includes("camera") ||
+            parsed.baseGenerationPrompt
+              .toLowerCase()
+              .includes("crop"),
+          poseContractPresent:
+            parsed.baseGenerationPrompt
+              .toLowerCase()
+              .includes("pose"),
+          wardrobeContractPresent:
+            parsed.baseGenerationPrompt
+              .toLowerCase()
+              .includes("wardrobe") ||
+            parsed.baseGenerationPrompt
+              .toLowerCase()
+              .includes("garment"),
+          identityLanguageDetected:
+            false,
+          requiresHumanReview:
+            sceneContext.requiresHumanReview,
+        },
+      }
 
     return {
-      creativeDirectionSummary: blueprint.creativeDirectionSummary,
-      masterPrompt: blueprint.baseGenerationPrompt,
-      negativePrompt: blueprint.negativeGuardrails,
+      creativeDirectionSummary:
+        blueprint.creativeDirectionSummary,
+      masterPrompt:
+        blueprint.baseGenerationPrompt,
+      negativePrompt:
+        blueprint.negativeGuardrails,
     }
-  } catch {
-    throw new StudioError("L’analyse artistique doit être relancée.", "INVALID_PROVIDER_RESPONSE", true)
+  } catch (error) {
+    console.error(
+      "[mirava-analysis-parse-error]",
+      JSON.stringify({
+        creationId:
+          reference.creationId,
+        referenceAssetId:
+          reference.id,
+        name:
+          providerExceptionName(error),
+        message:
+          providerExceptionMessage(error),
+        contentLength:
+          content.length,
+      }),
+    )
+
+    throw new StudioError(
+      "L’analyse artistique doit être relancée.",
+      "INVALID_PROVIDER_RESPONSE",
+      true,
+    )
   }
 }
 
@@ -1999,9 +2313,53 @@ async function finishJob(job: StudioJobRecord): Promise<void> {
   })
 }
 
-async function failJob(job: StudioJobRecord, creation: StudioCreationRecord, error: unknown): Promise<void> {
-  const studioError = error instanceof StudioError ? error : new StudioError("La création Studio a échoué.", "INTERNAL_ERROR", true)
-  const attempts = job.attempts + 1
+async function failJob(
+  job: StudioJobRecord,
+  creation: StudioCreationRecord,
+  error: unknown,
+): Promise<void> {
+  const studioError =
+    error instanceof StudioError
+      ? error
+      : isProviderTimeout(error)
+        ? new StudioError(
+            job.kind === "ANALYZE"
+              ? "L’analyse de la référence a dépassé le temps disponible."
+              : "La génération de l’image a dépassé le temps disponible.",
+            job.kind === "ANALYZE"
+              ? "ANALYSIS_TIMEOUT"
+              : "GENERATION_TIMEOUT",
+          )
+        : new StudioError(
+            "La création Studio a échoué.",
+            "INTERNAL_ERROR",
+            true,
+          )
+
+  console.error(
+    "[mirava-job-failure]",
+    JSON.stringify({
+      creationId:
+        creation.id,
+      jobId:
+        job.id,
+      jobKind:
+        job.kind,
+      currentAttempt:
+        job.attempts + 1,
+      normalizedCode:
+        studioError.code,
+      retryable:
+        studioError.retryable,
+      sourceName:
+        providerExceptionName(error),
+      sourceMessage:
+        providerExceptionMessage(error),
+    }),
+  )
+
+  const attempts =
+    job.attempts + 1
   const retry = studioError.retryable && attempts < 3
   if (retry) {
     await db.studioJob.update({ where: { id: job.id }, data: { status: "PENDING", attempts, nextRunAt: new Date(Date.now() + retryDelayMs(attempts)).toISOString(), lockedAt: null, failureCode: studioError.code } })
@@ -2046,8 +2404,16 @@ function publicFailureMessage(code: string): string {
   ) {
     return "Cette direction ne peut pas être générée dans sa forme actuelle. Votre crédit a été restauré."
   }
-  if (code === "INVALID_IMAGE") return "Une image n’est pas exploitable. Remplacez-la avant de réessayer."
-  return "La création n’a pas pu aboutir. Votre création a été recréditée lorsque nécessaire."
+  if (code === "INVALID_IMAGE") {
+    return "Une image n’est pas exploitable. Remplacez-la avant de réessayer."
+  }
+  if (code === "ANALYSIS_TIMEOUT") {
+    return "MIRAVA n’a pas pu terminer la lecture de votre référence dans le délai prévu. Votre crédit a été restauré. Relancez une nouvelle séance : aucune image d’identité n’a été perdue."
+  }
+  if (code === "GENERATION_TIMEOUT") {
+    return "Le moteur d’image n’a pas terminé votre création dans le délai prévu. Votre crédit a été restauré. Vous pouvez relancer une nouvelle séance sans perdre vos photos d’identité."
+  }
+  return "Un problème technique a interrompu cette séance. Votre crédit a été restauré lorsque nécessaire. Vous pouvez relancer sans perdre votre Profil identité."
 }
 
 async function processStudioJob(job: StudioJobRecord): Promise<void> {
