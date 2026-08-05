@@ -457,4 +457,58 @@ describe("MIRAVA studio entry contracts", () => {
     )
   })
 
+
+  it("keeps the darkroom frame free of the blurred silhouette", () => {
+    expect(studio).not.toContain(
+      'top-[18%] h-[17%] w-[24%]',
+    )
+
+    expect(studio).not.toContain(
+      'bottom-[8%] left-1/2 h-[64%] w-[54%]',
+    )
+
+    expect(studio).not.toContain(
+      "radial-gradient(circle at 50% 35%",
+    )
+
+    expect(studio).not.toContain(
+      "radial-gradient(circle at 50% 70%",
+    )
+
+    expect(studio).toContain(
+      "bottom-11 left-1/2 flex -translate-x-1/2",
+    )
+  })
+
+
+  it("replaces the technical scan line with a liquid golden halo", () => {
+    expect(studio).not.toContain(
+      '-inset-x-[30%] top-0 h-[16%]',
+    )
+
+    expect(studio).toContain(
+      "data-mirava-liquid-gold-halo",
+    )
+
+    expect(studio).toContain(
+      'mixBlendMode:',
+    )
+
+    expect(studio).toContain(
+      '"screen"',
+    )
+
+    expect(studio).toContain(
+      "borderRadius: [",
+    )
+
+    expect(studio).toContain(
+      'left: [',
+    )
+
+    expect(studio).toContain(
+      'top: [',
+    )
+  })
+
 })

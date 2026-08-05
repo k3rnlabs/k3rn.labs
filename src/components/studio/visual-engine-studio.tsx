@@ -440,116 +440,126 @@ function MiravaDarkroomLoading({
         aria-hidden="true"
         className="relative mx-auto mt-7 aspect-[4/5] w-full max-w-[350px] overflow-hidden rounded-[1.75rem] border border-white/10 bg-[#090a09] shadow-[0_30px_90px_rgba(0,0,0,0.65)]"
       >
-        <motion.div
+        <div
           className="absolute inset-0"
           style={{
             background:
-              "radial-gradient(circle at 50% 35%, rgba(225,217,194,0.22), transparent 23%), radial-gradient(circle at 50% 70%, rgba(153,142,117,0.18), transparent 37%), linear-gradient(160deg, #101210 0%, #080908 50%, #11120f 100%)",
-          }}
-          animate={
-            reduceMotion
-              ? undefined
-              : {
-                  opacity: [
-                    0.72,
-                    1,
-                    0.72,
-                  ],
-                  scale: [
-                    1,
-                    1.035,
-                    1,
-                  ],
-                }
-          }
-          transition={{
-            duration: 6,
-            repeat: Infinity,
-            ease: "easeInOut",
+              "linear-gradient(160deg, #101210 0%, #080908 52%, #0d0f0d 100%)",
           }}
         />
 
         <motion.div
-          className="absolute left-1/2 top-[18%] h-[17%] w-[24%] -translate-x-1/2 rounded-full bg-[#c8c0aa]/25 blur-xl"
-          animate={
-            reduceMotion
-              ? undefined
-              : {
-                  opacity: [
-                    0.28,
-                    0.58,
-                    0.28,
-                  ],
-                  scale: [
-                    0.94,
-                    1.05,
-                    0.94,
-                  ],
-                }
-          }
-          transition={{
-            duration: 4.8,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        />
-
-        <motion.div
-          className="absolute bottom-[8%] left-1/2 h-[64%] w-[54%] -translate-x-1/2 rounded-[48%_48%_22%_22%/28%_28%_15%_15%] bg-gradient-to-b from-[#d2c9b1]/20 via-[#988e75]/15 to-transparent blur-2xl"
-          animate={
-            reduceMotion
-              ? undefined
-              : {
-                  opacity: [
-                    0.3,
-                    0.62,
-                    0.3,
-                  ],
-                  scaleX: [
-                    0.96,
-                    1.025,
-                    0.96,
-                  ],
-                }
-          }
-          transition={{
-            duration: 5.6,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-        />
-
-        <motion.div
-          className="absolute -inset-x-[30%] top-0 h-[16%] blur-xl"
+          aria-hidden="true"
+          data-mirava-liquid-gold-halo
+          className="pointer-events-none absolute h-[34%] w-[40%]"
           style={{
-            background:
-              "linear-gradient(180deg, transparent 0%, rgba(255,250,230,0.03) 12%, rgba(255,245,214,0.42) 50%, rgba(255,250,230,0.04) 88%, transparent 100%)",
+            left: "18%",
+            top: "16%",
+            willChange:
+              "left, top",
           }}
           animate={
             reduceMotion
-              ? {
-                  y: "230%",
-                  opacity: 0.28,
-                }
+              ? undefined
               : {
-                  y: [
-                    "-120%",
-                    "620%",
+                  left: [
+                    "18%",
+                    "60%",
+                    "45%",
+                    "13%",
+                    "63%",
+                    "30%",
+                    "18%",
                   ],
-                  opacity: [
-                    0,
-                    0.95,
-                    0,
+                  top: [
+                    "16%",
+                    "25%",
+                    "66%",
+                    "55%",
+                    "39%",
+                    "70%",
+                    "16%",
                   ],
                 }
           }
           transition={{
-            duration: 4.6,
+            duration: 16.5,
             repeat: Infinity,
             ease: "easeInOut",
-            repeatDelay: 0.7,
+            times: [
+              0,
+              0.16,
+              0.34,
+              0.51,
+              0.68,
+              0.84,
+              1,
+            ],
           }}
-        />
+        >
+          <motion.div
+            className="h-full w-full"
+            style={{
+              background:
+                "radial-gradient(ellipse at 34% 30%, rgba(246,226,177,0.58) 0%, rgba(217,180,101,0.34) 30%, rgba(169,123,52,0.16) 55%, rgba(111,77,28,0.05) 70%, transparent 80%)",
+              borderRadius:
+                "58% 42% 64% 36% / 46% 62% 38% 54%",
+              filter:
+                "blur(20px)",
+              mixBlendMode:
+                "screen",
+              opacity: 0.48,
+              willChange:
+                "transform, border-radius, opacity",
+            }}
+            animate={
+              reduceMotion
+                ? undefined
+                : {
+                    borderRadius: [
+                      "58% 42% 64% 36% / 46% 62% 38% 54%",
+                      "34% 66% 42% 58% / 61% 38% 62% 39%",
+                      "63% 37% 31% 69% / 42% 57% 43% 58%",
+                      "41% 59% 67% 33% / 65% 35% 55% 45%",
+                      "58% 42% 64% 36% / 46% 62% 38% 54%",
+                    ],
+                    rotate: [
+                      -8,
+                      17,
+                      -13,
+                      11,
+                      -8,
+                    ],
+                    scaleX: [
+                      0.88,
+                      1.18,
+                      0.95,
+                      1.12,
+                      0.88,
+                    ],
+                    scaleY: [
+                      1.08,
+                      0.82,
+                      1.16,
+                      0.91,
+                      1.08,
+                    ],
+                    opacity: [
+                      0.38,
+                      0.62,
+                      0.44,
+                      0.58,
+                      0.38,
+                    ],
+                  }
+            }
+            transition={{
+              duration: 9.8,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+          />
+        </motion.div>
 
         <motion.div
           className="absolute inset-0 opacity-[0.12]"
@@ -590,8 +600,14 @@ function MiravaDarkroomLoading({
         <div className="absolute bottom-4 left-4 h-6 w-6 border-b border-l border-white/35" />
         <div className="absolute bottom-4 right-4 h-6 w-6 border-b border-r border-white/35" />
 
-        <div className="absolute inset-x-5 bottom-5 flex items-center justify-between text-[9px] font-semibold uppercase tracking-[0.2em] text-white/35">
+        <div className="absolute bottom-11 left-1/2 flex -translate-x-1/2 items-center gap-2.5 whitespace-nowrap rounded-full border border-white/10 bg-black/40 px-3.5 py-2 text-[8px] font-semibold uppercase tracking-[0.2em] text-white/40">
           <span>MIRAVA</span>
+
+          <span
+            aria-hidden="true"
+            className="h-1 w-1 rounded-full bg-white/25"
+          />
+
           <span>
             {darkroomCopy.frame}
           </span>
