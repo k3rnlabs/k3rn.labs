@@ -79,4 +79,26 @@ describe("MIRAVA identity capture accessibility contracts", () => {
     expect(capture).toContain('disabled={phase === "loading" || !legalAccepted}')
     expect(capture).toContain("Enregistrer mon profil")
   })
+
+  it("uses one conditional action state in onboarding and account capture", () => {
+    expect(capture).toContain("currentPhotoHasBlockingIssues")
+    expect(capture).toContain("Choisir une meilleure photo")
+    expect(capture).toContain("currentActionState.onClick")
+    expect(capture).toContain("currentActionState.disabled")
+    expect(capture).toContain("mirava-floating-action-frame fixed bottom-0")
+    expect(capture).not.toContain(
+      '!inline && currentSlotState.status === "scanned"',
+    )
+  })
+
+  it("never exposes validation as the primary action for a rejected photo", () => {
+    const blockingBranch = capture.slice(
+      capture.indexOf("if (currentPhotoHasBlockingIssues)"),
+      capture.indexOf('if (currentSlot.id === "tattoos")'),
+    )
+
+    expect(blockingBranch).toContain("Choisir une meilleure photo")
+    expect(blockingBranch).toContain('icon: "upload"')
+    expect(blockingBranch).not.toContain("Valider et continuer")
+  })
 })

@@ -22,6 +22,7 @@ import {
 import { cn } from "@/lib/utils"
 import { captureMiravaAnalytics } from "@/lib/mirava/analytics-consent.client"
 import { MiravaGrain } from "@/components/mirava/mirava-grain"
+import { GlassSurface } from "@/components/ui/glass-surface"
 import { analyzeMiravaIdentityPhoto } from "./mirava-import-analyzer"
 import type { MiravaVisionIssue, MiravaVisionResult, MiravaVisionStep } from "./mirava-vision.types"
 import { MiravaScanOverlay } from "./mirava-scan-overlay"
@@ -1050,6 +1051,22 @@ export function MiravaIdentityCapture({
     }
   }
 
+  const handleCaptureBack = () => {
+    if (submitting) return
+
+    if (showSummary) {
+      setShowSummary(false)
+      return
+    }
+
+    if (activeSlotIndex > 0) {
+      setActiveSlotIndex((previous) => previous - 1)
+      return
+    }
+
+    close()
+  }
+
   // Handle final submission of files + consent
   const handleSubmitFinalProfile = async () => {
     if (!legalAccepted || submitting) return
@@ -1252,6 +1269,75 @@ export function MiravaIdentityCapture({
   useEffect(() => {
     onActionStateChange?.(currentActionState)
   }, [currentActionState, onActionStateChange])
+
+  const fullScreenActionBar = !inline ? (
+    <footer className="mirava-floating-action-frame fixed bottom-0 left-0 right-0 z-50 px-4 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))] pointer-events-none">
+      <GlassSurface
+        width="100%"
+        height="auto"
+        borderRadius={24}
+        brightness={45}
+        opacity={0.95}
+        blur={14}
+        backgroundOpacity={0.15}
+        className="mirava-floating-action-glass mx-auto w-full min-w-0 max-w-lg overflow-hidden px-1.5 py-1 shadow-[0_12px_30px_rgba(0,0,0,0.48)] pointer-events-auto"
+      >
+        <div className="flex w-full min-w-0 items-center gap-3">
+          <button
+            type="button"
+            onClick={handleCaptureBack}
+            disabled={submitting}
+            aria-label={locale === "fr" ? "Retour" : "Volver"}
+            className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-black/40 text-white/80 transition-all hover:bg-white/10 hover:text-white active:scale-95 disabled:opacity-40"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <button
+              type="button"
+              onClick={currentActionState.onClick}
+              disabled={currentActionState.disabled}
+              className="group flex min-h-[52px] w-full min-w-0 items-center justify-center gap-2 overflow-hidden rounded-2xl bg-[#ede8df] px-4 font-jakarta text-sm font-semibold text-[#0d0e0e] shadow-[0_4px_20px_rgba(237,232,223,0.15)] transition-all duration-200 hover:bg-white active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-[#2c2d2e] disabled:text-white/30 disabled:shadow-none is-primary"
+            >
+              {currentActionState.icon === "upload" && (
+                <Upload className="h-4 w-4 shrink-0" />
+              )}
+
+              {currentActionState.icon === "loading" && (
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+              )}
+
+              {currentActionState.icon === "submit" && (
+                <ShieldCheck className="h-4 w-4 shrink-0" />
+              )}
+
+              <span className="min-w-0 truncate text-center">
+                {currentActionState.label}
+              </span>
+
+              {currentActionState.icon === "next" && (
+                <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
+              )}
+            </button>
+
+            {currentActionState.secondaryAction && (
+              <button
+                type="button"
+                onClick={currentActionState.secondaryAction.onClick}
+                disabled={submitting}
+                className="flex min-h-[34px] w-full min-w-0 items-center justify-center rounded-xl border border-white/15 bg-white/5 px-3 font-jakarta text-[11px] font-semibold text-white/75 transition-all hover:bg-white/10 hover:text-white disabled:opacity-40"
+              >
+                <span className="min-w-0 truncate">
+                  {currentActionState.secondaryAction.label}
+                </span>
+              </button>
+            )}
+          </div>
+        </div>
+      </GlassSurface>
+    </footer>
+  ) : null
 
   const phase: Phase = submitting ? "loading" : "capture"
 
@@ -1657,55 +1743,6 @@ export function MiravaIdentityCapture({
                 </div>
               </div>
 
-              {/* ACTION BUTTONS */}
-              <div className="space-y-3 pt-1">
-                {currentSlotState.status === "idle" && (
-                  <>
-                    {!inline && (
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="group flex min-h-[52px] w-full items-center justify-center gap-2.5 rounded-2xl bg-[#ede8df] px-5 font-jakarta text-sm font-semibold text-[#0d0e0e] shadow-lg transition-all hover:bg-white active:scale-[0.98]"
-                      >
-                        <Upload className="h-5 w-5" />
-                        <span>{locale === "fr" ? "Ajouter cette photo" : "Añadir esta foto"}</span>
-                      </button>
-                    )}
-
-                    {!currentSlot.required && (
-                      <button
-                        type="button"
-                        onClick={handleSkipOptionalSlot}
-                        className="flex min-h-[44px] w-full items-center justify-center font-jakarta text-xs font-medium text-white/60 hover:text-white"
-                      >
-                        {locale === "fr" ? "Passer cette photo" : "Saltar esta foto"}
-                      </button>
-                    )}
-                  </>
-                )}
-
-                {!inline && currentSlotState.status === "scanned" && (
-                  <div className="flex flex-col gap-2.5">
-                    <button
-                      type="button"
-                      onClick={handleAdvanceToNext}
-                      className="group flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-[#ede8df] px-5 font-jakarta text-sm font-semibold text-[#0d0e0e] shadow-lg transition-all hover:bg-white active:scale-[0.98]"
-                    >
-                      <span>{locale === "fr" ? "Valider et continuer" : "Validar y continuar"}</span>
-                      <ChevronRight className="h-5 w-5" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleResetCurrentPhoto}
-                      className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 font-jakarta text-xs font-medium text-white/80 hover:bg-white/10"
-                    >
-                      <RotateCcw className="h-4 w-4" />
-                      <span>{locale === "fr" ? "Changer la photo" : "Cambiar la foto"}</span>
-                    </button>
-                  </div>
-                )}
-              </div>
             </div>
           ) : (
             /* FINAL SUMMARY & LEGAL CONSENT VIEW */
@@ -1830,25 +1867,6 @@ export function MiravaIdentityCapture({
                 </div>
               )}
 
-              {/* FINAL SUBMIT BUTTON */}
-              {!inline && (
-                <button
-                  type="button"
-                  disabled={phase === "loading" || !legalAccepted || !requiredPhotosDone}
-                  onClick={handleSubmitFinalProfile}
-                  className="group flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-[#ede8df] px-5 font-jakarta text-sm font-semibold text-[#0d0e0e] shadow-lg transition-all hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  {submitting ? (
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                  ) : (
-                    <span>
-                      {locale === "fr"
-                        ? "Enregistrer mon profil"
-                        : "Guardar mi perfil"}
-                    </span>
-                  )}
-                </button>
-              )}
             </div>
           )}
 
@@ -1928,9 +1946,11 @@ export function MiravaIdentityCapture({
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+      <main className="flex-1 overflow-y-auto p-4 pb-40 sm:p-6 sm:pb-44">
         {contentUI}
       </main>
+
+      {fullScreenActionBar}
     </div>,
     document.body,
   )
