@@ -37,11 +37,26 @@ describe("MIRAVA high-fidelity identity upload client", () => {
     expect(source).toContain(
       "/identity-profile/upload-session",
     )
-    expect(source).toContain(
-      'mode: "replace-staged"',
+    expect(source).toMatch(
+      /mode:\s*mode === "append"\s*\?\s*"append-staged"\s*:\s*"replace-staged"/,
     )
     expect(source).not.toContain(
       "new FormData()",
     )
   })
+  it("supports append and individual replacement without a Vercel file body", () => {
+    expect(source).toContain(
+      '"profile-append"',
+    )
+    expect(source).toContain(
+      '"asset-replacement"',
+    )
+    expect(source).toContain(
+      "uploadMiravaIdentityAsset",
+    )
+    expect(source).toContain(
+      "/identity-profile/assets/",
+    )
+  })
+
 })

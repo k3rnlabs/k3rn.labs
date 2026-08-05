@@ -47,6 +47,10 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import type { MiravaCreativeOptions } from "@/lib/mirava/creative-options"
 import { isMiravaOnboardingCompleted, type MiravaOnboardingState } from "@/lib/mirava/onboarding"
 import { isMiravaIdentityProfileReady, MIRAVA_MAX_IDENTITY_PHOTOS, MIRAVA_MIN_IDENTITY_PHOTOS } from "@/lib/mirava/identity-profile"
+import {
+  uploadMiravaIdentityAsset,
+  uploadMiravaIdentityProfile,
+} from "@/lib/mirava/identity-profile-upload.client"
 import { MIRAVA_UNIVERSES, getMiravaUniverse, type MiravaUniverse } from "@/lib/mirava/universes"
 import { cn } from "@/lib/utils"
 import posthog from "posthog-js"
@@ -119,10 +123,10 @@ const copy = {
     generate: "Créer mon image signature",
     generating: "Votre image est en préparation",
     result: "Votre image signature est prête.",
-    download: "Télécharger",
+    download: "Enregistrer dans Photos",
     delete: "Supprimer",
-    continueShoot: "Continuer la séance",
-    continueHint: "Une nouvelle image, une nouvelle pose · 1 crédit",
+    continueShoot: "Créer une nouvelle image",
+    continueHint: "Même studio · Nouvelle pose · 1 crédit",
     formatTitle: "Format de la séance",
     formatSingle: "Image signature",
     formatSeries3: "Série de 3",
@@ -189,10 +193,10 @@ const copy = {
     generate: "Crear mi imagen insignia",
     generating: "Tu imagen se está preparando",
     result: "Tu imagen insignia está lista.",
-    download: "Descargar",
+    download: "Guardar en Fotos",
     delete: "Eliminar",
-    continueShoot: "Continuar la sesión",
-    continueHint: "Una nueva imagen, una nueva pose · 1 crédito",
+    continueShoot: "Crear una nueva imagen",
+    continueHint: "Mismo estudio · Nueva pose · 1 crédito",
     formatTitle: "Formato de la sesión",
     formatSingle: "Imagen insignia",
     formatSeries3: "Serie de 3",
@@ -221,6 +225,142 @@ const copy = {
 } as const
 
 type Copy = typeof copy.fr | typeof copy.es
+
+
+type MiravaShareData = {
+  files: File[]
+  title?: string
+}
+
+type MiravaShareNavigator = Navigator & {
+  share?: (data: MiravaShareData) => Promise<void>
+  canShare?: (data: MiravaShareData) => boolean
+}
+
+function ResultSaveButton({
+  url,
+  index,
+  label,
+}: {
+  url: string
+  index: number
+  label: string
+}) {
+  const [file, setFile] = useState<File | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    let active = true
+
+    setFile(null)
+
+    void fetch(url, {
+      cache: "no-store",
+      credentials: "same-origin",
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error("RESULT_DOWNLOAD_FAILED")
+        }
+
+        const blob = await response.blob()
+
+        if (!active) return
+
+        setFile(
+          new File(
+            [blob],
+            `mirava-${Date.now()}-${index + 1}.png`,
+            {
+              type: blob.type || "image/png",
+            }
+          )
+        )
+      })
+      .catch(() => {
+        if (active) setFile(null)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [index, url])
+
+  const save = async () => {
+    if (!file || saving) return
+
+    setSaving(true)
+
+    try {
+      const shareNavigator =
+        navigator as MiravaShareNavigator
+
+      const shareData: MiravaShareData = {
+        files: [file],
+        title: "MIRAVA Studio",
+      }
+
+      const canShareFile =
+        Boolean(shareNavigator.share) &&
+        (
+          !shareNavigator.canShare ||
+          shareNavigator.canShare(shareData)
+        )
+
+      if (canShareFile && shareNavigator.share) {
+        await shareNavigator.share(shareData)
+        return
+      }
+
+      const objectUrl = URL.createObjectURL(file)
+      const anchor = document.createElement("a")
+
+      anchor.href = objectUrl
+      anchor.download = file.name
+      anchor.style.display = "none"
+
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+
+      window.setTimeout(
+        () => URL.revokeObjectURL(objectUrl),
+        1_000
+      )
+    } catch (error) {
+      if (
+        error instanceof DOMException &&
+        error.name === "AbortError"
+      ) {
+        return
+      }
+
+      console.error(
+        "[MIRAVA] result save failed",
+        error instanceof Error ? error.name : "unknown"
+      )
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={save}
+      disabled={!file || saving}
+      className="mirava-button mirava-button-primary absolute bottom-3 right-3 h-12 w-12 p-0 shadow-lg backdrop-blur disabled:opacity-60"
+      aria-label={`${label} ${index + 1}`}
+      title={label}
+    >
+      {!file || saving ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
+        <Download className="h-4 w-4" />
+      )}
+    </button>
+  )
+}
 
 const studioStageCopy = {
   fr: [
@@ -279,6 +419,7 @@ export function VisualEngineStudio() {
   const [notice, setNotice] = useState<string | null>(null)
   const [checkoutNotice, setCheckoutNotice] = useState<"success" | "cancelled" | null>(null)
   const studioBackgroundRef = useRef<HTMLDivElement>(null)
+  const studioScrollRef = useRef<HTMLDivElement>(null)
   const hasHydratedStudioPreferenceRef = useRef(false)
   const directorTriggerRef = useRef<HTMLElement | null>(null)
   const captureTriggerRef = useRef<HTMLElement | null>(null)
@@ -445,7 +586,10 @@ export function VisualEngineStudio() {
       return true
     } catch (reason) {
       setError(reason instanceof Error && reason.message !== "MIRAVA_REQUEST_FAILED" ? reason.message : (locale === "fr" ? "MIRAVA n’a pas pu terminer cette action." : "MIRAVA no ha podido completar esta acción."))
-      if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" })
+      if (typeof window !== "undefined") studioScrollRef.current?.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      })
       return false
     } finally {
       setPending(null)
@@ -462,7 +606,11 @@ export function VisualEngineStudio() {
     // Bottom navigation changes the destination, not the scroll position of the
     // previous page. Starting at the top prevents the new screen title from
     // being hidden behind the persistent studio header on mobile.
-    window.scrollTo({ top: 0, left: 0, behavior: "auto" })
+    studioScrollRef.current?.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: "auto",
+    })
   }
 
   const openDirector = (trigger?: HTMLElement) => {
@@ -653,7 +801,7 @@ export function VisualEngineStudio() {
     if (invalidCount || (!current && !consent) || (captureContext === "onboarding" && (!consent?.privacyAccepted || !consent.openaiDisclosureAccepted))) {
       const msg = mode === "append"
         ? (locale === "fr" ? `Ajoutez entre une et ${Math.max(1, remaining)} photo(s).` : `Añade entre una y ${Math.max(1, remaining)} foto(s).`)
-        : (locale === "fr" ? "Sélectionnez entre trois et six photos." : "Selecciona entre tres y seis fotos.")
+        : (locale === "fr" ? "Sélectionnez entre trois et dix photos." : "Selecciona entre tres y diez fotos.")
       setError(msg)
       throw new Error(msg)
     }
@@ -661,17 +809,25 @@ export function VisualEngineStudio() {
     setError(null)
     clearNotice()
     try {
-      let refreshCreationId = current?.creation.id
-      const form = new FormData()
-      form.set("mode", mode)
-      if (current) form.set("creationId", current.creation.id)
-      if (consent) {
-        form.set("ageConfirmed", String(consent.ageConfirmed))
-        form.set("rightsConfirmed", String(consent.rightsConfirmed))
-        form.set("retentionAccepted", String(consent.retentionAccepted))
-      }
-      files.forEach((file) => form.append("file", file))
-      await api("/api/visual-engine/identity-profile", { method: "POST", body: form })
+      let refreshCreationId =
+        current?.creation.id
+
+      const effectiveConsent =
+        consent ?? {
+          ageConfirmed: true,
+          rightsConfirmed: true,
+          retentionAccepted: true,
+          privacyAccepted: true,
+          openaiDisclosureAccepted: true,
+        }
+
+      await uploadMiravaIdentityProfile({
+        files,
+        consent: effectiveConsent,
+        locale,
+        mode,
+        creationId: current?.creation.id,
+      })
       if (captureContext === "onboarding" && miravaOnboarding && !isMiravaOnboardingCompleted(miravaOnboarding)) {
         if (!consent) throw new Error(locale === "fr" ? "Le consentement est requis avant de préparer la séance." : "Se requiere el consentimiento antes de preparar la sesión.")
         refreshCreationId = await prepareOnboardingSession(miravaOnboarding, consent)
@@ -686,6 +842,44 @@ export function VisualEngineStudio() {
       setPending(null)
     }
   }
+
+  const replaceIdentityAsset = async (
+    assetId: string,
+    file: File,
+  ): Promise<boolean> =>
+    run(
+      `identity-asset-replace-${assetId}`,
+      async () => {
+        await uploadMiravaIdentityAsset({
+          assetId,
+          file,
+          locale,
+        })
+
+        await refresh(
+          current?.creation.id,
+        )
+      },
+    )
+
+  const deleteIdentityAsset = async (
+    assetId: string,
+  ): Promise<boolean> =>
+    run(
+      `identity-asset-delete-${assetId}`,
+      async () => {
+        await api(
+          `/api/visual-engine/identity-profile/assets/${encodeURIComponent(assetId)}`,
+          {
+            method: "DELETE",
+          },
+        )
+
+        await refresh(
+          current?.creation.id,
+        )
+      },
+    )
 
   const analyze = () => current && run("analyze", async () => { await api(`/api/visual-engine/creations/${current.creation.id}/analyze`, { method: "POST" }); await refresh(current.creation.id) })
   const generate = () => current && run("generate", async () => { await api(`/api/visual-engine/creations/${current.creation.id}/generate`, { method: "POST" }); await refresh(current.creation.id) })
@@ -779,10 +973,10 @@ export function VisualEngineStudio() {
   }
 
   return (
-    <main lang={locale} className="mirava-theme mirava-app-shell bg-mirava-canvas text-mirava-ink">
+    <main lang={locale} className="mirava-theme mirava-app-shell mirava-native-shell bg-mirava-canvas text-mirava-ink">
       <MiravaGrain />
       <div className="mirava-ambient pointer-events-none fixed inset-0" />
-      <div ref={studioBackgroundRef} aria-hidden={modalOpen ? true : undefined}>
+      <div ref={studioBackgroundRef} aria-hidden={modalOpen ? true : undefined} className="mirava-native-frame">
       <Header
         brand={<Link href="/visual-engine" aria-label={locale === "fr" ? "Accueil MIRAVA Studio" : "Inicio MIRAVA Studio"} className="mirava-button mirava-button-quiet min-h-12 px-1"><MiravaWordmark /></Link>}
         desktopNavigation={
@@ -809,7 +1003,8 @@ export function VisualEngineStudio() {
         stepsLabel={locale === "fr" ? "Étapes de création" : "Etapas de creación"}
       />
 
-      <div className="relative mx-auto max-w-6xl px-4 pt-4 sm:px-7 sm:pt-6">
+      <div ref={studioScrollRef} className="mirava-native-scroll">
+        <div className="relative mx-auto max-w-6xl px-4 pt-4 sm:px-7 sm:pt-6">
         {error && <div role="alert" className="mirava-alert mb-6 flex gap-3 p-4 text-sm shadow-lg"><CircleAlert className="h-5 w-5 shrink-0" />{error}</div>}
         {displayedNotice && <div role="status" aria-live="polite" aria-atomic="true" className="mirava-notice mb-6 p-4 text-sm shadow-lg">{displayedNotice}</div>}
         {view === "create" && (!current
@@ -817,7 +1012,8 @@ export function VisualEngineStudio() {
           : <CreationView locale={locale} t={t} current={current} identityProfile={identityProfile} pending={pending} onUploadReference={uploadReference} onAnalyze={analyze} onOpenCapture={() => openCapture(identityProfile ? (identityProfile.assetCount < MIRAVA_MAX_IDENTITY_PHOTOS ? "append" : "replace") : "onboarding")} onGenerate={generate} onDelete={removeCreation} onContinue={(studioId) => void reuse(studioId)} />)}
         {view === "universes" && <UniversesView locale={locale} t={t} selectedUniverseId={selectedUniverseId} setSelectedUniverseId={setSelectedUniverseId} onChoose={(brief) => { setOptions((value) => ({ ...(value.seriesSize ? { seriesSize: value.seriesSize } : {}), ...(value.seriesSize && value.seriesSize > 1 && value.seriesStrategy ? { seriesStrategy: value.seriesStrategy } : {}), ...(brief ? { note: brief } : {}) })); setCreateStep(1); selectView("create") }} />}
         {view === "library" && <LibraryView locale={locale} t={t} studios={studios} creations={creations} onStartCreate={() => { setCurrent(null); setCreateStep(0); selectView("create") }} onReuse={(id) => void reuse(id)} onSelect={(id) => void run("select", async () => { setCurrent(await api<Detail>(`/api/visual-engine/creations/${id}`)); selectView("create") })} />}
-        {view === "account" && <AccountView locale={locale} t={t} account={account} identityProfile={identityProfile} highlightedOfferId={highlightedOfferId} pending={pending} onCheckout={checkout} onPortal={portal} onStartCreate={() => { setCurrent(null); setCreateStep(0); selectView("create") }} onOpenCapture={() => openCapture(identityProfile ? "append" : "onboarding")} onReplaceIdentity={() => openCapture("replace")} onDeleteIdentity={removeIdentity} />}
+        {view === "account" && <AccountView locale={locale} t={t} account={account} identityProfile={identityProfile} highlightedOfferId={highlightedOfferId} pending={pending} onCheckout={checkout} onPortal={portal} onStartCreate={() => { setCurrent(null); setCreateStep(0); selectView("create") }} onOpenCapture={() => openCapture(identityProfile ? "append" : "onboarding")} onReplaceIdentity={() => openCapture("replace")} onReplaceIdentityAsset={replaceIdentityAsset} onDeleteIdentityAsset={deleteIdentityAsset} onDeleteIdentity={removeIdentity} />}
+        </div>
       </div>
 
       <BottomNavBar
@@ -1004,7 +1200,7 @@ function StartView({
               <div><dt className="mirava-muted text-xs">{locale === "fr" ? "Format" : "Formato"}</dt><dd className="mt-1 font-semibold">{options.seriesSize ? `${options.seriesSize} ${locale === "fr" ? "photo(s)" : "foto(s)"}` : "—"}</dd></div>
               <div><dt className="mirava-muted text-xs">{locale === "fr" ? "Style choisi" : "Estilo elegido"}</dt><dd className="mt-1 font-semibold">{referenceFile ? (options.referenceMode === "variations" ? (locale === "fr" ? `Variations : ${variationLabels.join(", ") || "à préciser"}` : `Variaciones: ${variationLabels.join(", ") || "por precisar"}`) : (locale === "fr" ? "Fidèle à la référence" : "Fiel a la referencia")) : selected.creativeDirection.photoStyle[locale]}</dd></div>
               {!referenceFile && <div><dt className="mirava-muted text-xs">{locale === "fr" ? "Ajustements" : "Ajustes"}</dt><dd className="mt-1 font-semibold">{activeAdjustments.length ? activeAdjustments.join(" · ") : (locale === "fr" ? "Aucun ajustement" : "Sin ajustes")}</dd></div>}
-              <div><dt className="mirava-muted text-xs">{t.profile}</dt><dd className="mt-1 flex items-center gap-2 font-semibold">{identityReady ? <><Check className="h-4 w-4 text-mirava-success" />{locale === "fr" ? "Prêt" : "Listo"} · {identityProfile?.assetCount ?? 0}/6</> : <>{locale === "fr" ? "À préparer avant la création" : "Por preparar antes de crear"}</>}</dd></div>
+              <div><dt className="mirava-muted text-xs">{t.profile}</dt><dd className="mt-1 flex items-center gap-2 font-semibold">{identityReady ? <><Check className="h-4 w-4 text-mirava-success" />{locale === "fr" ? "Prêt" : "Listo"} · {identityProfile?.assetCount ?? 0}/{MIRAVA_MAX_IDENTITY_PHOTOS}</> : <>{locale === "fr" ? "À préparer avant la création" : "Por preparar antes de crear"}</>}</dd></div>
             </dl>
             {identityReady ? <IdentityProfilePreview identityProfile={identityProfile} locale={locale} onManage={onOpenCapture} className="mt-6" /> : null}
             {identityReady ? <button onClick={() => onCreate(referenceFile ? null : selected.id, undefined, referenceFile)} disabled={!options.seriesSize || options.seriesSize > availableCredits || pending === "create"} className="mirava-button mirava-button-primary mt-8 w-full gap-2 px-5 text-sm lg:mt-auto">{pending === "create" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}{createActionLabel}</button> : <><button onClick={onOpenCapture} className="mirava-button mirava-button-primary mt-8 w-full gap-2 px-5 text-sm lg:mt-auto"><Camera className="h-4 w-4" />{locale === "fr" ? "Préparer mon Profil identité" : "Preparar mi Perfil de identidad"}</button><p className="mirava-muted mt-3 text-xs leading-5">{locale === "fr" ? "Trois photos privées suffisent ; vous reviendrez ensuite directement à cette création." : "Bastan tres fotos privadas; después volverás directamente a esta creación."}</p></>}
@@ -1298,16 +1494,51 @@ function CreationView({
           {resultUrls.map((url, index) => (
             <div key={url} className={cn("mirava-image-frame relative overflow-hidden", resultUrls.length === 3 && index === 0 && "sm:col-span-2 sm:mx-auto sm:w-1/2")}>
               <img src={url} alt={`${t.result} ${index + 1}`} className="aspect-[4/5] w-full object-cover" />
-              <a href={url} download className="mirava-button mirava-button-primary absolute bottom-3 right-3 h-12 w-12 p-0 backdrop-blur" aria-label={`${t.download} ${index + 1}`}>
-                <Download className="h-4 w-4" />
-              </a>
+              <ResultSaveButton
+                url={url}
+                index={index}
+                label={t.download}
+              />
             </div>
           ))}
         </div>
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          {current.creation.studioProfileId && <button onClick={() => onContinue(current.creation.studioProfileId!)} disabled={pending === "reuse"} className="mirava-surface-raised min-h-24 p-5 text-left"><span className="flex items-center gap-2 font-jakarta text-lg font-semibold"><Images className="h-4 w-4 text-mirava-accent" />{t.continueShoot}</span><span className="mirava-copy mt-2 block text-xs">{t.continueHint}</span></button>}
+        <div className="mt-5 grid gap-3">
+          {current.creation.studioProfileId && (
+            <button
+              type="button"
+              onClick={() => onContinue(current.creation.studioProfileId!)}
+              disabled={pending === "reuse"}
+              className="mirava-button mirava-button-primary group flex min-h-24 w-full items-center justify-between gap-4 px-5 py-4 text-left"
+            >
+              <span className="flex min-w-0 items-center gap-4">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-black/10">
+                  <Images className="h-5 w-5" />
+                </span>
+
+                <span className="min-w-0">
+                  <span className="block font-jakarta text-lg font-semibold">
+                    {t.continueShoot}
+                  </span>
+                  <span className="mt-1 block text-xs opacity-65">
+                    {t.continueHint}
+                  </span>
+                </span>
+              </span>
+
+              <ArrowRight className="h-5 w-5 shrink-0 transition-transform group-hover:translate-x-1" />
+            </button>
+          )}
+
           <div className="flex justify-end">
-            <button onClick={onDelete} disabled={pending === "delete"} className="mirava-button mirava-button-danger min-h-10 px-3 text-xs"><Trash2 className="mr-2 h-4 w-4" />{t.delete}</button>
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={pending === "delete"}
+              className="mirava-button mirava-button-danger min-h-10 px-3 text-xs"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              {t.delete}
+            </button>
           </div>
         </div>
       </section>
@@ -1338,7 +1569,7 @@ function CreationView({
           <Surface className="mt-7">
             {isMiravaIdentityProfileReady(identityProfile) ? (
               <>
-                <p className="mirava-status-success flex items-center gap-2 text-sm font-semibold"><Check className="h-4 w-4" />{t.identityReady} · {identityProfile!.assetCount}/6</p>
+                <p className="mirava-status-success flex items-center gap-2 text-sm font-semibold"><Check className="h-4 w-4" />{t.identityReady} · {identityProfile!.assetCount}/{MIRAVA_MAX_IDENTITY_PHOTOS}</p>
                 <h2 className="mt-3 font-jakarta text-2xl font-semibold tracking-[-.04em]">{t.identityReadyTitle}</h2>
                 <p className="mirava-copy mt-2 text-sm leading-6">{t.identityReadyHint}</p>
                 <button disabled={pending === "generate"} onClick={onGenerate} className="mirava-button mirava-button-primary mt-6 min-h-12 px-5">{pending === "generate" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowRight className="mr-2 h-4 w-4" />}{t.generate}</button>
@@ -1459,6 +1690,8 @@ function AccountView({
   onStartCreate,
   onOpenCapture,
   onReplaceIdentity,
+  onReplaceIdentityAsset,
+  onDeleteIdentityAsset,
   onDeleteIdentity,
 }: {
   locale: Locale
@@ -1472,6 +1705,13 @@ function AccountView({
   onStartCreate: () => void
   onOpenCapture: () => void
   onReplaceIdentity: () => void
+  onReplaceIdentityAsset: (
+    assetId: string,
+    file: File,
+  ) => Promise<boolean>
+  onDeleteIdentityAsset: (
+    assetId: string,
+  ) => Promise<boolean>
   onDeleteIdentity: () => Promise<boolean>
 }) {
   const ready = isMiravaIdentityProfileReady(identityProfile)
@@ -1480,6 +1720,18 @@ function AccountView({
   const [pushLoading, setPushLoading] = useState(false)
   const [pushNotice, setPushNotice] = useState<string | null>(null)
   const [pushError, setPushError] = useState<string | null>(null)
+
+  const [selectedIdentityAssetId, setSelectedIdentityAssetId] =
+    useState<string | null>(null)
+  const [confirmAssetDelete, setConfirmAssetDelete] =
+    useState(false)
+  const [assetActionError, setAssetActionError] =
+    useState<string | null>(null)
+  const selectedIdentityAsset =
+    identityProfile?.previews.find(
+      (preview) =>
+        preview.id === selectedIdentityAssetId,
+    ) ?? null
 
   const [deleteIdentityOpen, setDeleteIdentityOpen] = useState(false)
   const [deleteIdentityError, setDeleteIdentityError] = useState<string | null>(null)
@@ -1511,6 +1763,60 @@ function AccountView({
     }
   }
 
+  const handleIdentityAssetReplacement = async (
+    assetId: string,
+    event: ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0]
+    event.target.value = ""
+
+    if (!file) return
+
+    setAssetActionError(null)
+
+    const replaced =
+      await onReplaceIdentityAsset(
+        assetId,
+        file,
+      )
+
+    if (replaced) {
+      setSelectedIdentityAssetId(null)
+      setConfirmAssetDelete(false)
+      return
+    }
+
+    setAssetActionError(
+      locale === "fr"
+        ? "Cette photo n’a pas pu être remplacée."
+        : "No se pudo sustituir esta foto.",
+    )
+  }
+
+  const confirmSingleAssetDeletion =
+    async () => {
+      if (!selectedIdentityAsset) return
+
+      setAssetActionError(null)
+
+      const removed =
+        await onDeleteIdentityAsset(
+          selectedIdentityAsset.id,
+        )
+
+      if (removed) {
+        setSelectedIdentityAssetId(null)
+        setConfirmAssetDelete(false)
+        return
+      }
+
+      setAssetActionError(
+        locale === "fr"
+          ? "Cette photo n’a pas pu être supprimée."
+          : "No se pudo eliminar esta foto.",
+      )
+    }
+
   const confirmIdentityDeletion = async () => {
     setDeleteIdentityError(null)
     const removed = await onDeleteIdentity()
@@ -1530,12 +1836,39 @@ function AccountView({
     <section className="py-8 sm:py-14">
       <p className="mirava-label">MIRAVA / {locale === "fr" ? "ACCÈS" : "ACCESO"}</p>
       <h1 className="mirava-section-title mt-3 text-4xl sm:text-5xl"><BlurText text={t.accountTitle} /></h1>
-      <div className="mt-8 grid gap-4 lg:grid-cols-2">
+      <div className="mt-8 grid gap-4">
         <Surface className="flex flex-col justify-between">
           <div>
-            <p className="tabular-nums font-jakarta text-4xl font-semibold">{account?.credits ?? 0}</p>
-            <p className="mirava-copy mt-1 text-sm">{t.credits}</p>
+            <p className="mirava-label">
+              {locale === "fr"
+                ? "CRÉDITS & ACCÈS"
+                : "CRÉDITOS Y ACCESO"}
+            </p>
+            <div className="mt-4 flex items-end justify-between gap-4">
+              <div>
+                <p className="tabular-nums font-jakarta text-4xl font-semibold">
+                  {account?.credits ?? 0}
+                </p>
+                <p className="mirava-copy mt-1 text-sm">
+                  {t.credits}
+                </p>
+              </div>
+
+              {account?.subscription ? (
+                <button
+                  onClick={onPortal}
+                  disabled={pending === "portal"}
+                  className="mirava-button mirava-button-secondary px-4 text-xs font-semibold"
+                >
+                  {pending === "portal" ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : null}
+                  {t.portal}
+                </button>
+              ) : null}
+            </div>
           </div>
+
           {availableCredits > 0 ? (
             <>
               <p className="mirava-copy mt-6 text-xs leading-5">
@@ -1543,52 +1876,327 @@ function AccountView({
                   ? `${availableCredits === 1 ? "Votre création est prête" : `Vos ${availableCredits} créations sont prêtes`}. Lancez une séance quand vous le souhaitez.`
                   : `${availableCredits === 1 ? "Tu creación está lista" : `Tus ${availableCredits} creaciones están listas`}. Inicia una sesión cuando quieras.`}
               </p>
-              <div className="mt-4 flex flex-wrap gap-3">
-                <button onClick={onStartCreate} className="mirava-button mirava-button-primary px-4 text-sm font-semibold">
-                  <Camera className="mr-2 h-4 w-4" />{locale === "fr" ? "Créer ma séance" : "Crear mi sesión"}
-                </button>
-                {account?.subscription ? (
-                  <button onClick={onPortal} disabled={pending === "portal"} className="mirava-button mirava-button-secondary px-4 text-sm font-semibold">
-                    {pending === "portal" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                    {t.portal}
-                  </button>
-                ) : null}
-              </div>
+
+              <button
+                onClick={onStartCreate}
+                className="mirava-button mirava-button-primary mt-4 self-start px-4 text-sm font-semibold"
+              >
+                <Camera className="mr-2 h-4 w-4" />
+                {locale === "fr"
+                  ? "Créer ma séance"
+                  : "Crear mi sesión"}
+              </button>
             </>
-          ) : account?.subscription ? (
-            <button onClick={onPortal} disabled={pending === "portal"} className="mirava-button mirava-button-secondary mt-6 self-start px-4 text-sm font-semibold">
-              {pending === "portal" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              {t.portal}
-            </button>
-          ) : <p className="mirava-copy mt-6 text-xs leading-5">{locale === "fr" ? "Choisissez un forfait ou une recharge ci-dessous pour commencer." : "Elige un plan o una recarga a continuación para empezar."}</p>}
+          ) : (
+            <p className="mirava-copy mt-6 text-xs leading-5">
+              {locale === "fr"
+                ? "Choisissez un abonnement ou une recharge pour créer une séance."
+                : "Elige una suscripción o una recarga para crear una sesión."}
+            </p>
+          )}
         </Surface>
-        <Surface>
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="mirava-label">{locale === "fr" ? "PROFIL PRIVÉ" : "PERFIL PRIVADO"}</p>
-              <h2 className="mirava-section-title mt-3 text-2xl">{ready ? t.identityReady : (locale === "fr" ? "Préparer mon identité" : "Preparar mi identidad")}</h2>
+
+        <section className="mirava-surface overflow-hidden">
+          <div className="p-5 sm:p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="mirava-label">
+                  {locale === "fr"
+                    ? "PROFIL IDENTITÉ PRIVÉ"
+                    : "PERFIL DE IDENTIDAD PRIVADO"}
+                </p>
+
+                <h2 className="mirava-section-title mt-3 text-3xl">
+                  {ready
+                    ? locale === "fr"
+                      ? "Vos références"
+                      : "Tus referencias"
+                    : locale === "fr"
+                    ? "Préparer mon identité"
+                    : "Preparar mi identidad"}
+                </h2>
+              </div>
+
+              <span className="mirava-meta shrink-0 px-3 py-2 text-[10px] font-semibold tabular-nums">
+                {identityProfile?.assetCount ?? 0}/
+                {MIRAVA_MAX_IDENTITY_PHOTOS}
+              </span>
             </div>
-            <span className="mirava-meta px-3 py-2 text-[10px] font-semibold tabular-nums">{identityProfile?.assetCount ?? 0}/6</span>
+
+            <p className="mirava-copy mt-4 max-w-xl text-sm leading-6">
+              {ready
+                ? locale === "fr"
+                  ? "Touchez une photo pour l’agrandir, la remplacer ou la supprimer. Ces références restent privées."
+                  : "Toca una foto para ampliarla, sustituirla o eliminarla. Estas referencias siguen siendo privadas."
+                : t.profilePrivacy}
+            </p>
           </div>
-          <p className="mirava-copy mt-4 text-sm leading-6">{t.profilePrivacy}</p>
-          <div className="mt-5 flex flex-wrap gap-3">
-            <button onClick={onOpenCapture} disabled={identityProfile?.assetCount === MIRAVA_MAX_IDENTITY_PHOTOS} className="mirava-button mirava-button-primary px-4 text-sm font-semibold">
-              <Camera className="mr-2 h-4 w-4" />{identityProfile ? (locale === "fr" ? "Ajouter une vue" : "Añadir una vista") : t.guided}
+
+          {identityProfile?.previews?.length ? (
+            <div className="grid grid-cols-2 gap-px border-y border-white/10 bg-white/10 sm:grid-cols-3">
+              {identityProfile.previews.map(
+                (preview, index) => (
+                  <button
+                    key={preview.id}
+                    type="button"
+                    onClick={() => {
+                      setAssetActionError(null)
+                      setConfirmAssetDelete(false)
+                      setSelectedIdentityAssetId(
+                        preview.id,
+                      )
+                    }}
+                    aria-label={
+                      locale === "fr"
+                        ? `Ouvrir la photo identité ${index + 1}`
+                        : `Abrir la foto de identidad ${index + 1}`
+                    }
+                    className="group relative aspect-[4/5] overflow-hidden bg-black"
+                  >
+                    <img
+                      src={preview.url}
+                      alt={
+                        locale === "fr"
+                          ? `Photo identité ${index + 1}`
+                          : `Foto de identidad ${index + 1}`
+                      }
+                      className="h-full w-full object-cover transition-transform duration-300 group-active:scale-[0.98]"
+                    />
+
+                    <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent px-3 pb-3 pt-10 text-left text-[10px] font-semibold text-white/80">
+                      {locale === "fr"
+                        ? `Vue ${index + 1}`
+                        : `Vista ${index + 1}`}
+                    </span>
+                  </button>
+                ),
+              )}
+            </div>
+          ) : (
+            <div className="border-y border-white/10 p-5 sm:p-6">
+              <p className="mirava-muted text-xs leading-5">
+                {locale === "fr"
+                  ? "Les aperçus privés sont momentanément indisponibles. Vos photos restent enregistrées."
+                  : "Las vistas privadas no están disponibles temporalmente. Tus fotos siguen guardadas."}
+              </p>
+            </div>
+          )}
+
+          <div className="grid gap-3 p-5 sm:grid-cols-2 sm:p-6">
+            <button
+              onClick={onOpenCapture}
+              disabled={
+                identityProfile?.assetCount ===
+                MIRAVA_MAX_IDENTITY_PHOTOS
+              }
+              className="mirava-button mirava-button-primary px-4 text-sm font-semibold"
+            >
+              <Camera className="mr-2 h-4 w-4" />
+              {identityProfile
+                ? locale === "fr"
+                  ? "Ajouter une vue"
+                  : "Añadir una vista"
+                : t.guided}
             </button>
-            {identityProfile && (
-              <button onClick={onReplaceIdentity} className="mirava-button mirava-button-secondary px-4 text-sm font-semibold">
-                <RotateCcw className="mr-2 h-4 w-4" />{locale === "fr" ? "Refaire" : "Rehacer"}
+
+            {identityProfile ? (
+              <button
+                onClick={onReplaceIdentity}
+                className="mirava-button mirava-button-secondary px-4 text-sm font-semibold"
+              >
+                <RotateCcw className="mr-2 h-4 w-4" />
+                {locale === "fr"
+                  ? "Refaire tout le profil"
+                  : "Rehacer todo el perfil"}
               </button>
-            )}
-            {identityProfile && (
-              <button ref={deleteIdentityTriggerRef} onClick={() => { setDeleteIdentityError(null); setDeleteIdentityOpen(true) }} disabled={pending === "identity-delete"} className="mirava-button mirava-button-danger px-4 text-sm font-semibold">
-                {pending === "identity-delete" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                {locale === "fr" ? "Supprimer" : "Eliminar"}
+            ) : null}
+
+            {identityProfile ? (
+              <button
+                ref={deleteIdentityTriggerRef}
+                onClick={() => {
+                  setDeleteIdentityError(null)
+                  setDeleteIdentityOpen(true)
+                }}
+                disabled={
+                  pending === "identity-delete"
+                }
+                className="mirava-button mirava-button-danger px-4 text-sm font-semibold sm:col-span-2 sm:justify-self-start"
+              >
+                {pending === "identity-delete" ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="mr-2 h-4 w-4" />
+                )}
+
+                {locale === "fr"
+                  ? "Supprimer le Profil identité"
+                  : "Eliminar el Perfil de identidad"}
               </button>
-            )}
+            ) : null}
           </div>
-        </Surface>
+        </section>
       </div>
+
+      <DialogPrimitive.Root
+        open={Boolean(selectedIdentityAsset)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedIdentityAssetId(null)
+            setConfirmAssetDelete(false)
+            setAssetActionError(null)
+          }
+        }}
+      >
+        <DialogPrimitive.Portal>
+          <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md" />
+
+          <DialogPrimitive.Content className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-black outline-none">
+            <header className="flex shrink-0 items-center justify-between gap-4 border-b border-white/10 px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))]">
+              <div>
+                <p className="mirava-label">
+                  MIRAVA /{" "}
+                  {locale === "fr"
+                    ? "PHOTO PRIVÉE"
+                    : "FOTO PRIVADA"}
+                </p>
+
+                <DialogPrimitive.Title className="mt-1 font-jakarta text-lg font-semibold text-white">
+                  {locale === "fr"
+                    ? "Gérer cette référence"
+                    : "Gestionar esta referencia"}
+                </DialogPrimitive.Title>
+              </div>
+
+              <DialogPrimitive.Close
+                aria-label={
+                  locale === "fr"
+                    ? "Fermer"
+                    : "Cerrar"
+                }
+                className="mirava-capture-round-control"
+              >
+                <X className="h-5 w-5" />
+              </DialogPrimitive.Close>
+            </header>
+
+            <div className="flex min-h-0 flex-1 items-center justify-center p-4">
+              {selectedIdentityAsset ? (
+                <img
+                  src={selectedIdentityAsset.url}
+                  alt={
+                    locale === "fr"
+                      ? "Référence d’identité privée"
+                      : "Referencia de identidad privada"
+                  }
+                  className="max-h-full max-w-full rounded-2xl object-contain"
+                />
+              ) : null}
+            </div>
+
+            <div className="shrink-0 border-t border-white/10 bg-black/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
+              {assetActionError ? (
+                <p
+                  role="alert"
+                  className="mirava-alert mb-3 p-3 text-xs"
+                >
+                  {assetActionError}
+                </p>
+              ) : null}
+
+              {confirmAssetDelete ? (
+                <div className="grid gap-3">
+                  <p className="text-sm leading-6 text-white/70">
+                    {locale === "fr"
+                      ? "Supprimer définitivement cette photo privée ?"
+                      : "¿Eliminar definitivamente esta foto privada?"}
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setConfirmAssetDelete(false)
+                      }
+                      className="mirava-button mirava-button-secondary px-4 text-sm"
+                    >
+                      {locale === "fr"
+                        ? "Annuler"
+                        : "Cancelar"}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void confirmSingleAssetDeletion()
+                      }
+                      disabled={
+                        pending ===
+                        `identity-asset-delete-${selectedIdentityAsset?.id}`
+                      }
+                      className="mirava-button mirava-button-danger px-4 text-sm"
+                    >
+                      {locale === "fr"
+                        ? "Supprimer"
+                        : "Eliminar"}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="mirava-button mirava-button-primary cursor-pointer px-4 text-sm">
+                    <RotateCcw className="mr-2 h-4 w-4" />
+                    {locale === "fr"
+                      ? "Remplacer"
+                      : "Sustituir"}
+
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="sr-only"
+                      onChange={(event) => {
+                        if (selectedIdentityAsset) {
+                          void handleIdentityAssetReplacement(
+                            selectedIdentityAsset.id,
+                            event,
+                          )
+                        }
+                      }}
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setConfirmAssetDelete(true)
+                    }
+                    disabled={
+                      (identityProfile?.assetCount ??
+                        0) <=
+                      MIRAVA_MIN_IDENTITY_PHOTOS
+                    }
+                    className="mirava-button mirava-button-danger px-4 text-sm"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    {locale === "fr"
+                      ? "Supprimer"
+                      : "Eliminar"}
+                  </button>
+                </div>
+              )}
+
+              {(identityProfile?.assetCount ?? 0) <=
+              MIRAVA_MIN_IDENTITY_PHOTOS ? (
+                <p className="mirava-muted mt-3 text-center text-[11px] leading-5">
+                  {locale === "fr"
+                    ? "Trois photos minimum sont nécessaires. Cette photo peut être remplacée, mais pas supprimée."
+                    : "Se necesitan al menos tres fotos. Esta foto puede sustituirse, pero no eliminarse."}
+                </p>
+              ) : null}
+            </div>
+          </DialogPrimitive.Content>
+        </DialogPrimitive.Portal>
+      </DialogPrimitive.Root>
 
       <DialogPrimitive.Root open={deleteIdentityOpen} onOpenChange={(open) => { if (open) setDeleteIdentityOpen(true); else closeIdentityDeletionDialog() }}>
         <DialogPrimitive.Portal>

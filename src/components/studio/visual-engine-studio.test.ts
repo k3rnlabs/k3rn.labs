@@ -27,7 +27,8 @@ describe("MIRAVA studio entry contracts", () => {
     expect(studio).toContain("Vos photos d’identité privées seront supprimées immédiatement")
     expect(studio).toContain("Garder mes photos")
     expect(studio).toContain("Supprimer définitivement")
-    expect(studio).toContain("setDeleteIdentityError(null); setDeleteIdentityOpen(true)")
+    expect(studio).toContain("setDeleteIdentityError(null)")
+    expect(studio).toContain("setDeleteIdentityOpen(true)")
     expect(studio).toContain("const deleteIdentityTriggerRef = useRef<HTMLButtonElement>(null)")
     expect(studio).toContain("onCloseAutoFocus={(event) => { event.preventDefault(); deleteIdentityTriggerRef.current?.focus() }}")
   })
@@ -169,7 +170,7 @@ describe("MIRAVA studio entry contracts", () => {
   })
 
   it("calls the private identity profile by its purpose, not by an ambiguous model label", () => {
-    expect(studio).toContain('"PROFIL PRIVÉ"')
+    expect(studio).toContain('"PROFIL IDENTITÉ PRIVÉ"')
     expect(studio).toContain('"Préparer mon identité"')
     expect(studio).not.toContain('"Préparer mon modèle"')
   })
@@ -249,11 +250,71 @@ describe("MIRAVA studio entry contracts", () => {
   })
 
   it("resets a mobile destination to its beginning and announces non-error feedback", () => {
-    expect(studio).toContain('window.scrollTo({ top: 0, left: 0, behavior: "auto" })')
+    expect(studio).toContain("studioScrollRef.current?.scrollTo")
     expect(studio).toContain('role="status" aria-live="polite" aria-atomic="true" className="mirava-notice')
   })
 
   it("marks the active studio language even though K3RN owns the outer document", () => {
     expect(studio).toContain('<main lang={locale} className="mirava-theme mirava-app-shell')
   })
+  it("uses a native fixed shell with an independent content scroller", () => {
+    expect(studio).toContain(
+      "mirava-native-shell",
+    )
+    expect(studio).toContain(
+      "mirava-native-frame",
+    )
+    expect(studio).toContain(
+      'ref={studioScrollRef} className="mirava-native-scroll"',
+    )
+    expect(studio).toContain(
+      "studioScrollRef.current?.scrollTo",
+    )
+  })
+
+  it("shows and manages every private identity reference from the account", () => {
+    expect(studio).toContain(
+      "identityProfile.previews.map",
+    )
+    expect(studio).toContain(
+      "selectedIdentityAssetId",
+    )
+    expect(studio).toContain(
+      "handleIdentityAssetReplacement",
+    )
+    expect(studio).toContain(
+      "confirmSingleAssetDeletion",
+    )
+    expect(studio).toContain(
+      "uploadMiravaIdentityAsset",
+    )
+    expect(studio).toContain(
+      "MIRAVA_MIN_IDENTITY_PHOTOS",
+    )
+    expect(studio).toContain(
+      "MIRAVA_MAX_IDENTITY_PHOTOS",
+    )
+  })
+
+  it("never sends identity photos through a multipart Vercel request from the Studio", () => {
+    const uploadBlock = studio.slice(
+      studio.indexOf(
+        "const uploadIdentityFiles",
+      ),
+      studio.indexOf(
+        "const replaceIdentityAsset",
+      ),
+    )
+
+    expect(uploadBlock).toContain(
+      "uploadMiravaIdentityProfile",
+    )
+    expect(uploadBlock).not.toContain(
+      "new FormData()",
+    )
+    expect(uploadBlock).not.toContain(
+      'form.append("file"',
+    )
+  })
+
 })
