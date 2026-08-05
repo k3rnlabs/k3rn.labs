@@ -1,4 +1,5 @@
 import { CompiledGenerationPrompt } from "../schemas/compiled-generation-prompt.schema"
+import { adaptMiravaCoverageForGeneration } from "./coverage-safety-adaptation"
 
 /**
  * Compliance Neutral Rewrite Moteur (`compliance_neutral_rewrite`).
@@ -30,14 +31,23 @@ export function complianceNeutralRewrite(compiledPrompt: CompiledGenerationPromp
     prompt = prompt.replace(pattern, replacement)
   }
 
-  // Ensure explicit commercial fashion phrasing is present
+  // Ensure explicit commercial fashion phrasing is present.
   if (!prompt.toLowerCase().includes("commercial fashion")) {
     prompt = `Create a standard neutral commercial fashion campaign. ${prompt}`
   }
 
+  // A safety retry must alter the visual construction, not only vocabulary.
+  // Conservative mode enforces opaque coverage even when the provider refusal
+  // was broader than the deterministic risk signals.
+  const coverageSafe =
+    adaptMiravaCoverageForGeneration(
+      prompt,
+      "conservative",
+    )
+
   return {
     ...compiledPrompt,
-    positivePrompt: prompt,
+    positivePrompt: coverageSafe.prompt,
     metadata: {
       ...compiledPrompt.metadata,
       compiledAt: new Date().toISOString(),

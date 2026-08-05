@@ -1,6 +1,6 @@
 export const MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_METADATA = {
   logicalName: "mirava_visual_direction_extractor_v2",
-  version: "2.2.0",
+  version: "2.3.0",
 } as const
 
 export const MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_PROMPT = `# SYSTEM PROMPT — MIRAVA VISUAL DIRECTION TRANSFER ENGINE V2
@@ -634,6 +634,40 @@ If a reference involving a recognizable third party creates ambiguity, extract o
 
 ---
 
+# 13A. COVERAGE-SAFE ADAPTATION CONTRACT
+
+The artistic reference may contain a valid photographic direction while also containing a degree of exposure or garment construction that should not be reproduced in the future identity-generation session.
+
+When the reference includes one or more of the following:
+
+- visible intimate anatomy;
+- exposed seat or visible seat cleavage;
+- a robe, dress, skirt, towel, or other garment lifted, pulled up, or opened around the pelvis;
+- transparent or semi-transparent fabric over intimate regions;
+- a pose or crop whose primary visual emphasis is intimate exposure;
+- boudoir, erotic, seductive, or explicitly sexual framing;
+
+preserve the reusable photographic direction, but adapt the wardrobe construction and coverage before writing the final generation prompt.
+
+The adapted final prompt must:
+
+- preserve the environment, composition, camera geometry, body orientation, hand anchors, gaze, lighting architecture, exposure relationship, palette, and photographic finish;
+- describe the result as a neutral commercial editorial fashion portrait or intimate editorial fashion portrait, never as erotic content;
+- introduce a fully opaque, high-waisted neutral underlayer covering the pelvis, seat, and upper thighs whenever the original garment does not provide reliable coverage;
+- keep robes, dresses, skirts, towels, and fabric panels continuously draped across the pelvis and seat;
+- allow a hand to arrange fabric at the side without lifting it away from the covered regions;
+- preserve the three-quarter rear pose only when the garment remains fully covering and the pose is not intensified;
+- remove instructions that emphasize exposed hips, exposed seat, cleavage of the seat, intimate transparency, or increased exposure;
+- use neutral garment-construction language rather than policy language.
+
+Do not attempt to preserve the original degree of exposure when doing so would conflict with coverage-safe commercial fashion styling.
+
+Do not solve the issue by replacing isolated trigger words while leaving the same revealing visual construction intact.
+
+When the reference is already coverage-safe, preserve it without adding unnecessary garments or changing its styling.
+
+---
+
 # 14. FINAL PROMPT CONSTRUCTION
 
 The final generation prompt must explicitly state:
@@ -644,7 +678,8 @@ The final generation prompt must explicitly state:
 - her recognizable face and natural anatomy must be preserved;
 - camera geometry must follow the extracted reference;
 - pose anchors must follow the extracted reference;
-- wardrobe construction and coverage must follow the extracted reference;
+- wardrobe construction and coverage must follow the extracted reference unless the coverage-safe adaptation contract requires a neutral opaque underlayer or continuously draped garment panels;
+- coverage-sensitive references must preserve their photographic direction while replacing revealing garment construction with neutral commercial editorial coverage of the pelvis, seat, and upper thighs;
 - when feet are visible or exposed by open footwear, each visible foot must have exactly five distinct, anatomically coherent toes with realistic spacing and footwear interaction;
 - when visible, hands, facial micro-anatomy, joints, held objects, garment structures, jewelry, mirrors, reflections, shadows, and identity marks must remain topologically coherent, physically connected, and consistent with the extracted scene;
 - the lighting contract must be reproduced physically;
@@ -685,9 +720,10 @@ Prevent:
 - footwear straps concealing, merging, removing, or deforming toes;
 - duplicated limbs or accessories;
 - incorrect garment construction;
-- changed garment coverage;
+- changed garment coverage except for required coverage-safe adaptation;
+- visible intimate anatomy, visible seat cleavage, transparent fabric over intimate regions, or garments lifted or opened around the pelvis;
 - unintended transparency;
-- suggestive reframing;
+- erotic intensification or suggestive reframing;
 - altered camera angle;
 - changed crop;
 - incorrect lighting direction;

@@ -31,6 +31,7 @@ import {
 } from "@/lib/mirava/pipeline/classify-scene-context"
 import { compileGenerationPrompt } from "@/lib/mirava/pipeline/compile-generation-prompt"
 import { complianceNeutralRewrite } from "@/lib/mirava/pipeline/compliance-neutral-rewrite"
+import { adaptMiravaCoverageForGeneration } from "@/lib/mirava/pipeline/coverage-safety-adaptation"
 import { assertNoArtisticReferenceInGenerationPayload, assertAtLeastOneValidatedIdentityImage } from "@/lib/mirava/security/assert-image-role-separation"
 import type { VisualDirectionBlueprint } from "@/lib/mirava/schemas/visual-direction-blueprint.schema"
 
@@ -1591,7 +1592,34 @@ async function generateStudioImage(
   assertNoArtisticReferenceInGenerationPayload({ assets: identityAssets })
   assertAtLeastOneValidatedIdentityImage(identityAssets)
 
-  const prompt = buildMiravaGenerationPrompt(creation, frameIndex, physicalTraits)
+  const rawPrompt =
+    buildMiravaGenerationPrompt(
+      creation,
+      frameIndex,
+      physicalTraits,
+    )
+
+  const coverageAdaptation =
+    adaptMiravaCoverageForGeneration(
+      rawPrompt,
+      "standard",
+    )
+
+  const prompt =
+    coverageAdaptation.prompt
+
+  if (coverageAdaptation.adapted) {
+    console.info(
+      "[mirava-coverage-safety] adapted",
+      JSON.stringify({
+        creationId: creation.id,
+        riskScore:
+          coverageAdaptation.riskScore,
+        reasons:
+          coverageAdaptation.reasons,
+      }),
+    )
+  }
 
   const executeCall = async (promptText: string): Promise<Buffer> => {
     const form = new FormData()
@@ -1727,7 +1755,6 @@ async function failJob(job: StudioJobRecord, creation: StudioCreationRecord, err
   }
   const requiresTechnicalCompensation = job.kind === "GENERATE" &&
     creation.creditReservationKey &&
-    studioError.code !== "SAFETY_REFUSAL" &&
     studioError.code !== "IDENTITY_REQUIRED" &&
     studioError.code !== "INVALID_IMAGE"
   if (requiresTechnicalCompensation) {
@@ -1749,7 +1776,9 @@ async function failJob(job: StudioJobRecord, creation: StudioCreationRecord, err
 }
 
 function publicFailureMessage(code: string): string {
-  if (code === "SAFETY_REFUSAL") return "Cette création ne peut pas être traitée selon les règles de sécurité."
+  if (code === "SAFETY_REFUSAL") {
+    return "Cette direction ne peut pas être générée dans sa forme actuelle. Votre crédit a été restauré."
+  }
   if (code === "INVALID_IMAGE") return "Une image n’est pas exploitable. Remplacez-la avant de réessayer."
   return "La création n’a pas pu aboutir. Votre création a été recréditée lorsque nécessaire."
 }
