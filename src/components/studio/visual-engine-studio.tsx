@@ -69,11 +69,17 @@ import { captureMiravaAnalytics } from "@/lib/mirava/analytics-consent.client"
 type Locale = "fr" | "es"
 type Status = "DRAFT" | "ANALYSIS_QUEUED" | "ANALYSING" | "IDENTITY_READY" | "GENERATION_QUEUED" | "GENERATING" | "COMPLETED" | "FAILED" | "CANCELLED"
 type View = "create" | "universes" | "library" | "account"
+type ShotIntent = "pose" | "framing" | "sub_location" | "candid"
 type Asset = { id: string; kind: "REFERENCE" | "IDENTITY" | "RESULT"; createdAt: string }
 type Creation = {
   id: string
   studioProfileId: string | null
   presetId: string | null
+  sessionId?: string | null
+  parentCreationId?: string | null
+  shotIndex?: number
+  shotIntent?: ShotIntent | null
+  sourceResultIndex?: number | null
   status: Status
   failureMessage: string | null
   failureKind?:
@@ -151,8 +157,8 @@ const copy = {
     result: "Votre image signature est prête.",
     download: "Enregistrer dans Photos",
     delete: "Supprimer",
-    continueShoot: "Créer une nouvelle image",
-    continueHint: "Même studio · Nouvelle pose · 1 crédit",
+    continueShoot: "Continuer cette séance",
+    continueHint: "Même tenue · Même ambiance · Nouveau cliché",
     formatTitle: "Format de la séance",
     formatSingle: "Image signature",
     formatSeries3: "Série de 3",
@@ -221,8 +227,8 @@ const copy = {
     result: "Tu imagen insignia está lista.",
     download: "Guardar en Fotos",
     delete: "Eliminar",
-    continueShoot: "Crear una nueva imagen",
-    continueHint: "Mismo estudio · Nueva pose · 1 crédito",
+    continueShoot: "Continuar esta sesión",
+    continueHint: "Mismo estilismo · Misma atmósfera · Nueva foto",
     formatTitle: "Formato de la sesión",
     formatSingle: "Imagen insignia",
     formatSeries3: "Serie de 3",
@@ -1671,6 +1677,39 @@ export function VisualEngineStudio() {
     selectView("create")
     await refresh(data.creation.id)
   })
+
+  const continueSession = (
+    creationId: string,
+    intent: ShotIntent,
+    sourceResultIndex: number,
+  ) =>
+    run(
+      `continue-${intent}`,
+      async () => {
+        const data =
+          await api<{
+            creation: Creation
+          }>(
+            `/api/visual-engine/creations/${creationId}/continue`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+              body: JSON.stringify({
+                intent,
+                sourceResultIndex,
+              }),
+            },
+          )
+
+        selectView("create")
+        await refresh(
+          data.creation.id,
+        )
+      },
+    )
   const applyAlmaDirection = async (suggestions: Partial<MiravaCreativeOptions>) => {
     const canApplyToCurrent = current && ["DRAFT", "ANALYSIS_QUEUED", "ANALYSING", "IDENTITY_READY"].includes(current.creation.status)
     if (!canApplyToCurrent) {
@@ -1834,7 +1873,7 @@ export function VisualEngineStudio() {
         {displayedNotice && <div role="status" aria-live="polite" aria-atomic="true" className="mirava-notice mb-6 p-4 text-sm shadow-lg">{displayedNotice}</div>}
         {view === "create" && (!current
           ? <StartView locale={locale} t={t} firstName={miravaFirstName} step={createStep} selectedUniverseId={selectedUniverseId} setSelectedUniverseId={setSelectedUniverseId} options={options} setOptions={setOptions} identityProfile={identityProfile} availableCredits={account?.credits ?? 0} pending={pending} entryIntent={entryIntent} onCreate={requestCreate} onDirector={() => openDirector()} onOpenAccount={() => selectView("account")} onOpenCapture={() => openCapture(identityProfile ? (identityProfile.assetCount < MIRAVA_MAX_IDENTITY_PHOTOS ? "append" : "replace") : "onboarding")} />
-          : <CreationView locale={locale} t={t} current={current} identityProfile={identityProfile} pending={pending} onUploadReference={uploadReference} onAnalyze={analyze} onOpenCapture={() => openCapture(identityProfile ? (identityProfile.assetCount < MIRAVA_MAX_IDENTITY_PHOTOS ? "append" : "replace") : "onboarding")} onGenerate={generate} onDelete={removeCreation} onStartCreate={startFreshCreation} onContinue={(studioId) => void reuse(studioId)} onUnlock={(creationId) => void checkoutDiscovery(creationId)} />)}
+          : <CreationView locale={locale} t={t} current={current} identityProfile={identityProfile} pending={pending} onUploadReference={uploadReference} onAnalyze={analyze} onOpenCapture={() => openCapture(identityProfile ? (identityProfile.assetCount < MIRAVA_MAX_IDENTITY_PHOTOS ? "append" : "replace") : "onboarding")} onGenerate={generate} onDelete={removeCreation} onStartCreate={startFreshCreation} onContinueSession={(creationId, intent, sourceResultIndex) => void continueSession(creationId, intent, sourceResultIndex)} onCreateFromStudio={(studioId) => void reuse(studioId)} onUnlock={(creationId) => void checkoutDiscovery(creationId)} />)}
         {view === "universes" && <UniversesView locale={locale} t={t} selectedUniverseId={selectedUniverseId} setSelectedUniverseId={setSelectedUniverseId} onChoose={(brief) => { setOptions((value) => ({ ...(value.seriesSize ? { seriesSize: value.seriesSize } : {}), ...(value.seriesSize && value.seriesSize > 1 && value.seriesStrategy ? { seriesStrategy: value.seriesStrategy } : {}), ...(brief ? { note: brief } : {}) })); setCreateStep(1); selectView("create") }} />}
         {view === "library" && <LibraryView locale={locale} t={t} studios={studios} creations={creations} onStartCreate={startFreshCreation} onReuse={(id) => void reuse(id)} onSelect={(id) => void run("select", async () => { setCurrent(await api<Detail>(`/api/visual-engine/creations/${id}`)); selectView("create") })} />}
         {view === "account" && <AccountView locale={locale} t={t} account={account} identityProfile={identityProfile} highlightedOfferId={highlightedOfferId} pending={pending} onCheckout={checkout} onPortal={portal} onStartCreate={startFreshCreation} onOpenCapture={() => openCapture(identityProfile ? "append" : "onboarding")} onReplaceIdentity={() => openCapture("replace")} onReplaceIdentityAsset={replaceIdentityAsset} onDeleteIdentityAsset={deleteIdentityAsset} onDeleteIdentity={removeIdentity} />}
@@ -2416,7 +2455,8 @@ function CreationView({
   onGenerate,
   onDelete,
   onStartCreate,
-  onContinue,
+  onContinueSession,
+  onCreateFromStudio,
   onUnlock,
 }: {
   locale: Locale
@@ -2430,9 +2470,16 @@ function CreationView({
   onGenerate: () => void
   onDelete: () => void
   onStartCreate: () => void
-  onContinue: (studioId: string) => void
+  onContinueSession: (
+    creationId: string,
+    intent: ShotIntent,
+    sourceResultIndex: number,
+  ) => void
+  onCreateFromStudio: (studioId: string) => void
   onUnlock: (creationId: string) => void
 }) {
+  const [continuationOpen, setContinuationOpen] =
+    useState(false)
   const rawStatus = current.creation.status
   // The public API only exposes public states. Keep the screen resilient if an
   // outdated intermediary returns an unknown state: it must not crash or reveal
@@ -2445,9 +2492,13 @@ function CreationView({
   const failureExplanation =
     current.creation.failureKind ===
       "SAFETY_REFUSAL"
-      ? locale === "fr"
-        ? "Cette direction visuelle n’a pas pu être générée dans sa forme actuelle. La combinaison du stylisme, de la pose, du cadrage ou de la couverture du vêtement a dépassé les limites acceptées par le moteur d’image. Aucun crédit ne reste débité : votre crédit a été restauré. Lancez une nouvelle séance avec une pose, un cadrage ou une transparence légèrement moins intense."
-        : "Esta dirección visual no pudo generarse en su forma actual. La combinación del estilismo, la pose, el encuadre o la cobertura de la prenda superó los límites aceptados por el motor de imágenes. No queda ningún crédito descontado: tu crédito ha sido restaurado. Inicia una nueva sesión con una pose, un encuadre o una transparencia ligeramente menos intensos."
+      ? current.creation.presetId
+        ? locale === "fr"
+          ? "Cet univers MIRAVA n’a pas pu être produit correctement par le moteur d’image. Votre crédit a été restauré et votre Profil identité reste disponible. Vous pourrez relancer cet univers dès que sa direction de génération aura été ajustée."
+          : "Este universo MIRAVA no pudo producirse correctamente con el motor de imágenes. Tu crédito ha sido restaurado y tu Perfil de identidad sigue disponible. Podrás volver a iniciar este universo cuando se haya ajustado su dirección de generación."
+        : locale === "fr"
+          ? "Cette direction visuelle n’a pas pu être générée dans sa forme actuelle. La combinaison du stylisme, de la pose, du cadrage ou de la couverture du vêtement a dépassé les limites acceptées par le moteur d’image. Aucun crédit ne reste débité : votre crédit a été restauré. Lancez une nouvelle séance avec une pose, un cadrage ou une transparence légèrement moins intense."
+          : "Esta dirección visual no pudo generarse en su forma actual. La combinación del estilismo, la pose, el encuadre o la cobertura de la prenda superó los límites aceptados por el motor de imágenes. No queda ningún crédito descontado: tu crédito ha sido restaurado. Inicia una nueva sesión con una pose, un encuadre o una transparencia ligeramente menos intensos."
       : current.creation.failureKind ===
           "INVALID_IMAGE"
         ? locale === "fr"
@@ -2479,9 +2530,13 @@ function CreationView({
         <h1 className="mirava-section-title mt-3 text-4xl sm:text-5xl">
           {current.creation.failureKind ===
           "SAFETY_REFUSAL"
-            ? locale === "fr"
-              ? "Direction à ajuster"
-              : "Dirección por ajustar"
+            ? current.creation.presetId
+              ? locale === "fr"
+                ? "Univers momentanément indisponible"
+                : "Universo temporalmente no disponible"
+              : locale === "fr"
+                ? "Direction à ajuster"
+                : "Dirección por ajustar"
             : current.creation.failureKind ===
                 "ANALYSIS_TIMEOUT"
               ? locale === "fr"
@@ -2568,29 +2623,168 @@ function CreationView({
           ))}
         </div>
         <div className="mt-5 grid gap-3">
+          <button
+            type="button"
+            onClick={() =>
+              setContinuationOpen(
+                (open) => !open,
+              )
+            }
+            disabled={
+              current.studioCredits < 1 ||
+              Boolean(
+                pending?.startsWith(
+                  "continue-",
+                ),
+              )
+            }
+            aria-expanded={continuationOpen}
+            className="mirava-button mirava-button-primary group flex min-h-24 w-full items-center justify-between gap-4 px-5 py-4 text-left"
+          >
+            <span className="flex min-w-0 items-center gap-4">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-black/10">
+                <Camera className="h-5 w-5" />
+              </span>
+
+              <span className="min-w-0">
+                <span className="block font-jakarta text-lg font-semibold">
+                  {t.continueShoot}
+                </span>
+                <span className="mt-1 block text-xs opacity-65">
+                  {current.studioCredits > 0
+                    ? t.continueHint
+                    : locale === "fr"
+                      ? "Ajoutez un crédit pour poursuivre cette séance."
+                      : "Añade un crédito para continuar esta sesión."}
+                </span>
+              </span>
+            </span>
+
+            <ArrowRight
+              className={cn(
+                "h-5 w-5 shrink-0 transition-transform",
+                continuationOpen &&
+                  "rotate-90",
+              )}
+            />
+          </button>
+
+          <AnimatePresence initial={false}>
+            {continuationOpen && (
+              <motion.div
+                initial={{
+                  opacity: 0,
+                  height: 0,
+                }}
+                animate={{
+                  opacity: 1,
+                  height: "auto",
+                }}
+                exit={{
+                  opacity: 0,
+                  height: 0,
+                }}
+                className="overflow-hidden"
+              >
+                <div className="mirava-surface grid gap-2 p-3 sm:grid-cols-2">
+                  {([
+                    {
+                      intent: "pose",
+                      fr: "Autre pose",
+                      es: "Otra pose",
+                      frHint: "Nouvelle posture, nouveaux bras et nouveau regard.",
+                      esHint: "Nueva postura, brazos y mirada.",
+                    },
+                    {
+                      intent: "framing",
+                      fr: "Autre cadrage",
+                      es: "Otro encuadre",
+                      frHint: "Même moment, avec une nouvelle position de caméra.",
+                      esHint: "El mismo momento desde otra posición de cámara.",
+                    },
+                    {
+                      intent: "sub_location",
+                      fr: "Autre coin du décor",
+                      es: "Otro rincón del escenario",
+                      frHint: "Même pièce, dans un sous-emplacement crédible.",
+                      esHint: "La misma estancia desde otro punto coherente.",
+                    },
+                    {
+                      intent: "candid",
+                      fr: "Moment spontané",
+                      es: "Momento espontáneo",
+                      frHint: "Une action naturelle entre deux prises.",
+                      esHint: "Una acción natural entre dos tomas.",
+                    },
+                  ] as const).map(
+                    (choice) => {
+                      const pendingKey =
+                        `continue-${choice.intent}`
+
+                      return (
+                        <button
+                          key={choice.intent}
+                          type="button"
+                          disabled={
+                            pending ===
+                            pendingKey
+                          }
+                          onClick={() =>
+                            onContinueSession(
+                              current.creation.id,
+                              choice.intent,
+                              Math.max(
+                                0,
+                                resultUrls.length -
+                                  1,
+                              ),
+                            )
+                          }
+                          className="mirava-control min-h-24 p-4 text-left"
+                        >
+                          <span className="flex items-center justify-between gap-3">
+                            <span className="font-jakarta text-sm font-semibold">
+                              {locale === "fr"
+                                ? choice.fr
+                                : choice.es}
+                            </span>
+                            {pending ===
+                            pendingKey ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <ArrowRight className="h-4 w-4" />
+                            )}
+                          </span>
+                          <span className="mirava-muted mt-2 block text-xs leading-5">
+                            {locale === "fr"
+                              ? choice.frHint
+                              : choice.esHint}
+                          </span>
+                        </button>
+                      )
+                    },
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {current.creation.studioProfileId && (
             <button
               type="button"
-              onClick={() => onContinue(current.creation.studioProfileId!)}
+              onClick={() =>
+                onCreateFromStudio(
+                  current.creation
+                    .studioProfileId!,
+                )
+              }
               disabled={pending === "reuse"}
-              className="mirava-button mirava-button-primary group flex min-h-24 w-full items-center justify-between gap-4 px-5 py-4 text-left"
+              className="mirava-button mirava-button-secondary min-h-12 w-full px-4 text-sm"
             >
-              <span className="flex min-w-0 items-center gap-4">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-black/10">
-                  <Images className="h-5 w-5" />
-                </span>
-
-                <span className="min-w-0">
-                  <span className="block font-jakarta text-lg font-semibold">
-                    {t.continueShoot}
-                  </span>
-                  <span className="mt-1 block text-xs opacity-65">
-                    {t.continueHint}
-                  </span>
-                </span>
-              </span>
-
-              <ArrowRight className="h-5 w-5 shrink-0 transition-transform group-hover:translate-x-1" />
+              <Images className="mr-2 h-4 w-4" />
+              {locale === "fr"
+                ? "Créer une nouvelle séance depuis ce studio"
+                : "Crear una nueva sesión desde este estudio"}
             </button>
           )}
 

@@ -7,12 +7,17 @@ import { MIRAVA_STRIPE_PRODUCT, getMiravaStudioPreset, type MiravaStudioPresetId
 import { formatMiravaCreativeOptions, miravaCreativeOptionsSchema, type MiravaCreativeOptions } from "@/lib/mirava/creative-options"
 import {
   buildMiravaOfficialUniversePrimaryPrompt,
+  buildMiravaOfficialUniverseSafetyFallbackPrompt,
   getMiravaOfficialUniverseBlueprint,
   renderMiravaOfficialUniverseMasterPrompt,
 } from "@/lib/mirava/official-universe-blueprints"
 import { MIRAVA_MAX_IDENTITY_PHOTOS, MIRAVA_MIN_IDENTITY_PHOTOS, MIRAVA_RECOMMENDED_IDENTITY_PHOTOS } from "@/lib/mirava/identity-profile"
 import { type PhysicalTrait, formatPhysicalTraitsForPrompt, parsePhysicalTraits } from "@/lib/mirava/physical-traits"
 import { buildMiravaSeriesShotBrief, getMiravaSeriesSize } from "@/lib/mirava/series"
+import {
+  buildMiravaSessionContinuationPrompt,
+  type MiravaShotIntent,
+} from "@/lib/mirava/session-continuity"
 import {
   MiravaCreditError,
   debitMiravaCreditReservation,
@@ -61,6 +66,11 @@ export type StudioCreationRecord = {
   studioProfileId?: string | null
   identityProfileId?: string | null
   presetId?: string | null
+  sessionId?: string | null
+  parentCreationId?: string | null
+  shotIndex?: number
+  shotIntent?: MiravaShotIntent | null
+  sourceResultIndex?: number | null
   creativeOptions?: Record<string, unknown>
   status: StudioStatus
   creativeDirectionSummary: string | null
@@ -88,6 +98,11 @@ export type StudioCreationPublic = Pick<StudioCreationRecord,
   | "id"
   | "studioProfileId"
   | "presetId"
+  | "sessionId"
+  | "parentCreationId"
+  | "shotIndex"
+  | "shotIntent"
+  | "sourceResultIndex"
   | "failureMessage"
   | "createdAt"
   | "updatedAt"
@@ -210,6 +225,11 @@ export function studioCreationPublic(creation: StudioCreationRecord): StudioCrea
     id: creation.id,
     studioProfileId: creation.studioProfileId,
     presetId: creation.presetId,
+    sessionId: creation.sessionId ?? null,
+    parentCreationId: creation.parentCreationId ?? null,
+    shotIndex: creation.shotIndex ?? 0,
+    shotIntent: creation.shotIntent ?? null,
+    sourceResultIndex: creation.sourceResultIndex ?? null,
     status: creation.status === "MASTER_PROMPT_READY" ? "IDENTITY_READY" : creation.status,
     failureKind: studioPublicFailureKind(creation.failureCode),
     failureMessage: creation.failureMessage,
@@ -339,28 +359,53 @@ export async function createStudioCreation(args: {
             officialBlueprint.negativeGuardrails,
         }
       : undefined
-  const identityProfile = await db.studioIdentityProfile.findUnique({ where: { userId: args.userId } })
-  let studioProfileId: string | null = null
-  if (preset && args.presetId) {
-    // Les univers signés deviennent un studio réutilisable dès la première séance.
-    // Ne pas encombrer la bibliothèque d'un nouveau doublon à chaque création.
-    const existingProfile = await db.studioProfile.findFirst({
-      where: { userId: args.userId, presetId: args.presetId, sourceCreationId: null },
-      orderBy: { createdAt: "asc" },
+
+  const identityProfile =
+    await db.studioIdentityProfile.findUnique({
+      where: {
+        userId:
+          args.userId,
+      },
     })
+
+  let studioProfileId:
+    string | null = null
+
+  if (preset && args.presetId) {
+    const existingProfile =
+      await db.studioProfile.findFirst({
+        where: {
+          userId:
+            args.userId,
+          presetId:
+            args.presetId,
+          sourceCreationId:
+            null,
+        },
+        orderBy: {
+          createdAt:
+            "asc",
+        },
+      })
+
     const currentProfile =
       existingProfile
-        ? asProfile(existingProfile)
+        ? asProfile(
+            existingProfile,
+          )
         : null
 
     const profileNeedsRefresh =
       Boolean(currentProfile) &&
       (
-        currentProfile?.creativeDirectionSummary !==
+        currentProfile
+          ?.creativeDirectionSummary !==
           preset.creativeDirectionSummary ||
-        currentProfile?.masterPrompt !==
+        currentProfile
+          ?.masterPrompt !==
           preset.masterPrompt ||
-        currentProfile?.negativePrompt !==
+        currentProfile
+          ?.negativePrompt !==
           preset.negativePrompt
       )
 
@@ -414,36 +459,92 @@ export async function createStudioCreation(args: {
     studioProfileId =
       profile.id
   }
-  const creation = asCreation(await db.studioCreation.create({
-    data: {
-      userId: args.userId,
-      status: preset ? "MASTER_PROMPT_READY" : "DRAFT",
-      studioProfileId,
-      identityProfileId: identityProfile?.id ?? null,
-      presetId: args.presetId ?? null,
-      creativeOptions:
-        args.creativeOptions ?? {},
-      creativeDirectionSummary:
-        preset?.creativeDirectionSummary ??
-        null,
-      masterPrompt:
-        preset?.masterPrompt ?? null,
-      negativePrompt:
-        preset?.negativePrompt ?? null,
-    },
-  }))
-  await db.studioConsent.create({
-    data: {
-      creationId: creation.id,
-      userId: args.userId,
-      version: STUDIO_CONSENT_VERSION,
-      ageConfirmed: true,
-      rightsConfirmed: true,
-      privacyAccepted: true,
-      openaiDisclosureAccepted: true,
-    },
-  })
-  return creation
+
+  const session =
+    await db.studioSession.create({
+      data: {
+        userId:
+          args.userId,
+        studioProfileId,
+        identityProfileId:
+          identityProfile?.id ??
+          null,
+        presetId:
+          args.presetId ??
+          null,
+      },
+    })
+
+  try {
+    const creation =
+      asCreation(
+        await db.studioCreation.create({
+          data: {
+            userId:
+              args.userId,
+            status:
+              preset
+                ? "MASTER_PROMPT_READY"
+                : "DRAFT",
+            studioProfileId,
+            identityProfileId:
+              identityProfile?.id ??
+              null,
+            presetId:
+              args.presetId ??
+              null,
+            sessionId:
+              session.id,
+            shotIndex:
+              0,
+            creativeOptions:
+              args.creativeOptions ??
+              {},
+            creativeDirectionSummary:
+              preset
+                ?.creativeDirectionSummary ??
+              null,
+            masterPrompt:
+              preset?.masterPrompt ??
+              null,
+            negativePrompt:
+              preset?.negativePrompt ??
+              null,
+          },
+        }),
+      )
+
+    await db.studioConsent.create({
+      data: {
+        creationId:
+          creation.id,
+        userId:
+          args.userId,
+        version:
+          STUDIO_CONSENT_VERSION,
+        ageConfirmed:
+          true,
+        rightsConfirmed:
+          true,
+        privacyAccepted:
+          true,
+        openaiDisclosureAccepted:
+          true,
+      },
+    })
+
+    return creation
+  } catch (error) {
+    await db.studioSession.delete({
+      where: {
+        id:
+          session.id,
+        userId:
+          args.userId,
+      },
+    })
+    throw error
+  }
 }
 
 export function studioProfilePublic(profile: StudioProfileRecord) {
@@ -501,14 +602,22 @@ export async function createCreationFromStudioProfile(args: {
       : null
 
   const profileNeedsRefresh =
-    Boolean(canonicalSnapshot) &&
+    Boolean(
+      canonicalSnapshot,
+    ) &&
     (
-      storedProfile.creativeDirectionSummary !==
-        canonicalSnapshot?.creativeDirectionSummary ||
-      storedProfile.masterPrompt !==
-        canonicalSnapshot?.masterPrompt ||
-      storedProfile.negativePrompt !==
-        canonicalSnapshot?.negativePrompt
+      storedProfile
+        .creativeDirectionSummary !==
+        canonicalSnapshot
+          ?.creativeDirectionSummary ||
+      storedProfile
+        .masterPrompt !==
+        canonicalSnapshot
+          ?.masterPrompt ||
+      storedProfile
+        .negativePrompt !==
+        canonicalSnapshot
+          ?.negativePrompt
     )
 
   const profile =
@@ -524,11 +633,14 @@ export async function createCreationFromStudioProfile(args: {
             },
             data: {
               creativeDirectionSummary:
-                canonicalSnapshot.creativeDirectionSummary,
+                canonicalSnapshot
+                  .creativeDirectionSummary,
               masterPrompt:
-                canonicalSnapshot.masterPrompt,
+                canonicalSnapshot
+                  .masterPrompt,
               negativePrompt:
-                canonicalSnapshot.negativePrompt,
+                canonicalSnapshot
+                  .negativePrompt,
             },
           }),
         )
@@ -542,8 +654,8 @@ export async function createCreationFromStudioProfile(args: {
       },
     })
 
-  return asCreation(
-    await db.studioCreation.create({
+  const session =
+    await db.studioSession.create({
       data: {
         userId:
           args.userId,
@@ -554,19 +666,293 @@ export async function createCreationFromStudioProfile(args: {
           null,
         presetId:
           profile.presetId,
-        creativeOptions:
-          args.creativeOptions ??
-          {},
-        status:
-          "MASTER_PROMPT_READY",
-        creativeDirectionSummary:
-          profile.creativeDirectionSummary,
-        masterPrompt:
-          profile.masterPrompt,
-        negativePrompt:
-          profile.negativePrompt,
       },
-    }),
+    })
+
+  try {
+    return asCreation(
+      await db.studioCreation.create({
+        data: {
+          userId:
+            args.userId,
+          studioProfileId:
+            profile.id,
+          identityProfileId:
+            identityProfile?.id ??
+            null,
+          presetId:
+            profile.presetId,
+          sessionId:
+            session.id,
+          shotIndex:
+            0,
+          creativeOptions:
+            args.creativeOptions ??
+            {},
+          status:
+            "MASTER_PROMPT_READY",
+          creativeDirectionSummary:
+            profile
+              .creativeDirectionSummary,
+          masterPrompt:
+            profile.masterPrompt,
+          negativePrompt:
+            profile.negativePrompt,
+        },
+      }),
+    )
+  } catch (error) {
+    await db.studioSession.delete({
+      where: {
+        id:
+          session.id,
+        userId:
+          args.userId,
+      },
+    })
+    throw error
+  }
+}
+
+async function ensureStudioSessionForCreation(
+  creation: StudioCreationRecord,
+): Promise<string> {
+  if (creation.sessionId) {
+    return creation.sessionId
+  }
+
+  const session =
+    await db.studioSession.create({
+      data: {
+        userId:
+          creation.userId,
+        studioProfileId:
+          creation.studioProfileId ??
+          null,
+        identityProfileId:
+          creation.identityProfileId ??
+          null,
+        presetId:
+          creation.presetId ??
+          null,
+      },
+    })
+
+  await db.studioCreation.update({
+    where: {
+      id:
+        creation.id,
+      userId:
+        creation.userId,
+    },
+    data: {
+      sessionId:
+        session.id,
+      shotIndex:
+        creation.shotIndex ??
+        0,
+    },
+  })
+
+  return session.id
+}
+
+export async function continueStudioCreation(args: {
+  userId: string
+  sourceCreationId: string
+  intent: MiravaShotIntent
+  sourceResultIndex?: number
+}): Promise<StudioCreationRecord> {
+  const source =
+    await getStudioCreationForUser(
+      args.userId,
+      args.sourceCreationId,
+    )
+
+  if (
+    source.status !==
+      "COMPLETED" ||
+    !source.masterPrompt
+      ?.trim()
+  ) {
+    throw new StudioError(
+      "Cette séance doit être terminée avant de créer un nouveau cliché.",
+      "INVALID_STATE",
+    )
+  }
+
+  if (
+    await isMiravaDiscoveryResultLocked(
+      args.userId,
+      source.id,
+    )
+  ) {
+    throw new StudioError(
+      "Débloquez cette séance avant de la continuer.",
+      "PAYMENT_REQUIRED",
+    )
+  }
+
+  const sourceResults =
+    await getStudioAssets(
+      source.id,
+      "RESULT",
+    )
+
+  const sourceResultIndex =
+    args.sourceResultIndex ??
+    0
+
+  if (
+    !Number.isInteger(
+      sourceResultIndex,
+    ) ||
+    sourceResultIndex <
+      0 ||
+    sourceResultIndex >=
+      sourceResults.length
+  ) {
+    throw new StudioError(
+      "Le cliché de continuité est introuvable.",
+      "NOT_FOUND",
+    )
+  }
+
+  const sessionId =
+    await ensureStudioSessionForCreation(
+      source,
+    )
+
+  const latestShot =
+    await db.studioCreation.findFirst({
+      where: {
+        userId:
+          args.userId,
+        sessionId,
+      },
+      orderBy: {
+        shotIndex:
+          "desc",
+      },
+    })
+
+  const shotIndex =
+    Number(
+      latestShot
+        ?.shotIndex ??
+      0,
+    ) + 1
+
+  const parsedOptions =
+    miravaCreativeOptionsSchema
+      .strip()
+      .parse(
+        source.creativeOptions ??
+        {},
+      )
+
+  const {
+    seriesStrategy:
+      _seriesStrategy,
+    variationAxes:
+      _variationAxes,
+    ...baseOptions
+  } = parsedOptions
+
+  const sourceConsent =
+    await db.studioConsent.findUnique({
+      where: {
+        creationId:
+          source.id,
+        userId:
+          args.userId,
+      },
+    })
+
+  const continuation =
+    asCreation(
+      await db.studioCreation.create({
+        data: {
+          userId:
+            args.userId,
+          studioProfileId:
+            source.studioProfileId ??
+            null,
+          identityProfileId:
+            source.identityProfileId ??
+            null,
+          presetId:
+            source.presetId ??
+            null,
+          sessionId,
+          parentCreationId:
+            source.id,
+          shotIndex,
+          shotIntent:
+            args.intent,
+          sourceResultIndex,
+          creativeOptions: {
+            ...baseOptions,
+            seriesSize:
+              1,
+            referenceMode:
+              "faithful",
+          },
+          status:
+            "MASTER_PROMPT_READY",
+          creativeDirectionSummary:
+            source.creativeDirectionSummary,
+          masterPrompt:
+            source.masterPrompt,
+          negativePrompt:
+            source.negativePrompt,
+        },
+      }),
+    )
+
+  try {
+    if (sourceConsent) {
+      await db.studioConsent.create({
+        data: {
+          creationId:
+            continuation.id,
+          userId:
+            args.userId,
+          version:
+            sourceConsent.version,
+          ageConfirmed:
+            sourceConsent.ageConfirmed,
+          rightsConfirmed:
+            sourceConsent.rightsConfirmed,
+          privacyAccepted:
+            sourceConsent.privacyAccepted,
+          openaiDisclosureAccepted:
+            sourceConsent.openaiDisclosureAccepted,
+        },
+      })
+    }
+
+    await queueStudioGeneration({
+      userId:
+        args.userId,
+      creationId:
+        continuation.id,
+    })
+  } catch (error) {
+    await db.studioCreation.delete({
+      where: {
+        id:
+          continuation.id,
+        userId:
+          args.userId,
+      },
+    })
+    throw error
+  }
+
+  return getStudioCreationForUser(
+    args.userId,
+    continuation.id,
   )
 }
 
@@ -2154,6 +2540,36 @@ export function buildMiravaGenerationPrompt(
     .join("\n\n")
 }
 
+async function getMiravaContinuityResultAsset(
+  creation: StudioCreationRecord,
+): Promise<StudioAssetRecord | null> {
+  if (!creation.parentCreationId) return null
+
+  const parent =
+    await getStudioCreationForUser(
+      creation.userId,
+      creation.parentCreationId,
+    )
+
+  if (parent.status !== "COMPLETED") {
+    throw new StudioError(
+      "Le cliché source de cette séance n’est pas disponible.",
+      "INVALID_STATE",
+    )
+  }
+
+  const results =
+    await getStudioAssets(
+      parent.id,
+      "RESULT",
+    )
+
+  const index =
+    creation.sourceResultIndex ?? 0
+
+  return results[index] ?? null
+}
+
 async function generateStudioImage(
   creation: StudioCreationRecord,
   identityAssets: Array<
@@ -2173,26 +2589,38 @@ async function generateStudioImage(
     )
   }
 
-  assertNoArtisticReferenceInGenerationPayload({
-    assets: identityAssets,
-  })
   assertAtLeastOneValidatedIdentityImage(
     identityAssets,
   )
 
-  /*
-   * La première image reproduit le chemin qui fonctionne lors du test
-   * manuel : master prompt presque intact + trois références d’identité.
-   *
-   * Les images suivantes d’une série conservent le compilateur de
-   * variations, car elles doivent connaître les axes autorisés.
-   */
-  const isReferenceAnchor =
-    frameIndex === 0
+  const continuityAsset =
+    await getMiravaContinuityResultAsset(
+      creation,
+    )
 
-  const primaryPrompt =
+  assertNoArtisticReferenceInGenerationPayload({
+    assets: continuityAsset
+      ? [
+          continuityAsset,
+          ...identityAssets,
+        ]
+      : identityAssets,
+  })
+
+  const isContinuation =
+    Boolean(
+      continuityAsset &&
+      creation.parentCreationId &&
+      creation.shotIntent,
+    )
+
+  const isReferenceAnchor =
+    frameIndex === 0 &&
+    !isContinuation
+
+  const anchorPrompt =
     isReferenceAnchor
-      ? buildMiravaResolvedPrimaryGenerationPrompt(
+      ? buildMiravaPrimaryGenerationPrompt(
           creation,
         )
       : buildMiravaGenerationPrompt(
@@ -2201,8 +2629,26 @@ async function generateStudioImage(
           physicalTraits,
         )
 
+  const primaryPrompt =
+    isContinuation &&
+    creation.shotIntent
+      ? buildMiravaSessionContinuationPrompt({
+          masterPrompt:
+            creation.masterPrompt ?? "",
+          negativePrompt:
+            creation.negativePrompt ?? "",
+          intent:
+            creation.shotIntent,
+          shotIndex:
+            creation.shotIndex ?? 1,
+          hasContinuityImage:
+            true,
+        }).positivePrompt
+      : anchorPrompt
+
   const primaryIdentityAssets =
-    isReferenceAnchor
+    isReferenceAnchor ||
+    isContinuation
       ? selectMiravaPrimaryIdentityAssets(
           identityAssets,
         )
@@ -2217,7 +2663,12 @@ async function generateStudioImage(
     variant:
       | "parity-primary"
       | "series-primary"
+      | "continuity-primary"
+      | "official-safe-fallback"
       | "semantic-fallback",
+    continuityInput:
+      | StudioAssetRecord
+      | null,
   ): Promise<Buffer> => {
     const promptHash =
       createHash("sha256")
@@ -2228,14 +2679,21 @@ async function generateStudioImage(
     console.info(
       "[mirava-image-attempt]",
       JSON.stringify({
-        creationId: creation.id,
+        creationId:
+          creation.id,
         frameIndex,
+        shotIndex:
+          creation.shotIndex ?? 0,
+        shotIntent:
+          creation.shotIntent ?? null,
         variant,
         promptHash,
         promptLength:
           promptText.length,
         identityAssetCount:
           assets.length,
+        continuityAssetPresent:
+          Boolean(continuityInput),
         model:
           MIRAVA_IMAGE_MODEL,
       }),
@@ -2243,26 +2701,30 @@ async function generateStudioImage(
 
     const form = new FormData()
 
-    form.append(
-      "model",
-      MIRAVA_IMAGE_MODEL,
-    )
-    form.append(
-      "prompt",
-      promptText,
-    )
-    form.append(
-      "size",
-      "1024x1536",
-    )
-    form.append(
-      "quality",
-      "high",
-    )
-    form.append(
-      "output_format",
-      "png",
-    )
+    form.append("model", MIRAVA_IMAGE_MODEL)
+    form.append("prompt", promptText)
+    form.append("size", "1024x1536")
+    form.append("quality", "high")
+    form.append("output_format", "png")
+
+    if (continuityInput) {
+      const buffer =
+        await downloadAsset(
+          continuityInput,
+        )
+
+      form.append(
+        "image[]",
+        new Blob(
+          [new Uint8Array(buffer)],
+          {
+            type:
+              continuityInput.mimeType,
+          },
+        ),
+        `continuity-${continuityInput.id}.${extensionForMime(continuityInput.mimeType)}`,
+      )
+    }
 
     for (const asset of assets) {
       const buffer =
@@ -2271,11 +2733,7 @@ async function generateStudioImage(
       form.append(
         "image[]",
         new Blob(
-          [
-            new Uint8Array(
-              buffer,
-            ),
-          ],
+          [new Uint8Array(buffer)],
           {
             type:
               asset.mimeType,
@@ -2322,6 +2780,8 @@ async function generateStudioImage(
             promptText.length,
           identityAssetCount:
             assets.length,
+          continuityAssetPresent:
+            Boolean(continuityInput),
           body:
             providerBody.slice(
               0,
@@ -2401,9 +2861,12 @@ async function generateStudioImage(
     return await executeCall(
       primaryPrompt,
       primaryIdentityAssets,
-      isReferenceAnchor
-        ? "parity-primary"
-        : "series-primary",
+      isContinuation
+        ? "continuity-primary"
+        : isReferenceAnchor
+          ? "parity-primary"
+          : "series-primary",
+      continuityAsset,
     )
   } catch (error) {
     if (
@@ -2417,15 +2880,43 @@ async function generateStudioImage(
       throw error
     }
 
-    /*
-     * Un seul repli sémantique. La pose, l’architecture, le cadrage et
-     * la tenue restent issus du même master prompt. Seule la formulation
-     * potentiellement ambiguë est rendue plus neutre.
-     */
+    const officialBlueprint =
+      getMiravaOfficialUniverseBlueprint(
+        creation.presetId,
+      )
+
+    if (officialBlueprint) {
+      return await executeCall(
+        buildMiravaOfficialUniverseSafetyFallbackPrompt(
+          officialBlueprint,
+        ),
+        primaryIdentityAssets,
+        "official-safe-fallback",
+        null,
+      )
+    }
+
+    const fallbackBase =
+      isContinuation &&
+      creation.shotIntent
+        ? buildMiravaSessionContinuationPrompt({
+            masterPrompt:
+              creation.masterPrompt ?? "",
+            negativePrompt:
+              creation.negativePrompt ?? "",
+            intent:
+              creation.shotIntent,
+            shotIndex:
+              creation.shotIndex ?? 1,
+            hasContinuityImage:
+              false,
+          }).positivePrompt
+        : primaryPrompt
+
     const rewritten =
       complianceNeutralRewrite({
         positivePrompt:
-          primaryPrompt,
+          fallbackBase,
         negativeGuardrails:
           "",
         sceneProfile:
@@ -2447,6 +2938,7 @@ async function generateStudioImage(
       rewritten.positivePrompt,
       primaryIdentityAssets,
       "semantic-fallback",
+      null,
     )
   }
 }
@@ -2605,6 +3097,15 @@ async function processStudioJob(job: StudioJobRecord): Promise<void> {
         ? await db.studioProfile.update({ where: { id: existingProfile.id, userId: creation.userId }, data: { creativeDirectionSummary: extracted.creativeDirectionSummary, masterPrompt: extracted.masterPrompt, negativePrompt: extracted.negativePrompt } })
         : await db.studioProfile.create({ data: { userId: creation.userId, sourceCreationId: creation.id, name: profileName(), creativeDirectionSummary: extracted.creativeDirectionSummary, masterPrompt: extracted.masterPrompt, negativePrompt: extracted.negativePrompt } })
       const analysedCreation = asCreation(await db.studioCreation.update({ where: { id: creation.id }, data: { status: "MASTER_PROMPT_READY", studioProfileId: profile.id, creativeDirectionSummary: extracted.creativeDirectionSummary, masterPrompt: extracted.masterPrompt, negativePrompt: extracted.negativePrompt } }))
+      if (analysedCreation.sessionId) {
+        await db.studioSession.update({
+          where: { id: analysedCreation.sessionId },
+          data: {
+            studioProfileId: profile.id,
+            identityProfileId: analysedCreation.identityProfileId ?? null,
+          },
+        })
+      }
       await supabaseAdmin.storage.from(STUDIO_BUCKET).remove([reference.storagePath])
       await db.studioAsset.update({ where: { id: reference.id, creationId: creation.id }, data: { deletedAt: new Date().toISOString() } })
       await debitMiravaCreditReservation(creation.userId, creation.id, studioKey("studio-analysis-debit", creation.id))

@@ -38,6 +38,13 @@ describe("MIRAVA private creation engine", () => {
 
     expect(studioCreationPublic(creation)).toEqual({
       id: "creation-1",
+      studioProfileId: undefined,
+      presetId: undefined,
+      sessionId: null,
+      parentCreationId: null,
+      shotIndex: 0,
+      shotIntent: null,
+      sourceResultIndex: null,
       status: "IDENTITY_READY",
       failureKind: null,
       failureMessage: null,

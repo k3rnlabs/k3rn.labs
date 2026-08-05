@@ -75,15 +75,23 @@ const RELATIONS: Record<
   User: {
     dossiers: { table: "Dossier", fk: "ownerId", type: "hasMany" },
     studioCreations: { table: "StudioCreation", fk: "userId", type: "hasMany" },
+    studioSessions: { table: "StudioSession", fk: "userId", type: "hasMany" },
     studioProfiles: { table: "StudioProfile", fk: "userId", type: "hasMany" },
     studioIdentityProfile: { table: "StudioIdentityProfile", fk: "userId", type: "hasOne" },
   },
   StudioCreation: {
     user: { table: "User", fk: "userId", selfFk: "userId", type: "belongsTo" },
     dossier: { table: "Dossier", fk: "dossierId", selfFk: "dossierId", type: "belongsTo" },
+    session: { table: "StudioSession", fk: "sessionId", selfFk: "sessionId", type: "belongsTo" },
+    parentCreation: { table: "StudioCreation", fk: "parentCreationId", selfFk: "parentCreationId", type: "belongsTo" },
+    childCreations: { table: "StudioCreation", fk: "parentCreationId", type: "hasMany" },
     assets: { table: "StudioAsset", fk: "creationId", type: "hasMany" },
     jobs: { table: "StudioJob", fk: "creationId", type: "hasMany" },
     consent: { table: "StudioConsent", fk: "creationId", type: "hasOne" },
+  },
+  StudioSession: {
+    user: { table: "User", fk: "userId", selfFk: "userId", type: "belongsTo" },
+    creations: { table: "StudioCreation", fk: "sessionId", type: "hasMany" },
   },
   StudioProfile: {
     creations: { table: "StudioCreation", fk: "studioProfileId", type: "hasMany" },
@@ -108,6 +116,7 @@ const TABLES_WITH_UPDATED_AT = new Set([
   "PoleSession",
   "KaelSession",
   "StudioCreation",
+  "StudioSession",
   "StudioJob",
   "StudioCreditLot",
   "StudioCreditAllocation",
@@ -401,6 +410,7 @@ class DbClient {
   expertDocument = new DbModel("ExpertDocument")
   task = new DbModel("Task")
   studioCreation = new DbModel("StudioCreation")
+  studioSession = new DbModel("StudioSession")
   studioAsset = new DbModel("StudioAsset")
   studioConsent = new DbModel("StudioConsent")
   studioConsentEvent = new DbModel("StudioConsentEvent")

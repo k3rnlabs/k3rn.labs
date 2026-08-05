@@ -77,11 +77,75 @@ describe(
         )
 
         expect(fallbackSection).toContain(
-          "primaryPrompt",
+          "fallbackBase",
         )
 
         expect(fallbackSection).toContain(
           'negativeGuardrails:\n          ""',
+        )
+      },
+    )
+
+    it(
+      "uses a dedicated safe fallback for official MIRAVA universes",
+      () => {
+        expect(core).toContain(
+          "buildMiravaOfficialUniverseSafetyFallbackPrompt",
+        )
+
+        expect(core).toContain(
+          '"official-safe-fallback"',
+        )
+
+        const officialStart =
+          core.indexOf(
+            "const officialBlueprint =",
+          )
+
+        const genericStart =
+          core.indexOf(
+            "const fallbackBase =",
+            officialStart,
+          )
+
+        expect(
+          officialStart,
+        ).toBeGreaterThan(-1)
+
+        expect(
+          genericStart,
+        ).toBeGreaterThan(
+          officialStart,
+        )
+
+        const officialSection =
+          core.slice(
+            officialStart,
+            genericStart,
+          )
+
+        expect(
+          officialSection,
+        ).toContain(
+          "getMiravaOfficialUniverseBlueprint",
+        )
+
+        expect(
+          officialSection,
+        ).toContain(
+          "buildMiravaOfficialUniverseSafetyFallbackPrompt",
+        )
+
+        expect(
+          officialSection,
+        ).toContain(
+          '"official-safe-fallback"',
+        )
+
+        expect(
+          officialSection,
+        ).toContain(
+          "null",
         )
       },
     )

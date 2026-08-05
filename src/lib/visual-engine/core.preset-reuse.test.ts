@@ -9,6 +9,15 @@ const mocks = vi.hoisted(() => ({
     update: vi.fn(),
   },
   studioCreation: { create: vi.fn() },
+  studioSession: {
+    create:
+      vi.fn().mockResolvedValue({
+        id:
+          "session-1",
+      }),
+    delete:
+      vi.fn().mockResolvedValue(null),
+  },
   studioConsent: { create: vi.fn() },
 }))
 
@@ -17,6 +26,7 @@ vi.mock("@/lib/db", () => ({
     studioIdentityProfile: mocks.identityProfile,
     studioProfile: mocks.studioProfile,
     studioCreation: mocks.studioCreation,
+    studioSession: mocks.studioSession,
     studioConsent: mocks.studioConsent,
   },
 }))

@@ -596,4 +596,56 @@ describe("MIRAVA studio entry contracts", () => {
     },
   )
 
+  it("continues a completed creation as the same photographic session", () => {
+    expect(studio).toContain(
+      'type ShotIntent = "pose" | "framing" | "sub_location" | "candid"',
+    )
+    expect(studio).toContain(
+      "Continuer cette séance",
+    )
+    expect(studio).toContain(
+      "Même tenue · Même ambiance · Nouveau cliché",
+    )
+    expect(studio).toContain(
+      "/continue",
+    )
+    expect(studio).toContain(
+      "sourceResultIndex",
+    )
+    expect(studio).toContain(
+      "Autre pose",
+    )
+    expect(studio).toContain(
+      "Autre cadrage",
+    )
+    expect(studio).toContain(
+      "Autre coin du décor",
+    )
+    expect(studio).toContain(
+      "Moment spontané",
+    )
+    expect(studio).toContain(
+      "Créer une nouvelle séance depuis ce studio",
+    )
+  })
+
+
+
+  it(
+    "does not blame the customer when an official MIRAVA universe is refused",
+    () => {
+      expect(studio).toContain(
+        "Univers momentanément indisponible",
+      )
+
+      expect(studio).toContain(
+        "Cet univers MIRAVA n’a pas pu être produit correctement",
+      )
+
+      expect(studio).toContain(
+        "current.creation.presetId",
+      )
+    },
+  )
+
 })
