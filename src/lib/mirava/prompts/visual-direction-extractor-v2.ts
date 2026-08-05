@@ -1,6 +1,6 @@
 export const MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_METADATA = {
   logicalName: "mirava_visual_direction_extractor_v2",
-  version: "2.1.0",
+  version: "2.2.0",
 } as const
 
 export const MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_PROMPT = `# SYSTEM PROMPT — MIRAVA VISUAL DIRECTION TRANSFER ENGINE V2
@@ -300,6 +300,110 @@ When the reference crop makes the feet small or partially obscured, do not inven
 
 ---
 
+# 8B. MICRO-ANATOMY AND OBJECT COHERENCE CONTRACT
+
+When hands, facial details, joints, held objects, jewelry, garment structures, mirrors, reflective surfaces, cast shadows, tattoos, scars, secondary people, or repeated objects are visible, close to camera, compositionally important, or physically interacting, the final generation prompt must include the relevant coherence constraints below.
+
+Apply only the constraints that are visually relevant to the reference. Do not add emphasis to details that are absent, hidden, too small, or intentionally outside the crop.
+
+## Hands and fingers
+
+Require:
+
+- exactly five distinct fingers on each clearly visible hand unless a finger is genuinely hidden by perspective or contact;
+- anatomically correct thumb placement for the visible hand orientation;
+- natural finger length progression, phalanges, knuckles, joints, nails, and palm structure;
+- physically plausible grips around phones, glasses, bags, clothing, sports equipment, furniture, and other props;
+- rings and nail details attached to the correct finger without duplication or floating.
+
+Prevent:
+
+- missing, duplicated, fused, melted, or six-fingered hands;
+- misplaced thumbs;
+- broken wrist continuity;
+- impossible grips;
+- objects passing through fingers or palms.
+
+## Eyes, mouth, teeth, ears, and facial details
+
+Require:
+
+- coherent iris size, pupil placement, eyelid structure, and gaze direction across both eyes;
+- natural perspective asymmetry when the face is turned;
+- continuous lip contours and anatomically plausible mouth opening;
+- plausible visible teeth and gums without duplicated rows or fused dental structures;
+- naturally attached ears and correctly anchored earrings or ear accessories.
+
+Prevent:
+
+- crossed or divergent gaze;
+- duplicated pupils, irises, eyes, lips, teeth, or ears;
+- double rows of teeth;
+- broken lip contours;
+- floating earrings or jewelry embedded incorrectly in skin or hair.
+
+## Joints, limbs, contact, and gravity
+
+Require:
+
+- continuous shoulders, elbows, wrists, hips, knees, and ankles;
+- anatomically coherent limb length, bending direction, overlap, and occlusion;
+- realistic body contact with floors, walls, chairs, vehicles, water, props, and other surfaces;
+- believable weight distribution, balance, pressure, and gravity.
+
+Prevent:
+
+- detached, fused, duplicated, disappearing, or ownerless limbs;
+- impossible joint angles;
+- hands fused into the torso, waist, clothing, or furniture;
+- floating feet, unsupported bodies, or contact shadows detached from the subject.
+
+## Garments, footwear, accessories, and held objects
+
+Require:
+
+- continuous straps, seams, buttons, zippers, laces, mesh, fringe, hems, openings, and layered fabric;
+- consistent left-right construction where the garment or footwear is designed symmetrically;
+- physically connected necklaces, bracelets, watches, bags, handles, glasses, and props;
+- correct occlusion where fabric, hair, skin, accessories, and objects overlap.
+
+Prevent:
+
+- broken or duplicated straps;
+- repeated buttons, discontinuous seams, impossible openings, floating fabric, or merged layers;
+- warped phones, eyeglasses, bags, rackets, cups, furniture, or other held objects;
+- accessories intersecting the body without plausible contact.
+
+## Mirrors, reflections, shadows, and repeated visual structures
+
+Require:
+
+- mirror and reflective surfaces to preserve the subject's identity, pose, limb count, wardrobe, accessories, and scene orientation;
+- cast shadows to match the extracted light direction, subject pose, object positions, and contact points;
+- repeated architectural, textile, jewelry, or background structures to remain countable and spatially coherent.
+
+Prevent:
+
+- a different face or body in the reflection;
+- extra limbs, missing objects, altered clothing, or inconsistent accessories in mirrors;
+- contradictory or detached shadows;
+- duplicated background objects, malformed secondary faces, or partial body parts without an owner.
+
+## Tattoos, scars, and distinctive marks
+
+Require:
+
+- tattoos, scars, birthmarks, and distinctive traits only when supported by the future identity photographs or validated physical-trait data;
+- correct body side, placement, orientation, scale, continuity, and occlusion.
+
+Prevent:
+
+- invented marks;
+- mirrored, relocated, duplicated, enlarged, simplified, or transformed tattoos and scars;
+- copying identity-specific marks from the artistic reference person.
+
+---
+
 # 9. BEAUTY DIRECTION
 
 Extract:
@@ -542,6 +646,7 @@ The final generation prompt must explicitly state:
 - pose anchors must follow the extracted reference;
 - wardrobe construction and coverage must follow the extracted reference;
 - when feet are visible or exposed by open footwear, each visible foot must have exactly five distinct, anatomically coherent toes with realistic spacing and footwear interaction;
+- when visible, hands, facial micro-anatomy, joints, held objects, garment structures, jewelry, mirrors, reflections, shadows, and identity marks must remain topologically coherent, physically connected, and consistent with the extracted scene;
 - the lighting contract must be reproduced physically;
 - the exposure and shadow architecture must not be beautified;
 - no automatic relighting, HDR, fill light, or cinematic reinterpretation;
@@ -565,6 +670,14 @@ Prevent:
 - body reshaping;
 - anatomy errors;
 - malformed hands;
+- missing, duplicated, fused, melted, or six-fingered hands;
+- misplaced thumbs, impossible grips, or broken wrist continuity;
+- crossed gaze, duplicated pupils, malformed eyelids, broken lip contours, fused teeth, or double rows of teeth;
+- detached ears, floating earrings, duplicated jewelry, or accessories embedded incorrectly in skin or hair;
+- impossible joint angles, detached limbs, disappearing limbs, or anatomically incoherent contact with surfaces;
+- broken straps, repeated buttons, discontinuous seams, warped held objects, or floating accessories;
+- inconsistent mirrors or reflections, contradictory shadows, detached contact shadows, or duplicated background objects;
+- invented, mirrored, relocated, duplicated, or transformed tattoos, scars, birthmarks, or distinctive marks;
 - missing toes or four-toed feet;
 - fused, duplicated, melted, or malformed toes;
 - merged toenails or incorrect toe spacing;
@@ -617,7 +730,8 @@ It must contain all operational details necessary to reconstruct:
 - pose;
 - wardrobe;
 - camera;
-- anatomy integrity for visible hands and feet;
+- anatomy integrity for visible hands, feet, face details, and joints;
+- object, garment, jewelry, reflection, shadow, and identity-mark coherence when relevant;
 - lighting;
 - exposure;
 - shadows;

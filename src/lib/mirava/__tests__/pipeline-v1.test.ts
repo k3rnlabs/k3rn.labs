@@ -17,7 +17,7 @@ import {
 describe("MIRAVA Visual Direction Pipeline V1", () => {
   describe("0. Extractor anatomy contract", () => {
     it("propagates strict five-toe anatomy requirements for visible feet and open footwear", () => {
-      expect(MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_METADATA.version).toBe("2.1.0")
+      expect(MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_METADATA.version).toBe("2.2.0")
       expect(MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_PROMPT).toContain(
         "exactly five distinct toes on each visible foot",
       )
@@ -26,6 +26,21 @@ describe("MIRAVA Visual Direction Pipeline V1", () => {
       )
       expect(MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_PROMPT).toContain(
         "footwear straps that hide, remove, merge, or deform toe anatomy",
+      )
+    })
+
+    it("propagates micro-anatomy, object, reflection, shadow, and identity-mark coherence", () => {
+      expect(MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_PROMPT).toContain(
+        "exactly five distinct fingers on each clearly visible hand",
+      )
+      expect(MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_PROMPT).toContain(
+        "double rows of teeth",
+      )
+      expect(MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_PROMPT).toContain(
+        "mirror and reflective surfaces",
+      )
+      expect(MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_PROMPT).toContain(
+        "tattoos, scars, birthmarks, and distinctive traits only when supported",
       )
     })
   })
@@ -190,12 +205,36 @@ A vertical photograph of a model in a blazer.
         "invented tattoos",
       )
       expect(compiled.positivePrompt).toContain(
+        "MICRO-ANATOMY AND OBJECT COHERENCE",
+      )
+      expect(compiled.positivePrompt).toContain(
+        "exactly five distinct fingers",
+      )
+      expect(compiled.positivePrompt).toContain(
         "exactly five distinct toes",
+      )
+      expect(compiled.positivePrompt).toContain(
+        "Mirrors and reflective surfaces must preserve the same identity",
+      )
+      expect(compiled.positivePrompt).toContain(
+        "Tattoos, scars, birthmarks, and distinctive traits may appear only",
+      )
+      expect(compiled.negativeGuardrails).toContain(
+        "six-fingered hands",
+      )
+      expect(compiled.negativeGuardrails).toContain(
+        "double rows of teeth",
+      )
+      expect(compiled.negativeGuardrails).toContain(
+        "different reflected identity",
+      )
+      expect(compiled.negativeGuardrails).toContain(
+        "duplicated tattoos",
       )
       expect(compiled.negativeGuardrails).toContain(
         "four-toed feet",
       )
-      expect(compiled.metadata.compilerVersion).toBe("1.2.0")
+      expect(compiled.metadata.compilerVersion).toBe("1.3.0")
     })
   })
 
