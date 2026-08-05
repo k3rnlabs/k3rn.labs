@@ -24,7 +24,6 @@ export type MiravaOfficialUniverseBlueprint = {
 }
 
 const sharedNegativeGuardrails = [
-  "minor or youthful appearance",
   "identity drift",
   "face substitution",
   "body substitution",
@@ -465,6 +464,25 @@ export function renderMiravaOfficialUniverseMasterPrompt(
     "ANATOMY AND MATERIAL INTEGRITY — Preserve coherent hands, fingers, limbs, joints, footwear, jewelry, garment seams, reflections, props and architectural geometry. Maintain realistic contact, gravity, occlusion and fabric continuity.",
     `NEGATIVE GUARDRAILS — ${blueprint.negativeGuardrails}.`,
     "FINAL OUTPUT — Create one realistic premium vertical fashion photograph. The result must unmistakably belong to this published MIRAVA universe while keeping the uploaded model as the sole recognizable person.",
+  ].join("\n\n")
+}
+
+export function buildMiravaOfficialUniverseSafetyFallbackPrompt(
+  blueprint: MiravaOfficialUniverseBlueprint,
+): string {
+  return [
+    "Create one standard professional adult fashion campaign photograph.",
+    `OFFICIAL MIRAVA UNIVERSE — ${blueprint.name}`,
+    `BLUEPRINT_ID = ${blueprint.id}@${blueprint.version}`,
+    `CREATIVE DIRECTION — ${blueprint.creativeDirectionSummary}`,
+    "IDENTITY SOURCE — Use the uploaded identity photographs only to preserve the same adult model’s recognizable facial identity, natural age appearance, skin tone, hairline and anatomical proportions.",
+    `ENVIRONMENT — ${blueprint.environmentContract}`,
+    "WARDROBE — Use a fully opaque professional fashion outfit with a conventional neckline, complete torso coverage, realistic fabric weight, coherent seams and understated accessories appropriate to this universe.",
+    "POSE — Use a natural, balanced and composed standing, seated or walking posture with relaxed shoulders, coherent limbs and neutral professional fashion body language.",
+    `LIGHTING — ${blueprint.lightingContract}`,
+    `CAMERA AND COMPOSITION — ${blueprint.cameraContract}`,
+    `COLOR AND FINISH — ${blueprint.finishContract}`,
+    "OUTPUT — Produce one realistic premium vertical fashion photograph that preserves the official universe’s environment, light, palette and photographic character.",
   ].join("\n\n")
 }
 

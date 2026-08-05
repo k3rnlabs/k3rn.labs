@@ -9,6 +9,7 @@ import {
 import {
   MIRAVA_OFFICIAL_UNIVERSE_BLUEPRINTS,
   buildMiravaOfficialUniversePrimaryPrompt,
+  buildMiravaOfficialUniverseSafetyFallbackPrompt,
   getMiravaOfficialUniverseBlueprint,
   renderMiravaOfficialUniverseMasterPrompt,
 } from "./official-universe-blueprints"
@@ -157,5 +158,76 @@ describe(
         )
       },
     )
+
+    it(
+      "keeps official provider prompts free of age-risk negative vocabulary",
+      () => {
+        for (
+          const blueprint of
+          Object.values(
+            MIRAVA_OFFICIAL_UNIVERSE_BLUEPRINTS,
+          )
+        ) {
+          const prompt =
+            renderMiravaOfficialUniverseMasterPrompt(
+              blueprint,
+            ).toLowerCase()
+
+          expect(prompt).not.toContain(
+            "minor",
+          )
+
+          expect(prompt).not.toContain(
+            "youthful",
+          )
+        }
+      },
+    )
+
+    it(
+      "builds a fresh conservative fallback for official universes",
+      () => {
+        const blueprint =
+          MIRAVA_OFFICIAL_UNIVERSE_BLUEPRINTS[
+            "escapade-solaire"
+          ]
+
+        const prompt =
+          buildMiravaOfficialUniverseSafetyFallbackPrompt(
+            blueprint,
+          )
+
+        expect(prompt).toContain(
+          "fully opaque professional fashion outfit",
+        )
+
+        expect(prompt).toContain(
+          blueprint.environmentContract,
+        )
+
+        expect(prompt).toContain(
+          blueprint.lightingContract,
+        )
+
+        expect(
+          prompt.toLowerCase(),
+        ).not.toContain(
+          "negative guardrails",
+        )
+
+        expect(
+          prompt.toLowerCase(),
+        ).not.toContain(
+          "swimwear",
+        )
+
+        expect(
+          prompt.toLowerCase(),
+        ).not.toContain(
+          "minor",
+        )
+      },
+    )
+
   },
 )
