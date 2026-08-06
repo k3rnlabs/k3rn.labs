@@ -28,11 +28,43 @@ export async function POST(req: NextRequest) {
   }
 
   // ── One-time top-up ────────────────────────────────────────────────────────
-  if (event.type === "checkout.session.completed") {
-    const checkoutSession = event.data.object as Stripe.Checkout.Session
+  if (
+    event.type === "checkout.session.completed" ||
+    event.type === "checkout.session.async_payment_succeeded"
+  ) {
+    const checkoutSession =
+      event.data.object as Stripe.Checkout.Session
 
-    if (checkoutSession.payment_status !== "paid") {
-      return NextResponse.json({ received: true })
+    const isPaid =
+      checkoutSession.payment_status ===
+        "paid"
+
+    const isNoCostOrder =
+      checkoutSession.payment_status ===
+        "no_payment_required" &&
+      checkoutSession.mode ===
+        "payment" &&
+      checkoutSession.amount_total === 0
+
+    if (!isPaid && !isNoCostOrder) {
+      console.warn(
+        "[billing] checkout not fulfilled",
+        {
+          eventType: event.type,
+          sessionId:
+            checkoutSession.id,
+          mode:
+            checkoutSession.mode,
+          paymentStatus:
+            checkoutSession.payment_status,
+          amountTotal:
+            checkoutSession.amount_total,
+        },
+      )
+
+      return NextResponse.json({
+        received: true,
+      })
     }
 
     // Top-up one-shot (mode: payment)
@@ -154,7 +186,25 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({
             received: true,
           })
-        } catch {
+        } catch (error) {
+          console.error(
+            "[billing] MIRAVA Studio credit application failed",
+            {
+              eventType:
+                event.type,
+              sessionId:
+                checkoutSession.id,
+              userId,
+              offerId:
+                offer.id,
+              paymentStatus:
+                checkoutSession.payment_status,
+              amountTotal:
+                checkoutSession.amount_total,
+            },
+            error,
+          )
+
           return NextResponse.json(
             {
               error:
