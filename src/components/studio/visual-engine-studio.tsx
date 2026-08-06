@@ -3848,6 +3848,28 @@ function LibraryView({
   )
 }
 
+function localizedOfferName(
+  offer: Offer,
+  locale: Locale,
+): string {
+  const displayName =
+    offer.name.replace(
+      /\s+[—-]\s+\d+\s*$/,
+      "",
+    )
+
+  if (locale === "es") {
+    return displayName
+  }
+
+  return displayName
+    .replace(/^Recarga\b/, "Recharge")
+    .replace(/Esencia/g, "Essence")
+    .replace(/Casa/g, "Maison")
+    .replace(/Círculo/g, "Cercle")
+}
+
+
 function AccountView({
   locale,
   t,
@@ -4465,13 +4487,14 @@ function AccountView({
               </p>
 
               <p className="mt-3 font-jakarta text-xl font-semibold">
-                {currentPlan?.name.replace(
-                  /\s+[—-]\s+\d+\s*$/,
-                  "",
-                ) ??
-                  (locale === "fr"
+                {currentPlan
+                  ? localizedOfferName(
+                      currentPlan,
+                      locale,
+                    )
+                  : locale === "fr"
                     ? "Aucune formule active"
-                    : "Ningún plan activo")}
+                    : "Ningún plan activo"}
               </p>
 
               <p className="mirava-muted mt-2 text-xs leading-5">
@@ -4573,6 +4596,10 @@ function CreditPurchaseSheet({
     useState<CreditOfferKind>(initialKind)
   const [selectedOfferId, setSelectedOfferId] =
     useState<string | null>(null)
+  const offerScrollRef =
+    useRef<HTMLDivElement>(null)
+  const creditSheetContentRef =
+    useRef<HTMLDivElement>(null)
 
   const packs = account?.packs ?? []
   const plans = account?.plans ?? []
@@ -4599,6 +4626,15 @@ function CreditPurchaseSheet({
     }
 
     setActiveKind(initialKind)
+    setSelectedOfferId(null)
+
+    window.requestAnimationFrame(() => {
+      offerScrollRef.current?.scrollTo({
+        top: 0,
+        left: 0,
+        behavior: "auto",
+      })
+    })
   }, [initialKind, open])
 
   useEffect(() => {
@@ -4712,6 +4748,12 @@ function CreditPurchaseSheet({
         <DialogPrimitive.Overlay className="fixed inset-0 z-[90] bg-black/75 backdrop-blur-md" />
 
         <DialogPrimitive.Content
+          ref={creditSheetContentRef}
+          tabIndex={-1}
+          onOpenAutoFocus={(event) => {
+            event.preventDefault()
+            creditSheetContentRef.current?.focus()
+          }}
           onCloseAutoFocus={(event) => {
             event.preventDefault()
             onReturnFocus()
@@ -4788,20 +4830,17 @@ function CreditPurchaseSheet({
                       ? "Fermer"
                       : "Cerrar"
                   }
-                  className="absolute right-0 top-0 grid h-10 w-10 place-items-center rounded-full border border-white/12 bg-black/25 text-xl leading-none text-white/75 transition hover:bg-black/45 hover:text-white"
+                  className="absolute right-0 top-0 grid h-10 w-10 place-items-center rounded-full border border-white/12 bg-black/25 text-xl leading-none text-white/75 outline-none transition hover:bg-black/45 hover:text-white focus-visible:border-[#d7c39a]/70 focus-visible:ring-2 focus-visible:ring-[#d7c39a]/45 [-webkit-tap-highlight-color:transparent]"
                 >
                   ×
                 </button>
               </div>
 
               <div className="mt-5 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#d7c39a]">
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#c4a870] opacity-50" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-[#d7c39a]" />
-                </span>
+                <span className="inline-flex h-2 w-2 rounded-full bg-[#d7c39a]" />
                 {locale === "fr"
-                  ? "Chambre noire active"
-                  : "Cuarto oscuro activo"}
+                  ? "MIRAVA / CHAMBRE NOIRE"
+                  : "MIRAVA / CUARTO OSCURO"}
               </div>
 
               <DialogPrimitive.Title className="mt-3 max-w-xl font-jakarta text-[2rem] font-semibold leading-[1.02] tracking-[-0.055em] sm:text-[2.35rem]">
@@ -4857,8 +4896,11 @@ function CreditPurchaseSheet({
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-7">
-            <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/[0.035] p-1.5">
+          <div
+            ref={offerScrollRef}
+            className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-7"
+          >
+            <div className="sticky top-0 z-20 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-[#101110]/95 p-1.5 shadow-[0_12px_30px_rgba(0,0,0,0.34)] backdrop-blur-xl">
               {(
                 [
                   {
@@ -4876,14 +4918,21 @@ function CreditPurchaseSheet({
                 <button
                   key={tab.id}
                   type="button"
-                  onClick={() =>
+                  onClick={() => {
                     setActiveKind(tab.id)
-                  }
+                    setSelectedOfferId(null)
+
+                    offerScrollRef.current?.scrollTo({
+                      top: 0,
+                      left: 0,
+                      behavior: "auto",
+                    })
+                  }}
                   aria-pressed={
                     activeKind === tab.id
                   }
                   className={cn(
-                    "min-h-11 rounded-xl px-4 text-sm font-semibold transition",
+                    "min-h-11 rounded-xl px-4 text-sm font-semibold outline-none transition focus-visible:ring-2 focus-visible:ring-[#d7c39a]/55 [-webkit-tap-highlight-color:transparent]",
                     activeKind === tab.id
                       ? "bg-white text-[#101110] shadow-[0_10px_30px_rgba(0,0,0,0.25)]"
                       : "text-white/58 hover:text-white",
@@ -4922,9 +4971,9 @@ function CreditPurchaseSheet({
                           .replace(".", ",")
                       : null
                   const displayName =
-                    offer.name.replace(
-                      /\s+[—-]\s+\d+\s*$/,
-                      "",
+                    localizedOfferName(
+                      offer,
+                      locale,
                     )
                   const isSubscription = offer.kind === "subscription"
                   const accessibleOfferLabel = locale === "fr"
@@ -4943,7 +4992,7 @@ function CreditPurchaseSheet({
                       aria-pressed={selected}
                       aria-label={accessibleOfferLabel}
                       className={cn(
-                        "relative min-h-40 overflow-hidden rounded-[1.45rem] border p-4 text-left transition",
+                        "relative min-h-40 overflow-hidden rounded-[1.45rem] border p-4 text-left outline-none transition focus-visible:ring-2 focus-visible:ring-[#d7c39a]/55 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0b0a] [-webkit-tap-highlight-color:transparent]",
                         selected
                           ? "border-[#d7c39a]/80 bg-[#d7c39a]/10 shadow-[0_18px_55px_rgba(0,0,0,0.35)]"
                           : "border-white/10 bg-white/[0.035] hover:border-white/22 hover:bg-white/[0.055]",
@@ -5059,8 +5108,8 @@ function CreditPurchaseSheet({
                       ? `Ajouter ${selectedOffer.credits} crédits`
                       : `Añadir ${selectedOffer.credits} créditos`
                     : locale === "fr"
-                      ? `Choisir ${selectedOffer.name.replace(/\s+[—-]\s+\d+\s*$/, "")}`
-                      : `Elegir ${selectedOffer.name.replace(/\s+[—-]\s+\d+\s*$/, "")}`
+                      ? `Choisir ${localizedOfferName(selectedOffer, locale)}`
+                      : `Elegir ${localizedOfferName(selectedOffer, locale)}`
                 : locale === "fr"
                   ? "Choisir une offre"
                   : "Elegir una oferta"}

@@ -142,7 +142,7 @@ describe(
           'color1="#b49a68"',
         )
         expect(sheet).toContain(
-          "Chambre noire active",
+          "MIRAVA / CHAMBRE NOIRE",
         )
         expect(sheet).toContain(
           "Séance conservée",
@@ -171,6 +171,34 @@ describe(
         )
         expect(studio).toContain(
           "setHighlightedOfferId(null)",
+        )
+      },
+    )
+
+
+    it(
+      "resets purchase scrolling and keeps offer navigation visible",
+      () => {
+        expect(studio).toContain(
+          "const offerScrollRef =",
+        )
+        expect(studio).toContain(
+          "ref={offerScrollRef}",
+        )
+        expect(studio).toContain(
+          "offerScrollRef.current?.scrollTo({",
+        )
+        expect(studio).toContain(
+          '"sticky top-0 z-20 grid',
+        )
+        expect(studio).toContain(
+          "localizedOfferName(",
+        )
+        expect(studio).toContain(
+          '"MIRAVA / CHAMBRE NOIRE"',
+        )
+        expect(studio).toContain(
+          "onOpenAutoFocus={(event) => {",
         )
       },
     )
