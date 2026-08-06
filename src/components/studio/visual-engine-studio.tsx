@@ -45,6 +45,7 @@ import { BlurText } from "@/components/mirava/blur-text"
 import { enableMiravaPush, MiravaInstallButton } from "@/components/mirava/mirava-pwa"
 import { useMiravaLocale } from "@/components/mirava/mirava-locale"
 import { MiravaCreativeDirector } from "@/components/studio/mirava-creative-director"
+import { MiravaMakeupSelector } from "@/components/studio/mirava-makeup-selector"
 import { MiravaIdentityCapture, type MiravaIdentityConsent } from "@/components/studio/mirava-identity-capture"
 import { MiravaStudioOnboarding } from "@/components/studio/mirava-studio-onboarding"
 import { BottomNavBar, type BottomNavItem } from "@/components/ui/bottom-nav-bar"
@@ -2501,6 +2502,15 @@ function StartView({
   })[axis]) ?? []
 
   return (
+    <>
+      {step > 0 ? (
+        <MiravaMakeupSelector
+          locale={locale}
+          options={options}
+          setOptions={setOptions}
+        />
+      ) : null}
+
     <section className="mirava-onboarding mx-auto max-w-5xl pb-12 pt-5 sm:pt-9">
       <div className="mirava-onboarding-heading relative mb-8 max-w-3xl" data-step={`0${step + 1}`}>
         <p className="mirava-label">MIRAVA / {stageCopy[step].label}</p>
@@ -2633,6 +2643,7 @@ function StartView({
       )}
 
     </section>
+    </>
   )
 }
 

@@ -40,6 +40,7 @@ import {
   heuristicSceneClassification,
 } from "@/lib/mirava/pipeline/classify-scene-context"
 import { compileGenerationPrompt } from "@/lib/mirava/pipeline/compile-generation-prompt"
+import { applyMiravaMakeupDirection } from "@/lib/mirava/makeup"
 import { complianceNeutralRewrite } from "@/lib/mirava/pipeline/compliance-neutral-rewrite"
 import {
   buildMiravaCampaignSafeTransferPrompt,
@@ -2640,7 +2641,7 @@ async function generateStudioImage(
           physicalTraits,
         )
 
-  const primaryPrompt =
+  const scenePrimaryPrompt =
     isContinuation &&
     creation.shotIntent
       ? buildMiravaSessionContinuationPrompt({
@@ -2656,6 +2657,12 @@ async function generateStudioImage(
             true,
         }).positivePrompt
       : anchorPrompt
+
+  const primaryPrompt =
+    applyMiravaMakeupDirection(
+      scenePrimaryPrompt,
+      creation.creativeOptions,
+    )
 
   const campaignRisk =
     detectMiravaCampaignRisk(

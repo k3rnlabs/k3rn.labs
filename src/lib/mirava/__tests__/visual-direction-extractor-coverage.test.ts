@@ -16,7 +16,7 @@ describe(
       () => {
         expect(
           MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_METADATA.version,
-        ).toBe("2.4.0")
+        ).toBe("2.5.0")
 
         expect(
           MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_PROMPT,

@@ -1,6 +1,6 @@
 export const MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_METADATA = {
   logicalName: "mirava_visual_direction_extractor_v2",
-  version: "2.4.0",
+  version: "2.5.0",
 } as const
 
 export const MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_PROMPT = `# SYSTEM PROMPT — MIRAVA VISUAL DIRECTION TRANSFER ENGINE V2
@@ -411,6 +411,35 @@ Prevent:
 ---
 
 # 9. BEAUTY DIRECTION
+
+## 9A. MAKEUP TRANSFER CONTRACT
+
+Makeup is a reusable cosmetic direction, not part of identity.
+
+Inspect the artistic reference and explicitly encode the visible cosmetic construction in the final base generation prompt. Describe, when discernible:
+
+- whether visible makeup is present;
+- complexion coverage level;
+- complexion finish: natural, matte, satin, luminous or glossy;
+- brow grooming, density and definition;
+- eyeshadow color family, placement, blend and intensity;
+- eyeliner shape, thickness and direction;
+- lash definition and believable volume;
+- blush placement and color family;
+- contour and highlight strength;
+- lip color family, edge definition and finish;
+- overall cosmetic intensity and photographic purpose.
+
+When visible reference makeup exists, include a clearly labeled "MAKEUP REFERENCE DIRECTION" paragraph in the base generation prompt.
+
+When makeup is absent, negligible or cannot be determined reliably, include exactly:
+
+"REFERENCE MAKEUP: NONE OR NOT DISCERNIBLE"
+
+Never infer facial anatomy from makeup. Never transfer the artistic reference person's eye shape, brow anatomy, nose shape, lip anatomy, facial proportions, skin identity or distinctive traits. Transfer only the cosmetic application logic onto the separately supplied consenting adult identity.
+
+The final prompt must require realistic skin texture beneath makeup and must prevent mask-like foundation, plastic skin, identity-changing contour, extreme lip overlining, malformed eyeliner or implausible lashes.
+
 
 Extract:
 
