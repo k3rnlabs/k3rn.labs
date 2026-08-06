@@ -42,8 +42,12 @@ export async function POST(req: NextRequest) {
     const isNoCostOrder =
       checkoutSession.payment_status ===
         "no_payment_required" &&
-      checkoutSession.mode ===
-        "payment" &&
+      (
+        checkoutSession.mode ===
+          "payment" ||
+        checkoutSession.mode ===
+          "subscription"
+      ) &&
       checkoutSession.amount_total === 0
 
     if (!isPaid && !isNoCostOrder) {
@@ -228,7 +232,208 @@ export async function POST(req: NextRequest) {
       console.log(`[billing] +${pack.credits} top-up missions → user ${userId} (pack: ${packId})`)
     }
 
-    // Subscription checkout — l'activation est gérée par customer.subscription.created
+    // Fallback déterministe pour les abonnements Checkout.
+    // Le même lot reste idempotent si customer.subscription.created
+    // ou invoice.paid arrive ensuite.
+    if (
+      checkoutSession.mode ===
+        "subscription" &&
+      checkoutSession.metadata
+        ?.product ===
+        MIRAVA_STRIPE_PRODUCT
+    ) {
+      const subscriptionId =
+        typeof checkoutSession
+          .subscription === "string"
+          ? checkoutSession
+              .subscription
+          : checkoutSession
+              .subscription
+              ?.id
+
+      if (!subscriptionId) {
+        console.error(
+          "[billing] MIRAVA subscription Checkout missing subscription",
+          {
+            eventType:
+              event.type,
+            sessionId:
+              checkoutSession.id,
+            metadata:
+              checkoutSession.metadata,
+          },
+        )
+
+        return NextResponse.json(
+          {
+            error:
+              "Missing MIRAVA subscription",
+          },
+          {
+            status: 400,
+          },
+        )
+      }
+
+      try {
+        const subscription =
+          await getStripe()
+            .subscriptions
+            .retrieve(
+              subscriptionId,
+            )
+
+        const userId =
+          checkoutSession.metadata
+            ?.userId ??
+          subscription.metadata
+            ?.userId
+
+        if (!userId) {
+          console.error(
+            "[billing] MIRAVA subscription Checkout missing userId",
+            {
+              eventType:
+                event.type,
+              sessionId:
+                checkoutSession.id,
+              subscriptionId,
+            },
+          )
+
+          return NextResponse.json(
+            {
+              error:
+                "Missing MIRAVA user",
+            },
+            {
+              status: 400,
+            },
+          )
+        }
+
+        const item =
+          subscription
+            .items
+            .data[0] as
+              Stripe.SubscriptionItem & {
+                current_period_start?: number
+                current_period_end?: number
+              }
+
+        const plan =
+          getMiravaPlanByPriceId(
+            item?.price?.id,
+          )
+
+        await recordMiravaSubscription({
+          userId,
+          stripeCustomerId:
+            typeof subscription
+              .customer === "string"
+              ? subscription
+                  .customer
+              : subscription
+                  .customer
+                  .id,
+          stripeSubscriptionId:
+            subscription.id,
+          planId:
+            plan?.id ?? null,
+          status:
+            subscription.status,
+          currentPeriodStart:
+            item
+              ?.current_period_start
+              ? new Date(
+                  item.current_period_start *
+                    1000,
+                ).toISOString()
+              : null,
+          currentPeriodEnd:
+            item
+              ?.current_period_end
+              ? new Date(
+                  item.current_period_end *
+                    1000,
+                ).toISOString()
+              : null,
+          cancelAtPeriodEnd:
+            subscription
+              .cancel_at_period_end,
+        })
+
+        await supabaseAdmin
+          .from("User")
+          .update({
+            stripeCustomerId:
+              typeof subscription
+                .customer === "string"
+                ? subscription
+                    .customer
+                : subscription
+                    .customer
+                    .id,
+          })
+          .eq(
+            "id",
+            userId,
+          )
+
+        console.log(
+          "[billing] MIRAVA subscription fulfilled from Checkout",
+          {
+            eventType:
+              event.type,
+            sessionId:
+              checkoutSession.id,
+            subscriptionId:
+              subscription.id,
+            userId,
+            planId:
+              plan?.id ?? null,
+            paymentStatus:
+              checkoutSession
+                .payment_status,
+            amountTotal:
+              checkoutSession
+                .amount_total,
+          },
+        )
+
+        return NextResponse.json({
+          received: true,
+        })
+      } catch (error) {
+        console.error(
+          "[billing] MIRAVA subscription Checkout fulfillment failed",
+          {
+            eventType:
+              event.type,
+            sessionId:
+              checkoutSession.id,
+            subscriptionId,
+            paymentStatus:
+              checkoutSession
+                .payment_status,
+            amountTotal:
+              checkoutSession
+                .amount_total,
+          },
+          error,
+        )
+
+        return NextResponse.json(
+          {
+            error:
+              "MIRAVA subscription fulfillment failed",
+          },
+          {
+            status: 500,
+          },
+        )
+      }
+    }
   }
 
   // ── Subscription created / activated ──────────────────────────────────────

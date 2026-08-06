@@ -41,6 +41,24 @@ describe(
     )
 
     it(
+      "fulfills a zero-cost MIRAVA subscription directly from Checkout",
+      () => {
+        expect(route).toContain(
+          'checkoutSession.mode ===\n          "subscription"',
+        )
+        expect(route).toContain(
+          "subscriptions\n            .retrieve(",
+        )
+        expect(route).toContain(
+          "recordMiravaSubscription({",
+        )
+        expect(route).toContain(
+          "[billing] MIRAVA subscription fulfilled from Checkout",
+        )
+      },
+    )
+
+    it(
       "keeps MIRAVA fulfillment idempotent by Checkout Session",
       () => {
         expect(route).toContain(
