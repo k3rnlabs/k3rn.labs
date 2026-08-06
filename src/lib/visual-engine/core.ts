@@ -2,7 +2,11 @@ import { createHash, randomUUID } from "crypto"
 import sharp from "sharp"
 import { db } from "@/lib/db"
 import { supabaseAdmin } from "@/lib/supabase-admin"
-import { MIRAVA_ANALYSIS_MODEL, MIRAVA_IMAGE_MODEL } from "@/lib/mirava/server-config"
+import {
+  MIRAVA_ANALYSIS_FALLBACK_MODEL,
+  MIRAVA_ANALYSIS_MODEL,
+  MIRAVA_IMAGE_MODEL,
+} from "@/lib/mirava/server-config"
 import { MIRAVA_STRIPE_PRODUCT, getMiravaStudioPreset, type MiravaStudioPresetId } from "@/lib/mirava/brand"
 import { formatMiravaCreativeOptions, miravaCreativeOptionsSchema, type MiravaCreativeOptions } from "@/lib/mirava/creative-options"
 import {
@@ -2060,6 +2064,7 @@ function isProviderTimeout(
 
 async function extractMasterPrompt(
   reference: StudioAssetRecord,
+  jobAttempt = 1,
 ): Promise<{
   creativeDirectionSummary: string
   masterPrompt: string
@@ -2075,6 +2080,18 @@ async function extractMasterPrompt(
     )
   }
 
+  const analysisModel =
+    jobAttempt > 1
+      ? MIRAVA_ANALYSIS_FALLBACK_MODEL
+      : MIRAVA_ANALYSIS_MODEL
+
+  const analysisTokenBudget =
+    jobAttempt >= 3
+      ? 9000
+      : jobAttempt === 2
+        ? 7000
+        : 6000
+
   const referenceBuffer =
     await downloadAsset(reference)
 
@@ -2089,7 +2106,12 @@ async function extractMasterPrompt(
       referenceAssetId:
         reference.id,
       model:
-        MIRAVA_ANALYSIS_MODEL,
+        analysisModel,
+      jobAttempt,
+      maxCompletionTokens:
+        analysisTokenBudget,
+      reasoningEffort:
+        "low",
       timeoutMs:
         MIRAVA_ANALYSIS_TIMEOUT_MS,
       extractorVersion:
@@ -2112,10 +2134,12 @@ async function extractMasterPrompt(
         },
         body: JSON.stringify({
           model:
-            MIRAVA_ANALYSIS_MODEL,
+            analysisModel,
           store: false,
           max_completion_tokens:
-            2800,
+            analysisTokenBudget,
+          reasoning_effort:
+            "low",
           messages: [
             {
               role: "system",
@@ -2163,7 +2187,7 @@ async function extractMasterPrompt(
         referenceAssetId:
           reference.id,
         model:
-          MIRAVA_ANALYSIS_MODEL,
+          analysisModel,
         durationMs,
         name:
           providerExceptionName(error),
@@ -2227,7 +2251,7 @@ async function extractMasterPrompt(
         referenceAssetId:
           reference.id,
         model:
-          MIRAVA_ANALYSIS_MODEL,
+          analysisModel,
         status:
           response.status,
         providerCode,
@@ -2268,21 +2292,119 @@ async function extractMasterPrompt(
 
   const data =
     await response.json() as {
+      id?: string
+      model?: string
       choices?: Array<{
+        finish_reason?: string | null
         message?: {
-          content?: string
+          content?:
+            | string
+            | Array<{
+                type?: string
+                text?: string
+              }>
+            | null
+          refusal?: string | null
         }
       }>
+      usage?: {
+        completion_tokens?: number
+        completion_tokens_details?: {
+          reasoning_tokens?: number
+        }
+      }
     }
 
+  const choice =
+    data.choices?.[0]
+
+  const rawContent =
+    choice?.message?.content
+
   const content =
-    data.choices?.[0]?.message?.content
+    typeof rawContent === "string"
+      ? rawContent.trim()
+      : Array.isArray(rawContent)
+        ? rawContent
+            .map(
+              (part) =>
+                typeof part?.text ===
+                  "string"
+                  ? part.text
+                  : "",
+            )
+            .join("")
+            .trim()
+        : ""
+
+  const refusal =
+    choice?.message?.refusal?.trim() ??
+    ""
+
+  const finishReason =
+    choice?.finish_reason ?? null
+
+  const responseDiagnostics = {
+    creationId:
+      reference.creationId,
+    referenceAssetId:
+      reference.id,
+    requestId:
+      response.headers.get(
+        "x-request-id",
+      ),
+    responseId:
+      data.id ?? null,
+    requestedModel:
+      analysisModel,
+    responseModel:
+      data.model ?? null,
+    jobAttempt,
+    finishReason,
+    completionTokens:
+      data.usage
+        ?.completion_tokens ?? null,
+    reasoningTokens:
+      data.usage
+        ?.completion_tokens_details
+        ?.reasoning_tokens ?? null,
+    refusalPresent:
+      Boolean(refusal),
+    contentLength:
+      content.length,
+    durationMs,
+  }
+
+  if (refusal) {
+    console.error(
+      "[mirava-analysis-refusal]",
+      JSON.stringify(
+        responseDiagnostics,
+      ),
+    )
+
+    throw new StudioError(
+      "La référence n’a pas été autorisée pour l’analyse.",
+      "SAFETY_REFUSAL",
+    )
+  }
 
   if (!content) {
+    console.error(
+      "[mirava-analysis-empty-response]",
+      JSON.stringify(
+        responseDiagnostics,
+      ),
+    )
+
     throw new StudioError(
-      "L’analyse artistique est incomplète.",
-      "INVALID_PROVIDER_RESPONSE",
-      true,
+      finishReason === "length"
+        ? "L’analyse artistique a atteint sa limite de sortie."
+        : "L’analyse artistique est incomplète.",
+      finishReason === "length"
+        ? "ANALYSIS_OUTPUT_LIMIT"
+        : "INVALID_PROVIDER_RESPONSE",
+      jobAttempt < 3,
     )
   }
 
@@ -2294,7 +2416,7 @@ async function extractMasterPrompt(
       referenceAssetId:
         reference.id,
       model:
-        MIRAVA_ANALYSIS_MODEL,
+        analysisModel,
       durationMs,
       contentLength:
         content.length,
@@ -2330,7 +2452,7 @@ async function extractMasterPrompt(
           classifierVersion:
             MIRAVA_SCENE_CONTEXT_CLASSIFIER_V1_METADATA.version,
           model:
-            MIRAVA_ANALYSIS_MODEL,
+            analysisModel,
           createdAt:
             new Date().toISOString(),
           referenceAssetId:
@@ -3226,7 +3348,11 @@ async function processStudioJob(job: StudioJobRecord): Promise<void> {
       await db.studioCreation.update({ where: { id: creation.id }, data: { status: "ANALYSING" } })
       const reference = (await getStudioAssets(creation.id, "REFERENCE"))[0]
       if (!reference) throw new StudioError("Photo de référence introuvable.", "REFERENCE_REQUIRED")
-      const extracted = await extractMasterPrompt(reference)
+      const extracted =
+        await extractMasterPrompt(
+          reference,
+          job.attempts + 1,
+        )
       const existingProfile = await db.studioProfile.findUnique({ where: { sourceCreationId: creation.id, userId: creation.userId } })
       const profile = existingProfile
         ? await db.studioProfile.update({ where: { id: existingProfile.id, userId: creation.userId }, data: { creativeDirectionSummary: extracted.creativeDirectionSummary, masterPrompt: extracted.masterPrompt, negativePrompt: extracted.negativePrompt } })

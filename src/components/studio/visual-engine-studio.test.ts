@@ -124,6 +124,18 @@ describe("MIRAVA studio entry contracts", () => {
     expect(studio).toContain('quelle image vous inspire ?')
   })
 
+  it("keeps technical failure recovery copy in the active client locale", () => {
+    expect(studio).toContain(
+      "Un problema técnico interrumpió esta sesión.",
+    )
+    expect(studio).toContain(
+      'current.creation.failureKind ===\n                "TECHNICAL_ERROR"',
+    )
+    expect(studio).not.toContain(
+      ': current.creation.failureMessage ??\n                "Este intento ha terminado',
+    )
+  })
+
   it("keeps mobile navigation to the three product destinations", () => {
     const mobileNavigation = studio.slice(studio.indexOf("const bottomNavItems"), studio.indexOf("const isCreateFlow"))
     expect(mobileNavigation).toContain('{ id: "create", label: t.create')

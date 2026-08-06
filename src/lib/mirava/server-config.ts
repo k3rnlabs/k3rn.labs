@@ -1,4 +1,5 @@
 export const MIRAVA_ANALYSIS_MODEL = process.env.MIRAVA_ANALYSIS_MODEL ?? "gpt-5.6-sol"
+export const MIRAVA_ANALYSIS_FALLBACK_MODEL = process.env.MIRAVA_ANALYSIS_FALLBACK_MODEL ?? "gpt-5-mini"
 // Alma only needs concise bilingual direction and validated JSON actions. Keep the
 // image-analysis model separate from this low-latency, cost-sensitive interaction.
 export const MIRAVA_CREATIVE_DIRECTOR_MODEL = process.env.MIRAVA_CREATIVE_DIRECTOR_MODEL ?? "gpt-5-mini"

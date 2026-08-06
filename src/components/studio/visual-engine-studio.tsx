@@ -3120,11 +3120,16 @@ function CreationView({
             ? locale === "fr"
               ? "Le moteur d’image n’a pas terminé votre création dans le délai prévu. Votre crédit a été restauré. Vous pouvez relancer la séance sans importer à nouveau vos photos d’identité."
               : "El motor de imágenes no terminó tu creación dentro del tiempo previsto. Tu crédito ha sido restaurado. Puedes reiniciar la sesión sin volver a subir tus fotos de identidad."
-            : locale === "fr"
-              ? current.creation.failureMessage ??
-                "Cette tentative est terminée et aucune image n’a été ajoutée à votre portfolio. Lancez une nouvelle séance ou supprimez cette tentative."
-              : current.creation.failureMessage ??
-                "Este intento ha terminado y no se ha añadido ninguna imagen a tu portfolio. Inicia una nueva sesión o elimina este intento."
+            : current.creation.failureKind ===
+                "TECHNICAL_ERROR"
+              ? locale === "fr"
+                ? current.creation.failureMessage ??
+                  "Un problème technique a interrompu cette séance. Votre crédit a été restauré lorsque nécessaire. Vous pouvez relancer sans perdre votre Profil identité."
+                : "Un problema técnico interrumpió esta sesión. Tu crédito se restauró cuando fue necesario. Puedes volver a intentarlo sin perder tu Perfil de identidad."
+              : locale === "fr"
+                ? current.creation.failureMessage ??
+                  "Cette tentative est terminée et aucune image n’a été ajoutée à votre portfolio. Lancez une nouvelle séance ou supprimez cette tentative."
+                : "Este intento ha terminado y no se ha añadido ninguna imagen a tu portfolio. Inicia una nueva sesión o elimina este intento."
 
   if (status === "FAILED" || status === "CANCELLED") {
     return (
