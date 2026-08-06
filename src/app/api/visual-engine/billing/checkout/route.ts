@@ -296,6 +296,8 @@ export async function POST(
               : "payment",
           billing_address_collection:
             "auto",
+          allow_promotion_codes:
+            true,
           line_items: [
             {
               price:

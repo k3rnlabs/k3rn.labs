@@ -97,6 +97,12 @@ describe("MIRAVA subscription checkout guard", () => {
       "automatic_tax",
     )
     expect(
+      checkoutParameters,
+    ).toHaveProperty(
+      "allow_promotion_codes",
+      true,
+    )
+    expect(
       checkoutParameters.success_url,
     ).toBe(
       "https://mirava.test/visual-engine/studio?view=create&checkout=success",
