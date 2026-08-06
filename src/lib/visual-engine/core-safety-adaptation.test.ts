@@ -16,10 +16,13 @@ describe(
   "MIRAVA generation safety adaptation contracts",
   () => {
     it(
-      "keeps the first provider attempt free of preventive coverage rewriting",
+      "adapts high-risk lingerie directions before the first provider call",
       () => {
-        expect(core).not.toContain(
-          'import { adaptMiravaCoverageForGeneration } from "@/lib/mirava/pipeline/coverage-safety-adaptation"',
+        expect(core).toContain(
+          "detectMiravaCampaignRisk",
+        )
+        expect(core).toContain(
+          "buildMiravaCampaignSafeTransferPrompt",
         )
 
         const primaryStart =
@@ -39,18 +42,79 @@ describe(
             executeStart,
           )
 
-        expect(primarySection).not.toContain(
-          "adaptMiravaCoverageForGeneration",
+        expect(primarySection).toContain(
+          "const campaignRisk",
+        )
+        expect(primarySection).toContain(
+          "const resolvedPrimaryPrompt",
+        )
+        expect(primarySection).toContain(
+          "requiresCampaignSafeTransfer",
+        )
+        expect(primarySection).toContain(
+          "buildMiravaCampaignSafeTransferPrompt",
         )
       },
     )
 
     it(
-      "keeps one conservative semantic retry after a safety refusal",
+      "uses campaign-safe variants and a fresh conservative retry",
+      () => {
+        expect(core).toContain(
+          '"campaign-safe-primary"',
+        )
+        expect(core).toContain(
+          '"campaign-safe-fallback"',
+        )
+        expect(core).toContain(
+          'buildMiravaCampaignSafeTransferPrompt(\n          primaryPrompt,\n          "conservative"',
+        )
+
+        const campaignFallbackStart =
+          core.indexOf(
+            "if (\n      campaignRisk.requiresCampaignSafeTransfer",
+          )
+
+        const genericFallbackStart =
+          core.indexOf(
+            "const fallbackBase =",
+            campaignFallbackStart,
+          )
+
+        expect(
+          campaignFallbackStart,
+        ).toBeGreaterThan(-1)
+        expect(
+          genericFallbackStart,
+        ).toBeGreaterThan(
+          campaignFallbackStart,
+        )
+
+        const campaignFallbackSection =
+          core.slice(
+            campaignFallbackStart,
+            genericFallbackStart,
+          )
+
+        expect(
+          campaignFallbackSection,
+        ).not.toContain(
+          "fallbackBase",
+        )
+        expect(
+          campaignFallbackSection,
+        ).not.toContain(
+          "complianceNeutralRewrite",
+        )
+      },
+    )
+
+    it(
+      "keeps one conservative semantic retry for non-campaign refusals",
       () => {
         const fallbackStart =
           core.indexOf(
-            "const rewritten =",
+            "const fallbackBase =",
           )
 
         const fallbackEnd =
@@ -75,13 +139,8 @@ describe(
         expect(fallbackSection).toContain(
           "complianceNeutralRewrite({",
         )
-
         expect(fallbackSection).toContain(
           "fallbackBase",
-        )
-
-        expect(fallbackSection).toContain(
-          'negativeGuardrails:\n          ""',
         )
       },
     )
@@ -96,56 +155,20 @@ describe(
         expect(core).toContain(
           '"official-safe-fallback"',
         )
+      },
+    )
 
-        const officialStart =
-          core.indexOf(
-            "const officialBlueprint =",
-          )
-
-        const genericStart =
-          core.indexOf(
-            "const fallbackBase =",
-            officialStart,
-          )
-
-        expect(
-          officialStart,
-        ).toBeGreaterThan(-1)
-
-        expect(
-          genericStart,
-        ).toBeGreaterThan(
-          officialStart,
+    it(
+      "logs campaign risk metadata without exposing prompt contents",
+      () => {
+        expect(core).toContain(
+          "campaignSafeTransfer:",
         )
-
-        const officialSection =
-          core.slice(
-            officialStart,
-            genericStart,
-          )
-
-        expect(
-          officialSection,
-        ).toContain(
-          "getMiravaOfficialUniverseBlueprint",
+        expect(core).toContain(
+          "campaignRiskScore:",
         )
-
-        expect(
-          officialSection,
-        ).toContain(
-          "buildMiravaOfficialUniverseSafetyFallbackPrompt",
-        )
-
-        expect(
-          officialSection,
-        ).toContain(
-          '"official-safe-fallback"',
-        )
-
-        expect(
-          officialSection,
-        ).toContain(
-          "null",
+        expect(core).toContain(
+          "campaignRiskReasons:",
         )
       },
     )
@@ -185,7 +208,7 @@ describe(
         )
 
         expect(core).toContain(
-          'const retryable =',
+          "const retryable =",
         )
       },
     )

@@ -1,6 +1,6 @@
 export const MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_METADATA = {
   logicalName: "mirava_visual_direction_extractor_v2",
-  version: "2.3.0",
+  version: "2.4.0",
 } as const
 
 export const MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_PROMPT = `# SYSTEM PROMPT — MIRAVA VISUAL DIRECTION TRANSFER ENGINE V2
@@ -48,13 +48,19 @@ Technical improvement must NOT change:
 - emotional tone;
 - photographic genre.
 
-A different mode may only be used when the user explicitly requests it:
+A different user-selected mode may be used when the user explicitly requests it:
 
 TRANSFER_MODE = POLISHED
 
 In POLISHED mode, technical and editorial refinement is allowed, but the original lighting architecture, composition, wardrobe, pose, and visual narrative must remain recognizable.
 
 Never silently switch from FIDELITY to POLISHED.
+
+The engine may automatically use:
+
+TRANSFER_MODE = CAMPAIGN_SAFE_TRANSFER
+
+only when the coverage-safe adaptation contract in section 13A is triggered. This is a safety-preserving reconstruction mode, not a beautification mode. It may replace sexualized pose, crop, gesture, visual hierarchy, transparency, and minimal garment construction while preserving the reusable environment, lighting, palette, lens character, and photographic finish.
 
 ---
 
@@ -634,37 +640,66 @@ If a reference involving a recognizable third party creates ambiguity, extract o
 
 ---
 
-# 13A. COVERAGE-SAFE ADAPTATION CONTRACT
+# 13A. CAMPAIGN-SAFE TRANSFER CONTRACT
 
-The artistic reference may contain a valid photographic direction while also containing a degree of exposure or garment construction that should not be reproduced in the future identity-generation session.
+The artistic reference may contain a valid commercial photographic direction while also containing visual construction that should not be reproduced in the future identity-generation session.
 
-When the reference includes one or more of the following:
+Automatically use:
 
-- visible intimate anatomy;
-- exposed seat or visible seat cleavage;
-- a robe, dress, skirt, towel, or other garment lifted, pulled up, or opened around the pelvis;
-- transparent or semi-transparent fabric over intimate regions;
-- a pose or crop whose primary visual emphasis is intimate exposure;
-- boudoir, erotic, seductive, or explicitly sexual framing;
+TRANSFER_MODE = CAMPAIGN_SAFE_TRANSFER
 
-preserve the reusable photographic direction, but adapt the wardrobe construction and coverage before writing the final generation prompt.
+when the reference or extracted direction contains one or more high-risk signals, especially when several are combined:
 
-The adapted final prompt must:
+- lingerie, swimwear, intimate apparel, or a bodysuit using transparent, semi-transparent, see-through, or unlined fabric across covered garment zones;
+- a thong, g-string, string bottom, micro brief, micro bikini, very narrow front panel, or similarly minimal lower-garment construction;
+- a frontal crop whose main visual hierarchy runs from the chest or bust to the pelvis or hips;
+- the chest, neckline, pelvis, hips, lower garment, or rear used as the dominant visual emphasis;
+- a finger or hand touching, resting on, or deliberately positioned against the lips or mouth;
+- an arched-back, projected-pelvis, hip-thrust, or comparable pose used as the principal expressive device;
+- boudoir, erotic, provocative, sexually charged, or adult-publication framing;
+- branding, watermarking, or visual language associated with an adult magazine or pornographic publication;
+- exposed intimate anatomy or garment construction whose purpose is increased exposure;
+- any combination of lingerie, transparency, minimal coverage, suggestive gesture, projected-pelvis pose, and tight frontal framing.
 
-- preserve the environment, composition, camera geometry, body orientation, hand anchors, gaze, lighting architecture, exposure relationship, palette, and photographic finish;
-- describe the result as a neutral commercial editorial fashion portrait or intimate editorial fashion portrait, never as erotic content;
-- introduce a fully opaque, high-waisted neutral underlayer covering the pelvis, seat, and upper thighs whenever the original garment does not provide reliable coverage;
-- keep robes, dresses, skirts, towels, and fabric panels continuously draped across the pelvis and seat;
-- allow a hand to arrange fabric at the side without lifting it away from the covered regions;
-- preserve the three-quarter rear pose only when the garment remains fully covering and the pose is not intensified;
-- remove instructions that emphasize exposed hips, exposed seat, cleavage of the seat, intimate transparency, or increased exposure;
-- use neutral garment-construction language rather than policy language.
+In CAMPAIGN_SAFE_TRANSFER mode, preserve only the reusable photographic construction:
 
-Do not attempt to preserve the original degree of exposure when doing so would conflict with coverage-safe commercial fashion styling.
+- environment and architecture;
+- background surfaces and materials;
+- lighting direction, hardness, exposure relationship, and shadow architecture;
+- palette, white balance, contrast, black point, and highlight behavior;
+- general lens character and non-sexualized perspective;
+- photographic texture, sharpness, grain, and digital or filmic finish;
+- the commercial garment category, such as lingerie or swimwear.
 
-Do not solve the issue by replacing isolated trigger words while leaving the same revealing visual construction intact.
+In CAMPAIGN_SAFE_TRANSFER mode, do NOT preserve as hard constraints:
 
-When the reference is already coverage-safe, preserve it without adding unnecessary garments or changing its styling.
+- the exact sexualized pose;
+- exact hand anchors near the lips, chest, neckline, pelvis, hips, or lower garment;
+- a chest-to-pelvis or intimate-region-centered crop;
+- the original hierarchy if it isolates or prioritizes the chest, pelvis, hips, lower garment, or rear;
+- an arched-back, projected-pelvis, or hip-thrust construction;
+- transparent or unlined garment construction across covered zones;
+- a thong, g-string, string bottom, micro brief, or minimal lower panel;
+- adult-publication branding, watermarking, or pornographic styling;
+- FIDELITY instructions that conflict with this contract.
+
+Reconstruct the result as a premium retail campaign:
+
+- keep the model clearly adult and use the uploaded identity photographs as the sole identity source;
+- keep the commercial category recognizable as lingerie, swimwear, or intimate apparel rather than replacing it with generic clothing;
+- use fully lined opaque cups or bodice panels;
+- use an opaque high-waisted brief, full-coverage bottom, or similarly conventional retail construction with complete front and rear panels;
+- allow lace or mesh only as an opaque-backed decorative layer across covered garment zones;
+- use realistic seams, straps, closures, fabric weight, and product construction;
+- use a balanced standing, seated, or walking pose with stable weight distribution and composed retail body language;
+- place hands naturally at the waist, along the side, on a chair, or on another neutral support;
+- use an eye-level camera and a waist-up, three-quarter, or full-body composition;
+- give balanced visual priority to the face, garment silhouette, product construction, and complete styling;
+- preserve the extracted environment, lighting system, palette, contrast, and photographic finish.
+
+The final generation prompt must be newly constructed from the safe visual attributes. Do not merely replace isolated trigger words while retaining the same pose, crop, gesture, garment transparency, or visual hierarchy.
+
+When the reference is already a standard opaque lingerie or swimwear lookbook with balanced retail framing, retain FIDELITY mode and do not add unnecessary coverage or alter the styling.
 
 ---
 
@@ -774,11 +809,15 @@ It must contain all operational details necessary to reconstruct:
 - color;
 - finish.
 
-The prompt must specify:
+The prompt must specify one of:
 
 TRANSFER_MODE = FIDELITY
 
-unless the user explicitly requested POLISHED mode.
+TRANSFER_MODE = POLISHED
+
+TRANSFER_MODE = CAMPAIGN_SAFE_TRANSFER
+
+Use FIDELITY unless the user explicitly requested POLISHED mode or the automatic campaign-safe transfer contract in section 13A is triggered.
 
 ### 3. NEGATIVE PROMPT / FAILURE GUARDRAILS
 

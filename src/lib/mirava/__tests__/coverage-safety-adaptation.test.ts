@@ -1,5 +1,7 @@
 import {
   adaptMiravaCoverageForGeneration,
+  buildMiravaCampaignSafeTransferPrompt,
+  detectMiravaCampaignRisk,
 } from "../pipeline/coverage-safety-adaptation"
 import {
   complianceNeutralRewrite,
@@ -89,7 +91,7 @@ Keep the hips sharply resolved and subtly projected backward.
               "standard_fashion",
             metadata: {
               extractorVersion:
-                "2.3.0",
+                "2.4.0",
               classifierVersion:
                 "1.0.0",
               compilerVersion:
@@ -107,6 +109,143 @@ Keep the hips sharply resolved and subtly projected backward.
         )
         expect(rewritten.positivePrompt).not.toMatch(
           /\bboudoir\b/i,
+        )
+      },
+    )
+
+    it(
+      "detects and reconstructs a high-risk lingerie campaign before generation",
+      () => {
+        const prompt = `
+TRANSFER_MODE = FIDELITY
+
+Create a vertical Penthouse-style adult magazine lingerie portrait.
+
+The model wears black transparent lace lingerie with unlined cups and a narrow g-string bottom.
+
+Use frontal chest-to-pelvis framing. The chest and pelvis are the dominant visual emphasis. One fingertip rests on her lips while the back is arched and the hips are projected toward the camera.
+
+ENVIRONMENT — Grey veined marble wall in a modern interior.
+
+LIGHTING — Soft frontal beauty light with controlled shadows and clean skin exposure.
+
+CAMERA — Vertical digital editorial photograph with a normal perspective lens.
+
+COLOR AND FINISH — Neutral grey palette, polished high-contrast digital finish and sharp fabric detail.
+        `.trim()
+
+        const risk =
+          detectMiravaCampaignRisk(
+            prompt,
+          )
+
+        expect(
+          risk.requiresCampaignSafeTransfer,
+        ).toBe(true)
+        expect(
+          risk.riskScore,
+        ).toBeGreaterThanOrEqual(10)
+        expect(
+          risk.reasons,
+        ).toContain(
+          "adult-publication-aesthetic",
+        )
+
+        const safePrompt =
+          buildMiravaCampaignSafeTransferPrompt(
+            prompt,
+          )
+
+        expect(safePrompt).toContain(
+          "TRANSFER_MODE = CAMPAIGN_SAFE_TRANSFER",
+        )
+        expect(safePrompt).toContain(
+          "commercial lingerie campaign",
+        )
+        expect(safePrompt).toContain(
+          "Grey veined marble wall",
+        )
+        expect(safePrompt).toContain(
+          "Soft frontal beauty light",
+        )
+        expect(safePrompt).toContain(
+          "structured fully lined opaque cups",
+        )
+        expect(safePrompt).toContain(
+          "high-waisted brief",
+        )
+        expect(safePrompt).toContain(
+          "eye-level camera",
+        )
+        expect(
+          safePrompt.toLowerCase(),
+        ).not.toContain(
+          "penthouse",
+        )
+        expect(
+          safePrompt.toLowerCase(),
+        ).not.toContain(
+          "g-string",
+        )
+        expect(
+          safePrompt.toLowerCase(),
+        ).not.toContain(
+          "finger",
+        )
+        expect(
+          safePrompt.toLowerCase(),
+        ).not.toContain(
+          "chest-to-pelvis",
+        )
+        expect(
+          safePrompt.toLowerCase(),
+        ).not.toContain(
+          "arched",
+        )
+      },
+    )
+
+    it(
+      "does not redirect an ordinary opaque lingerie lookbook",
+      () => {
+        const prompt = [
+          "Create a premium commercial lingerie lookbook photograph.",
+          "Use a fully opaque structured bra and high-waisted brief.",
+          "The model stands naturally in a balanced eye-level three-quarter composition.",
+          "Use soft studio light against a neutral stone wall.",
+        ].join("\n\n")
+
+        const risk =
+          detectMiravaCampaignRisk(
+            prompt,
+          )
+
+        expect(
+          risk.requiresCampaignSafeTransfer,
+        ).toBe(false)
+      },
+    )
+
+    it(
+      "uses a fresh conservative retail construction for the second attempt",
+      () => {
+        const safePrompt =
+          buildMiravaCampaignSafeTransferPrompt(
+            revealingPrompt,
+            "conservative",
+          )
+
+        expect(safePrompt).toContain(
+          "TRANSFER_MODE = CAMPAIGN_SAFE_TRANSFER",
+        )
+        expect(safePrompt).toContain(
+          "fully opaque black lingerie set",
+        )
+        expect(safePrompt).toContain(
+          "full-coverage brief",
+        )
+        expect(safePrompt).toContain(
+          "neutral balanced standing pose",
         )
       },
     )

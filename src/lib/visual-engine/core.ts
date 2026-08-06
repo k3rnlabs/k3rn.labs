@@ -41,6 +41,10 @@ import {
 } from "@/lib/mirava/pipeline/classify-scene-context"
 import { compileGenerationPrompt } from "@/lib/mirava/pipeline/compile-generation-prompt"
 import { complianceNeutralRewrite } from "@/lib/mirava/pipeline/compliance-neutral-rewrite"
+import {
+  buildMiravaCampaignSafeTransferPrompt,
+  detectMiravaCampaignRisk,
+} from "@/lib/mirava/pipeline/coverage-safety-adaptation"
 import { assertNoArtisticReferenceInGenerationPayload, assertAtLeastOneValidatedIdentityImage } from "@/lib/mirava/security/assert-image-role-separation"
 import type { VisualDirectionBlueprint } from "@/lib/mirava/schemas/visual-direction-blueprint.schema"
 
@@ -2646,6 +2650,18 @@ async function generateStudioImage(
         }).positivePrompt
       : anchorPrompt
 
+  const campaignRisk =
+    detectMiravaCampaignRisk(
+      primaryPrompt,
+    )
+
+  const resolvedPrimaryPrompt =
+    campaignRisk.requiresCampaignSafeTransfer
+      ? buildMiravaCampaignSafeTransferPrompt(
+          primaryPrompt,
+        )
+      : primaryPrompt
+
   const primaryIdentityAssets =
     isReferenceAnchor ||
     isContinuation
@@ -2664,6 +2680,8 @@ async function generateStudioImage(
       | "parity-primary"
       | "series-primary"
       | "continuity-primary"
+      | "campaign-safe-primary"
+      | "campaign-safe-fallback"
       | "official-safe-fallback"
       | "semantic-fallback",
     continuityInput:
@@ -2687,6 +2705,12 @@ async function generateStudioImage(
         shotIntent:
           creation.shotIntent ?? null,
         variant,
+        campaignSafeTransfer:
+          campaignRisk.requiresCampaignSafeTransfer,
+        campaignRiskScore:
+          campaignRisk.riskScore,
+        campaignRiskReasons:
+          campaignRisk.reasons,
         promptHash,
         promptLength:
           promptText.length,
@@ -2859,14 +2883,18 @@ async function generateStudioImage(
 
   try {
     return await executeCall(
-      primaryPrompt,
+      resolvedPrimaryPrompt,
       primaryIdentityAssets,
-      isContinuation
-        ? "continuity-primary"
-        : isReferenceAnchor
-          ? "parity-primary"
-          : "series-primary",
-      continuityAsset,
+      campaignRisk.requiresCampaignSafeTransfer
+        ? "campaign-safe-primary"
+        : isContinuation
+          ? "continuity-primary"
+          : isReferenceAnchor
+            ? "parity-primary"
+            : "series-primary",
+      campaignRisk.requiresCampaignSafeTransfer
+        ? null
+        : continuityAsset,
     )
   } catch (error) {
     if (
@@ -2892,6 +2920,20 @@ async function generateStudioImage(
         ),
         primaryIdentityAssets,
         "official-safe-fallback",
+        null,
+      )
+    }
+
+    if (
+      campaignRisk.requiresCampaignSafeTransfer
+    ) {
+      return await executeCall(
+        buildMiravaCampaignSafeTransferPrompt(
+          primaryPrompt,
+          "conservative",
+        ),
+        primaryIdentityAssets,
+        "campaign-safe-fallback",
         null,
       )
     }

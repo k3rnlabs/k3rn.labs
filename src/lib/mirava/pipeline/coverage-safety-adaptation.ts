@@ -2,9 +2,19 @@ export type MiravaCoverageSafetyMode =
   | "standard"
   | "conservative"
 
+export type MiravaCampaignSafetyMode =
+  | "standard"
+  | "conservative"
+
 export type MiravaCoverageSafetyResult = {
   prompt: string
   adapted: boolean
+  riskScore: number
+  reasons: string[]
+}
+
+export type MiravaCampaignRiskResult = {
+  requiresCampaignSafeTransfer: boolean
   riskScore: number
   reasons: string[]
 }
@@ -56,6 +66,72 @@ const RISK_SIGNALS: RiskSignal[] = [
   },
 ]
 
+const COMMERCIAL_INTIMATE_CATEGORY =
+  /\b(?:lingerie|intimate apparel|underwear|bra|bralette|briefs?|panties|bodysuit|corset|swimwear|bikini|swimsuit|maillot)\b/i
+
+const CAMPAIGN_RISK_SIGNALS: RiskSignal[] = [
+  {
+    id: "campaign-safe-marker",
+    score: 10,
+    pattern:
+      /\bTRANSFER_MODE\s*=\s*CAMPAIGN_SAFE_TRANSFER\b/i,
+  },
+  {
+    id: "adult-publication-aesthetic",
+    score: 10,
+    pattern:
+      /\b(?:penthouse|playboy|adult magazine|adult-publication|pornographic|pornography|xxx)\b/i,
+  },
+  {
+    id: "transparent-intimate-apparel",
+    score: 4,
+    pattern:
+      /(?:\b(?:sheer|transparent|semi-transparent|see-through|unlined mesh|unlined lace)\b[^.!?\n]{0,180}\b(?:lingerie|bra|cups?|bodysuit|briefs?|panties|thong|string|g-string|bust|chest|pelvis|hips?)\b|\b(?:lingerie|bra|cups?|bodysuit|briefs?|panties|thong|string|g-string)\b[^.!?\n]{0,180}\b(?:sheer|transparent|semi-transparent|see-through|unlined mesh|unlined lace)\b)/i,
+  },
+  {
+    id: "minimal-lower-garment",
+    score: 3,
+    pattern:
+      /\b(?:thong|g-string|string bottom|string brief|micro brief|micro bikini|minimal coverage|narrow front panel|ultra high-cut bottom)\b/i,
+  },
+  {
+    id: "chest-pelvis-framing",
+    score: 4,
+    pattern:
+      /(?:\b(?:chest|bust|breast|cleavage)\s*[-–—to]+\s*(?:pelvis|hips?|crotch)\b|\b(?:frontal|front-facing|straight-on)\b[^.!?\n]{0,180}\b(?:chest|bust|breasts?|cleavage)\b[^.!?\n]{0,180}\b(?:pelvis|hips?|crotch)\b|\b(?:crop|framing|composition)\b[^.!?\n]{0,180}\b(?:chest|bust|breasts?)\b[^.!?\n]{0,180}\b(?:pelvis|hips?|crotch)\b)/i,
+  },
+  {
+    id: "intimate-region-visual-priority",
+    score: 3,
+    pattern:
+      /\b(?:primary visual emphasis|visual focus|center(?:ed)?|dominant emphasis)\b[^.!?\n]{0,140}\b(?:chest|bust|breasts?|cleavage|pelvis|hips?|crotch|lower garment)\b/i,
+  },
+  {
+    id: "hand-to-lips-gesture",
+    score: 2,
+    pattern:
+      /\b(?:finger|fingertip|hand)\b[^.!?\n]{0,100}\b(?:on|against|touching|resting on|near)\b[^.!?\n]{0,40}\b(?:lips?|mouth)\b/i,
+  },
+  {
+    id: "projected-pelvis-pose",
+    score: 2,
+    pattern:
+      /\b(?:arched back|back arched|pelvis projected|hips projected|hips pushed|pelvis pushed|pronounced hip thrust)\b/i,
+  },
+  {
+    id: "sexualized-commercial-language",
+    score: 2,
+    pattern:
+      /\b(?:erotic|seductive|provocative|sexually charged|explicitly sexual|boudoir)\b/i,
+  },
+  {
+    id: "revealing-exposure-language",
+    score: 5,
+    pattern:
+      /\b(?:exposed|visible|bare)\b[^.!?\n]{0,80}\b(?:intimate anatomy|genitals?|nipples?|buttocks?|seat cleavage)\b/i,
+  },
+]
+
 const STANDARD_COVERAGE_INVARIANT = [
   "COVERAGE-SAFE COMMERCIAL EDITORIAL ADAPTATION — Preserve the approved environment, camera geometry, body orientation, hand anchors, gaze, lighting architecture, exposure relationship, palette, and photographic finish while adapting only the garment construction required for reliable coverage.",
   "Use a fully opaque, high-waisted neutral underlayer covering the pelvis, seat, and upper thighs beneath any lace, mesh, robe, dress, skirt, or translucent outer layer.",
@@ -69,6 +145,12 @@ const CONSERVATIVE_COVERAGE_INVARIANT = [
   "Keep the robe, dress, skirt, towel, or outer garment closed and continuously covering the pelvis, seat, and upper thighs.",
   "Use only neutral commercial fashion language and omit sexualized genre labels.",
 ].join(" ")
+
+const SAFE_DIRECTION_KEYWORDS =
+  /\b(?:environment|setting|interior|exterior|background|wall|marble|stone|wood|glass|architecture|surface|texture|studio|window|lighting|light|flash|shadow|exposure|camera|lens|perspective|depth of field|palette|color|colour|contrast|tone|finish|digital|editorial|grain|sharpness|white balance|highlight|reflection)\b/i
+
+const UNSAFE_DIRECTION_CONTENT =
+  /(?:\b(?:penthouse|playboy|adult magazine|pornographic|pornography|xxx|erotic|seductive|provocative|boudoir|thong|g-string|string bottom|micro brief|micro bikini|nipples?|genitals?|buttocks?|seat cleavage|crotch|pelvis projected|hips projected|arched back|back (?:is )?arched|pelvis (?:is )?projected|hips? (?:are )?projected|chest[-–— ]to[-–— ]pelvis)\b|\b(?:finger(?:tip)?|hand)\b[^.!?\n]{0,100}\b(?:lip|mouth)s?\b)/i
 
 function splitPositiveAndNegative(prompt: string): {
   positive: string
@@ -111,6 +193,53 @@ function detectCoverageRisk(
   }
 
   return {
+    riskScore,
+    reasons,
+  }
+}
+
+export function detectMiravaCampaignRisk(
+  prompt: string,
+): MiravaCampaignRiskResult {
+  const { positive } =
+    splitPositiveAndNegative(prompt)
+
+  const reasons: string[] = []
+  let riskScore = 0
+
+  for (const signal of CAMPAIGN_RISK_SIGNALS) {
+    if (!signal.pattern.test(positive)) {
+      continue
+    }
+
+    reasons.push(signal.id)
+    riskScore += signal.score
+  }
+
+  const hasCommercialIntimateCategory =
+    COMMERCIAL_INTIMATE_CATEGORY.test(
+      positive,
+    )
+
+  const hasAutomaticMarker =
+    reasons.includes(
+      "campaign-safe-marker",
+    )
+
+  const hasAdultPublicationSignal =
+    reasons.includes(
+      "adult-publication-aesthetic",
+    )
+
+  return {
+    requiresCampaignSafeTransfer:
+      hasAutomaticMarker ||
+      hasAdultPublicationSignal ||
+      (
+        hasCommercialIntimateCategory &&
+        riskScore >= 5
+      ) ||
+      riskScore >= 8,
     riskScore,
     reasons,
   }
@@ -277,6 +406,93 @@ function rewriteCoverageConstruction(
   }
 
   return prompt
+}
+
+function extractSafeReferenceDirection(
+  prompt: string,
+): string {
+  const { positive } =
+    splitPositiveAndNegative(prompt)
+
+  const candidates = positive
+    .replace(
+      /\bTRANSFER_MODE\s*=\s*(?:FIDELITY|POLISHED|CAMPAIGN_SAFE_TRANSFER)\b/gi,
+      "",
+    )
+    .split(
+      /(?:\n{2,}|(?<=[.!?])\s+)/,
+    )
+    .map((segment) =>
+      segment
+        .replace(
+          /^(?:[A-Z][A-Z /&-]{2,40})\s*[—:-]\s*/,
+          "",
+        )
+        .replace(/\s+/g, " ")
+        .trim(),
+    )
+    .filter(Boolean)
+    .filter((segment) =>
+      SAFE_DIRECTION_KEYWORDS.test(
+        segment,
+      ),
+    )
+    .filter((segment) =>
+      !UNSAFE_DIRECTION_CONTENT.test(
+        segment,
+      ),
+    )
+    .filter((segment) =>
+      !COMMERCIAL_INTIMATE_CATEGORY.test(
+        segment,
+      ),
+    )
+    .slice(0, 8)
+
+  if (candidates.length === 0) {
+    return "Preserve the approved environment, architectural materials, lighting direction, shadow structure, palette, contrast, lens perspective, and photographic finish from the extracted reference direction."
+  }
+
+  return candidates.join(" ")
+}
+
+export function buildMiravaCampaignSafeTransferPrompt(
+  prompt: string,
+  mode: MiravaCampaignSafetyMode =
+    "standard",
+): string {
+  const safeReferenceDirection =
+    extractSafeReferenceDirection(
+      prompt,
+    )
+
+  const wardrobe =
+    mode === "conservative"
+      ? "Use a premium fully opaque black lingerie set with structured lined cups, a conventional neckline, and a high-waisted full-coverage brief. Lace may appear only as an opaque-backed decorative layer. Keep seams, straps, cup construction, front panel, side panels, and rear panel physically coherent."
+      : "Use a premium black retail lingerie set with structured fully lined opaque cups and a high-waisted brief with complete front and rear panels. Lace or mesh may be used as decorative texture only when backed by opaque fabric. Preserve realistic seams, straps, fabric weight, and product construction."
+
+  const pose =
+    mode === "conservative"
+      ? "Use a neutral balanced standing pose with relaxed shoulders, a slight three-quarter torso turn, one hand resting naturally at the waist and the other relaxed alongside the body. Keep the posture stable, composed, and suitable for a retail lookbook."
+      : "Use a confident balanced three-quarter standing pose with relaxed shoulders, natural weight distribution, one hand at the waist and the other relaxed alongside the body. Keep the gesture composed and product-focused."
+
+  const composition =
+    mode === "conservative"
+      ? "Use an eye-level camera and a three-quarter or full-body vertical composition. Frame the face, complete garment silhouette, and styling as one balanced retail image with natural perspective."
+      : "Use an eye-level camera and a waist-up, three-quarter, or full-body vertical composition. Give balanced visual priority to the face, garment construction, and complete silhouette."
+
+  return [
+    "TRANSFER_MODE = CAMPAIGN_SAFE_TRANSFER",
+    "COMMERCIAL INTENT — Create one premium retail campaign photograph for a consenting adult model presenting a lingerie collection. The result must read as polished fashion merchandising and brand imagery.",
+    "IDENTITY — Use the uploaded identity photographs as the sole identity source. Preserve the same adult model’s recognizable face, natural age appearance, skin tone, hairline, body type, and natural anatomical proportions.",
+    `SAFE REFERENCE DIRECTION — ${safeReferenceDirection}`,
+    `WARDROBE — ${wardrobe}`,
+    `POSE — ${pose}`,
+    `CAMERA AND COMPOSITION — ${composition}`,
+    "LIGHTING — Preserve the extracted key-light direction, hardness, exposure relationship, shadow placement, background brightness, and specular behavior. Do not replace the approved lighting system with generic cinematic relighting.",
+    "COLOR AND FINISH — Preserve the extracted palette, white balance, contrast, black point, highlight roll-off, texture, sharpness, and digital editorial character.",
+    "OUTPUT — Produce one realistic premium vertical commercial lingerie campaign photograph with coherent hands, garment seams, straps, jewelry, shadows, reflections, and natural body proportions.",
+  ].join("\n\n")
 }
 
 export function adaptMiravaCoverageForGeneration(
