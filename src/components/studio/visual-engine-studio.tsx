@@ -165,7 +165,7 @@ const copy = {
     formatSeries5: "Série de 5",
     formatHint: "Chaque image consomme un crédit. Une série garde le même univers tout en variant les activités, poses, angles et lumières.",
     reuse: "Créer depuis ce studio",
-    libraryTitle: "Votre collection privée",
+    libraryTitle: "Portfolio",
     studiosTitle: "Vos studios",
     imagesTitle: "Vos images",
     empty: "Votre première image signature apparaîtra ici.",
@@ -173,7 +173,7 @@ const copy = {
     profile: "Profil identité",
     deleteProfile: "Supprimer mon Profil identité",
     profilePrivacy: "Vos références d’identité sont privées, jamais publiques et supprimables immédiatement.",
-    credits: "créations",
+    credits: "crédits",
     plans: "Abonnements",
     packs: "Recharges",
     choose: "Choisir",
@@ -235,7 +235,7 @@ const copy = {
     formatSeries5: "Serie de 5",
     formatHint: "Cada imagen consume un crédito. Una serie conserva el mismo universo variando actividades, poses, ángulos y luces.",
     reuse: "Crear desde este estudio",
-    libraryTitle: "Tu colección privada",
+    libraryTitle: "Portfolio",
     studiosTitle: "Tus estudios",
     imagesTitle: "Tus imágenes",
     empty: "Tu primera imagen insignia aparecerá aquí.",
@@ -243,7 +243,7 @@ const copy = {
     profile: "Perfil de identidad",
     deleteProfile: "Eliminar mi Perfil de identidad",
     profilePrivacy: "Tus referencias de identidad son privadas, nunca públicas y se pueden eliminar inmediatamente.",
-    credits: "creaciones",
+    credits: "créditos",
     plans: "Suscripciones",
     packs: "Recargas",
     choose: "Elegir",
@@ -1854,7 +1854,14 @@ export function VisualEngineStudio() {
         }
         actions={
           <div className="flex items-center gap-2">
-            <span className="mirava-meta tabular-nums flex min-h-12 items-center px-3 py-2 font-jakarta text-[10px] font-semibold tracking-[.08em]">{account?.credits ?? 0} {t.credits}</span>
+            <span className="mirava-meta tabular-nums flex min-h-12 items-center px-3 py-2 font-jakarta text-[10px] font-semibold tracking-[.08em]">
+              {account?.credits ?? 0}{" "}
+              {(account?.credits ?? 0) === 1
+                ? locale === "fr"
+                  ? "crédit"
+                  : "crédito"
+                : t.credits}
+            </span>
             <button aria-label={locale === "fr" ? "Passer en espagnol" : "Cambiar al francés"} onClick={() => setLocale(locale === "fr" ? "es" : "fr")} className="mirava-button mirava-button-secondary min-w-12 px-3 text-xs">{locale.toUpperCase()}</button>
           </div>
         }
@@ -1871,11 +1878,41 @@ export function VisualEngineStudio() {
         <div className="relative mx-auto max-w-6xl px-4 pt-4 sm:px-7 sm:pt-6">
         {error && <div role="alert" className="mirava-alert mb-6 flex gap-3 p-4 text-sm shadow-lg"><CircleAlert className="h-5 w-5 shrink-0" />{error}</div>}
         {displayedNotice && <div role="status" aria-live="polite" aria-atomic="true" className="mirava-notice mb-6 p-4 text-sm shadow-lg">{displayedNotice}</div>}
+        {view === "create" &&
+          !current &&
+          createStep === 0 &&
+          studios.length > 0 && (
+            <StudioResumeRail
+              locale={locale}
+              studios={studios}
+              onReuse={(id) => void reuse(id)}
+            />
+          )}
+
         {view === "create" && (!current
           ? <StartView locale={locale} t={t} firstName={miravaFirstName} step={createStep} selectedUniverseId={selectedUniverseId} setSelectedUniverseId={setSelectedUniverseId} options={options} setOptions={setOptions} identityProfile={identityProfile} availableCredits={account?.credits ?? 0} pending={pending} entryIntent={entryIntent} onCreate={requestCreate} onDirector={() => openDirector()} onOpenAccount={() => selectView("account")} onOpenCapture={() => openCapture(identityProfile ? (identityProfile.assetCount < MIRAVA_MAX_IDENTITY_PHOTOS ? "append" : "replace") : "onboarding")} />
           : <CreationView locale={locale} t={t} current={current} identityProfile={identityProfile} pending={pending} onUploadReference={uploadReference} onAnalyze={analyze} onOpenCapture={() => openCapture(identityProfile ? (identityProfile.assetCount < MIRAVA_MAX_IDENTITY_PHOTOS ? "append" : "replace") : "onboarding")} onGenerate={generate} onDelete={removeCreation} onStartCreate={startFreshCreation} onContinueSession={(creationId, intent, sourceResultIndex) => void continueSession(creationId, intent, sourceResultIndex)} onCreateFromStudio={(studioId) => void reuse(studioId)} onUnlock={(creationId) => void checkoutDiscovery(creationId)} />)}
         {view === "universes" && <UniversesView locale={locale} t={t} selectedUniverseId={selectedUniverseId} setSelectedUniverseId={setSelectedUniverseId} onChoose={(brief) => { setOptions((value) => ({ ...(value.seriesSize ? { seriesSize: value.seriesSize } : {}), ...(value.seriesSize && value.seriesSize > 1 && value.seriesStrategy ? { seriesStrategy: value.seriesStrategy } : {}), ...(brief ? { note: brief } : {}) })); setCreateStep(1); selectView("create") }} />}
-        {view === "library" && <LibraryView locale={locale} t={t} studios={studios} creations={creations} onStartCreate={startFreshCreation} onReuse={(id) => void reuse(id)} onSelect={(id) => void run("select", async () => { setCurrent(await api<Detail>(`/api/visual-engine/creations/${id}`)); selectView("create") })} />}
+        {view === "library" && (
+          <LibraryView
+            locale={locale}
+            t={t}
+            creations={creations}
+            onSelect={(id) =>
+              void run(
+                "select",
+                async () => {
+                  setCurrent(
+                    await api<Detail>(
+                      `/api/visual-engine/creations/${id}`,
+                    ),
+                  )
+                  selectView("create")
+                },
+              )
+            }
+          />
+        )}
         {view === "account" && <AccountView locale={locale} t={t} account={account} identityProfile={identityProfile} highlightedOfferId={highlightedOfferId} pending={pending} onCheckout={checkout} onPortal={portal} onStartCreate={startFreshCreation} onOpenCapture={() => openCapture(identityProfile ? "append" : "onboarding")} onReplaceIdentity={() => openCapture("replace")} onReplaceIdentityAsset={replaceIdentityAsset} onDeleteIdentityAsset={deleteIdentityAsset} onDeleteIdentity={removeIdentity} />}
         </div>
       </div>
@@ -2898,73 +2935,346 @@ function UniversesView({ locale, t, selectedUniverseId, setSelectedUniverseId, o
   )
 }
 
-function LibraryView({ locale, t, studios, creations, onStartCreate, onReuse, onSelect }: { locale: Locale; t: Copy; studios: Studio[]; creations: Creation[]; onStartCreate: () => void; onReuse: (id: string) => void; onSelect: (id: string) => void }) {
-  const visibleCreations = creations.filter(
-    (creation) =>
-      creation.status !== "FAILED" &&
-      creation.status !== "CANCELLED",
-  )
-  const hiddenAttemptCount =
-    creations.length - visibleCreations.length
+function StudioResumeRail({
+  locale,
+  studios,
+  onReuse,
+}: {
+  locale: Locale
+  studios: Studio[]
+  onReuse: (id: string) => void
+}) {
+  const visibleStudios = studios
+    .filter(
+      (studio, index, collection) => {
+        if (!studio.presetId) {
+          return true
+        }
+
+        return (
+          collection.findIndex(
+            (candidate) =>
+              candidate.presetId ===
+              studio.presetId,
+          ) === index
+        )
+      },
+    )
+    .slice(0, 8)
+
+  if (!visibleStudios.length) {
+    return null
+  }
 
   return (
-    <section className="py-8 sm:py-14">
-      <p className="mirava-label">MIRAVA / {locale === "fr" ? "ARCHIVE PRIVÉE" : "ARCHIVO PRIVADO"}</p>
-      <h1 className="mirava-section-title mt-3 text-4xl sm:text-5xl"><BlurText text={t.libraryTitle} /></h1>
-      <h2 className="mirava-section-title mt-10 text-2xl">{t.studiosTitle}</h2>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {studios.map((studio) => {
-          const universe = getMiravaUniverse(studio.presetId)
-          return <article key={studio.id} className="mirava-surface overflow-hidden">
-            <div className="mirava-studio-cover relative aspect-[16/10] overflow-hidden bg-mirava-canvas-raised">
-              {universe
-                ? <Image src={universe.image} alt="" fill sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" className="object-cover" />
-                : <div aria-hidden="true" className="mirava-studio-cover-abstract absolute inset-0" />}
-            </div>
-            <div className="p-5"><p className="font-jakarta text-lg font-semibold">{studio.name}</p><p className="mirava-copy mt-2 text-xs">{universe?.tagline[locale] ?? (locale === "fr" ? "Direction personnelle privée" : "Dirección personal privada")}</p><button onClick={() => onReuse(studio.id)} className="mirava-button mirava-button-primary mt-5 min-h-12 px-4 text-xs">{t.reuse}<ChevronRight className="ml-1 h-4 w-4" /></button></div>
-          </article>
-        })}
-        {!studios.length && <Surface className="sm:col-span-2 lg:col-span-3">
-          <p className="mirava-copy text-sm leading-6">{locale === "fr" ? "Votre premier studio apparaîtra ici après votre première séance." : "Tu primer estudio aparecerá aquí después de tu primera sesión."}</p>
-          <button onClick={onStartCreate} className="mirava-button mirava-button-primary mt-4 min-h-12 px-4 text-sm"><Camera className="mr-2 h-4 w-4" />{locale === "fr" ? "Créer ma première séance" : "Crear mi primera sesión"}</button>
-        </Surface>}
+    <section
+      aria-labelledby="mirava-studio-resume-title"
+      className="mb-7 sm:mb-9"
+    >
+      <div className="flex items-end justify-between gap-4">
+        <div>
+          <p className="mirava-label">
+            MIRAVA /{" "}
+            {locale === "fr"
+              ? "DIRECTIONS ENREGISTRÉES"
+              : "DIRECCIONES GUARDADAS"}
+          </p>
+          <h2
+            id="mirava-studio-resume-title"
+            className="mt-2 font-jakarta text-xl font-semibold tracking-[-.04em] sm:text-2xl"
+          >
+            {locale === "fr"
+              ? "Reprendre une direction"
+              : "Retomar una dirección"}
+          </h2>
+        </div>
       </div>
-      <h2 className="mirava-section-title mt-12 text-2xl">{t.imagesTitle}</h2>
-      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        {hiddenAttemptCount > 0 && (
-          <Surface className="col-span-full flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-            <p className="mirava-copy text-sm leading-6">
-              {locale === "fr"
-                ? `${hiddenAttemptCount} tentative${hiddenAttemptCount > 1 ? "s" : ""} sans image retirée${hiddenAttemptCount > 1 ? "s" : ""} de votre portfolio.`
-                : `${hiddenAttemptCount} intento${hiddenAttemptCount > 1 ? "s" : ""} sin imagen eliminado${hiddenAttemptCount > 1 ? "s" : ""} de tu portfolio.`}
-            </p>
-            <button
-              type="button"
-              onClick={onStartCreate}
-              className="mirava-button mirava-button-secondary min-h-11 shrink-0 px-4 text-xs"
-            >
-              <Camera className="mr-2 h-4 w-4" />
-              {locale === "fr"
-                ? "Créer une nouvelle séance"
-                : "Crear una nueva sesión"}
-            </button>
-          </Surface>
-        )}
 
-        {visibleCreations.map((creation, index) => {
-          const statusLabel = t.status[creation.status] ?? (locale === "fr" ? "Préparation en cours" : "Preparación en curso")
+      <div className="mirava-scroll-row -mx-4 mt-4 flex snap-x gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0">
+        {visibleStudios.map((studio) => {
+          const universe =
+            getMiravaUniverse(
+              studio.presetId,
+            )
+
+          const personalDate =
+            new Intl.DateTimeFormat(
+              locale === "fr"
+                ? "fr-BE"
+                : "es-ES",
+              {
+                day: "numeric",
+                month: "short",
+              },
+            ).format(
+              new Date(
+                studio.createdAt,
+              ),
+            )
+
+          const title =
+            universe?.name[locale] ??
+            (locale === "fr"
+              ? `Studio personnel · ${personalDate}`
+              : `Estudio personal · ${personalDate}`)
+
+          const subtitle =
+            universe?.tagline[locale] ??
+            (locale === "fr"
+              ? "Direction privée"
+              : "Dirección privada")
+
           return (
-            <button key={creation.id} onClick={() => onSelect(creation.id)} aria-label={locale === "fr" ? `Ouvrir la création ${index + 1} : ${statusLabel}` : `Abrir creación ${index + 1}: ${statusLabel}`} className="mirava-surface overflow-hidden text-left">
-              <div className="aspect-[4/5] bg-mirava-surface-raised">{creation.resultUrl && <img src={creation.resultUrl} alt="" className="h-full w-full object-cover" />}</div>
-              <p className="p-3 text-xs font-semibold">{statusLabel}</p>
+            <button
+              key={studio.id}
+              type="button"
+              onClick={() =>
+                onReuse(studio.id)
+              }
+              className="mirava-surface group min-w-[11.5rem] snap-start overflow-hidden text-left sm:min-w-[13rem]"
+              aria-label={
+                locale === "fr"
+                  ? `Reprendre ${title}`
+                  : `Retomar ${title}`
+              }
+            >
+              <span className="relative block aspect-[4/3] overflow-hidden bg-mirava-canvas-raised">
+                {universe ? (
+                  <Image
+                    src={universe.image}
+                    alt=""
+                    fill
+                    sizes="208px"
+                    className="object-cover transition-transform duration-300 group-hover:scale-[1.025]"
+                  />
+                ) : (
+                  <span
+                    aria-hidden="true"
+                    className="mirava-studio-cover-abstract absolute inset-0"
+                  />
+                )}
+              </span>
+
+              <span className="flex min-h-[5.25rem] items-center justify-between gap-3 p-3.5">
+                <span className="min-w-0">
+                  <span className="block truncate font-jakarta text-sm font-semibold">
+                    {title}
+                  </span>
+                  <span className="mirava-muted mt-1 block line-clamp-2 text-[10px] leading-4">
+                    {subtitle}
+                  </span>
+                </span>
+                <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
+              </span>
             </button>
           )
         })}
-        {!visibleCreations.length && hiddenAttemptCount === 0 && <Surface className="col-span-full">
-          <p className="mirava-copy text-sm leading-6">{locale === "fr" ? "Votre galerie reste privée et vide jusqu’à votre première image." : "Tu galería es privada y permanece vacía hasta tu primera imagen."}</p>
-          <button onClick={onStartCreate} className="mirava-button mirava-button-secondary mt-4 min-h-12 px-4 text-sm"><Camera className="mr-2 h-4 w-4" />{locale === "fr" ? "Commencer une séance" : "Empezar una sesión"}</button>
-        </Surface>}
       </div>
+    </section>
+  )
+}
+
+function LibraryView({
+  locale,
+  t,
+  creations,
+  onSelect,
+}: {
+  locale: Locale
+  t: Copy
+  creations: Creation[]
+  onSelect: (id: string) => void
+}) {
+  const activeCreations =
+    creations.filter((creation) =>
+      pendingStatuses.includes(
+        creation.status,
+      ),
+    )
+
+  const portfolioCreations =
+    creations.filter(
+      (creation) =>
+        creation.status ===
+          "COMPLETED" &&
+        !creation.resultLocked &&
+        Boolean(
+          creation.resultUrl ||
+            creation.resultUrls
+              ?.length,
+        ),
+    )
+
+  const portfolioItems =
+    portfolioCreations.flatMap(
+      (creation) => {
+        const urls =
+          creation.resultUrls
+            ?.length
+            ? creation.resultUrls
+            : creation.resultUrl
+              ? [creation.resultUrl]
+              : []
+
+        return urls.map(
+          (url, imageIndex) => ({
+            creation,
+            imageIndex,
+            url,
+          }),
+        )
+      },
+    )
+
+  const photoCount =
+    portfolioItems.length
+
+  const photoCountLabel =
+    locale === "fr"
+      ? `${photoCount} photo${photoCount > 1 ? "s" : ""}`
+      : `${photoCount} foto${photoCount === 1 ? "" : "s"}`
+
+  return (
+    <section className="py-6 sm:py-12">
+      <div className="flex items-end justify-between gap-5">
+        <div>
+          <p className="mirava-label">
+            MIRAVA / PORTFOLIO
+          </p>
+          <h1 className="mirava-section-title mt-2 text-4xl sm:text-5xl">
+            <BlurText
+              text={t.libraryTitle}
+            />
+          </h1>
+        </div>
+
+        <p className="mirava-meta tabular-nums shrink-0 pb-1 text-[10px] font-semibold tracking-[.08em]">
+          {photoCountLabel}
+        </p>
+      </div>
+
+      {activeCreations.length > 0 && (
+        <section
+          aria-labelledby="mirava-active-creations-title"
+          className="mt-7"
+        >
+          <h2
+            id="mirava-active-creations-title"
+            className="font-jakarta text-lg font-semibold tracking-[-.03em]"
+          >
+            {locale === "fr"
+              ? "En cours"
+              : "En curso"}
+          </h2>
+
+          <div className="mt-3 grid gap-2">
+            {activeCreations.map(
+              (creation) => {
+                const statusLabel =
+                  t.status[
+                    creation.status
+                  ] ??
+                  (locale === "fr"
+                    ? "Création en cours"
+                    : "Creación en curso")
+
+                const progressLabel =
+                  creation.requestedResultCount >
+                  1
+                    ? locale === "fr"
+                      ? `${creation.completedResultCount ?? 0}/${creation.requestedResultCount} photos finalisées`
+                      : `${creation.completedResultCount ?? 0}/${creation.requestedResultCount} fotos finalizadas`
+                    : locale === "fr"
+                      ? "Votre photo est en préparation"
+                      : "Tu foto se está preparando"
+
+                return (
+                  <button
+                    key={creation.id}
+                    type="button"
+                    onClick={() =>
+                      onSelect(
+                        creation.id,
+                      )
+                    }
+                    className="mirava-surface flex min-h-20 w-full items-center gap-3 p-3.5 text-left"
+                  >
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-mirava-line bg-mirava-surface-raised">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    </span>
+
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold">
+                        {statusLabel}
+                      </span>
+                      <span className="mirava-muted mt-1 block text-[11px] leading-4">
+                        {progressLabel}
+                      </span>
+                    </span>
+
+                    <ChevronRight className="h-4 w-4 shrink-0" />
+                  </button>
+                )
+              },
+            )}
+          </div>
+        </section>
+      )}
+
+      {portfolioItems.length > 0 ? (
+        <div className="mt-7 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+          {portfolioItems.map(
+            ({
+              creation,
+              imageIndex,
+              url,
+            }, index) => (
+              <button
+                key={`${creation.id}-${imageIndex}`}
+                type="button"
+                onClick={() =>
+                  onSelect(
+                    creation.id,
+                  )
+                }
+                aria-label={
+                  locale === "fr"
+                    ? `Ouvrir la photo ${index + 1}`
+                    : `Abrir la foto ${index + 1}`
+                }
+                className="mirava-image-frame group relative aspect-[4/5] overflow-hidden bg-mirava-surface-raised text-left"
+              >
+                <img
+                  src={url}
+                  alt=""
+                  loading="lazy"
+                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.015]"
+                />
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-white/10"
+                />
+              </button>
+            ),
+          )}
+        </div>
+      ) : (
+        <Surface className="mt-7 flex min-h-52 flex-col items-center justify-center text-center">
+          <span className="grid h-12 w-12 place-items-center rounded-full border border-mirava-line bg-mirava-surface-raised">
+            <Images className="h-5 w-5" />
+          </span>
+          <h2 className="mt-4 font-jakarta text-lg font-semibold">
+            {locale === "fr"
+              ? "Votre portfolio est vide"
+              : "Tu portfolio está vacío"}
+          </h2>
+          <p className="mirava-muted mt-2 max-w-sm text-xs leading-5">
+            {locale === "fr"
+              ? "Seules vos photos finalisées apparaissent ici. Lancez une séance depuis l’onglet Studio."
+              : "Aquí solo aparecen tus fotos finalizadas. Inicia una sesión desde la pestaña Estudio."}
+          </p>
+        </Surface>
+      )}
     </section>
   )
 }

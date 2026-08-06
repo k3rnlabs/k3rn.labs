@@ -264,20 +264,105 @@ describe("MIRAVA studio entry contracts", () => {
     expect(studio).toContain('"Ajouter une vue privée"')
   })
 
-  it("gives every private gallery result a distinct accessible name", () => {
-    expect(studio).toContain('const statusLabel = t.status[creation.status] ??')
-    expect(studio).toContain("Ouvrir la création ${index + 1} : ${statusLabel}")
-    expect(studio).toContain("Abrir creación ${index + 1}: ${statusLabel}")
-    expect(studio).toContain('imagesTitle: "Vos images"')
-    expect(studio).toContain('<h2 className="mirava-section-title mt-12 text-2xl">{t.imagesTitle}</h2>')
-  })
+  it(
+    "gives every finalized portfolio photo a distinct accessible name",
+    () => {
+      const libraryStart =
+        studio.indexOf(
+          "function LibraryView",
+        )
 
-  it("keeps an empty private gallery actionable rather than blank", () => {
-    expect(studio).toContain("Votre premier studio apparaîtra ici après votre première séance.")
-    expect(studio).toContain("Votre galerie reste privée et vide jusqu’à votre première image.")
-    expect(studio).toMatch(/const startFreshCreation = \(\) => \{\s*setCurrent\(null\)\s*setCreateStep\(0\)\s*selectView\("create"\)\s*\}/)
-    expect(studio).toMatch(/<LibraryView[^>]*onStartCreate=\{startFreshCreation\}/)
-  })
+      const libraryEnd =
+        studio.indexOf(
+          "function AccountView",
+          libraryStart,
+        )
+
+      const library =
+        studio.slice(
+          libraryStart,
+          libraryEnd,
+        )
+
+      expect(libraryStart).toBeGreaterThan(
+        -1,
+      )
+
+      expect(libraryEnd).toBeGreaterThan(
+        libraryStart,
+      )
+
+      expect(library).toContain(
+        "portfolioItems.map",
+      )
+
+      expect(library).toContain(
+        'key={`${creation.id}-${imageIndex}`}',
+      )
+
+      expect(library).toContain(
+        "Ouvrir la photo ${index + 1}",
+      )
+
+      expect(library).toContain(
+        "Abrir la foto ${index + 1}",
+      )
+
+      expect(library).not.toContain(
+        "Ouvrir la création ${index + 1}",
+      )
+    },
+  )
+
+  it(
+    "keeps an empty portfolio explicit and routes creation through Studio",
+    () => {
+      const libraryStart =
+        studio.indexOf(
+          "function LibraryView",
+        )
+
+      const libraryEnd =
+        studio.indexOf(
+          "function AccountView",
+          libraryStart,
+        )
+
+      const library =
+        studio.slice(
+          libraryStart,
+          libraryEnd,
+        )
+
+      expect(library).toContain(
+        "Votre portfolio est vide",
+      )
+
+      expect(library).toContain(
+        "Tu portfolio está vacío",
+      )
+
+      expect(library).toContain(
+        "Seules vos photos finalisées apparaissent ici. Lancez une séance depuis l’onglet Studio.",
+      )
+
+      expect(library).toContain(
+        "Aquí solo aparecen tus fotos finalizadas. Inicia una sesión desde la pestaña Estudio.",
+      )
+
+      expect(library).not.toContain(
+        "Votre premier studio apparaîtra ici après votre première séance.",
+      )
+
+      expect(library).not.toContain(
+        "Votre galerie reste privée et vide jusqu’à votre première image.",
+      )
+
+      expect(library).not.toContain(
+        "onStartCreate",
+      )
+    },
+  )
 
   it("resets a mobile destination to its beginning and announces non-error feedback", () => {
     expect(studio).toContain("studioScrollRef.current?.scrollTo")
@@ -647,5 +732,69 @@ describe("MIRAVA studio entry contracts", () => {
       )
     },
   )
+
+  it(
+    "keeps the portfolio image-first and moves reusable studios to Studio",
+    () => {
+      const libraryStart =
+        studio.indexOf(
+          "function LibraryView",
+        )
+      const libraryEnd =
+        studio.indexOf(
+          "function AccountView",
+          libraryStart,
+        )
+      const library =
+        studio.slice(
+          libraryStart,
+          libraryEnd,
+        )
+
+      expect(studio).toContain(
+        'credits: "crédits"',
+      )
+      expect(studio).toContain(
+        'credits: "créditos"',
+      )
+      expect(studio).toContain(
+        "function StudioResumeRail",
+      )
+      expect(studio).toContain(
+        "Reprendre une direction",
+      )
+      expect(library).toContain(
+        'creation.status ===',
+      )
+      expect(library).toContain(
+        '"COMPLETED"',
+      )
+      expect(library).toContain(
+        "portfolioItems",
+      )
+      expect(library).toContain(
+        "activeCreations",
+      )
+      expect(library).toContain(
+        "creation.resultUrl",
+      )
+      expect(library).not.toContain(
+        "hiddenAttemptCount",
+      )
+      expect(library).not.toContain(
+        "tentative",
+      )
+      expect(library).not.toContain(
+        "onStartCreate",
+      )
+      expect(library).not.toContain(
+        "onReuse",
+      )
+      expect(library).not.toContain(
+        "studios.map",
+      )
+    },
+  )
+
 
 })
