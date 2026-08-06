@@ -31,15 +31,50 @@ const schema = z.object({
     z.string().min(1).optional(),
 })
 
+type CheckoutLocale =
+  | "fr"
+  | "es"
+
+function checkoutLocale(
+  req: NextRequest,
+): CheckoutLocale {
+  const configuredLocale =
+    req.headers
+      .get("x-mirava-locale")
+      ?.toLowerCase()
+
+  if (
+    configuredLocale === "es"
+  ) {
+    return "es"
+  }
+
+  return "fr"
+}
+
 export async function POST(
   req: NextRequest,
 ) {
+  const locale =
+    checkoutLocale(req)
+
+  const message = (
+    fr: string,
+    es: string,
+  ) =>
+    locale === "es"
+      ? es
+      : fr
+
   const session =
     await verifySession()
 
   if (!session) {
     return apiError(
-      "Unauthorized",
+      message(
+        "Unauthorized",
+        "No autorizado.",
+      ),
       401,
     )
   }
@@ -48,14 +83,20 @@ export async function POST(
     !isMiravaPublicLaunchEnabled()
   ) {
     return apiError(
-      "Les achats MIRAVA ne sont pas encore ouverts.",
+      message(
+        "Les achats MIRAVA ne sont pas encore ouverts.",
+        "Las compras de MIRAVA todavía no están disponibles.",
+      ),
       503,
     )
   }
 
   if (!isStripeConfigured()) {
     return apiError(
-      "Le paiement en ligne n’est pas encore configuré (Clé Stripe manquante).",
+      message(
+        "Le paiement en ligne n’est pas encore configuré (Clé Stripe manquante).",
+        "El pago en línea todavía no está configurado (falta la clave de Stripe).",
+      ),
       503,
     )
   }
@@ -68,7 +109,10 @@ export async function POST(
 
   if (!limit.success) {
     return apiError(
-      "Trop de demandes de paiement. Réessayez plus tard.",
+      message(
+        "Trop de demandes de paiement. Réessayez plus tard.",
+        "Demasiadas solicitudes de pago. Inténtalo de nuevo más tarde.",
+      ),
       429,
     )
   }
@@ -92,14 +136,20 @@ export async function POST(
 
   if (!offer) {
     return apiError(
-      "Offre MIRAVA introuvable.",
+      message(
+        "Offre MIRAVA introuvable.",
+        "No se ha encontrado la oferta de MIRAVA.",
+      ),
       400,
     )
   }
 
   if (!offer.stripePriceId) {
     return apiError(
-      "Cette offre MIRAVA est momentanément indisponible.",
+      message(
+        "Cette offre MIRAVA est momentanément indisponible.",
+        "Esta oferta de MIRAVA no está disponible temporalmente.",
+      ),
       503,
     )
   }
@@ -113,7 +163,10 @@ export async function POST(
 
   if (!user) {
     return apiError(
-      "Utilisateur introuvable.",
+      message(
+        "Utilisateur introuvable.",
+        "No se ha encontrado al usuario.",
+      ),
       404,
     )
   }
@@ -127,7 +180,10 @@ export async function POST(
 
     if (!creationId) {
       return apiError(
-        "La première séance à débloquer est manquante.",
+        message(
+          "La première séance à débloquer est manquante.",
+          "Falta la primera sesión que se debe desbloquear.",
+        ),
         400,
       )
     }
@@ -157,7 +213,10 @@ export async function POST(
         creation.id
     ) {
       return apiError(
-        "Cette séance découverte n’est pas disponible.",
+        message(
+          "Cette séance découverte n’est pas disponible.",
+          "Esta sesión de descubrimiento no está disponible.",
+        ),
         409,
       )
     }
@@ -166,7 +225,10 @@ export async function POST(
       access.unlockedCreationId
     ) {
       return apiError(
-        "Votre séance découverte est déjà débloquée.",
+        message(
+          "Votre séance découverte est déjà débloquée.",
+          "Tu sesión de descubrimiento ya está desbloqueada.",
+        ),
         409,
       )
     }
@@ -199,7 +261,10 @@ export async function POST(
 
     if (activeSubscription) {
       return apiError(
-        "Un abonnement MIRAVA est déjà actif. Gérez ou modifiez votre forfait depuis le portail d’abonnement.",
+        message(
+          "Un abonnement MIRAVA est déjà actif. Gérez ou modifiez votre forfait depuis le portail d’abonnement.",
+          "Ya hay una suscripción de MIRAVA activa. Gestiona o modifica tu plan desde el portal de suscripción.",
+        ),
         409,
       )
     }
@@ -210,9 +275,7 @@ export async function POST(
       getStripe()
 
     const appUrl =
-      process.env
-        .NEXT_PUBLIC_APP_URL ??
-      "http://localhost:3000"
+      req.nextUrl.origin
 
     const creationId =
       parsed.data.creationId
@@ -222,19 +285,17 @@ export async function POST(
         .checkout
         .sessions
         .create({
+          locale:
+            locale === "es"
+              ? "es"
+              : "fr",
           mode:
             offer.kind ===
               "subscription"
               ? "subscription"
               : "payment",
-          payment_method_types: [
-            "card",
-          ],
           billing_address_collection:
             "auto",
-          automatic_tax: {
-            enabled: true,
-          },
           line_items: [
             {
               price:
@@ -296,18 +357,21 @@ export async function POST(
           success_url:
             isDiscovery &&
             creationId
-              ? `${appUrl}/visual-engine/studio?checkout=discovery-success&creation=${encodeURIComponent(creationId)}`
-              : `${appUrl}/visual-engine/studio?checkout=success`,
+              ? `${appUrl}/visual-engine/studio?view=create&checkout=discovery-success&creation=${encodeURIComponent(creationId)}`
+              : `${appUrl}/visual-engine/studio?view=create&checkout=success`,
           cancel_url:
             isDiscovery &&
             creationId
-              ? `${appUrl}/visual-engine/studio?checkout=discovery-cancelled&creation=${encodeURIComponent(creationId)}`
-              : `${appUrl}/visual-engine/studio?checkout=cancelled`,
+              ? `${appUrl}/visual-engine/studio?view=create&checkout=discovery-cancelled&creation=${encodeURIComponent(creationId)}`
+              : `${appUrl}/visual-engine/studio?view=create&checkout=cancelled`,
         })
 
     if (!checkout.url) {
       return apiError(
-        "Impossible de créer le paiement MIRAVA Studio.",
+        message(
+          "Impossible de créer le paiement MIRAVA Studio.",
+          "No se ha podido crear el pago de MIRAVA Studio.",
+        ),
         500,
       )
     }
@@ -322,7 +386,10 @@ export async function POST(
     )
 
     return apiError(
-      "Le paiement MIRAVA Studio est momentanément indisponible. Réessayez dans un instant.",
+      message(
+        "Le paiement MIRAVA Studio est momentanément indisponible. Réessayez dans un instant.",
+        "El pago de MIRAVA Studio no está disponible temporalmente. Inténtalo de nuevo en unos instantes.",
+      ),
       500,
     )
   }

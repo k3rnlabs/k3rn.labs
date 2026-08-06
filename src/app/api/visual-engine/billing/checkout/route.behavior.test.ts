@@ -26,12 +26,28 @@ vi.mock("@/lib/db", () => ({
 
 import { POST } from "./route"
 
-function request(offerId = "mirava-20") {
-  return new NextRequest("https://mirava.test/api/visual-engine/billing/checkout", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-forwarded-for": "198.51.100.20" },
-    body: JSON.stringify({ offerId }),
-  })
+function request(
+  offerId = "mirava-20",
+  locale: "fr" | "es" = "fr",
+) {
+  return new NextRequest(
+    "https://mirava.test/api/visual-engine/billing/checkout",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type":
+          "application/json",
+        "x-forwarded-for":
+          "198.51.100.20",
+        "x-mirava-locale":
+          locale,
+      },
+      body:
+        JSON.stringify({
+          offerId,
+        }),
+    },
+  )
 }
 
 describe("MIRAVA subscription checkout guard", () => {
@@ -64,6 +80,96 @@ describe("MIRAVA subscription checkout guard", () => {
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({ url: "https://stripe.test/checkout" })
-    expect(create).toHaveBeenCalledWith(expect.objectContaining({ mode: "subscription", automatic_tax: { enabled: true } }))
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locale: "fr",
+        mode: "subscription",
+      }),
+    )
+
+    const checkoutParameters =
+      create.mock.calls[0]?.[0]
+
+    expect(checkoutParameters).not.toHaveProperty(
+      "payment_method_types",
+    )
+    expect(checkoutParameters).not.toHaveProperty(
+      "automatic_tax",
+    )
+    expect(
+      checkoutParameters.success_url,
+    ).toBe(
+      "https://mirava.test/visual-engine/studio?view=create&checkout=success",
+    )
+    expect(
+      checkoutParameters.cancel_url,
+    ).toBe(
+      "https://mirava.test/visual-engine/studio?view=create&checkout=cancelled",
+    )
   })
+  it(
+    "returns the Stripe checkout failure in the configured Spanish locale",
+    async () => {
+      const create =
+        vi.fn().mockRejectedValue(
+          new Error(
+            "Stripe unavailable",
+          ),
+        )
+
+      mocks.findSubscription
+        .mockResolvedValue(null)
+
+      mocks.getStripe.mockReturnValue({
+        checkout: {
+          sessions: {
+            create,
+          },
+        },
+      })
+
+      const response =
+        await POST(
+          request(
+            "mirava-20",
+            "es",
+          ),
+        )
+
+      expect(response.status).toBe(500)
+
+      await expect(
+        response.json(),
+      ).resolves.toEqual({
+        error:
+          "El pago de MIRAVA Studio no está disponible temporalmente. Inténtalo de nuevo en unos instantes.",
+      })
+    },
+  )
+
+  it(
+    "localizes checkout availability errors in Spanish",
+    async () => {
+      mocks.isMiravaPublicLaunchEnabled
+        .mockReturnValue(false)
+
+      const response =
+        await POST(
+          request(
+            "mirava-20",
+            "es",
+          ),
+        )
+
+      expect(response.status).toBe(503)
+
+      await expect(
+        response.json(),
+      ).resolves.toEqual({
+        error:
+          "Las compras de MIRAVA todavía no están disponibles.",
+      })
+    },
+  )
+
 })
