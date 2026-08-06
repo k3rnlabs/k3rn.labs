@@ -51,6 +51,9 @@ import type { VisualDirectionBlueprint } from "@/lib/mirava/schemas/visual-direc
 export const STUDIO_BUCKET = process.env.SUPABASE_STORAGE_VISUAL_ENGINE_BUCKET ?? "visual-engine-private"
 export const STUDIO_CONSENT_VERSION = "2026-07-29"
 export const MAX_STUDIO_IMAGE_BYTES = 10 * 1024 * 1024
+export const MIRAVA_IMAGE_PROVIDER_TIMEOUT_MS = 120_000
+export const MIRAVA_CONTINUITY_IMAGE_PROVIDER_TIMEOUT_MS = 240_000
+export const MIRAVA_GENERATION_TIMEOUT_MAX_ATTEMPTS = 2
 export const MIN_IDENTITY_ASSETS = MIRAVA_MIN_IDENTITY_PHOTOS
 export const RECOMMENDED_IDENTITY_ASSETS = MIRAVA_RECOMMENDED_IDENTITY_PHOTOS
 export const MAX_IDENTITY_ASSETS = MIRAVA_MAX_IDENTITY_PHOTOS
@@ -2582,6 +2585,7 @@ async function generateStudioImage(
   >,
   frameIndex = 0,
   physicalTraits: PhysicalTrait[] = [],
+  jobAttempt = 1,
 ): Promise<Buffer> {
   const apiKey =
     process.env.OPENAI_API_KEY
@@ -2617,6 +2621,11 @@ async function generateStudioImage(
       creation.parentCreationId &&
       creation.shotIntent,
     )
+
+  const providerTimeoutMs =
+    isContinuation
+      ? MIRAVA_CONTINUITY_IMAGE_PROVIDER_TIMEOUT_MS
+      : MIRAVA_IMAGE_PROVIDER_TIMEOUT_MS
 
   const isReferenceAnchor =
     frameIndex === 0 &&
@@ -2694,6 +2703,9 @@ async function generateStudioImage(
         .digest("hex")
         .slice(0, 16)
 
+    const startedAt =
+      Date.now()
+
     console.info(
       "[mirava-image-attempt]",
       JSON.stringify({
@@ -2705,6 +2717,9 @@ async function generateStudioImage(
         shotIntent:
           creation.shotIntent ?? null,
         variant,
+        jobAttempt,
+        timeoutMs:
+          providerTimeoutMs,
         campaignSafeTransfer:
           campaignRisk.requiresCampaignSafeTransfer,
         campaignRiskScore:
@@ -2767,21 +2782,52 @@ async function generateStudioImage(
       )
     }
 
-    const response = await fetch(
-      "https://api.openai.com/v1/images/edits",
-      {
-        method: "POST",
-        headers: {
-          Authorization:
-            `Bearer ${apiKey}`,
+    let response: Response
+
+    try {
+      response = await fetch(
+        "https://api.openai.com/v1/images/edits",
+        {
+          method: "POST",
+          headers: {
+            Authorization:
+              `Bearer ${apiKey}`,
+          },
+          body: form,
+          signal:
+            AbortSignal.timeout(
+              providerTimeoutMs,
+            ),
         },
-        body: form,
-        signal:
-          AbortSignal.timeout(
-            120_000,
-          ),
-      },
-    )
+      )
+    } catch (error) {
+      console.error(
+        "[Studio image provider transport error]",
+        JSON.stringify({
+          creationId:
+            creation.id,
+          frameIndex,
+          shotIndex:
+            creation.shotIndex ?? 0,
+          shotIntent:
+            creation.shotIntent ?? null,
+          variant,
+          jobAttempt,
+          timeoutMs:
+            providerTimeoutMs,
+          elapsedMs:
+            Date.now() - startedAt,
+          continuityAssetPresent:
+            Boolean(continuityInput),
+          sourceName:
+            providerExceptionName(error),
+          sourceMessage:
+            providerExceptionMessage(error),
+        }),
+      )
+
+      throw error
+    }
 
     if (!response.ok) {
       const retryable =
@@ -2799,6 +2845,11 @@ async function generateStudioImage(
           model:
             MIRAVA_IMAGE_MODEL,
           variant,
+          jobAttempt,
+          timeoutMs:
+            providerTimeoutMs,
+          elapsedMs:
+            Date.now() - startedAt,
           promptHash,
           promptLength:
             promptText.length,
@@ -2874,6 +2925,27 @@ async function generateStudioImage(
         true,
       )
     }
+
+    console.info(
+      "[mirava-image-success]",
+      JSON.stringify({
+        creationId:
+          creation.id,
+        frameIndex,
+        shotIndex:
+          creation.shotIndex ?? 0,
+        shotIntent:
+          creation.shotIntent ?? null,
+        variant,
+        jobAttempt,
+        timeoutMs:
+          providerTimeoutMs,
+        elapsedMs:
+          Date.now() - startedAt,
+        continuityAssetPresent:
+          Boolean(continuityInput),
+      }),
+    )
 
     return Buffer.from(
       encoded,
@@ -3031,6 +3103,7 @@ async function failJob(
             job.kind === "ANALYZE"
               ? "ANALYSIS_TIMEOUT"
               : "GENERATION_TIMEOUT",
+            job.kind === "GENERATE",
           )
         : new StudioError(
             "La création Studio a échoué.",
@@ -3062,7 +3135,16 @@ async function failJob(
 
   const attempts =
     job.attempts + 1
-  const retry = studioError.retryable && attempts < 3
+
+  const maxAttempts =
+    studioError.code ===
+      "GENERATION_TIMEOUT"
+      ? MIRAVA_GENERATION_TIMEOUT_MAX_ATTEMPTS
+      : 3
+
+  const retry =
+    studioError.retryable &&
+    attempts < maxAttempts
   if (retry) {
     await db.studioJob.update({ where: { id: job.id }, data: { status: "PENDING", attempts, nextRunAt: new Date(Date.now() + retryDelayMs(attempts)).toISOString(), lockedAt: null, failureCode: studioError.code } })
     await db.studioCreation.update({ where: { id: creation.id }, data: { status: job.kind === "ANALYZE" ? "ANALYSIS_QUEUED" : "GENERATION_QUEUED" } })
@@ -3189,6 +3271,7 @@ async function processStudioJob(job: StudioJobRecord): Promise<void> {
         identities,
         frameIndex,
         physicalTraits,
+        job.attempts + 1,
       )
 
       await storeResultAsset(
