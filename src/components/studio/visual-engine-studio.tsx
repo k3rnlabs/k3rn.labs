@@ -1251,7 +1251,7 @@ export function VisualEngineStudio() {
       checkoutState === "success" ||
       checkoutState === "cancelled"
     ) {
-      setView("account")
+      setView("create")
       setNotice(null)
       setCheckoutNotice(checkoutState)
       params.delete("checkout")
@@ -4759,11 +4759,11 @@ function CreditPurchaseSheet({
             onReturnFocus()
           }}
           data-mirava-credit-sheet
-          className="fixed inset-x-0 bottom-0 z-[100] mx-auto flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[2rem] border border-white/10 bg-[#0a0b0a] text-white shadow-[0_-30px_100px_rgba(0,0,0,0.72)] outline-none sm:bottom-4 sm:rounded-[2rem]"
+          className="fixed inset-x-0 bottom-0 z-[100] mx-auto flex h-[94dvh] max-h-[94dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[1.75rem] border border-white/10 bg-[#0a0b0a] text-white shadow-[0_-30px_100px_rgba(0,0,0,0.72)] outline-none sm:bottom-4 sm:h-auto sm:max-h-[92dvh] sm:rounded-[2rem]"
         >
           <div
             data-mirava-credit-darkroom
-            className="relative isolate overflow-hidden border-b border-white/10 px-5 pb-6 pt-3 sm:px-7"
+            className="relative isolate shrink-0 overflow-hidden border-b border-white/10 px-4 pb-3.5 pt-2.5 sm:px-7 sm:pb-6 sm:pt-3"
           >
             <div
               aria-hidden="true"
@@ -4836,14 +4836,14 @@ function CreditPurchaseSheet({
                 </button>
               </div>
 
-              <div className="mt-5 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#d7c39a]">
+              <div className="mt-3 flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.2em] text-[#d7c39a] sm:mt-4 sm:text-[10px] sm:tracking-[0.22em]">
                 <span className="inline-flex h-2 w-2 rounded-full bg-[#d7c39a]" />
                 {locale === "fr"
                   ? "MIRAVA / CHAMBRE NOIRE"
                   : "MIRAVA / CUARTO OSCURO"}
               </div>
 
-              <DialogPrimitive.Title className="mt-3 max-w-xl font-jakarta text-[2rem] font-semibold leading-[1.02] tracking-[-0.055em] sm:text-[2.35rem]">
+              <DialogPrimitive.Title className="mt-2 max-w-xl font-jakarta text-[1.72rem] font-semibold leading-[1.02] tracking-[-0.055em] sm:mt-3 sm:text-[2.35rem]">
                 {missingCredits > 0
                   ? locale === "fr"
                     ? "Continuer votre séance"
@@ -4857,7 +4857,7 @@ function CreditPurchaseSheet({
                       : "Añadir créditos"}
               </DialogPrimitive.Title>
 
-              <DialogPrimitive.Description className="mt-3 max-w-xl text-sm leading-6 text-white/68">
+              <DialogPrimitive.Description className="mt-2 max-w-xl text-[12px] leading-[1.45] text-white/68 sm:mt-3 sm:text-sm sm:leading-6">
                 {missingCredits > 0
                   ? locale === "fr"
                     ? `Il vous manque ${missingCredits} crédit${missingCredits > 1 ? "s" : ""}. Choisissez une recharge pour reprendre immédiatement.`
@@ -4867,22 +4867,22 @@ function CreditPurchaseSheet({
                     : "Elige la oferta adecuada para tu próximo ritmo de creación."}
               </DialogPrimitive.Description>
 
-              <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-2xl border border-white/10 bg-black/22 px-4 py-3 text-xs text-white/70">
-                <span className="flex items-center gap-2">
-                  <Check className="h-4 w-4 text-[#d7c39a]" />
+              <div className="mt-3 grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.35fr)] gap-x-2.5 rounded-xl border border-white/10 bg-black/22 px-3 py-2.5 text-[10px] leading-3.5 text-white/70 sm:mt-5 sm:flex sm:flex-wrap sm:items-center sm:gap-x-5 sm:rounded-2xl sm:px-4 sm:py-3 sm:text-xs sm:leading-4">
+                <span className="flex min-w-0 items-start gap-1.5">
+                  <Check className="mt-px h-3.5 w-3.5 shrink-0 text-[#d7c39a]" />
                   {locale === "fr"
                     ? "Séance conservée"
                     : "Sesión conservada"}
                 </span>
 
-                <span className="flex items-center gap-2">
-                  <Check className="h-4 w-4 text-[#d7c39a]" />
+                <span className="flex min-w-0 items-start gap-1.5">
+                  <Check className="mt-px h-3.5 w-3.5 shrink-0 text-[#d7c39a]" />
                   {locale === "fr"
-                    ? "Ajout après confirmation Stripe"
-                    : "Añadido tras confirmación de Stripe"}
+                    ? "Crédits ajoutés après paiement"
+                    : "Créditos añadidos tras el pago"}
                 </span>
 
-                <span className="ml-auto tabular-nums text-white">
+                <span className="hidden tabular-nums text-white sm:ml-auto sm:block">
                   {account?.credits ?? 0}{" "}
                   {locale === "fr"
                     ? (account?.credits ?? 0) === 1
@@ -4898,9 +4898,9 @@ function CreditPurchaseSheet({
 
           <div
             ref={offerScrollRef}
-            className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-7"
+            className="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-7 sm:py-5"
           >
-            <div className="sticky top-0 z-20 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-[#101110]/95 p-1.5 shadow-[0_12px_30px_rgba(0,0,0,0.34)] backdrop-blur-xl">
+            <div className="sticky top-0 z-20 grid grid-cols-2 gap-1.5 rounded-xl border border-white/10 bg-[#101110]/95 p-1 shadow-[0_12px_30px_rgba(0,0,0,0.34)] backdrop-blur-xl sm:gap-2 sm:rounded-2xl sm:p-1.5">
               {(
                 [
                   {
@@ -4932,7 +4932,7 @@ function CreditPurchaseSheet({
                     activeKind === tab.id
                   }
                   className={cn(
-                    "min-h-11 rounded-xl px-4 text-sm font-semibold outline-none transition focus-visible:ring-2 focus-visible:ring-[#d7c39a]/55 [-webkit-tap-highlight-color:transparent]",
+                    "min-h-10 rounded-lg px-3 text-[13px] font-semibold outline-none transition focus-visible:ring-2 focus-visible:ring-[#d7c39a]/55 [-webkit-tap-highlight-color:transparent] sm:min-h-11 sm:rounded-xl sm:px-4 sm:text-sm",
                     activeKind === tab.id
                       ? "bg-white text-[#101110] shadow-[0_10px_30px_rgba(0,0,0,0.25)]"
                       : "text-white/58 hover:text-white",
@@ -4945,7 +4945,7 @@ function CreditPurchaseSheet({
               ))}
             </div>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <div className="mt-3 grid gap-2.5 sm:mt-5 sm:grid-cols-3 sm:gap-3">
               {visibleOffers.map(
                 (offer, index) => {
                   const selected =
@@ -4961,6 +4961,8 @@ function CreditPurchaseSheet({
                     index ===
                       visibleOffers.length -
                         1
+                  const hasBadge =
+                    recommended || bestValue
                   const pricePerCredit =
                     offer.credits > 0
                       ? (
@@ -4992,7 +4994,7 @@ function CreditPurchaseSheet({
                       aria-pressed={selected}
                       aria-label={accessibleOfferLabel}
                       className={cn(
-                        "relative min-h-40 overflow-hidden rounded-[1.45rem] border p-4 text-left outline-none transition focus-visible:ring-2 focus-visible:ring-[#d7c39a]/55 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0b0a] [-webkit-tap-highlight-color:transparent]",
+                        "relative min-h-32 overflow-hidden rounded-[1.25rem] border p-3.5 text-left outline-none transition focus-visible:ring-2 focus-visible:ring-[#d7c39a]/55 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0b0a] [-webkit-tap-highlight-color:transparent] sm:min-h-40 sm:rounded-[1.45rem] sm:p-4",
                         selected
                           ? "border-[#d7c39a]/80 bg-[#d7c39a]/10 shadow-[0_18px_55px_rgba(0,0,0,0.35)]"
                           : "border-white/10 bg-white/[0.035] hover:border-white/22 hover:bg-white/[0.055]",
@@ -5001,7 +5003,7 @@ function CreditPurchaseSheet({
                       <span
                         aria-hidden="true"
                         className={cn(
-                          "absolute right-3 top-3 grid h-6 w-6 place-items-center rounded-full border text-xs",
+                          "absolute right-3 top-3 grid h-5 w-5 place-items-center rounded-full border text-[10px] sm:h-6 sm:w-6 sm:text-xs",
                           selected
                             ? "border-white bg-white text-black"
                             : "border-white/25 text-transparent",
@@ -5010,38 +5012,45 @@ function CreditPurchaseSheet({
                         ✓
                       </span>
 
-                      <div className="flex min-h-6 flex-wrap gap-1.5 pr-8">
-                        {recommended ? (
-                          <span className="rounded-full border border-[#d7c39a]/35 bg-[#d7c39a]/10 px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.13em] text-[#e6d3a9]">
-                            {locale === "fr"
-                              ? "Le plus choisi"
-                              : "Más elegido"}
-                          </span>
-                        ) : null}
+                      {hasBadge ? (
+                        <div className="flex min-h-5 flex-wrap gap-1.5 pr-7 sm:min-h-6 sm:pr-8">
+                          {recommended ? (
+                            <span className="rounded-full border border-[#d7c39a]/35 bg-[#d7c39a]/10 px-2 py-0.5 text-[8px] font-semibold uppercase tracking-[0.12em] text-[#e6d3a9] sm:py-1 sm:text-[9px] sm:tracking-[0.13em]">
+                              {locale === "fr"
+                                ? "Le plus choisi"
+                                : "Más elegido"}
+                            </span>
+                          ) : null}
 
-                        {bestValue ? (
-                          <span className="rounded-full border border-white/14 bg-white/[0.055] px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.13em] text-white/65">
-                            {locale === "fr"
-                              ? "Meilleure valeur"
-                              : "Mejor valor"}
-                          </span>
-                        ) : null}
-                      </div>
+                          {bestValue ? (
+                            <span className="rounded-full border border-white/14 bg-white/[0.055] px-2 py-0.5 text-[8px] font-semibold uppercase tracking-[0.12em] text-white/65 sm:py-1 sm:text-[9px] sm:tracking-[0.13em]">
+                              {locale === "fr"
+                                ? "Meilleure valeur"
+                                : "Mejor valor"}
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : null}
 
-                      <span className="mt-4 block font-jakarta text-sm font-semibold text-white">
+                      <span
+                        className={cn(
+                          "block font-jakarta text-[13px] font-semibold text-white sm:text-sm",
+                          hasBadge ? "mt-2" : "mt-0",
+                        )}
+                      >
                         {displayName}
                       </span>
 
-                      <span className="mt-2 block font-jakarta text-2xl font-semibold tracking-[-0.04em] text-white">
+                      <span className="mt-1.5 block font-jakarta text-[1.65rem] font-semibold tracking-[-0.04em] text-white sm:mt-2 sm:text-2xl">
                         {offer.credits}{" "}
-                        <span className="text-sm font-medium text-white/55">
+                        <span className="text-[13px] font-medium text-white/55 sm:text-sm">
                           {locale === "fr"
                             ? "crédits"
                             : "créditos"}
                         </span>
                       </span>
 
-                      <span className="mt-4 block text-sm font-semibold text-white">
+                      <span className="mt-2 block text-[13px] font-semibold text-white sm:mt-3 sm:text-sm">
                         {offer.priceEur} €
                         {offer.kind ===
                         "subscription"
@@ -5051,7 +5060,7 @@ function CreditPurchaseSheet({
                           : ""}
                       </span>
 
-                      <span className="mt-1 block text-[11px] leading-4 text-white/48">
+                      <span className="mt-0.5 block text-[10px] leading-3.5 text-white/48 sm:mt-1 sm:text-[11px] sm:leading-4">
                         {offer.kind ===
                         "pack"
                           ? locale === "fr"
@@ -5077,49 +5086,104 @@ function CreditPurchaseSheet({
           </div>
 
           <div
-            className="border-t border-white/10 bg-[#0a0b0a]/96 px-5 pb-4 pt-4 backdrop-blur-xl sm:px-7"
+            className="relative shrink-0 border-t border-white/10 bg-[linear-gradient(180deg,rgba(10,11,10,0.94)_0%,#070807_100%)] px-4 pb-2.5 pt-3 backdrop-blur-xl sm:px-7 sm:pb-4 sm:pt-4"
             style={{
               paddingBottom:
-                "max(1rem, env(safe-area-inset-bottom))",
+                "max(0.65rem, env(safe-area-inset-bottom))",
             }}
           >
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-0 top-0 h-px bg-[linear-gradient(90deg,transparent,rgba(215,195,154,0.45),transparent)]"
+            />
             <button
               type="button"
+              data-mirava-checkout-cta
               onClick={handlePrimaryAction}
               disabled={
                 !selectedOffer ||
                 actionPending
               }
-              className="mirava-button mirava-button-primary min-h-14 w-full px-5 text-sm font-semibold"
+              className="group relative isolate flex min-h-[4.25rem] w-full items-center justify-between overflow-hidden rounded-[1.35rem] border border-[#f2eadc]/90 bg-[linear-gradient(135deg,#fffaf0_0%,#eee4d3_58%,#d8c3a0_100%)] px-3 pl-5 text-left text-[#0b0c0b] shadow-[0_16px_38px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.9)] outline-none transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_20px_48px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.95)] focus-visible:ring-2 focus-visible:ring-[#d7c39a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0b0a] active:translate-y-0 active:scale-[0.985] disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-none disabled:bg-white/[0.07] disabled:text-white/32 disabled:shadow-none sm:min-h-[4.5rem] sm:pl-6"
             >
-              {actionPending ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : null}
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.92),transparent_34%),linear-gradient(115deg,transparent_0%,rgba(255,255,255,0.26)_45%,transparent_72%)] opacity-90 group-disabled:hidden"
+              />
 
-              {selectedOffer
-                ? selectedIsCurrent ||
-                  selectedNeedsPortal
-                  ? locale === "fr"
-                    ? "Gérer ma formule"
-                    : "Gestionar mi plan"
-                  : selectedOffer.kind ===
-                      "pack"
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 -skew-x-12 bg-white/35 blur-xl transition-transform duration-700 ease-out group-hover:translate-x-[420%] group-disabled:hidden"
+              />
+
+              <span className="relative z-10 flex min-w-0 flex-1 flex-col pr-3">
+                <span className="truncate font-jakarta text-[15px] font-semibold tracking-[-0.025em] sm:text-base">
+                  {actionPending
                     ? locale === "fr"
-                      ? `Ajouter ${selectedOffer.credits} crédits`
-                      : `Añadir ${selectedOffer.credits} créditos`
-                    : locale === "fr"
-                      ? `Choisir ${localizedOfferName(selectedOffer, locale)}`
-                      : `Elegir ${localizedOfferName(selectedOffer, locale)}`
-                : locale === "fr"
-                  ? "Choisir une offre"
-                  : "Elegir una oferta"}
+                      ? "Ouverture de Stripe"
+                      : "Abriendo Stripe"
+                    : selectedOffer
+                      ? selectedIsCurrent ||
+                        selectedNeedsPortal
+                        ? locale === "fr"
+                          ? "Gérer ma formule"
+                          : "Gestionar mi plan"
+                        : selectedOffer.kind ===
+                            "pack"
+                          ? locale === "fr"
+                            ? `Ajouter ${selectedOffer.credits} crédits`
+                            : `Añadir ${selectedOffer.credits} créditos`
+                          : locale === "fr"
+                            ? `Choisir ${localizedOfferName(selectedOffer, locale)}`
+                            : `Elegir ${localizedOfferName(selectedOffer, locale)}`
+                      : locale === "fr"
+                        ? "Choisir une offre"
+                        : "Elegir una oferta"}
+                </span>
 
-              {!actionPending ? (
-                <ArrowRight className="ml-2 h-4 w-4" />
-              ) : null}
+                <span className="mt-0.5 truncate text-[10px] font-medium leading-4 text-black/55 group-disabled:text-white/24 sm:text-[11px]">
+                  {actionPending
+                    ? locale === "fr"
+                      ? "Redirection sécurisée…"
+                      : "Redirección segura…"
+                    : selectedOffer
+                      ? selectedIsCurrent ||
+                        selectedNeedsPortal
+                        ? locale === "fr"
+                          ? "Gestion sécurisée de votre abonnement"
+                          : "Gestión segura de tu suscripción"
+                        : selectedOffer.kind ===
+                            "pack"
+                          ? locale === "fr"
+                            ? "Paiement sécurisé · crédits ajoutés après confirmation"
+                            : "Pago seguro · créditos añadidos tras la confirmación"
+                          : locale === "fr"
+                            ? "Paiement sécurisé · activation après confirmation"
+                            : "Pago seguro · activación tras la confirmación"
+                      : locale === "fr"
+                        ? "Sélectionnez une offre pour continuer"
+                        : "Selecciona una oferta para continuar"}
+                </span>
+              </span>
+
+              <span
+                aria-hidden="true"
+                className="relative z-10 grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full border border-black/10 bg-[#10110f] text-white shadow-[0_10px_24px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.12)] transition-transform duration-200 group-hover:translate-x-0.5 group-disabled:border-white/5 group-disabled:bg-white/10 group-disabled:text-white/25 group-disabled:shadow-none sm:h-12 sm:w-12"
+              >
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_35%_20%,rgba(255,255,255,0.18),transparent_42%)]"
+                />
+
+                {actionPending ? (
+                  <Loader2 className="relative h-4 w-4 animate-spin" />
+                ) : (
+                  <ArrowRight className="relative h-5 w-5" />
+                )}
+              </span>
             </button>
 
-            <p className="mt-2 text-center text-[10px] leading-4 text-white/42">
+            <p className="mt-1.5 text-center text-[9px] leading-3.5 text-white/42 sm:mt-2 sm:text-[10px] sm:leading-4">
               {locale === "fr"
                 ? "Paiement sécurisé par Stripe · prix TTC"
                 : "Pago seguro con Stripe · precios con IVA"}

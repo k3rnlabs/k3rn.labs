@@ -203,6 +203,81 @@ describe(
       },
     )
 
+
+    it(
+      "keeps the purchase header visible and removes empty badge space",
+      () => {
+        expect(studio).toContain(
+          "relative isolate shrink-0 overflow-hidden",
+        )
+        expect(studio).toContain(
+          '"Crédits ajoutés après paiement"',
+        )
+        expect(studio).toContain(
+          "const hasBadge =",
+        )
+        expect(studio).toContain(
+          "{hasBadge ? (",
+        )
+        expect(studio).toContain(
+          'hasBadge ? "mt-2" : "mt-0"',
+        )
+      },
+    )
+
+
+    it(
+      "keeps the mobile iPhone credit sheet density under control",
+      () => {
+        expect(studio).toContain(
+          "h-[94dvh] max-h-[94dvh]",
+        )
+        expect(studio).toContain(
+          "px-4 pb-3.5 pt-2.5",
+        )
+        expect(studio).toContain(
+          "grid-cols-[minmax(0,0.9fr)_minmax(0,1.35fr)]",
+        )
+        expect(studio).toContain(
+          "min-h-32 overflow-hidden",
+        )
+        expect(studio).toContain(
+          "mirava-button-primary min-h-12",
+        )
+        expect(studio).toContain(
+          "max(0.65rem, env(safe-area-inset-bottom))",
+        )
+      },
+    )
+
+
+    it(
+      "uses a premium checkout call to action and returns Stripe to creation",
+      () => {
+        expect(studio).toContain(
+          "data-mirava-checkout-cta",
+        )
+        expect(studio).toContain(
+          "bg-[linear-gradient(135deg,#fffaf0_0%,#eee4d3_58%,#d8c3a0_100%)]",
+        )
+        expect(studio).toContain(
+          '"Redirection sécurisée…"',
+        )
+        expect(studio).toContain(
+          "group-hover:translate-x-[420%]",
+        )
+        expect(studio).toContain(
+          "Paiement sécurisé · crédits ajoutés après confirmation",
+        )
+        expect(studio).toContain(
+          'checkoutState === "success" ||',
+        )
+        expect(studio).toContain(
+          'setView("create")',
+        )
+      },
+    )
+
     it(
       "structures packs and subscriptions behind an explicit selection",
       () => {
