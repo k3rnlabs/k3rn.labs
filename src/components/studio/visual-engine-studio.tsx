@@ -101,6 +101,7 @@ type Detail = { creation: Creation; assets: Asset[]; resultUrl: string | null; r
 type Studio = { id: string; name: string; presetId: string | null; createdAt: string; updatedAt: string }
 type IdentityProfile = { id: string; assetCount: number; updatedAt: string; previews: Array<{ id: string; url: string; createdAt: string }> } | null
 type Offer = { id: string; name: string; credits: number; priceEur: number; kind: "pack" | "subscription" }
+type CreditOfferKind = Offer["kind"]
 type Account = { credits: number; subscription: { planId: string | null; status: string | null; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean } | null; plans: Offer[]; packs: Offer[] }
 type Consents = { terms: boolean; identity: boolean }
 type PrivacyStatus = {
@@ -699,6 +700,157 @@ function MiravaDarkroomLoading({
   )
 }
 
+function MiravaCreditsButton({
+  locale,
+  creditBalance,
+  onClick,
+}: {
+  locale: Locale
+  creditBalance: number
+  onClick: () => void
+}) {
+  const reduceMotion = useReducedMotion()
+  const safeBalance = Math.max(
+    0,
+    creditBalance,
+  )
+  const empty = safeBalance === 0
+
+  const ariaLabel =
+    locale === "fr"
+      ? empty
+        ? "Aucun crédit disponible. Recharger mes crédits."
+        : `${safeBalance} crédit${safeBalance > 1 ? "s" : ""} disponible${safeBalance > 1 ? "s" : ""}. Gérer mes crédits.`
+      : empty
+        ? "No hay créditos disponibles. Recargar mis créditos."
+        : `${safeBalance} crédito${safeBalance === 1 ? "" : "s"} disponible${safeBalance === 1 ? "" : "s"}. Gestionar mis créditos.`
+
+  return (
+    <motion.button
+      type="button"
+      onClick={onClick}
+      data-mirava-credit-trigger
+      data-empty={empty}
+      aria-label={ariaLabel}
+      whileHover={
+        reduceMotion
+          ? undefined
+          : {
+              y: -1,
+              scale: 1.015,
+            }
+      }
+      whileTap={
+        reduceMotion
+          ? undefined
+          : {
+              scale: 0.97,
+            }
+      }
+      transition={{
+        duration: 0.2,
+        ease: "easeOut",
+      }}
+      className={cn(
+        "group relative isolate flex h-12 w-[4.5rem] min-w-[4.5rem] items-center justify-center gap-2 overflow-hidden rounded-full border border-white/[0.12] bg-[#070807] px-2.5 text-white",
+        "shadow-[0_12px_32px_rgba(0,0,0,0.24)] transition-[border-color,box-shadow] duration-300",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7cfb9]/55 focus-visible:ring-offset-2 focus-visible:ring-offset-mirava-canvas",
+        empty
+          ? "border-[#d7cfb9]/30 shadow-[0_12px_34px_rgba(60,48,30,0.25)]"
+          : "hover:border-white/[0.22]",
+      )}
+    >
+      <motion.span
+        aria-hidden="true"
+        data-mirava-credit-darkroom
+        className="pointer-events-none absolute -inset-[35%]"
+        style={{
+          background:
+            "radial-gradient(circle at 72% 50%, rgba(214,207,185,0.22), transparent 25%), radial-gradient(circle at 18% 80%, rgba(154,143,116,0.11), transparent 33%)",
+        }}
+        animate={
+          reduceMotion
+            ? undefined
+            : {
+                opacity: [
+                  0.48,
+                  0.88,
+                  0.48,
+                ],
+                scale: [
+                  1,
+                  1.07,
+                  1,
+                ],
+              }
+        }
+        transition={{
+          duration: 5.4,
+          repeat: Infinity,
+          ease: "easeInOut",
+        }}
+      />
+
+      <span
+        aria-hidden="true"
+        data-mirava-credit-dot-grid
+        className="pointer-events-none absolute inset-0 opacity-[0.07]"
+        style={{
+          backgroundImage:
+            "radial-gradient(rgba(255,255,255,0.78) 0.5px, transparent 0.8px)",
+          backgroundSize:
+            "5px 5px",
+        }}
+      />
+
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 bg-gradient-to-b from-white/[0.055] via-transparent to-black/20"
+      />
+
+      <span
+        data-mirava-credit-balance
+        className="relative z-10 min-w-[1rem] tabular-nums font-jakarta text-sm font-semibold tracking-[-0.025em] text-white"
+      >
+        {safeBalance}
+      </span>
+
+      <motion.span
+        aria-hidden="true"
+        className="relative z-10 grid h-6 w-6 shrink-0 place-items-center rounded-full border border-white/[0.13] bg-white/[0.045] text-[#e9e2d1]"
+        animate={
+          !reduceMotion && empty
+            ? {
+                boxShadow: [
+                  "0 0 0 rgba(215,207,185,0)",
+                  "0 0 18px rgba(215,207,185,0.26)",
+                  "0 0 0 rgba(215,207,185,0)",
+                ],
+              }
+            : undefined
+        }
+        transition={{
+          duration: 2.4,
+          repeat: Infinity,
+          ease: "easeInOut",
+        }}
+      >
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          className="block h-3.5 w-3.5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+        >
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+      </motion.span>
+    </motion.button>
+  )
+}
+
 function ResultSaveButton({
   url,
   index,
@@ -909,11 +1061,26 @@ export function VisualEngineStudio() {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [checkoutNotice, setCheckoutNotice] = useState<"success" | "cancelled" | "discovery-success" | "discovery-cancelled" | null>(null)
+  const [creditSheetOpen, setCreditSheetOpen] =
+    useState(false)
+  const [
+    creditSheetRequiredCredits,
+    setCreditSheetRequiredCredits,
+  ] = useState(1)
+  const [
+    creditSheetInitialKind,
+    setCreditSheetInitialKind,
+  ] = useState<CreditOfferKind>("pack")
+  const [
+    creditSheetHighlightedOfferId,
+    setCreditSheetHighlightedOfferId,
+  ] = useState<string | null>(null)
   const studioBackgroundRef = useRef<HTMLDivElement>(null)
   const studioScrollRef = useRef<HTMLDivElement>(null)
   const hasHydratedStudioPreferenceRef = useRef(false)
   const directorTriggerRef = useRef<HTMLElement | null>(null)
   const captureTriggerRef = useRef<HTMLElement | null>(null)
+  const creditSheetTriggerRef = useRef<HTMLElement | null>(null)
   const clearNotice = () => {
     setNotice(null)
     setCheckoutNotice(null)
@@ -1142,7 +1309,11 @@ export function VisualEngineStudio() {
     return () => window.removeEventListener("popstate", syncViewFromHistory)
   }, [])
 
-  const modalOpen = Boolean(captureContext) || directorOpen || consentTarget !== undefined
+  const modalOpen =
+    Boolean(captureContext) ||
+    directorOpen ||
+    consentTarget !== undefined ||
+    creditSheetOpen
 
   useEffect(() => {
     const background = studioBackgroundRef.current
@@ -1321,42 +1492,84 @@ export function VisualEngineStudio() {
 
   const openCreditOffers = (
     requiredCredits = 1,
+    initialKind: CreditOfferKind =
+      "pack",
   ) => {
+    const normalizedRequiredCredits =
+      Math.max(
+        0,
+        requiredCredits,
+      )
     const missingCredits =
       Math.max(
         0,
-        requiredCredits -
+        normalizedRequiredCredits -
           creditBalance,
       )
 
-    selectView("account")
+    creditSheetTriggerRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null
+
+    setCreditSheetRequiredCredits(
+      normalizedRequiredCredits,
+    )
+    setCreditSheetInitialKind(
+      initialKind,
+    )
+    setCreditSheetHighlightedOfferId(null)
+    setCreditSheetOpen(true)
 
     if (missingCredits > 0) {
       showNotice(
         locale === "fr"
           ? missingCredits === 1
-            ? "Il vous manque 1 crédit pour continuer. Choisissez une recharge ci-dessous."
-            : `Il vous manque ${missingCredits} crédits pour continuer. Choisissez une recharge ci-dessous.`
+            ? "Il vous manque un crédit pour continuer."
+            : `Il vous manque ${missingCredits} crédits pour continuer.`
           : missingCredits === 1
-            ? "Te falta 1 crédito para continuar. Elige una recarga a continuación."
-            : `Te faltan ${missingCredits} créditos para continuar. Elige una recarga a continuación.`,
+            ? "Te falta un crédito para continuar."
+            : `Te faltan ${missingCredits} créditos para continuar.`,
       )
     }
-
-    window.setTimeout(
-      () => {
-        document
-          .getElementById(
-            "mirava-credit-offers",
-          )
-          ?.scrollIntoView({
-            behavior: "smooth",
-            block: "start",
-          })
-      },
-      120,
-    )
   }
+
+  useEffect(() => {
+    if (
+      !highlightedOfferId ||
+      !account
+    ) {
+      return
+    }
+
+    const highlightedOffer =
+      [
+        ...account.packs,
+        ...account.plans,
+      ].find(
+        (offer) =>
+          offer.id ===
+          highlightedOfferId,
+      )
+
+    if (!highlightedOffer) {
+      return
+    }
+
+    creditSheetTriggerRef.current = null
+    setCreditSheetRequiredCredits(0)
+    setCreditSheetInitialKind(
+      highlightedOffer.kind,
+    )
+    setCreditSheetHighlightedOfferId(
+      highlightedOffer.id,
+    )
+    setCreditSheetOpen(true)
+    setHighlightedOfferId(null)
+  }, [
+    account,
+    highlightedOfferId,
+  ])
 
   const openDirector = (trigger?: HTMLElement) => {
     directorTriggerRef.current = trigger ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null)
@@ -1836,7 +2049,36 @@ export function VisualEngineStudio() {
   }
   const removeCreation = () => current && run("delete", async () => { await api(`/api/visual-engine/creations/${current.creation.id}`, { method: "DELETE" }); setCurrent(null); await refresh() })
   const removeIdentity = () => run("identity-delete", async () => { await api("/api/visual-engine/identity-profile", { method: "DELETE" }); await refresh() })
-  const checkout = (offerId: string) => run(`offer-${offerId}`, async () => { const data = await api<{ url: string }>("/api/visual-engine/billing/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ offerId }) }); window.location.assign(data.url) })
+  const checkout =
+    (offerId: string) =>
+      run(
+        `offer-${offerId}`,
+        async () => {
+          const data =
+            await api<{
+              url: string
+            }>(
+              "/api/visual-engine/billing/checkout",
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type":
+                    "application/json",
+                  "X-Mirava-Locale":
+                    locale,
+                },
+                body:
+                  JSON.stringify({
+                    offerId,
+                  }),
+              },
+            )
+
+          window.location.assign(
+            data.url,
+          )
+        },
+      )
 
   const checkoutDiscovery =
     (creationId: string) =>
@@ -1853,6 +2095,8 @@ export function VisualEngineStudio() {
                 headers: {
                   "Content-Type":
                     "application/json",
+                  "X-Mirava-Locale":
+                    locale,
                 },
                 body:
                   JSON.stringify({
@@ -1981,38 +2225,15 @@ export function VisualEngineStudio() {
         }
         actions={
           <div className="flex items-center gap-2">
-            <button
-              type="button"
+            <MiravaCreditsButton
+              locale={locale}
+              creditBalance={
+                creditBalance
+              }
               onClick={() =>
-                openCreditOffers(1)
+                openCreditOffers(0)
               }
-              data-empty={
-                creditBalance === 0
-              }
-              aria-label={
-                creditBalance === 0
-                  ? locale === "fr"
-                    ? "Aucun crédit disponible. Recharger mes crédits."
-                    : "No hay créditos disponibles. Recargar mis créditos."
-                  : locale === "fr"
-                    ? `${creditBalance} crédit${creditBalance > 1 ? "s" : ""} disponible${creditBalance > 1 ? "s" : ""}. Gérer mes crédits.`
-                    : `${creditBalance} crédito${creditBalance === 1 ? "" : "s"} disponible${creditBalance === 1 ? "" : "s"}. Gestionar mis créditos.`
-              }
-              className={cn(
-                "mirava-button tabular-nums min-h-12 px-3 font-jakarta text-[10px] font-semibold tracking-[.08em]",
-                creditBalance === 0
-                  ? "mirava-button-primary shadow-lg shadow-mirava-accent/20 ring-1 ring-mirava-accent/40"
-                  : "mirava-button-secondary",
-              )}
-            >
-              {creditBalance === 0
-                ? locale === "fr"
-                  ? "0 crédit · Recharger"
-                  : "0 créditos · Recargar"
-                : locale === "fr"
-                  ? `${creditBalance} crédit${creditBalance > 1 ? "s" : ""}`
-                  : `${creditBalance} crédito${creditBalance === 1 ? "" : "s"}`}
-            </button>
+            />
             <button aria-label={locale === "fr" ? "Passer en espagnol" : "Cambiar al francés"} onClick={() => setLocale(locale === "fr" ? "es" : "fr")} className="mirava-button mirava-button-secondary min-w-12 px-3 text-xs">{locale.toUpperCase()}</button>
           </div>
         }
@@ -2111,9 +2332,38 @@ export function VisualEngineStudio() {
             }
           />
         )}
-        {view === "account" && <AccountView locale={locale} t={t} account={account} identityProfile={identityProfile} highlightedOfferId={highlightedOfferId} pending={pending} onCheckout={checkout} onPortal={portal} onStartCreate={startFreshCreation} onOpenCapture={() => openCapture(identityProfile ? "append" : "onboarding")} onReplaceIdentity={() => openCapture("replace")} onReplaceIdentityAsset={replaceIdentityAsset} onDeleteIdentityAsset={deleteIdentityAsset} onDeleteIdentity={removeIdentity} />}
+        {view === "account" && <AccountView locale={locale} t={t} account={account} identityProfile={identityProfile} pending={pending} onPortal={portal} onOpenCapture={() => openCapture(identityProfile ? "append" : "onboarding")} onReplaceIdentity={() => openCapture("replace")} onReplaceIdentityAsset={replaceIdentityAsset} onDeleteIdentityAsset={deleteIdentityAsset} onDeleteIdentity={removeIdentity} onOpenCreditSheet={(kind) => openCreditOffers(0, kind)} />}
         </div>
       </div>
+
+      <CreditPurchaseSheet
+        open={creditSheetOpen}
+        onOpenChange={(open) => {
+          setCreditSheetOpen(open)
+
+          if (!open) {
+            setCreditSheetHighlightedOfferId(null)
+          }
+        }}
+        locale={locale}
+        account={account}
+        requiredCredits={
+          creditSheetRequiredCredits
+        }
+        initialKind={
+          creditSheetInitialKind
+        }
+        highlightedOfferId={
+          creditSheetHighlightedOfferId
+        }
+        pending={pending}
+        onCheckout={checkout}
+        onPortal={portal}
+        onReturnFocus={() => {
+          creditSheetTriggerRef.current?.focus()
+          creditSheetTriggerRef.current = null
+        }}
+      />
 
       <BottomNavBar
         activeId={view}
@@ -3592,11 +3842,9 @@ function AccountView({
   t,
   account,
   identityProfile,
-  highlightedOfferId,
   pending,
-  onCheckout,
   onPortal,
-  onStartCreate,
+  onOpenCreditSheet,
   onOpenCapture,
   onReplaceIdentity,
   onReplaceIdentityAsset,
@@ -3607,11 +3855,9 @@ function AccountView({
   t: Copy
   account: Account | null
   identityProfile: IdentityProfile
-  highlightedOfferId: string | null
   pending: string | null
-  onCheckout: (id: string) => void
   onPortal: () => void
-  onStartCreate: () => void
+  onOpenCreditSheet: (kind?: CreditOfferKind) => void
   onOpenCapture: () => void
   onReplaceIdentity: () => void
   onReplaceIdentityAsset: (
@@ -3625,19 +3871,14 @@ function AccountView({
 }) {
   const ready = isMiravaIdentityProfileReady(identityProfile)
   const availableCredits = account?.credits ?? 0
+  const currentPlan =
+    (account?.plans ?? []).find(
+      (offer) =>
+        offer.id ===
+        account?.subscription?.planId,
+    ) ?? null
 
-  const scrollToOffers = () => {
-    document
-      .getElementById(
-        "mirava-credit-offers",
-      )
-      ?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      })
-  }
 
-  const highlightedOffer = [...(account?.plans ?? []), ...(account?.packs ?? [])].find((offer) => offer.id === highlightedOfferId)
   const [pushLoading, setPushLoading] = useState(false)
   const [pushNotice, setPushNotice] = useState<string | null>(null)
   const [pushError, setPushError] = useState<string | null>(null)
@@ -3758,89 +3999,6 @@ function AccountView({
       <p className="mirava-label">MIRAVA / {locale === "fr" ? "ACCÈS" : "ACCESO"}</p>
       <h1 className="mirava-section-title mt-3 text-4xl sm:text-5xl"><BlurText text={t.accountTitle} /></h1>
       <div className="mt-8 grid gap-4">
-        <Surface className="flex flex-col justify-between">
-          <div>
-            <p className="mirava-label">
-              {locale === "fr"
-                ? "CRÉDITS & ACCÈS"
-                : "CRÉDITOS Y ACCESO"}
-            </p>
-            <div className="mt-4 flex items-end justify-between gap-4">
-              <div>
-                <p className="tabular-nums font-jakarta text-4xl font-semibold">
-                  {account?.credits ?? 0}
-                </p>
-                <p className="mirava-copy mt-1 text-sm">
-                  {t.credits}
-                </p>
-              </div>
-
-              {account?.subscription ? (
-                <button
-                  onClick={onPortal}
-                  disabled={pending === "portal"}
-                  className="mirava-button mirava-button-secondary px-4 text-xs font-semibold"
-                >
-                  {pending === "portal" ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : null}
-                  {t.portal}
-                </button>
-              ) : null}
-            </div>
-          </div>
-
-          {availableCredits > 0 ? (
-            <>
-              <p className="mirava-copy mt-6 text-xs leading-5">
-                {locale === "fr"
-                  ? `${availableCredits === 1 ? "Votre création est prête" : `Vos ${availableCredits} créations sont prêtes`}. Lancez une séance quand vous le souhaitez.`
-                  : `${availableCredits === 1 ? "Tu creación está lista" : `Tus ${availableCredits} creaciones están listas`}. Inicia una sesión cuando quieras.`}
-              </p>
-
-              <button
-                onClick={onStartCreate}
-                className="mirava-button mirava-button-primary mt-4 self-start px-4 text-sm font-semibold"
-              >
-                <Camera className="mr-2 h-4 w-4" />
-                {locale === "fr"
-                  ? "Créer ma séance"
-                  : "Crear mi sesión"}
-              </button>
-            </>
-          ) : (
-            <>
-              <div
-                role="alert"
-                className="mirava-alert mt-6 p-4"
-              >
-                <p className="text-sm font-semibold">
-                  {locale === "fr"
-                    ? "Votre solde est épuisé."
-                    : "Tu saldo se ha agotado."}
-                </p>
-
-                <p className="mt-1 text-xs leading-5">
-                  {locale === "fr"
-                    ? "Rechargez votre compte pour reprendre immédiatement une création."
-                    : "Recarga tu cuenta para retomar inmediatamente una creación."}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={scrollToOffers}
-                className="mirava-button mirava-button-primary mt-4 self-start px-4 text-sm font-semibold"
-              >
-                {locale === "fr"
-                  ? "Voir les recharges"
-                  : "Ver las recargas"}
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </button>
-            </>
-          )}
-        </Surface>
-
         <section className="mirava-surface overflow-hidden">
           <div className="p-5 sm:p-6">
             <div className="flex items-start justify-between gap-4">
@@ -4242,62 +4400,110 @@ function AccountView({
         </DialogPrimitive.Portal>
       </DialogPrimitive.Root>
 
-      <div
-        id="mirava-credit-offers"
-        className="mt-10 scroll-mt-28"
+      <section
+        data-mirava-account-billing
+        className="mt-10"
       >
-        {highlightedOffer && (
-          <div
-            role="status"
-            className="mirava-notice mb-6 flex items-center justify-between gap-3 p-4 text-sm shadow-lg"
-          >
-            <span>
-              {locale === "fr"
-                ? `${highlightedOffer.name} est sélectionnée. Vous pouvez confirmer votre choix ci-dessous.`
-                : `${highlightedOffer.name} está seleccionada. Puedes confirmar tu elección a continuación.`}
-            </span>
-          </div>
-        )}
-
         <p className="mirava-label">
+          MIRAVA /{" "}
           {locale === "fr"
-            ? "RECHARGER"
-            : "RECARGAR"}
+            ? "FACTURATION"
+            : "FACTURACIÓN"}
         </p>
 
-        <h2 className="mt-2 font-jakarta text-2xl font-semibold">
-          {t.packs}
-        </h2>
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          <Surface className="flex min-h-48 flex-col justify-between">
+            <div>
+              <p className="mirava-muted text-xs">
+                {locale === "fr"
+                  ? "Solde disponible"
+                  : "Saldo disponible"}
+              </p>
 
-        <Offers
-          offers={account?.packs ?? []}
-          locale={locale}
-          t={t}
-          onCheckout={onCheckout}
-          onPortal={onPortal}
-          currentSubscriptionPlanId={null}
-          highlightedOfferId={highlightedOfferId}
-          pending={pending}
-        />
+              <p className="mt-3 font-jakarta text-4xl font-semibold tracking-[-0.06em]">
+                {availableCredits}
+              </p>
 
-        <h2 className="mt-10 font-jakarta text-2xl font-semibold">
-          {t.plans}
-        </h2>
+              <p className="mirava-muted mt-2 text-xs leading-5">
+                {locale === "fr"
+                  ? "Un crédit est consommé par image générée."
+                  : "Se consume un crédito por cada imagen generada."}
+              </p>
+            </div>
 
-        <Offers
-          offers={account?.plans ?? []}
-          locale={locale}
-          t={t}
-          onCheckout={onCheckout}
-          onPortal={onPortal}
-          currentSubscriptionPlanId={
-            account?.subscription?.planId ??
-            null
-          }
-          highlightedOfferId={highlightedOfferId}
-          pending={pending}
-        />
-      </div>
+            <button
+              type="button"
+              onClick={() =>
+                onOpenCreditSheet("pack")
+              }
+              className="mirava-button mirava-button-primary mt-6 min-h-12 w-full px-4 text-sm font-semibold"
+            >
+              {locale === "fr"
+                ? "Ajouter des crédits"
+                : "Añadir créditos"}
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </button>
+          </Surface>
+
+          <Surface className="flex min-h-48 flex-col justify-between">
+            <div>
+              <p className="mirava-muted text-xs">
+                {locale === "fr"
+                  ? "Formule"
+                  : "Plan"}
+              </p>
+
+              <p className="mt-3 font-jakarta text-xl font-semibold">
+                {currentPlan?.name.replace(
+                  /\s+[—-]\s+\d+\s*$/,
+                  "",
+                ) ??
+                  (locale === "fr"
+                    ? "Aucune formule active"
+                    : "Ningún plan activo")}
+              </p>
+
+              <p className="mirava-muted mt-2 text-xs leading-5">
+                {account?.subscription
+                  ?.currentPeriodEnd
+                  ? locale === "fr"
+                    ? `Prochaine échéance : ${new Date(account.subscription.currentPeriodEnd).toLocaleDateString("fr-BE")}`
+                    : `Próxima fecha: ${new Date(account.subscription.currentPeriodEnd).toLocaleDateString("es-ES")}`
+                  : locale === "fr"
+                    ? "Les recharges ponctuelles restent disponibles sans abonnement."
+                    : "Las recargas puntuales siguen disponibles sin suscripción."}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                account?.subscription
+                  ? onPortal()
+                  : onOpenCreditSheet(
+                      "subscription",
+                    )
+              }
+              disabled={
+                pending === "portal"
+              }
+              className="mirava-button mirava-button-secondary mt-6 min-h-12 w-full px-4 text-sm font-semibold"
+            >
+              {pending === "portal" ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+
+              {account?.subscription
+                ? locale === "fr"
+                  ? "Gérer ma formule"
+                  : "Gestionar mi plan"
+                : locale === "fr"
+                  ? "Découvrir les formules"
+                  : "Ver los planes"}
+            </button>
+          </Surface>
+        </div>
+      </section>
 
       <div className="mt-10 max-w-lg space-y-3">
         <div className="flex flex-wrap gap-3">
@@ -4324,62 +4530,547 @@ function AccountView({
   )
 }
 
-function Offers({ offers, locale, t, onCheckout, onPortal, currentSubscriptionPlanId, highlightedOfferId, pending }: { offers: Offer[]; locale: Locale; t: Copy; onCheckout: (id: string) => void; onPortal: () => void; currentSubscriptionPlanId: string | null; highlightedOfferId: string | null; pending: string | null }) {
-  return (
-    <div className="mt-4 grid gap-3 sm:grid-cols-3">
-      {offers.map((offer) => {
-        const isOfferPending = pending === `offer-${offer.id}`
-        const isSubscription = offer.kind === "subscription"
-        const isCurrentSubscription = isSubscription && currentSubscriptionPlanId === offer.id
-        const mustManageSubscription = isSubscription && Boolean(currentSubscriptionPlanId) && !isCurrentSubscription
-        const isHighlighted = highlightedOfferId === offer.id
-        const displayName = offer.name.replace(/\s+[—-]\s+\d+\s*$/, "")
-        const creditsLabel = locale === "fr"
-          ? `${offer.credits} création${offer.credits > 1 ? "s" : ""}${isSubscription ? " / mois" : " sans expiration"}`
-          : `${offer.credits} ${offer.credits === 1 ? "creación" : "creaciones"}${isSubscription ? " / mes" : " sin caducidad"}`
-        const priceLabel = locale === "fr"
-          ? `${offer.priceEur} €${isSubscription ? " / mois · TTC" : " TTC"}`
-          : `${offer.priceEur} €${isSubscription ? " / mes · IVA incluido" : " IVA incluido"}`
-        const accessibleOfferLabel = locale === "fr"
-          ? `${t.choose} ${displayName}, ${creditsLabel}, ${priceLabel}`
-          : `${t.choose} ${displayName}, ${creditsLabel}, ${priceLabel}`
-        return (
-          <Surface key={offer.id} className={cn("flex flex-col justify-between p-5", isHighlighted && "border-mirava-accent/70 bg-mirava-surface-raised ring-1 ring-mirava-accent/40 shadow-xl shadow-mirava-accent/10")}>
-            <div>
-              <p className="tabular-nums font-jakarta text-xl font-semibold">{offer.credits}</p>
-              <p className="mirava-copy mt-0.5 text-xs">{displayName}</p>
-              <p className="mirava-copy mt-3 text-xs leading-5">{creditsLabel}</p>
-              <p className="tabular-nums mt-3 font-jakarta text-2xl font-semibold">{offer.priceEur} €</p>
-              <p className="mirava-muted mt-1 text-[11px] font-medium">{isSubscription ? (locale === "fr" ? "TTC / mois" : "IVA incluido / mes") : (locale === "fr" ? "TTC · sans expiration" : "IVA incluido · sin caducidad")}</p>
-            </div>
-              {isCurrentSubscription ? (
-                <p role="status" className="mirava-notice mt-5 flex min-h-12 items-center justify-center gap-2 px-3 text-center text-xs font-semibold">
-                  <Check className="h-4 w-4 shrink-0 text-mirava-success" />
-                  {locale === "fr" ? "Votre forfait actuel" : "Tu plan actual"}
-                </p>
-              ) : (
-                <button
-                  onClick={() => mustManageSubscription ? onPortal() : onCheckout(offer.id)}
-                  disabled={pending !== null}
-                  aria-label={mustManageSubscription
-                    ? (locale === "fr" ? `Modifier ${displayName} dans le portail d’abonnement` : `Modificar ${displayName} en el portal de suscripción`)
-                    : accessibleOfferLabel}
-                  className="mirava-button mirava-button-primary mt-5 min-h-12 w-full gap-2 text-xs font-semibold"
-                >
-                  {(isOfferPending || (mustManageSubscription && pending === "portal")) ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  {isOfferPending || (mustManageSubscription && pending === "portal")
-                    ? (locale === "fr" ? "Ouverture…" : "Abriendo…")
-                    : mustManageSubscription
-                      ? (locale === "fr" ? "Modifier mon forfait" : "Modificar mi plan")
-                      : t.choose}
-                </button>
-              )}
-          </Surface>
+
+
+function CreditPurchaseSheet({
+  open,
+  onOpenChange,
+  locale,
+  account,
+  requiredCredits,
+  initialKind,
+  highlightedOfferId,
+  pending,
+  onCheckout,
+  onPortal,
+  onReturnFocus,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  locale: Locale
+  account: Account | null
+  requiredCredits: number
+  initialKind: CreditOfferKind
+  highlightedOfferId: string | null
+  pending: string | null
+  onCheckout: (id: string) => void
+  onPortal: () => void
+  onReturnFocus: () => void
+}) {
+  const reduceMotion = useReducedMotion()
+  const [activeKind, setActiveKind] =
+    useState<CreditOfferKind>(initialKind)
+  const [selectedOfferId, setSelectedOfferId] =
+    useState<string | null>(null)
+
+  const packs = account?.packs ?? []
+  const plans = account?.plans ?? []
+  const visibleOffers =
+    activeKind === "pack"
+      ? packs
+      : plans
+  const selectedOffer =
+    [...packs, ...plans].find(
+      (offer) =>
+        offer.id === selectedOfferId,
+    ) ?? null
+  const currentSubscriptionPlanId =
+    account?.subscription?.planId ?? null
+  const missingCredits = Math.max(
+    0,
+    requiredCredits -
+      (account?.credits ?? 0),
+  )
+
+  useEffect(() => {
+    if (!open) {
+      return
+    }
+
+    setActiveKind(initialKind)
+  }, [initialKind, open])
+
+  useEffect(() => {
+    if (!open) {
+      return
+    }
+
+    const offers =
+      activeKind === "pack"
+        ? account?.packs ?? []
+        : account?.plans ?? []
+
+    const highlightedOffer =
+      offers.find(
+        (offer) =>
+          offer.id ===
+          highlightedOfferId,
+      ) ?? null
+
+    if (highlightedOffer) {
+      if (
+        selectedOfferId !==
+        highlightedOffer.id
+      ) {
+        setSelectedOfferId(
+          highlightedOffer.id,
         )
-      })}
-    </div>
+      }
+
+      return
+    }
+
+    if (
+      selectedOfferId &&
+      offers.some(
+        (offer) =>
+          offer.id === selectedOfferId,
+      )
+    ) {
+      return
+    }
+
+    const recommendedOffer =
+      offers[
+        Math.min(
+          1,
+          Math.max(
+            0,
+            offers.length - 1,
+          ),
+        )
+      ] ??
+      offers[0] ??
+      null
+
+    setSelectedOfferId(
+      recommendedOffer?.id ?? null,
+    )
+  }, [
+    account,
+    activeKind,
+    highlightedOfferId,
+    open,
+    selectedOfferId,
+  ])
+
+  const selectedIsCurrent =
+    selectedOffer?.kind ===
+      "subscription" &&
+    selectedOffer.id ===
+      currentSubscriptionPlanId
+  const selectedNeedsPortal =
+    selectedOffer?.kind ===
+      "subscription" &&
+    Boolean(
+      currentSubscriptionPlanId,
+    )
+
+  const handlePrimaryAction = () => {
+    if (!selectedOffer) {
+      return
+    }
+
+    if (
+      selectedIsCurrent ||
+      selectedNeedsPortal
+    ) {
+      onPortal()
+      return
+    }
+
+    onCheckout(selectedOffer.id)
+  }
+
+  const actionPending =
+    selectedOffer
+      ? pending ===
+          `offer-${selectedOffer.id}` ||
+        (
+          selectedNeedsPortal &&
+          pending === "portal"
+        )
+      : false
+
+  return (
+    <DialogPrimitive.Root
+      open={open}
+      onOpenChange={onOpenChange}
+    >
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="fixed inset-0 z-[90] bg-black/75 backdrop-blur-md" />
+
+        <DialogPrimitive.Content
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            onReturnFocus()
+          }}
+          data-mirava-credit-sheet
+          className="fixed inset-x-0 bottom-0 z-[100] mx-auto flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[2rem] border border-white/10 bg-[#0a0b0a] text-white shadow-[0_-30px_100px_rgba(0,0,0,0.72)] outline-none sm:bottom-4 sm:rounded-[2rem]"
+        >
+          <div
+            data-mirava-credit-darkroom
+            className="relative isolate overflow-hidden border-b border-white/10 px-5 pb-6 pt-3 sm:px-7"
+          >
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0"
+            >
+              <Grainient
+                className="absolute inset-0 h-full w-full"
+                color1="#b49a68"
+                color2="#171915"
+                color3="#6b5130"
+                timeSpeed={0.72}
+                colorBalance={-0.12}
+                warpStrength={1.75}
+                warpFrequency={5.6}
+                warpSpeed={1.25}
+                warpAmplitude={30}
+                blendAngle={-14}
+                blendSoftness={0.16}
+                rotationAmount={620}
+                noiseScale={1.35}
+                grainAmount={0.035}
+                grainScale={1.8}
+                grainAnimated={false}
+                contrast={1.35}
+                gamma={1}
+                saturation={0.82}
+                centerX={-0.12}
+                centerY={0.03}
+                zoom={1.08}
+                animated={!reduceMotion}
+              />
+            </div>
+
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 bg-black/35"
+            />
+
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 opacity-[0.15]"
+              style={{
+                backgroundImage:
+                  "radial-gradient(rgba(255,255,255,0.82) 0.55px, transparent 0.8px)",
+                backgroundSize:
+                  "5px 5px",
+              }}
+            />
+
+            <div className="relative">
+              <div className="flex items-center justify-between">
+                <span
+                  aria-hidden="true"
+                  className="mx-auto h-1 w-12 rounded-full bg-white/28"
+                />
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    onOpenChange(false)
+                  }
+                  aria-label={
+                    locale === "fr"
+                      ? "Fermer"
+                      : "Cerrar"
+                  }
+                  className="absolute right-0 top-0 grid h-10 w-10 place-items-center rounded-full border border-white/12 bg-black/25 text-xl leading-none text-white/75 transition hover:bg-black/45 hover:text-white"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="mt-5 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#d7c39a]">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#c4a870] opacity-50" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-[#d7c39a]" />
+                </span>
+                {locale === "fr"
+                  ? "Chambre noire active"
+                  : "Cuarto oscuro activo"}
+              </div>
+
+              <DialogPrimitive.Title className="mt-3 max-w-xl font-jakarta text-[2rem] font-semibold leading-[1.02] tracking-[-0.055em] sm:text-[2.35rem]">
+                {missingCredits > 0
+                  ? locale === "fr"
+                    ? "Continuer votre séance"
+                    : "Continuar tu sesión"
+                  : activeKind === "subscription"
+                    ? locale === "fr"
+                      ? "Choisir votre formule"
+                      : "Elegir tu plan"
+                    : locale === "fr"
+                      ? "Ajouter des crédits"
+                      : "Añadir créditos"}
+              </DialogPrimitive.Title>
+
+              <DialogPrimitive.Description className="mt-3 max-w-xl text-sm leading-6 text-white/68">
+                {missingCredits > 0
+                  ? locale === "fr"
+                    ? `Il vous manque ${missingCredits} crédit${missingCredits > 1 ? "s" : ""}. Choisissez une recharge pour reprendre immédiatement.`
+                    : `Te faltan ${missingCredits} crédito${missingCredits === 1 ? "" : "s"}. Elige una recarga para continuar de inmediato.`
+                  : locale === "fr"
+                    ? "Choisissez l’offre adaptée à votre prochain rythme de création."
+                    : "Elige la oferta adecuada para tu próximo ritmo de creación."}
+              </DialogPrimitive.Description>
+
+              <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-2xl border border-white/10 bg-black/22 px-4 py-3 text-xs text-white/70">
+                <span className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-[#d7c39a]" />
+                  {locale === "fr"
+                    ? "Séance conservée"
+                    : "Sesión conservada"}
+                </span>
+
+                <span className="flex items-center gap-2">
+                  <Check className="h-4 w-4 text-[#d7c39a]" />
+                  {locale === "fr"
+                    ? "Ajout après confirmation Stripe"
+                    : "Añadido tras confirmación de Stripe"}
+                </span>
+
+                <span className="ml-auto tabular-nums text-white">
+                  {account?.credits ?? 0}{" "}
+                  {locale === "fr"
+                    ? (account?.credits ?? 0) === 1
+                      ? "crédit disponible"
+                      : "crédits disponibles"
+                    : (account?.credits ?? 0) === 1
+                      ? "crédito disponible"
+                      : "créditos disponibles"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-7">
+            <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/[0.035] p-1.5">
+              {(
+                [
+                  {
+                    id: "pack",
+                    fr: "Crédits",
+                    es: "Créditos",
+                  },
+                  {
+                    id: "subscription",
+                    fr: "Formules",
+                    es: "Planes",
+                  },
+                ] as const
+              ).map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() =>
+                    setActiveKind(tab.id)
+                  }
+                  aria-pressed={
+                    activeKind === tab.id
+                  }
+                  className={cn(
+                    "min-h-11 rounded-xl px-4 text-sm font-semibold transition",
+                    activeKind === tab.id
+                      ? "bg-white text-[#101110] shadow-[0_10px_30px_rgba(0,0,0,0.25)]"
+                      : "text-white/58 hover:text-white",
+                  )}
+                >
+                  {locale === "fr"
+                    ? tab.fr
+                    : tab.es}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+              {visibleOffers.map(
+                (offer, index) => {
+                  const selected =
+                    selectedOfferId ===
+                    offer.id
+                  const recommended =
+                    visibleOffers.length >
+                      1 &&
+                    index === 1
+                  const bestValue =
+                    activeKind ===
+                      "pack" &&
+                    index ===
+                      visibleOffers.length -
+                        1
+                  const pricePerCredit =
+                    offer.credits > 0
+                      ? (
+                          offer.priceEur /
+                          offer.credits
+                        )
+                          .toFixed(2)
+                          .replace(".", ",")
+                      : null
+                  const displayName =
+                    offer.name.replace(
+                      /\s+[—-]\s+\d+\s*$/,
+                      "",
+                    )
+                  const isSubscription = offer.kind === "subscription"
+                  const accessibleOfferLabel = locale === "fr"
+                    ? `${displayName}, ${offer.credits} ${offer.credits === 1 ? "crédit" : "crédits"}, ${offer.priceEur} euros, ${isSubscription ? "TTC par mois" : "TTC · sans expiration"}`
+                    : `${displayName}, ${offer.credits} ${offer.credits === 1 ? "crédito" : "créditos"}, ${offer.priceEur} euros, ${isSubscription ? "IVA incluido al mes" : "IVA incluido · sin caducidad"}`
+
+                  return (
+                    <button
+                      key={offer.id}
+                      type="button"
+                      onClick={() =>
+                        setSelectedOfferId(
+                          offer.id,
+                        )
+                      }
+                      aria-pressed={selected}
+                      aria-label={accessibleOfferLabel}
+                      className={cn(
+                        "relative min-h-40 overflow-hidden rounded-[1.45rem] border p-4 text-left transition",
+                        selected
+                          ? "border-[#d7c39a]/80 bg-[#d7c39a]/10 shadow-[0_18px_55px_rgba(0,0,0,0.35)]"
+                          : "border-white/10 bg-white/[0.035] hover:border-white/22 hover:bg-white/[0.055]",
+                      )}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          "absolute right-3 top-3 grid h-6 w-6 place-items-center rounded-full border text-xs",
+                          selected
+                            ? "border-white bg-white text-black"
+                            : "border-white/25 text-transparent",
+                        )}
+                      >
+                        ✓
+                      </span>
+
+                      <div className="flex min-h-6 flex-wrap gap-1.5 pr-8">
+                        {recommended ? (
+                          <span className="rounded-full border border-[#d7c39a]/35 bg-[#d7c39a]/10 px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.13em] text-[#e6d3a9]">
+                            {locale === "fr"
+                              ? "Le plus choisi"
+                              : "Más elegido"}
+                          </span>
+                        ) : null}
+
+                        {bestValue ? (
+                          <span className="rounded-full border border-white/14 bg-white/[0.055] px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.13em] text-white/65">
+                            {locale === "fr"
+                              ? "Meilleure valeur"
+                              : "Mejor valor"}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <span className="mt-4 block font-jakarta text-sm font-semibold text-white">
+                        {displayName}
+                      </span>
+
+                      <span className="mt-2 block font-jakarta text-2xl font-semibold tracking-[-0.04em] text-white">
+                        {offer.credits}{" "}
+                        <span className="text-sm font-medium text-white/55">
+                          {locale === "fr"
+                            ? "crédits"
+                            : "créditos"}
+                        </span>
+                      </span>
+
+                      <span className="mt-4 block text-sm font-semibold text-white">
+                        {offer.priceEur} €
+                        {offer.kind ===
+                        "subscription"
+                          ? locale === "fr"
+                            ? " / mois"
+                            : " / mes"
+                          : ""}
+                      </span>
+
+                      <span className="mt-1 block text-[11px] leading-4 text-white/48">
+                        {offer.kind ===
+                        "pack"
+                          ? locale === "fr"
+                            ? `${pricePerCredit} € par crédit · sans expiration`
+                            : `${pricePerCredit} € por crédito · sin caducidad`
+                          : locale === "fr"
+                            ? "Crédits renouvelés chaque mois"
+                            : "Créditos renovados cada mes"}
+                      </span>
+                    </button>
+                  )
+                },
+              )}
+            </div>
+
+            {!visibleOffers.length ? (
+              <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.035] p-5 text-sm leading-6 text-white/60">
+                {locale === "fr"
+                  ? "Aucune offre n’est disponible pour le moment."
+                  : "No hay ninguna oferta disponible en este momento."}
+              </div>
+            ) : null}
+          </div>
+
+          <div
+            className="border-t border-white/10 bg-[#0a0b0a]/96 px-5 pb-4 pt-4 backdrop-blur-xl sm:px-7"
+            style={{
+              paddingBottom:
+                "max(1rem, env(safe-area-inset-bottom))",
+            }}
+          >
+            <button
+              type="button"
+              onClick={handlePrimaryAction}
+              disabled={
+                !selectedOffer ||
+                actionPending
+              }
+              className="mirava-button mirava-button-primary min-h-14 w-full px-5 text-sm font-semibold"
+            >
+              {actionPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+
+              {selectedOffer
+                ? selectedIsCurrent ||
+                  selectedNeedsPortal
+                  ? locale === "fr"
+                    ? "Gérer ma formule"
+                    : "Gestionar mi plan"
+                  : selectedOffer.kind ===
+                      "pack"
+                    ? locale === "fr"
+                      ? `Ajouter ${selectedOffer.credits} crédits`
+                      : `Añadir ${selectedOffer.credits} créditos`
+                    : locale === "fr"
+                      ? `Choisir ${selectedOffer.name.replace(/\s+[—-]\s+\d+\s*$/, "")}`
+                      : `Elegir ${selectedOffer.name.replace(/\s+[—-]\s+\d+\s*$/, "")}`
+                : locale === "fr"
+                  ? "Choisir une offre"
+                  : "Elegir una oferta"}
+
+              {!actionPending ? (
+                <ArrowRight className="ml-2 h-4 w-4" />
+              ) : null}
+            </button>
+
+            <p className="mt-2 text-center text-[10px] leading-4 text-white/42">
+              {locale === "fr"
+                ? "Paiement sécurisé par Stripe · prix TTC"
+                : "Pago seguro con Stripe · precios con IVA"}
+            </p>
+          </div>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   )
 }
+
 
 function DesktopNavButton({ active, primary = false, icon, label, onClick }: { active: boolean; primary?: boolean; icon?: ReactElement; label: string; onClick: (event: React.MouseEvent<HTMLButtonElement>) => void }) {
   return <button aria-current={active ? "page" : undefined} onClick={onClick} data-active={active} data-primary={primary} className="mirava-desktop-tab flex min-h-12 items-center gap-2 px-4 text-xs font-semibold">{icon && <span className="mirava-desktop-tab-icon">{icon}</span>}{label}</button>

@@ -159,8 +159,8 @@ describe("MIRAVA studio entry contracts", () => {
   })
 
   it("makes the underlying studio inert whenever a MIRAVA modal is open", () => {
-    expect(studio).toContain(
-      "const modalOpen = Boolean(captureContext) || directorOpen || consentTarget !== undefined",
+    expect(studio).toMatch(
+      /const modalOpen =\s*Boolean\(captureContext\)\s*\|\|\s*directorOpen\s*\|\|\s*consentTarget !== undefined\s*\|\|\s*creditSheetOpen/,
     )
 
     expect(studio).toContain(
@@ -191,12 +191,33 @@ describe("MIRAVA studio entry contracts", () => {
   })
 
   it("makes billing cadence, tax and expiry explicit in every accessible offer name", () => {
-    expect(studio).toContain('const isSubscription = offer.kind === "subscription"')
-    expect(studio).toContain('const accessibleOfferLabel = locale === "fr"')
-    expect(studio).toContain('aria-label={mustManageSubscription')
-    expect(studio).toContain('"TTC · sans expiration"')
-    expect(studio).toContain('const displayName = offer.name.replace(/\\s+[—-]\\s+\\d+\\s*$/, "")')
-    expect(studio).toContain('offer.credits === 1 ? "creación" : "creaciones"')
+    expect(studio).toContain(
+      'const isSubscription = offer.kind === "subscription"',
+    )
+    expect(studio).toContain(
+      'const accessibleOfferLabel = locale === "fr"',
+    )
+    expect(studio).toContain(
+      "aria-label={accessibleOfferLabel}",
+    )
+    expect(studio).toContain(
+      '"TTC par mois"',
+    )
+    expect(studio).toContain(
+      '"TTC · sans expiration"',
+    )
+    expect(studio).toContain(
+      '"IVA incluido al mes"',
+    )
+    expect(studio).toContain(
+      '"IVA incluido · sin caducidad"',
+    )
+    expect(studio).toContain(
+      'const displayName =',
+    )
+    expect(studio).toContain(
+      'offer.credits === 1 ? "crédit" : "crédits"',
+    )
   })
 
   it("calls the private identity profile by its purpose, not by an ambiguous model label", () => {
@@ -227,12 +248,42 @@ describe("MIRAVA studio entry contracts", () => {
   })
 
   it("keeps a public offer selection visible after authentication instead of starting payment implicitly", () => {
-    expect(studio).toContain('const requestedOfferId = params.get("offer")')
-    expect(studio).toContain('const authReturnPath = `${window.location.pathname}${window.location.search}`')
-    expect(studio).toContain('setHighlightedOfferId(requestedOfferId)')
-    expect(studio).toContain('"Votre offre est prête à être confirmée."')
-    expect(studio).toContain('highlightedOfferId={highlightedOfferId}')
-    expect(studio).toContain('isHighlighted && "border-mirava-accent/70')
+    expect(studio).toContain(
+      'const requestedOfferId = params.get("offer")',
+    )
+    expect(studio).toContain(
+      'const authReturnPath = `${window.location.pathname}${window.location.search}`',
+    )
+    expect(studio).toContain(
+      "setHighlightedOfferId(requestedOfferId)",
+    )
+    expect(studio).toContain(
+      '"Votre offre est prête à être confirmée."',
+    )
+    expect(studio).toContain(
+      "function CreditPurchaseSheet",
+    )
+    expect(studio).toContain(
+      "setCreditSheetHighlightedOfferId(",
+    )
+    expect(studio).toContain(
+      "setCreditSheetHighlightedOfferId(\n      highlightedOffer.id",
+    )
+    expect(studio).toContain(
+      "selectedOfferId !==\n        highlightedOffer.id",
+    )
+    expect(studio).toContain(
+      "setSelectedOfferId(\n          highlightedOffer.id",
+    )
+    expect(studio).toContain(
+      "setHighlightedOfferId(null)",
+    )
+    expect(studio).toContain(
+      "const handlePrimaryAction = () => {",
+    )
+    expect(studio).toContain(
+      "onCheckout(selectedOffer.id)",
+    )
   })
 
   it("does not let a client select a series that exceeds the available credit balance", () => {
@@ -254,12 +305,31 @@ describe("MIRAVA studio entry contracts", () => {
     expect(studio).toContain('creationCount === 1 ? "Crear mi imagen"')
   })
 
-  it("makes an available credit lead to creation instead of an unnecessary purchase", () => {
-    expect(studio).toContain("const availableCredits = account?.credits ?? 0")
-    expect(studio).toContain('availableCredits > 0 ? (')
-    expect(studio).toContain('"Créer ma séance"')
-    expect(studio).toMatch(/const startFreshCreation = \(\) => \{\s*setCurrent\(null\)\s*setCreateStep\(0\)\s*selectView\("create"\)\s*\}/)
-    expect(studio).toMatch(/<AccountView[^>]*onStartCreate=\{startFreshCreation\}/)
+  it("keeps sufficient credits on the creation path without opening the purchase sheet", () => {
+    expect(studio).toContain(
+      "const creationCount = options.seriesSize ?? 1",
+    )
+    expect(studio).toMatch(
+      /const insufficientCredits =\s*creationCount >\s*availableCredits/,
+    )
+    expect(studio).toContain(
+      "identityReady ? (",
+    )
+    expect(studio).toContain(
+      "insufficientCredits ? (",
+    )
+    expect(studio).toContain(
+      "onClick={() =>\n                    onCreate(",
+    )
+    expect(studio).toContain(
+      "{createActionLabel}",
+    )
+    expect(studio).toContain(
+      "onOpenCreditSheet={(kind) => openCreditOffers(0, kind)}",
+    )
+    expect(studio).not.toMatch(
+      /<AccountView[^>]*onStartCreate=/,
+    )
   })
 
   it("does not block creation when identity previews are temporarily unavailable", () => {
