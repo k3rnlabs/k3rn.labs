@@ -112,7 +112,9 @@ describe("MIRAVA studio entry contracts", () => {
 
   it("does not distract a visitor who explicitly chose the personal-reference route", () => {
     expect(studio).toContain('!referenceFile && entryIntent !== "reference"')
-    expect(studio).toContain('createStep === 0 && entryIntent === "reference" && !options.referenceMode')
+    expect(studio).toMatch(
+      /createStep === 0\s*&&\s*entryIntent === "reference"\s*&&\s*!options\.referenceMode/,
+    )
     expect(studio).toContain('const openReferenceFromAlma = () => {')
     expect(studio).toContain('setCurrent(null)')
     expect(studio).toContain('Votre séance en cours reste dans votre galerie.')
@@ -237,7 +239,13 @@ describe("MIRAVA studio entry contracts", () => {
     expect(studio).toContain("const unavailable = item.value > availableCredits")
     expect(studio).toContain("disabled={unavailable}")
     expect(studio).toContain("Votre solde permet jusqu’à {availableCredits} photo")
-    expect(studio).toContain("options.seriesSize! <= (account?.credits ?? 0)")
+    expect(studio).toContain(
+      "const creditBalance =",
+    )
+
+    expect(studio).toMatch(
+      /options\.seriesSize! <=\s*creditBalance/,
+    )
   })
 
   it("names the final creation action after the selected number of images", () => {

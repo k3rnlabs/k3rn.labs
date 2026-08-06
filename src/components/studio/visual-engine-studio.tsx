@@ -1316,6 +1316,48 @@ export function VisualEngineStudio() {
     })
   }
 
+  const creditBalance =
+    account?.credits ?? 0
+
+  const openCreditOffers = (
+    requiredCredits = 1,
+  ) => {
+    const missingCredits =
+      Math.max(
+        0,
+        requiredCredits -
+          creditBalance,
+      )
+
+    selectView("account")
+
+    if (missingCredits > 0) {
+      showNotice(
+        locale === "fr"
+          ? missingCredits === 1
+            ? "Il vous manque 1 crédit pour continuer. Choisissez une recharge ci-dessous."
+            : `Il vous manque ${missingCredits} crédits pour continuer. Choisissez une recharge ci-dessous.`
+          : missingCredits === 1
+            ? "Te falta 1 crédito para continuar. Elige una recarga a continuación."
+            : `Te faltan ${missingCredits} créditos para continuar. Elige una recarga a continuación.`,
+      )
+    }
+
+    window.setTimeout(
+      () => {
+        document
+          .getElementById(
+            "mirava-credit-offers",
+          )
+          ?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          })
+      },
+      120,
+    )
+  }
+
   const openDirector = (trigger?: HTMLElement) => {
     directorTriggerRef.current = trigger ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null)
     setDirectorOpen(true)
@@ -1672,18 +1714,70 @@ export function VisualEngineStudio() {
 
   const analyze = () => current && run("analyze", async () => { await api(`/api/visual-engine/creations/${current.creation.id}/analyze`, { method: "POST" }); await refresh(current.creation.id) })
   const generate = () => current && run("generate", async () => { await api(`/api/visual-engine/creations/${current.creation.id}/generate`, { method: "POST" }); await refresh(current.creation.id) })
-  const reuse = (id: string) => run("reuse", async () => {
-    const data = await api<{ creation: Creation }>(`/api/visual-engine/studios/${id}/creations`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ creativeOptions: options }) })
-    selectView("create")
-    await refresh(data.creation.id)
-  })
+  const reuse = (
+    id: string,
+  ): Promise<boolean> => {
+    const requiredCredits =
+      options.seriesSize ?? 1
+
+    if (
+      creditBalance <
+      requiredCredits
+    ) {
+      openCreditOffers(
+        requiredCredits,
+      )
+
+      return Promise.resolve(
+        false,
+      )
+    }
+
+    return run(
+      "reuse",
+      async () => {
+        const data =
+          await api<{
+            creation: Creation
+          }>(
+            `/api/visual-engine/studios/${id}/creations`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+              body:
+                JSON.stringify({
+                  creativeOptions:
+                    options,
+                }),
+            },
+          )
+
+        selectView("create")
+
+        await refresh(
+          data.creation.id,
+        )
+      },
+    )
+  }
 
   const continueSession = (
     creationId: string,
     intent: ShotIntent,
     sourceResultIndex: number,
-  ) =>
-    run(
+  ): Promise<boolean> => {
+    if (creditBalance < 1) {
+      openCreditOffers(1)
+
+      return Promise.resolve(
+        false,
+      )
+    }
+
+    return run(
       `continue-${intent}`,
       async () => {
         const data =
@@ -1710,6 +1804,8 @@ export function VisualEngineStudio() {
         )
       },
     )
+  }
+
   const applyAlmaDirection = async (suggestions: Partial<MiravaCreativeOptions>) => {
     const canApplyToCurrent = current && ["DRAFT", "ANALYSIS_QUEUED", "ANALYSING", "IDENTITY_READY"].includes(current.creation.status)
     if (!canApplyToCurrent) {
@@ -1794,10 +1890,41 @@ export function VisualEngineStudio() {
     selectView("create")
   }
 
-  const isCreateFlow = view === "create" && !current && !directorOpen
-  const sessionReadyForFlow = Boolean(options.seriesSize) && options.seriesSize! <= (account?.credits ?? 0) && (options.referenceMode !== "variations" || Boolean(options.variationAxes?.length))
-  const nextStepDisabled = (createStep === 0 && entryIntent === "reference" && !options.referenceMode)
-    || (createStep === 1 && !sessionReadyForFlow)
+  const isCreateFlow =
+    view === "create" &&
+    !current &&
+    !directorOpen
+
+  const creditsRequired =
+    options.seriesSize ?? 1
+
+  const insufficientCredits =
+    creditsRequired >
+    creditBalance
+
+  const sessionReadyForFlow =
+    Boolean(options.seriesSize) &&
+    options.seriesSize! <=
+      creditBalance &&
+    (
+      options.referenceMode !==
+        "variations" ||
+      Boolean(
+        options.variationAxes
+          ?.length,
+      )
+    )
+
+  const nextStepDisabled =
+    (
+      createStep === 0 &&
+      entryIntent === "reference" &&
+      !options.referenceMode
+    ) ||
+    (
+      createStep === 1 &&
+      !sessionReadyForFlow
+    )
   const completeMiravaOnboarding = (state: MiravaOnboardingState, firstName: string) => {
     setMiravaOnboarding(state)
     setMiravaFirstName(firstName)
@@ -1854,14 +1981,38 @@ export function VisualEngineStudio() {
         }
         actions={
           <div className="flex items-center gap-2">
-            <span className="mirava-meta tabular-nums flex min-h-12 items-center px-3 py-2 font-jakarta text-[10px] font-semibold tracking-[.08em]">
-              {account?.credits ?? 0}{" "}
-              {(account?.credits ?? 0) === 1
+            <button
+              type="button"
+              onClick={() =>
+                openCreditOffers(1)
+              }
+              data-empty={
+                creditBalance === 0
+              }
+              aria-label={
+                creditBalance === 0
+                  ? locale === "fr"
+                    ? "Aucun crédit disponible. Recharger mes crédits."
+                    : "No hay créditos disponibles. Recargar mis créditos."
+                  : locale === "fr"
+                    ? `${creditBalance} crédit${creditBalance > 1 ? "s" : ""} disponible${creditBalance > 1 ? "s" : ""}. Gérer mes crédits.`
+                    : `${creditBalance} crédito${creditBalance === 1 ? "" : "s"} disponible${creditBalance === 1 ? "" : "s"}. Gestionar mis créditos.`
+              }
+              className={cn(
+                "mirava-button tabular-nums min-h-12 px-3 font-jakarta text-[10px] font-semibold tracking-[.08em]",
+                creditBalance === 0
+                  ? "mirava-button-primary shadow-lg shadow-mirava-accent/20 ring-1 ring-mirava-accent/40"
+                  : "mirava-button-secondary",
+              )}
+            >
+              {creditBalance === 0
                 ? locale === "fr"
-                  ? "crédit"
-                  : "crédito"
-                : t.credits}
-            </span>
+                  ? "0 crédit · Recharger"
+                  : "0 créditos · Recargar"
+                : locale === "fr"
+                  ? `${creditBalance} crédit${creditBalance > 1 ? "s" : ""}`
+                  : `${creditBalance} crédito${creditBalance === 1 ? "" : "s"}`}
+            </button>
             <button aria-label={locale === "fr" ? "Passer en espagnol" : "Cambiar al francés"} onClick={() => setLocale(locale === "fr" ? "es" : "fr")} className="mirava-button mirava-button-secondary min-w-12 px-3 text-xs">{locale.toUpperCase()}</button>
           </div>
         }
@@ -1870,7 +2021,50 @@ export function VisualEngineStudio() {
         furthestStep={furthestCreateStep}
         onStepChange={setCreateStep}
         journeyBack={isCreateFlow && createStep > 0 ? <button type="button" onClick={() => setCreateStep(createStep - 1)} className="mirava-flow-button" aria-label={locale === "fr" ? "Retour à l’étape précédente" : "Volver al paso anterior"}><ArrowLeft className="h-4 w-4" /><span className="mirava-flow-button-copy">{locale === "fr" ? "Retour" : "Volver"}</span></button> : null}
-        journeyNext={isCreateFlow && createStep < 2 ? <button type="button" onClick={() => setCreateStep(createStep + 1)} disabled={nextStepDisabled} className="mirava-flow-button mirava-flow-button-primary"><span>{locale === "fr" ? "Suivant" : "Siguiente"}</span><ArrowRight className="h-4 w-4" /></button> : null}
+        journeyNext={
+          isCreateFlow &&
+          createStep < 2 ? (
+            createStep === 1 &&
+            insufficientCredits ? (
+              <button
+                type="button"
+                onClick={() =>
+                  openCreditOffers(
+                    creditsRequired,
+                  )
+                }
+                className="mirava-flow-button mirava-flow-button-primary"
+              >
+                <span>
+                  {locale === "fr"
+                    ? "Recharger pour continuer"
+                    : "Recargar para continuar"}
+                </span>
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() =>
+                  setCreateStep(
+                    createStep + 1,
+                  )
+                }
+                disabled={
+                  nextStepDisabled
+                }
+                className="mirava-flow-button mirava-flow-button-primary"
+              >
+                <span>
+                  {locale === "fr"
+                    ? "Suivant"
+                    : "Siguiente"}
+                </span>
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            )
+          ) : null
+        }
         stepsLabel={locale === "fr" ? "Étapes de création" : "Etapas de creación"}
       />
 
@@ -1890,7 +2084,11 @@ export function VisualEngineStudio() {
           )}
 
         {view === "create" && (!current
-          ? <StartView locale={locale} t={t} firstName={miravaFirstName} step={createStep} selectedUniverseId={selectedUniverseId} setSelectedUniverseId={setSelectedUniverseId} options={options} setOptions={setOptions} identityProfile={identityProfile} availableCredits={account?.credits ?? 0} pending={pending} entryIntent={entryIntent} onCreate={requestCreate} onDirector={() => openDirector()} onOpenAccount={() => selectView("account")} onOpenCapture={() => openCapture(identityProfile ? (identityProfile.assetCount < MIRAVA_MAX_IDENTITY_PHOTOS ? "append" : "replace") : "onboarding")} />
+          ? <StartView locale={locale} t={t} firstName={miravaFirstName} step={createStep} selectedUniverseId={selectedUniverseId} setSelectedUniverseId={setSelectedUniverseId} options={options} setOptions={setOptions} identityProfile={identityProfile} availableCredits={creditBalance} pending={pending} entryIntent={entryIntent} onCreate={requestCreate} onDirector={() => openDirector()} onOpenAccount={() =>
+            openCreditOffers(
+              options.seriesSize ?? 1,
+            )
+          } onOpenCapture={() => openCapture(identityProfile ? (identityProfile.assetCount < MIRAVA_MAX_IDENTITY_PHOTOS ? "append" : "replace") : "onboarding")} />
           : <CreationView locale={locale} t={t} current={current} identityProfile={identityProfile} pending={pending} onUploadReference={uploadReference} onAnalyze={analyze} onOpenCapture={() => openCapture(identityProfile ? (identityProfile.assetCount < MIRAVA_MAX_IDENTITY_PHOTOS ? "append" : "replace") : "onboarding")} onGenerate={generate} onDelete={removeCreation} onStartCreate={startFreshCreation} onContinueSession={(creationId, intent, sourceResultIndex) => void continueSession(creationId, intent, sourceResultIndex)} onCreateFromStudio={(studioId) => void reuse(studioId)} onUnlock={(creationId) => void checkoutDiscovery(creationId)} />)}
         {view === "universes" && <UniversesView locale={locale} t={t} selectedUniverseId={selectedUniverseId} setSelectedUniverseId={setSelectedUniverseId} onChoose={(brief) => { setOptions((value) => ({ ...(value.seriesSize ? { seriesSize: value.seriesSize } : {}), ...(value.seriesSize && value.seriesSize > 1 && value.seriesStrategy ? { seriesStrategy: value.seriesStrategy } : {}), ...(brief ? { note: brief } : {}) })); setCreateStep(1); selectView("create") }} />}
         {view === "library" && (
@@ -1992,6 +2190,11 @@ function StartView({
   const createActionLabel = locale === "fr"
     ? creationCount === 1 ? "Créer mon image" : `Créer mes ${creationCount} photos`
     : creationCount === 1 ? "Crear mi imagen" : `Crear mis ${creationCount} fotos`
+
+  const insufficientCredits =
+    creationCount >
+    availableCredits
+
   const isReferenceRoute = step === 0 && entryIntent === "reference"
   const stageTitle = isReferenceRoute
     ? locale === "fr"
@@ -2104,7 +2307,77 @@ function StartView({
               <div><dt className="mirava-muted text-xs">{t.profile}</dt><dd className="mt-1 flex items-center gap-2 font-semibold">{identityReady ? <><Check className="h-4 w-4 text-mirava-success" />{locale === "fr" ? "Prêt" : "Listo"} · {identityProfile?.assetCount ?? 0}/{MIRAVA_MAX_IDENTITY_PHOTOS}</> : <>{locale === "fr" ? "À préparer avant la création" : "Por preparar antes de crear"}</>}</dd></div>
             </dl>
             {identityReady ? <IdentityProfilePreview identityProfile={identityProfile} locale={locale} onManage={onOpenCapture} className="mt-6" /> : null}
-            {identityReady ? <button onClick={() => onCreate(referenceFile ? null : selected.id, undefined, referenceFile)} disabled={!options.seriesSize || options.seriesSize > availableCredits || pending === "create"} className="mirava-button mirava-button-primary mt-8 w-full gap-2 px-5 text-sm lg:mt-auto">{pending === "create" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}{createActionLabel}</button> : <><button onClick={onOpenCapture} className="mirava-button mirava-button-primary mt-8 w-full gap-2 px-5 text-sm lg:mt-auto"><Camera className="h-4 w-4" />{locale === "fr" ? "Préparer mon Profil identité" : "Preparar mi Perfil de identidad"}</button><p className="mirava-muted mt-3 text-xs leading-5">{locale === "fr" ? "Trois photos privées suffisent ; vous reviendrez ensuite directement à cette création." : "Bastan tres fotos privadas; después volverás directamente a esta creación."}</p></>}
+            {identityReady ? (
+              insufficientCredits ? (
+                <>
+                  <div
+                    role="alert"
+                    className="mirava-alert mt-6 p-4 text-xs leading-5"
+                  >
+                    {locale === "fr"
+                      ? creationCount === 1
+                        ? "Un crédit est nécessaire pour créer cette image."
+                        : `${creationCount} crédits sont nécessaires pour créer cette série.`
+                      : creationCount === 1
+                        ? "Se necesita un crédito para crear esta imagen."
+                        : `Se necesitan ${creationCount} créditos para crear esta serie.`}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={onOpenAccount}
+                    className="mirava-button mirava-button-primary mt-3 w-full gap-2 px-5 text-sm lg:mt-auto"
+                  >
+                    <ArrowRight className="h-4 w-4" />
+                    {locale === "fr"
+                      ? "Recharger pour créer"
+                      : "Recargar para crear"}
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() =>
+                    onCreate(
+                      referenceFile
+                        ? null
+                        : selected.id,
+                      undefined,
+                      referenceFile,
+                    )
+                  }
+                  disabled={
+                    !options.seriesSize ||
+                    pending === "create"
+                  }
+                  className="mirava-button mirava-button-primary mt-8 w-full gap-2 px-5 text-sm lg:mt-auto"
+                >
+                  {pending === "create" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <ArrowRight className="h-4 w-4" />
+                  )}
+                  {createActionLabel}
+                </button>
+              )
+            ) : (
+              <>
+                <button
+                  onClick={onOpenCapture}
+                  className="mirava-button mirava-button-primary mt-8 w-full gap-2 px-5 text-sm lg:mt-auto"
+                >
+                  <Camera className="h-4 w-4" />
+                  {locale === "fr"
+                    ? "Préparer mon Profil identité"
+                    : "Preparar mi Perfil de identidad"}
+                </button>
+
+                <p className="mirava-muted mt-3 text-xs leading-5">
+                  {locale === "fr"
+                    ? "Trois photos privées suffisent ; vous reviendrez ensuite directement à cette création."
+                    : "Bastan tres fotos privadas; después volverás directamente a esta creación."}
+                </p>
+              </>
+            )}
           </Surface>
         </div>
       )}
@@ -2189,6 +2462,41 @@ function SessionFormatPicker({ locale, options, setOptions, availableCredits, on
             ? (locale === "fr" ? `${options.seriesSize} ${options.seriesSize === 1 ? "image" : "images"} · ${options.seriesSize} crédit${options.seriesSize > 1 ? "s" : ""}` : `${options.seriesSize} ${options.seriesSize === 1 ? "imagen" : "imágenes"} · ${options.seriesSize} crédito${options.seriesSize > 1 ? "s" : ""}`)
             : (locale === "fr" ? "À choisir" : "Por elegir")}</span>
         </div>
+
+        {availableCredits === 0 ? (
+          <div
+            role="alert"
+            className="mirava-alert mt-4 flex items-start gap-3 p-4"
+          >
+            <CircleAlert className="mt-0.5 h-5 w-5 shrink-0" />
+
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold">
+                {locale === "fr"
+                  ? "Vous n’avez plus de crédits."
+                  : "Ya no tienes créditos."}
+              </p>
+
+              <p className="mt-1 text-xs leading-5">
+                {locale === "fr"
+                  ? "Ajoutez une recharge pour choisir votre format et poursuivre cette séance."
+                  : "Añade una recarga para elegir el formato y continuar esta sesión."}
+              </p>
+
+              <button
+                type="button"
+                onClick={onOpenAccount}
+                className="mirava-button mirava-button-primary mt-3 min-h-11 px-4 text-xs font-semibold"
+              >
+                {locale === "fr"
+                  ? "Recharger maintenant"
+                  : "Recargar ahora"}
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
           {seriesOptions.map((item) => {
             const unavailable = item.value > availableCredits
@@ -2215,7 +2523,7 @@ function SessionFormatPicker({ locale, options, setOptions, availableCredits, on
             ? "Le format détermine le nombre d’images livrées et les crédits utilisés."
             : "El formato determina el número de imágenes entregadas y los créditos utilizados."}
         </p>
-        {availableCredits < 6 && <p className="mirava-muted mt-3 text-xs leading-5">{locale === "fr"
+        {availableCredits > 0 && availableCredits < 6 && <p className="mirava-muted mt-3 text-xs leading-5">{locale === "fr"
           ? <>Votre solde permet jusqu’à {availableCredits} photo{availableCredits > 1 ? "s" : ""}. <button type="button" onClick={onOpenAccount} className="font-semibold underline underline-offset-4">Ajouter des crédits</button></>
           : <>Tu saldo permite hasta {availableCredits} foto{availableCredits === 1 ? "" : "s"}. <button type="button" onClick={onOpenAccount} className="font-semibold underline underline-offset-4">Añadir créditos</button></>}</p>}
     </Surface>
@@ -3317,6 +3625,18 @@ function AccountView({
 }) {
   const ready = isMiravaIdentityProfileReady(identityProfile)
   const availableCredits = account?.credits ?? 0
+
+  const scrollToOffers = () => {
+    document
+      .getElementById(
+        "mirava-credit-offers",
+      )
+      ?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      })
+  }
+
   const highlightedOffer = [...(account?.plans ?? []), ...(account?.packs ?? [])].find((offer) => offer.id === highlightedOfferId)
   const [pushLoading, setPushLoading] = useState(false)
   const [pushNotice, setPushNotice] = useState<string | null>(null)
@@ -3489,11 +3809,35 @@ function AccountView({
               </button>
             </>
           ) : (
-            <p className="mirava-copy mt-6 text-xs leading-5">
-              {locale === "fr"
-                ? "Choisissez un abonnement ou une recharge pour créer une séance."
-                : "Elige una suscripción o una recarga para crear una sesión."}
-            </p>
+            <>
+              <div
+                role="alert"
+                className="mirava-alert mt-6 p-4"
+              >
+                <p className="text-sm font-semibold">
+                  {locale === "fr"
+                    ? "Votre solde est épuisé."
+                    : "Tu saldo se ha agotado."}
+                </p>
+
+                <p className="mt-1 text-xs leading-5">
+                  {locale === "fr"
+                    ? "Rechargez votre compte pour reprendre immédiatement une création."
+                    : "Recarga tu cuenta para retomar inmediatamente una creación."}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={scrollToOffers}
+                className="mirava-button mirava-button-primary mt-4 self-start px-4 text-sm font-semibold"
+              >
+                {locale === "fr"
+                  ? "Voir les recharges"
+                  : "Ver las recargas"}
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </button>
+            </>
           )}
         </Surface>
 
@@ -3898,17 +4242,63 @@ function AccountView({
         </DialogPrimitive.Portal>
       </DialogPrimitive.Root>
 
-      <div className="mt-10">
+      <div
+        id="mirava-credit-offers"
+        className="mt-10 scroll-mt-28"
+      >
         {highlightedOffer && (
-          <div role="status" className="mirava-notice mb-6 flex items-center justify-between gap-3 p-4 text-sm shadow-lg">
-            <span>{locale === "fr" ? `${highlightedOffer.name} est sélectionnée. Vous pouvez confirmer votre choix ci-dessous.` : `${highlightedOffer.name} está seleccionada. Puedes confirmar tu elección a continuación.`}</span>
+          <div
+            role="status"
+            className="mirava-notice mb-6 flex items-center justify-between gap-3 p-4 text-sm shadow-lg"
+          >
+            <span>
+              {locale === "fr"
+                ? `${highlightedOffer.name} est sélectionnée. Vous pouvez confirmer votre choix ci-dessous.`
+                : `${highlightedOffer.name} está seleccionada. Puedes confirmar tu elección a continuación.`}
+            </span>
           </div>
         )}
-        <h2 className="font-jakarta text-2xl font-semibold">{t.plans}</h2>
-        <Offers offers={account?.plans ?? []} locale={locale} t={t} onCheckout={onCheckout} onPortal={onPortal} currentSubscriptionPlanId={account?.subscription?.planId ?? null} highlightedOfferId={highlightedOfferId} pending={pending} />
-        <h2 className="mt-10 font-jakarta text-2xl font-semibold">{t.packs}</h2>
-        <Offers offers={account?.packs ?? []} locale={locale} t={t} onCheckout={onCheckout} onPortal={onPortal} currentSubscriptionPlanId={null} highlightedOfferId={highlightedOfferId} pending={pending} />
+
+        <p className="mirava-label">
+          {locale === "fr"
+            ? "RECHARGER"
+            : "RECARGAR"}
+        </p>
+
+        <h2 className="mt-2 font-jakarta text-2xl font-semibold">
+          {t.packs}
+        </h2>
+
+        <Offers
+          offers={account?.packs ?? []}
+          locale={locale}
+          t={t}
+          onCheckout={onCheckout}
+          onPortal={onPortal}
+          currentSubscriptionPlanId={null}
+          highlightedOfferId={highlightedOfferId}
+          pending={pending}
+        />
+
+        <h2 className="mt-10 font-jakarta text-2xl font-semibold">
+          {t.plans}
+        </h2>
+
+        <Offers
+          offers={account?.plans ?? []}
+          locale={locale}
+          t={t}
+          onCheckout={onCheckout}
+          onPortal={onPortal}
+          currentSubscriptionPlanId={
+            account?.subscription?.planId ??
+            null
+          }
+          highlightedOfferId={highlightedOfferId}
+          pending={pending}
+        />
       </div>
+
       <div className="mt-10 max-w-lg space-y-3">
         <div className="flex flex-wrap gap-3">
           <button onClick={() => void handleNotify()} disabled={pushLoading} className="mirava-button mirava-button-secondary min-h-12 gap-2 px-4 text-sm font-semibold">
