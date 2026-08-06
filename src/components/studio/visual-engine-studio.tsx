@@ -2722,7 +2722,7 @@ function MiravaDiscoveryPaywall({
                 ? "Aperçu protégé de la première séance"
                 : "Vista previa protegida de la primera sesión"
             }
-            className="aspect-[4/5] w-full object-cover"
+            className="h-auto w-full object-contain bg-black"
           />
         ) : null}
 
@@ -2958,7 +2958,7 @@ function CreationView({
         <div className={cn("mirava-dark-panel mt-7 grid gap-2 p-2", resultUrls.length > 1 && "sm:grid-cols-2")}>
           {resultUrls.map((url, index) => (
             <div key={url} className={cn("mirava-image-frame relative overflow-hidden", resultUrls.length === 3 && index === 0 && "sm:col-span-2 sm:mx-auto sm:w-1/2")}>
-              <img src={url} alt={`${t.result} ${index + 1}`} className="aspect-[4/5] w-full object-cover" />
+              <img src={url} alt={`${t.result} ${index + 1}`} className="h-auto w-full object-contain bg-black" />
               <ResultSaveButton
                 url={url}
                 index={index}
@@ -3556,7 +3556,7 @@ function LibraryView({
                   src={url}
                   alt=""
                   loading="lazy"
-                  className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.015]"
+                  className="h-full w-full object-contain bg-black transition-transform duration-300 group-hover:scale-[1.015]"
                 />
                 <span
                   aria-hidden="true"

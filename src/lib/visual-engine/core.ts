@@ -1773,9 +1773,7 @@ export async function previewStudioResultAtIndexForUser(
     await sharp(original)
       .resize({
         width: 360,
-        height: 450,
-        fit: "cover",
-        position: "attention",
+        withoutEnlargement: true,
       })
       .blur(20)
       .modulate({
@@ -3058,7 +3056,13 @@ async function generateStudioImage(
 }
 
 export async function cropMiravaResult(image: Buffer): Promise<Buffer> {
-  return sharp(image).resize({ width: 1024, height: 1280, fit: "cover", position: "attention" }).png().toBuffer()
+  return sharp(image)
+    .resize({
+      width: 1024,
+      withoutEnlargement: true,
+    })
+    .png()
+    .toBuffer()
 }
 
 async function storeResultAsset(creation: StudioCreationRecord, image: Buffer): Promise<void> {
