@@ -92,6 +92,14 @@ const RELATIONS: Record<
   StudioSession: {
     user: { table: "User", fk: "userId", selfFk: "userId", type: "belongsTo" },
     creations: { table: "StudioCreation", fk: "sessionId", type: "hasMany" },
+    lookItems: { table: "StudioSessionLookItem", fk: "sessionId", type: "hasMany" },
+  },
+  StudioSessionLookItem: {
+    session: { table: "StudioSession", fk: "sessionId", selfFk: "sessionId", type: "belongsTo" },
+    assets: { table: "StudioSessionLookAsset", fk: "lookItemId", type: "hasMany" },
+  },
+  StudioSessionLookAsset: {
+    lookItem: { table: "StudioSessionLookItem", fk: "lookItemId", selfFk: "lookItemId", type: "belongsTo" },
   },
   StudioProfile: {
     creations: { table: "StudioCreation", fk: "studioProfileId", type: "hasMany" },
@@ -117,6 +125,7 @@ const TABLES_WITH_UPDATED_AT = new Set([
   "KaelSession",
   "StudioCreation",
   "StudioSession",
+  "StudioSessionLookItem",
   "StudioJob",
   "StudioCreditLot",
   "StudioCreditAllocation",
@@ -411,6 +420,8 @@ class DbClient {
   task = new DbModel("Task")
   studioCreation = new DbModel("StudioCreation")
   studioSession = new DbModel("StudioSession")
+  studioSessionLookItem = new DbModel("StudioSessionLookItem")
+  studioSessionLookAsset = new DbModel("StudioSessionLookAsset")
   studioAsset = new DbModel("StudioAsset")
   studioConsent = new DbModel("StudioConsent")
   studioConsentEvent = new DbModel("StudioConsentEvent")

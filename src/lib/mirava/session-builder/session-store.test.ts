@@ -61,6 +61,7 @@ const baseRow = {
     lookMode:
       "REFERENCE",
   },
+  lookItems: [],
   createdAt:
     "2026-08-07T20:00:00.000Z",
   updatedAt:
@@ -144,6 +145,13 @@ describe(
           updatedAt:
             "desc",
         },
+        include: {
+          lookItems: {
+            select: {
+              id: true,
+            },
+          },
+        },
         take: 20,
       })
 
@@ -173,6 +181,13 @@ describe(
           userId:
             "user-1",
           builderVersion: 1,
+        },
+        include: {
+          lookItems: {
+            select: {
+              id: true,
+            },
+          },
         },
       })
 
@@ -245,6 +260,44 @@ describe(
       expect(
         updated.configurationReady,
       ).toBe(false)
+    })
+
+    it("marks a complete CUSTOM session ready only when a persisted look item exists", async () => {
+      mocks.findSession
+        .mockResolvedValue({
+          ...baseRow,
+          setPresetId:
+            "white-cyclorama-v1",
+          lightingPresetId:
+            "soft-v1",
+          builderConfig: {
+            mode:
+              "CUSTOM_SHOOT",
+            shotCount: 6,
+            lookMode:
+              "CUSTOM",
+          },
+          lookItems: [
+            {
+              id:
+                "look-item-1",
+            },
+          ],
+        })
+
+      const session =
+        await getMiravaSessionBuilderDraft(
+          "user-1",
+          "session-1",
+        )
+
+      expect(
+        session?.lookItemCount,
+      ).toBe(1)
+
+      expect(
+        session?.configurationReady,
+      ).toBe(true)
     })
 
     it("rejects invalid updates and missing sessions", async () => {

@@ -21,6 +21,9 @@ type StudioSessionBuilderRow = {
   setPresetId?: string | null
   lightingPresetId?: string | null
   builderConfig?: unknown
+  lookItems?: Array<{
+    id?: string | null
+  }>
   createdAt?: string | Date | null
   updatedAt?: string | Date | null
 }
@@ -72,6 +75,7 @@ export type MiravaSessionBuilderPublic =
     id: string
     identityProfileId: string | null
     config: MiravaSessionBuilderDraft
+    lookItemCount: number
     configurationReady: boolean
     createdAt: string
     updatedAt: string
@@ -212,15 +216,26 @@ function toPublicSession(
       row.identityProfileId ??
       null,
     config,
-    // CUSTOM becomes ready only once the look-storage layer
-    // confirms that at least one valid look item exists.
-    // Until that layer is wired, never expose a custom look
-    // session as shoot-ready.
+    lookItemCount:
+      Array.isArray(
+        row.lookItems,
+      )
+        ? row.lookItems.length
+        : 0,
     configurationReady:
       isMiravaSessionBuilderReady(
         config,
       ) &&
-      config.lookMode === "REFERENCE",
+      (
+        config.lookMode ===
+          "REFERENCE" ||
+        (
+          Array.isArray(
+            row.lookItems,
+          ) &&
+          row.lookItems.length > 0
+        )
+      ),
     createdAt:
       normalizeDate(
         row.createdAt,
@@ -289,6 +304,13 @@ export async function listMiravaSessionBuilderDrafts(
         updatedAt:
           "desc",
       },
+      include: {
+        lookItems: {
+          select: {
+            id: true,
+          },
+        },
+      },
       take: 20,
     })
 
@@ -312,6 +334,13 @@ export async function getMiravaSessionBuilderDraft(
         userId,
         builderVersion:
           MIRAVA_SESSION_BUILDER_VERSION,
+      },
+      include: {
+        lookItems: {
+          select: {
+            id: true,
+          },
+        },
       },
     })
 
@@ -346,6 +375,13 @@ export async function updateMiravaSessionBuilderDraft(
         userId,
         builderVersion:
           MIRAVA_SESSION_BUILDER_VERSION,
+      },
+      include: {
+        lookItems: {
+          select: {
+            id: true,
+          },
+        },
       },
     })
 
@@ -388,5 +424,9 @@ export async function updateMiravaSessionBuilderDraft(
       },
     })
 
-  return toPublicSession(updated)
+  return toPublicSession({
+    ...updated,
+    lookItems:
+      current.lookItems ?? [],
+  })
 }
