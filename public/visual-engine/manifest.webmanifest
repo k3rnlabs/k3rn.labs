@@ -5,8 +5,8 @@
   "start_url": "/visual-engine/studio",
   "scope": "/visual-engine/",
   "display": "standalone",
-  "background_color": "#0b0c10",
-  "theme_color": "#0b0c10",
+  "background_color": "#090a0a",
+  "theme_color": "#090a0a",
   "lang": "fr",
   "icons": [
     {
