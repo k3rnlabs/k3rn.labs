@@ -90,8 +90,21 @@ Promise<MiravaPushAvailability> {
 export function MiravaPwaRegistration() {
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return
-    void navigator.serviceWorker.register("/visual-engine/sw.js", { scope: "/visual-engine/" })
+
+    void navigator.serviceWorker
+      .register(
+        "/visual-engine/sw.js",
+        {
+          scope: "/visual-engine/",
+          updateViaCache: "none",
+        },
+      )
+      .then((registration) =>
+        registration.update(),
+      )
+      .catch(() => undefined)
   }, [])
+
   return null
 }
 
