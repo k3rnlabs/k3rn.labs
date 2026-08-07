@@ -3,7 +3,7 @@
 import Link from "next/link"
 import {
   ArrowLeft,
-  RefreshCw,
+  ArrowRight,
   ShieldCheck,
   WifiOff,
 } from "lucide-react"
@@ -12,28 +12,24 @@ import { useMiravaLocale } from "@/components/mirava/mirava-locale"
 
 const copy = {
   fr: {
-    status: "Hors ligne",
-    eyebrow: "MIRAVA STUDIO / CONNEXION",
     title: "Connexion interrompue",
-    description:
-      "Le Studio a besoin du réseau pour accéder à vos références privées et lancer une génération.",
+    subtitle:
+      "MIRAVA Studio a besoin d’une connexion active pour accéder à vos références privées et lancer une génération.",
+    status: "Hors ligne",
     privacy:
-      "Le mode hors ligne ne met pas en cache vos références privées, prompts ou résultats.",
+      "Vos références privées, prompts et résultats ne sont jamais stockés dans le cache hors ligne.",
     retry: "Réessayer la connexion",
     back: "Retour à l’accueil",
-    foot: "Votre studio reste intact.",
   },
   es: {
-    status: "Sin conexión",
-    eyebrow: "MIRAVA STUDIO / CONEXIÓN",
     title: "Conexión interrumpida",
-    description:
-      "El Studio necesita conexión para acceder a tus referencias privadas e iniciar una generación.",
+    subtitle:
+      "MIRAVA Studio necesita una conexión activa para acceder a tus referencias privadas e iniciar una generación.",
+    status: "Sin conexión",
     privacy:
-      "El modo sin conexión no almacena en caché tus referencias privadas, prompts ni resultados.",
+      "Tus referencias privadas, prompts y resultados nunca se almacenan en la caché sin conexión.",
     retry: "Reintentar conexión",
     back: "Volver al inicio",
-    foot: "Tu estudio permanece intacto.",
   },
 } as const
 
@@ -42,449 +38,469 @@ const offlineCriticalCss = `
   body {
     margin: 0;
     min-height: 100%;
-    background: #000;
+    background: #070807;
   }
 
   body {
     min-height: 100dvh;
   }
 
-  .mirava-offline-page,
-  .mirava-offline-page *,
-  .mirava-offline-page *::before,
-  .mirava-offline-page *::after {
+  .mirava-offline,
+  .mirava-offline *,
+  .mirava-offline *::before,
+  .mirava-offline *::after {
     box-sizing: border-box;
   }
 
-  .mirava-offline-page {
-    --canvas: #000;
-    --canvas-raised: #0e1010;
-    --surface: #151717;
-    --surface-raised: #1d1f1f;
-    --ink: #f1f1ed;
-    --ink-secondary: #abaca8;
-    --ink-muted: #9a9b96;
-    --accent: #d5c6b0;
-    --line: rgba(255, 255, 255, 0.10);
-    --line-strong: rgba(255, 255, 255, 0.18);
-
+  .mirava-offline {
     position: relative;
     isolation: isolate;
     display: flex;
     min-height: 100dvh;
     width: 100%;
     flex-direction: column;
-    overflow: hidden;
-    background:
-      radial-gradient(
-        ellipse 70% 52% at 18% -8%,
-        rgba(255, 255, 255, 0.075),
-        transparent 65%
-      ),
-      radial-gradient(
-        ellipse 52% 46% at 94% 105%,
-        rgba(213, 198, 176, 0.07),
-        transparent 70%
-      ),
-      var(--canvas);
-    color: var(--ink);
+    overflow-x: hidden;
+    background: #070807;
+    color: #fff;
     font-family:
-      Inter,
-      -apple-system,
-      BlinkMacSystemFont,
-      "Segoe UI",
+      var(--font-jakarta),
+      "Arial",
+      "Helvetica Neue",
       sans-serif;
     -webkit-font-smoothing: antialiased;
     color-scheme: dark;
   }
 
-  .mirava-offline-page::after {
-    content: "";
+  .mirava-offline-bg {
     position: fixed;
     inset: 0;
-    z-index: -1;
+    z-index: 0;
+    overflow: hidden;
     pointer-events: none;
-    opacity: 0.23;
+    background:
+      radial-gradient(
+        circle at 72% 14%,
+        rgba(180, 154, 104, 0.24),
+        transparent 32%
+      ),
+      radial-gradient(
+        circle at 18% 72%,
+        rgba(107, 81, 48, 0.16),
+        transparent 38%
+      ),
+      #070807;
+  }
+
+  .mirava-offline-bg::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    opacity: 0.12;
     background-image:
-      repeating-radial-gradient(
-        circle at 30% 20%,
-        rgba(255, 255, 255, 0.025) 0,
-        rgba(255, 255, 255, 0.025) 1px,
-        transparent 1px,
-        transparent 4px
+      radial-gradient(
+        rgba(255, 255, 255, 0.82) 0.55px,
+        transparent 0.8px
       );
-    mix-blend-mode: soft-light;
+    background-size: 8px 8px;
+  }
+
+  .mirava-offline-bg::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.34);
   }
 
   .mirava-offline-header {
+    position: relative;
+    z-index: 30;
     display: flex;
-    width: min(100%, 1180px);
-    margin: 0 auto;
+    min-height: 92px;
+    width: 100%;
     align-items: center;
     justify-content: space-between;
+    gap: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0 0 24px 24px;
+    background: rgba(7, 8, 7, 0.94);
     padding:
-      max(20px, env(safe-area-inset-top))
-      clamp(20px, 5vw, 48px)
-      12px;
+      max(16px, env(safe-area-inset-top))
+      28px
+      16px;
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
   }
 
   .mirava-offline-brand {
     display: inline-flex;
+    min-width: 0;
     align-items: center;
-    gap: 11px;
-    color: var(--ink);
-    font-size: 17px;
-    font-weight: 650;
-    letter-spacing: 0.16em;
-    line-height: 1;
+    gap: 12px;
+    color: #f1f1ed;
+    text-decoration: none;
   }
 
   .mirava-offline-brand svg {
-    width: 21px;
-    height: 21px;
+    width: 24px;
+    height: 24px;
     flex: none;
-    color: var(--accent);
+    color: #d7c39a;
   }
 
-  .mirava-offline-brand small {
-    margin-left: 5px;
-    color: var(--ink-secondary);
+  .mirava-offline-brand-main {
+    font-size: 18px;
+    font-weight: 650;
+    letter-spacing: 0.15em;
+    line-height: 1;
+  }
+
+  .mirava-offline-brand-sub {
+    margin-left: 7px;
+    color: rgba(255, 255, 255, 0.55);
     font-size: 10px;
-    font-weight: 550;
+    font-weight: 600;
     letter-spacing: 0.20em;
+  }
+
+  .mirava-offline-locale {
+    display: inline-flex;
+    min-width: 48px;
+    min-height: 48px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 12px;
+    background: transparent;
+    color: #fff;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .mirava-offline-shell {
+    position: relative;
+    z-index: 20;
+    display: flex;
+    width: 100%;
+    flex: 1;
+    align-items: flex-start;
+    justify-content: center;
+    padding:
+      clamp(48px, 8dvh, 96px)
+      16px
+      max(32px, env(safe-area-inset-bottom));
+  }
+
+  .mirava-offline-card {
+    width: min(100%, 448px);
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 24px;
+    background: rgba(0, 0, 0, 0.58);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.52);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  .mirava-offline-heading {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+    padding: 28px 28px 26px;
   }
 
   .mirava-offline-status {
     display: inline-flex;
-    min-height: 30px;
     align-items: center;
     gap: 8px;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    padding: 0 11px;
-    color: var(--ink-secondary);
+    margin-bottom: 18px;
+    color: #d7c39a;
     font-size: 10px;
     font-weight: 700;
-    letter-spacing: 0.13em;
+    letter-spacing: 0.18em;
     text-transform: uppercase;
   }
 
   .mirava-offline-status svg {
-    width: 13px;
-    height: 13px;
-    color: var(--accent);
-  }
-
-  .mirava-offline-main {
-    display: grid;
-    width: 100%;
-    flex: 1;
-    place-items: center;
-    padding:
-      clamp(30px, 7vh, 76px)
-      clamp(18px, 5vw, 48px)
-      clamp(64px, 10vh, 116px);
-  }
-
-  .mirava-offline-card {
-    position: relative;
-    width: min(100%, 590px);
-    overflow: hidden;
-    border: 1px solid var(--line);
-    border-radius: 24px;
-    background:
-      radial-gradient(
-        ellipse 90% 70% at 5% 0%,
-        rgba(255, 255, 255, 0.065),
-        transparent 58%
-      ),
-      linear-gradient(
-        135deg,
-        rgba(29, 31, 31, 0.98),
-        rgba(14, 16, 16, 0.98)
-      );
-    padding: clamp(26px, 6vw, 44px);
-    box-shadow:
-      0 38px 110px rgba(0, 0, 0, 0.52),
-      inset 0 1px 0 rgba(255, 255, 255, 0.035);
-  }
-
-  .mirava-offline-card::before {
-    content: "";
-    position: absolute;
-    inset: 0 auto auto 0;
-    width: 100%;
-    height: 1px;
-    background:
-      linear-gradient(
-        90deg,
-        transparent,
-        rgba(213, 198, 176, 0.72),
-        transparent
-      );
-    opacity: 0.72;
-  }
-
-  .mirava-offline-emblem {
-    display: grid;
-    width: 58px;
-    height: 58px;
-    place-items: center;
-    border: 1px solid var(--line-strong);
-    border-radius: 18px;
-    background:
-      radial-gradient(
-        circle at 34% 28%,
-        rgba(255, 255, 255, 0.12),
-        transparent 44%
-      ),
-      var(--surface-raised);
-    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28);
-    color: var(--accent);
-  }
-
-  .mirava-offline-emblem svg {
-    width: 24px;
-    height: 24px;
-  }
-
-  .mirava-offline-eyebrow {
-    margin: 28px 0 0;
-    color: var(--accent);
-    font-size: 10px;
-    font-weight: 750;
-    letter-spacing: 0.18em;
-    line-height: 1.4;
-    text-transform: uppercase;
+    width: 14px;
+    height: 14px;
   }
 
   .mirava-offline-title {
-    max-width: 500px;
-    margin: 13px 0 0;
-    color: var(--ink);
-    font-size: clamp(36px, 7vw, 54px);
-    font-weight: 620;
+    margin: 0;
+    color: #fff;
+    font-family:
+      var(--font-jakarta),
+      "Arial",
+      "Helvetica Neue",
+      sans-serif;
+    font-size: clamp(38px, 9vw, 48px);
+    font-weight: 600;
     letter-spacing: -0.045em;
-    line-height: 0.98;
-    text-wrap: balance;
+    line-height: 1;
   }
 
-  .mirava-offline-description {
-    max-width: 500px;
-    margin: 18px 0 0;
-    color: var(--ink-secondary);
-    font-size: 15px;
-    line-height: 1.65;
+  .mirava-offline-subtitle {
+    max-width: 380px;
+    margin: 14px 0 0;
+    color: rgba(255, 255, 255, 0.60);
+    font-family:
+      var(--font-jakarta),
+      "Arial",
+      "Helvetica Neue",
+      sans-serif;
+    font-size: 13px;
+    line-height: 1.6;
   }
 
-  .mirava-offline-privacy {
+  .mirava-offline-body {
+    padding: 24px 28px;
+  }
+
+  .mirava-offline-notice {
     display: flex;
     align-items: flex-start;
     gap: 12px;
-    margin-top: 30px;
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    background: rgba(0, 0, 0, 0.20);
-    padding: 15px 16px;
-    color: var(--ink-muted);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.025);
+    padding: 16px;
+    color: rgba(255, 255, 255, 0.56);
     font-size: 12px;
     line-height: 1.55;
   }
 
-  .mirava-offline-privacy svg {
+  .mirava-offline-notice svg {
     width: 17px;
     height: 17px;
     flex: none;
     margin-top: 1px;
-    color: var(--accent);
+    color: #d7c39a;
   }
 
-  .mirava-offline-actions {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 10px;
-    margin-top: 28px;
-  }
-
-  .mirava-offline-action {
+  .mirava-offline-back {
     display: inline-flex;
-    min-height: 50px;
+    min-height: 42px;
     align-items: center;
-    justify-content: center;
-    gap: 9px;
-    border-radius: 10px;
-    padding: 0 18px;
+    gap: 7px;
+    margin-top: 14px;
+    color: rgba(255, 255, 255, 0.48);
     text-decoration: none;
-    font-size: 13px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .mirava-offline-back svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .mirava-offline-footer {
+    border-top: 1px solid rgba(255, 255, 255, 0.10);
+    padding: 22px 28px 28px;
+  }
+
+  .mirava-offline-cta {
+    position: relative;
+    isolation: isolate;
+    display: flex;
+    min-height: 56px;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    overflow: hidden;
+    border: 1px solid rgba(242, 234, 220, 0.90);
+    border-radius: 16px;
+    background:
+      linear-gradient(
+        135deg,
+        #fffaf0 0%,
+        #eee4d3 58%,
+        #d8c3a0 100%
+      );
+    padding: 0 12px 0 20px;
+    color: #0b0c0b;
+    text-decoration: none;
+    box-shadow:
+      0 12px 30px rgba(0, 0, 0, 0.38),
+      inset 0 1px 0 rgba(255, 255, 255, 0.90);
+    font-size: 15px;
     font-weight: 650;
-    transition:
-      transform 150ms ease-out,
-      background-color 150ms ease-out,
-      border-color 150ms ease-out,
-      color 150ms ease-out;
+    letter-spacing: -0.025em;
   }
 
-  .mirava-offline-action:active {
-    transform: scale(0.97);
+  .mirava-offline-cta::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background:
+      radial-gradient(
+        circle at 18% 0%,
+        rgba(255, 255, 255, 0.82),
+        transparent 34%
+      ),
+      linear-gradient(
+        115deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.20) 45%,
+        transparent 72%
+      );
+    opacity: 0.8;
   }
 
-  .mirava-offline-action-primary {
-    background: var(--ink);
-    color: var(--canvas);
+  .mirava-offline-cta-icon {
+    display: grid;
+    width: 40px;
+    height: 40px;
+    flex: none;
+    place-items: center;
+    border: 1px solid rgba(0, 0, 0, 0.10);
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.07);
   }
 
-  .mirava-offline-action-primary:hover {
-    background: #fff;
-  }
-
-  .mirava-offline-action-secondary {
-    border: 1px solid var(--line);
-    background: transparent;
-    color: var(--ink-secondary);
-  }
-
-  .mirava-offline-action-secondary:hover {
-    border-color: var(--line-strong);
-    background: var(--surface);
-    color: var(--ink);
-  }
-
-  .mirava-offline-action svg {
+  .mirava-offline-cta-icon svg {
     width: 16px;
     height: 16px;
   }
 
-  .mirava-offline-footer {
-    padding:
-      0
-      20px
-      max(20px, env(safe-area-inset-bottom));
-    color: var(--ink-muted);
-    font-size: 10px;
-    letter-spacing: 0.09em;
-    text-align: center;
-    text-transform: uppercase;
-  }
-
-  @media (min-width: 580px) {
-    .mirava-offline-actions {
-      grid-template-columns:
-        minmax(0, 1.25fr)
-        minmax(0, 0.75fr);
-    }
+  .mirava-offline-cta:active,
+  .mirava-offline-locale:active {
+    transform: scale(0.985);
   }
 
   @media (max-width: 520px) {
     .mirava-offline-header {
-      padding-left: 18px;
-      padding-right: 18px;
+      min-height: 84px;
+      padding-left: 20px;
+      padding-right: 20px;
     }
 
-    .mirava-offline-status {
-      min-height: 28px;
-      padding: 0 9px;
+    .mirava-offline-brand-main {
+      font-size: 17px;
     }
 
-    .mirava-offline-status span {
-      display: none;
+    .mirava-offline-shell {
+      padding-top: clamp(42px, 7dvh, 72px);
     }
 
-    .mirava-offline-card {
-      border-radius: 20px;
-    }
-  }
-
-  @media (prefers-reduced-motion: no-preference) {
-    .mirava-offline-action-primary svg {
-      transition: transform 350ms ease;
-    }
-
-    .mirava-offline-action-primary:hover svg {
-      transform: rotate(180deg);
+    .mirava-offline-heading,
+    .mirava-offline-body,
+    .mirava-offline-footer {
+      padding-left: 20px;
+      padding-right: 20px;
     }
   }
 `
 
 export default function MiravaOfflinePage() {
-  const { locale } = useMiravaLocale()
+  const {
+    locale,
+    setLocale,
+  } = useMiravaLocale()
+
   const t = copy[locale]
 
   return (
     <main
       data-mirava-offline-shell
-      className="mirava-offline-page"
+      className="mirava-offline"
     >
-      {/*
-       * Critical styling intentionally lives in the cached HTML.
-       * The offline fallback must remain fully branded even when
-       * Next/Tailwind static assets are unavailable.
-       */}
       <style>{offlineCriticalCss}</style>
 
+      <div
+        aria-hidden="true"
+        className="mirava-offline-bg"
+      />
+
       <header className="mirava-offline-header">
-        <div
+        <Link
+          href="/visual-engine"
           className="mirava-offline-brand"
-          aria-label="MIRAVA Studio"
+          aria-label={
+            locale === "fr"
+              ? "Accueil MIRAVA Studio"
+              : "Inicio MIRAVA Studio"
+          }
         >
           <MiravaMark />
-          <span>
-            MIRAVA
-            <small>STUDIO</small>
-          </span>
-        </div>
 
-        <div className="mirava-offline-status">
-          <WifiOff aria-hidden="true" />
-          <span>{t.status}</span>
-        </div>
+          <span>
+            <span className="mirava-offline-brand-main">
+              MIRAVA
+            </span>
+
+            <span className="mirava-offline-brand-sub">
+              STUDIO
+            </span>
+          </span>
+        </Link>
+
+        <button
+          type="button"
+          onClick={() =>
+            setLocale(
+              locale === "fr"
+                ? "es"
+                : "fr",
+            )
+          }
+          className="mirava-offline-locale"
+          aria-label={
+            locale === "fr"
+              ? "Passer en espagnol"
+              : "Cambiar al francés"
+          }
+        >
+          {locale.toUpperCase()}
+        </button>
       </header>
 
-      <section className="mirava-offline-main">
-        <div className="mirava-offline-card">
-          <div className="mirava-offline-emblem">
-            <WifiOff aria-hidden="true" />
+      <div className="mirava-offline-shell">
+        <section className="mirava-offline-card">
+          <div className="mirava-offline-heading">
+            <div className="mirava-offline-status">
+              <WifiOff aria-hidden="true" />
+              <span>{t.status}</span>
+            </div>
+
+            <h1 className="mirava-offline-title">
+              {t.title}
+            </h1>
+
+            <p className="mirava-offline-subtitle">
+              {t.subtitle}
+            </p>
           </div>
 
-          <p className="mirava-offline-eyebrow">
-            {t.eyebrow}
-          </p>
-
-          <h1 className="mirava-offline-title">
-            {t.title}
-          </h1>
-
-          <p className="mirava-offline-description">
-            {t.description}
-          </p>
-
-          <div className="mirava-offline-privacy">
-            <ShieldCheck aria-hidden="true" />
-            <span>{t.privacy}</span>
-          </div>
-
-          <div className="mirava-offline-actions">
-            <a
-              href="/visual-engine/studio"
-              className="mirava-offline-action mirava-offline-action-primary"
-            >
-              <RefreshCw aria-hidden="true" />
-              <span>{t.retry}</span>
-            </a>
+          <div className="mirava-offline-body">
+            <div className="mirava-offline-notice">
+              <ShieldCheck aria-hidden="true" />
+              <span>{t.privacy}</span>
+            </div>
 
             <Link
               href="/visual-engine"
-              className="mirava-offline-action mirava-offline-action-secondary"
+              className="mirava-offline-back"
             >
               <ArrowLeft aria-hidden="true" />
               <span>{t.back}</span>
             </Link>
           </div>
-        </div>
-      </section>
 
-      <footer className="mirava-offline-footer">
-        MIRAVA Studio · {t.foot}
-      </footer>
+          <div className="mirava-offline-footer">
+            <a
+              href="/visual-engine/studio"
+              className="mirava-offline-cta"
+            >
+              <span>{t.retry}</span>
+
+              <span className="mirava-offline-cta-icon">
+                <ArrowRight aria-hidden="true" />
+              </span>
+            </a>
+          </div>
+        </section>
+      </div>
     </main>
   )
 }
