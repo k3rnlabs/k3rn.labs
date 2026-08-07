@@ -3,9 +3,13 @@
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
+import { useReducedMotion } from "framer-motion"
 import { Eye, EyeOff, ArrowRight, Camera, Mail } from "lucide-react"
 import { MiravaWordmark } from "@/components/mirava/mirava-wordmark"
+import { Header } from "@/components/ui/header-2"
 import { MiravaGrain } from "@/components/mirava/mirava-grain"
+import { Grainient } from "@/components/mirava/grainient"
+import { BlurText } from "@/components/mirava/blur-text"
 import { useMiravaLocale } from "@/components/mirava/mirava-locale"
 import { translateAuthError } from "@/lib/auth-errors"
 
@@ -95,6 +99,7 @@ const copy = {
 function MiravaLoginPageContent() {
   const { locale, setLocale } = useMiravaLocale()
   const t = copy[locale]
+  const reduceMotion = useReducedMotion()
   const router = useRouter()
   const searchParams = useSearchParams()
   const studioDestination = getStudioDestination(searchParams.get("next"))
@@ -200,7 +205,12 @@ function MiravaLoginPageContent() {
         const res = await fetch("/api/auth/session", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: normalizedEmail, password }),
+          body: JSON.stringify({
+            email:
+              normalizedEmail,
+            password,
+            locale,
+          }),
         })
         const data = await res.json().catch(() => null)
         if (!res.ok) {
@@ -253,211 +263,424 @@ function MiravaLoginPageContent() {
   const subtitle = mode === "login" ? t.loginSubtitle : mode === "signup" ? t.signupSubtitle : t.forgotSubtitle
 
   return (
-    <main className="mirava-theme flex min-h-dvh min-w-0 flex-col overflow-x-clip bg-mirava-canvas text-mirava-ink">
+    <main className="mirava-theme relative isolate flex min-h-svh min-w-0 flex-col overflow-x-hidden bg-[#070807] text-white">
       <MiravaGrain />
-      <div className="mirava-ambient pointer-events-none fixed inset-0" />
 
-      {/* Top bar */}
-      <nav className="relative z-20 flex min-w-0 items-center justify-between gap-3 px-5 pb-4 pt-[max(1rem,env(safe-area-inset-top,0px))] sm:px-8">
-        <Link href="/visual-engine" aria-label={locale === "fr" ? "Accueil MIRAVA Studio" : "Inicio MIRAVA Studio"} className="min-w-0 shrink">
-          <MiravaWordmark className="max-w-full" />
-        </Link>
-        <button
-          aria-label={locale === "fr" ? "Passer en espagnol" : "Cambiar al francés"}
-          onClick={() => setLocale(locale === "fr" ? "es" : "fr")}
-          className="mirava-button mirava-button-secondary min-w-12 px-3 text-xs"
+      <div
+        aria-hidden="true"
+        data-mirava-auth-background
+        className="pointer-events-none overflow-hidden"
+        style={{
+          position: "fixed",
+          inset: 0,
+          width: "100vw",
+          height: "100svh",
+          zIndex: 0,
+        }}
+      >
+        <div
+          aria-hidden="true"
+          data-mirava-auth-background-fallback
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(circle at 72% 14%, rgba(180,154,104,0.14), transparent 34%), radial-gradient(circle at 18% 72%, rgba(107,81,48,0.10), transparent 40%), #070807",
+          }}
+        />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_14%,rgba(180,154,104,0.24),transparent_32%),radial-gradient(circle_at_18%_72%,rgba(107,81,48,0.16),transparent_38%),#070807]" />
+
+        <Grainient
+          className="absolute inset-0 h-full w-full opacity-[0.72]"
+          color1="#b49a68"
+          color2="#171915"
+          color3="#6b5130"
+          timeSpeed={0.72}
+          colorBalance={-0.12}
+          warpStrength={1.75}
+          warpFrequency={5.6}
+          warpSpeed={1.25}
+          warpAmplitude={30}
+          blendAngle={-14}
+          blendSoftness={0.16}
+          rotationAmount={620}
+          noiseScale={1.35}
+          grainAmount={0.035}
+          grainScale={1.8}
+          grainAnimated={false}
+          contrast={1.35}
+          gamma={1}
+          saturation={0.82}
+          centerX={-0.12}
+          centerY={0.03}
+          zoom={1.08}
+          animated={!reduceMotion}
+        />
+
+        <div
+          aria-hidden="true"
+          data-mirava-auth-dots
+          className="absolute inset-0 z-[1] opacity-[0.12]"
+          style={{
+            backgroundImage:
+              "radial-gradient(rgba(255,255,255,0.82) 0.55px, transparent 0.8px)",
+            backgroundSize:
+              "5px 5px",
+          }}
+        />
+
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 z-[2] bg-black/34"
+        />
+      </div>
+
+      <Header
+        className="relative z-30"
+        brand={
+          <Link
+            href="/visual-engine"
+            aria-label={
+              locale === "fr"
+                ? "Accueil MIRAVA Studio"
+                : "Inicio MIRAVA Studio"
+            }
+            className="mirava-button mirava-button-quiet min-h-12 px-1"
+          >
+            <MiravaWordmark />
+          </Link>
+        }
+        actions={
+          <button
+            aria-label={
+              locale === "fr"
+                ? "Passer en espagnol"
+                : "Cambiar al français"
+            }
+            onClick={() =>
+              setLocale(
+                locale === "fr"
+                  ? "es"
+                  : "fr",
+              )
+            }
+            className="mirava-button mirava-button-secondary min-w-12 px-3 text-xs"
+          >
+            {locale.toUpperCase()}
+          </button>
+        }
+      />
+
+      <div className="relative z-20 flex flex-1 items-start justify-center px-4 pb-[max(2rem,env(safe-area-inset-bottom,0px))] pt-[clamp(3rem,8dvh,6rem)] sm:px-6 sm:pb-10 sm:pt-[clamp(3rem,8dvh,6rem)]">
+        <section
+          data-mirava-auth-card
+          className="w-full max-w-md overflow-hidden rounded-[1.5rem] border border-white/10 bg-black/[0.58] shadow-[0_24px_80px_rgba(0,0,0,0.52)] backdrop-blur-xl"
         >
-          {locale.toUpperCase()}
-        </button>
-      </nav>
-
-      {/* Centered form */}
-      <div className="relative z-10 flex min-w-0 flex-1 items-center justify-center overflow-x-clip px-5 pb-28 pt-8 sm:py-16">
-        <div className="min-w-0 w-full max-w-sm [overflow-wrap:anywhere]">
-
-          <p className="mirava-label mb-6 flex items-center gap-2">
-            <Camera className="h-3.5 w-3.5" />
-            {t.eyebrow}
-          </p>
-
-          <h1 className="mirava-section-title text-4xl sm:text-5xl">{heading}</h1>
-          <p className="mirava-copy mt-3 text-sm leading-6">{subtitle}</p>
-
-          {mode !== "forgot" && (
-            <div className="mt-8 grid min-w-0 grid-cols-2 gap-1 rounded-[14px] border border-mirava-line bg-mirava-canvas-raised p-1">
-              {(["login", "signup"] as Mode[]).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => { setMode(m); reset() }}
-                  className={`min-w-0 w-full rounded-[10px] px-2 py-2 text-center text-xs font-semibold font-jakarta transition-all duration-150 ${
-                    mode === m
-                      ? "bg-mirava-surface-raised text-mirava-ink"
-                      : "text-mirava-ink-muted hover:text-mirava-ink-secondary"
-                  }`}
-                >
-                  {m === "login" ? t.login : t.signup}
-                </button>
-              ))}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="mt-6 space-y-4" noValidate>
-            {/* Email */}
-            <div>
-              <label htmlFor="mirava-email" className="block text-xs font-semibold font-jakarta mb-2 text-mirava-ink-secondary">
-                {t.email}
-              </label>
-              <input
-                id="mirava-email"
-                type="email"
-                placeholder={t.emailPlaceholder}
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value)
-                  if (error && error !== "passwordMismatch" && error !== "passwordShort") setError(null)
-                }}
-                required
-                disabled={loading}
-                autoComplete="email"
-                className="mirava-input w-full px-4 py-3"
+          <div className="border-b border-white/10 px-5 pb-6 pt-6 sm:px-7 sm:pb-7 sm:pt-7">
+            <h1 className="mirava-section-title text-4xl sm:text-5xl">
+              <BlurText
+                text={
+                  mode === "signup"
+                    ? locale === "fr"
+                      ? "Créer un compte"
+                      : "Crear una cuenta"
+                    : mode === "forgot"
+                      ? locale === "fr"
+                        ? "Mot de passe oublié"
+                        : "Contraseña olvidada"
+                      : locale === "fr"
+                        ? "Connexion"
+                        : "Conexión"
+                }
               />
-            </div>
+            </h1>
 
-            {/* Password */}
-            {mode !== "forgot" && (
-              <div>
-                <div className="mb-2 flex min-w-0 flex-col items-start gap-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-x-3">
-                  <label htmlFor="mirava-password" className="text-xs font-semibold font-jakarta text-mirava-ink-secondary">
-                    {t.password}
-                  </label>
-                  {mode === "login" && (
-                    <button
-                      type="button"
-                      onClick={() => { setMode("forgot"); reset() }}
-                      className="min-h-11 -ml-2 px-2 text-left text-[11px] text-mirava-ink-muted transition-colors hover:text-mirava-ink sm:min-h-0 sm:-mr-2 sm:ml-0"
-                    >
-                      {t.forgotLink}
-                    </button>
-                  )}
-                </div>
-                <div className="relative">
-                  <input
-                    id="mirava-password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder={mode === "signup" ? t.passwordNewPlaceholder : t.passwordPlaceholder}
-                    value={password}
-                    onChange={(e) => {
-                      const val = e.target.value
-                      setPassword(val)
-                      if (error === "passwordMismatch" && val === confirmPassword) setError(null)
-                      else if (error === "passwordShort" && val.length >= 6) setError(null)
-                    }}
-                    required
-                    disabled={loading}
-                    autoComplete={mode === "login" ? "current-password" : "new-password"}
-                    minLength={6}
-                    className="mirava-input w-full px-4 py-3 pr-12"
-                  />
+            <p className="mirava-copy mt-3 max-w-sm text-[13px] leading-5 text-white/60 sm:text-sm sm:leading-6">
+              {locale === "fr"
+                ? "Retrouver votre studio et vos créations."
+                : "Recupera tu estudio y tus creaciones."}
+            </p>
+          </div>
+
+          <div className="px-5 py-5 sm:px-7 sm:py-6">
+            {mode !== "forgot" ? (
+              <div className="grid grid-cols-2 gap-1 rounded-[1rem] border border-white/10 bg-white/[0.025] p-1">
+                {(["login", "signup"] as Mode[]).map((item) => (
                   <button
+                    key={item}
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    aria-label={showPassword ? t.hidePassword : t.showPassword}
-                    className="absolute right-2 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-lg text-mirava-ink-muted transition-colors hover:text-mirava-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mirava-accent"
-                  >
-                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Confirm */}
-            {mode === "signup" && (
-              <div>
-                <label htmlFor="mirava-confirm" className="block text-xs font-semibold font-jakarta mb-2 text-mirava-ink-secondary">
-                  {t.confirmPassword}
-                </label>
-                <div className="relative">
-                  <input
-                    id="mirava-confirm"
-                    type={showConfirmPassword ? "text" : "password"}
-                    placeholder={t.confirmPlaceholder}
-                    value={confirmPassword}
-                    onChange={(e) => {
-                      const val = e.target.value
-                      setConfirmPassword(val)
-                      if (error === "passwordMismatch" && val === password) setError(null)
+                    onClick={() => {
+                      setMode(item)
+                      reset()
                     }}
-                    required
-                    disabled={loading}
-                    autoComplete="new-password"
-                    minLength={6}
-                    className="mirava-input w-full px-4 py-3 pr-12"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    aria-label={showConfirmPassword ? t.hidePassword : t.showPassword}
-                    className="absolute right-2 top-1/2 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-lg text-mirava-ink-muted transition-colors hover:text-mirava-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mirava-accent"
+                    aria-pressed={mode === item}
+                    className={`min-h-11 rounded-[0.82rem] px-3 text-[13px] font-semibold outline-none transition focus-visible:ring-2 focus-visible:ring-[#d7c39a]/55 sm:px-4 sm:text-sm ${
+                      mode === item
+                        ? "bg-white text-[#101110] shadow-[0_8px_24px_rgba(0,0,0,0.24)]"
+                        : "text-white/58 hover:text-white"
+                    }`}
                   >
-                    {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    {item === "login"
+                      ? locale === "fr"
+                        ? "Connexion"
+                        : "Conexión"
+                      : locale === "fr"
+                        ? "Créer un compte"
+                        : "Crear una cuenta"}
                   </button>
-                </div>
+                ))}
               </div>
-            )}
-
-            {displayedError && (
-              <div role="alert" className="mirava-alert px-4 py-3 text-sm">{displayedError}</div>
-            )}
-            {displayedSuccess && (
-              <div className="mirava-notice px-4 py-3 text-sm">{displayedSuccess}</div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="mirava-button mirava-button-primary w-full gap-2 px-5 text-sm mt-2"
-            >
-              {loading
-                ? (mode === "login" ? t.loadingLogin : mode === "signup" ? t.loadingSignup : t.loadingForgot)
-                : (mode === "login" ? t.submitLogin : mode === "signup" ? t.submitSignup : t.submitForgot)}
-              {!loading && <ArrowRight className="h-4 w-4" />}
-            </button>
-
-            {showResendButton && (
+            ) : (
               <button
                 type="button"
-                onClick={handleResendEmail}
-                disabled={resending || loading}
-                className="mirava-button mirava-button-secondary w-full gap-2 px-4 py-2.5 text-xs mt-3"
-              >
-                <Mail className="h-3.5 w-3.5" />
-                {resending ? t.resendLoading : t.resendLink}
-              </button>
-            )}
-          </form>
-
-          {mode === "forgot" && (
-            <div className="mt-6 border-t border-mirava-line pt-5 text-center text-xs text-mirava-ink-muted">
-              <button
-                type="button"
-                onClick={() => { setMode("login"); reset() }}
-                className="text-mirava-ink-secondary hover:text-mirava-ink transition-colors"
+                onClick={() => {
+                  setMode("login")
+                  reset()
+                }}
+                className="mb-2 min-h-10 text-xs font-semibold text-white/56 transition hover:text-white"
               >
                 {t.backToLogin}
               </button>
-            </div>
-          )}
+            )}
 
-          {mode === "signup" && (
-            <p className="mt-4 text-center text-[11px] text-mirava-ink-muted">{t.offer}</p>
-          )}
-        </div>
+            <form
+              id="mirava-auth-form"
+              onSubmit={handleSubmit}
+              className="mt-6 space-y-5"
+              noValidate
+            >
+              <div>
+                <label
+                  htmlFor="mirava-email"
+                  className="mb-2 block font-jakarta text-xs font-semibold text-white/72"
+                >
+                  {locale === "fr" ? "Email" : "Email"}
+                </label>
+
+                <input
+                  id="mirava-email"
+                  type="email"
+                  placeholder={t.emailPlaceholder}
+                  value={email}
+                  onChange={(event) => {
+                    setEmail(event.target.value)
+                    if (
+                      error &&
+                      error !== "passwordMismatch" &&
+                      error !== "passwordShort"
+                    ) {
+                      setError(null)
+                    }
+                  }}
+                  required
+                  disabled={loading}
+                  autoComplete="email"
+                  className="mirava-input min-h-14 w-full rounded-[1rem] border-white/12 bg-white/[0.045] px-4 py-3 text-white placeholder:text-white/28"
+                />
+              </div>
+
+              {mode !== "forgot" ? (
+                <div>
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <label
+                      htmlFor="mirava-password"
+                      className="font-jakarta text-xs font-semibold text-white/72"
+                    >
+                      {locale === "fr" ? "Mot de passe" : t.password}
+                    </label>
+
+                    {mode === "login" ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMode("forgot")
+                          reset()
+                        }}
+                        className="min-h-8 text-[11px] text-white/48 transition hover:text-white"
+                      >
+                        {t.forgotLink}
+                      </button>
+                    ) : null}
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      id="mirava-password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder={
+                        mode === "signup"
+                          ? t.passwordNewPlaceholder
+                          : t.passwordPlaceholder
+                      }
+                      value={password}
+                      onChange={(event) => {
+                        const value = event.target.value
+                        setPassword(value)
+
+                        if (
+                          error === "passwordMismatch" &&
+                          value === confirmPassword
+                        ) {
+                          setError(null)
+                        } else if (
+                          error === "passwordShort" &&
+                          value.length >= 6
+                        ) {
+                          setError(null)
+                        }
+                      }}
+                      required
+                      disabled={loading}
+                      autoComplete={
+                        mode === "login"
+                          ? "current-password"
+                          : "new-password"
+                      }
+                      minLength={6}
+                      className="mirava-input min-h-14 w-full rounded-[1rem] border-white/12 bg-white/[0.045] px-4 py-3 pr-12 text-white placeholder:text-white/28"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setShowPassword(!showPassword)
+                      }
+                      aria-label={
+                        showPassword
+                          ? t.hidePassword
+                          : t.showPassword
+                      }
+                      className="absolute right-2 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-lg text-white/48 transition hover:text-white"
+                    >
+                      {showPassword ? (
+                        <EyeOff size={16} />
+                      ) : (
+                        <Eye size={16} />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {mode === "signup" ? (
+                <div>
+                  <label
+                    htmlFor="mirava-confirm"
+                    className="mb-2 block font-jakarta text-xs font-semibold text-white/72"
+                  >
+                    {t.confirmPassword}
+                  </label>
+
+                  <div className="relative">
+                    <input
+                      id="mirava-confirm"
+                      type={showConfirmPassword ? "text" : "password"}
+                      placeholder={t.confirmPlaceholder}
+                      value={confirmPassword}
+                      onChange={(event) => {
+                        const value = event.target.value
+                        setConfirmPassword(value)
+
+                        if (
+                          error === "passwordMismatch" &&
+                          value === password
+                        ) {
+                          setError(null)
+                        }
+                      }}
+                      required
+                      disabled={loading}
+                      autoComplete="new-password"
+                      minLength={6}
+                      className="mirava-input min-h-14 w-full rounded-[1rem] border-white/12 bg-white/[0.045] px-4 py-3 pr-12 text-white placeholder:text-white/28"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setShowConfirmPassword(!showConfirmPassword)
+                      }
+                      aria-label={
+                        showConfirmPassword
+                          ? t.hidePassword
+                          : t.showPassword
+                      }
+                      className="absolute right-2 top-1/2 grid h-10 w-10 -translate-y-1/2 place-items-center rounded-lg text-white/48 transition hover:text-white"
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff size={16} />
+                      ) : (
+                        <Eye size={16} />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {displayedError ? (
+                <div
+                  role="alert"
+                  className="mirava-alert rounded-[1rem] px-4 py-3 text-sm"
+                >
+                  {displayedError}
+                </div>
+              ) : null}
+
+              {displayedSuccess ? (
+                <div
+                  role="status"
+                  className="mirava-notice rounded-[1rem] px-4 py-3 text-sm"
+                >
+                  {displayedSuccess}
+                </div>
+              ) : null}
+
+              {showResendButton ? (
+                <button
+                  type="button"
+                  onClick={handleResendEmail}
+                  disabled={resending || loading}
+                  className="mirava-button mirava-button-secondary min-h-11 w-full gap-2 rounded-[1rem] px-4 text-xs"
+                >
+                  <Mail className="h-3.5 w-3.5" />
+                  {resending ? t.resendLoading : t.resendLink}
+                </button>
+              ) : null}
+            </form>
+          </div>
+
+          <div className="border-t border-white/10 px-5 pb-5 pt-5 sm:px-7 sm:pb-7 sm:pt-6">
+            <button
+              type="submit"
+              form="mirava-auth-form"
+              disabled={loading}
+              aria-busy={loading}
+              data-mirava-auth-cta
+              className="group relative isolate flex min-h-14 w-full items-center justify-between overflow-hidden rounded-[1rem] border border-[#f2eadc]/90 bg-[linear-gradient(135deg,#fffaf0_0%,#eee4d3_58%,#d8c3a0_100%)] px-3 pl-5 text-left text-[#0b0c0b] shadow-[0_12px_30px_rgba(0,0,0,0.38),inset_0_1px_0_rgba(255,255,255,0.9)] outline-none transition duration-200 hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-[#d7c39a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0b0a] active:translate-y-0 active:scale-[0.985] disabled:cursor-wait disabled:opacity-100 disabled:border-[#f2eadc]/90 disabled:bg-[linear-gradient(135deg,#fffaf0_0%,#eee4d3_58%,#d8c3a0_100%)] disabled:text-[#0b0c0b]"
+            >
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.82),transparent_34%),linear-gradient(115deg,transparent_0%,rgba(255,255,255,0.2)_45%,transparent_72%)] opacity-80"
+              />
+
+              <span className="relative z-10 min-w-0 flex-1 font-jakarta text-[15px] font-semibold tracking-[-0.025em]">
+                {loading
+                  ? mode === "login"
+                    ? t.loadingLogin
+                    : mode === "signup"
+                      ? t.loadingSignup
+                      : t.loadingForgot
+                  : locale === "fr"
+                    ? "Accéder au studio"
+                    : "Acceder al estudio"}
+              </span>
+
+              <span className="relative z-10 grid h-10 w-10 shrink-0 place-items-center rounded-[0.75rem] border border-black/10 bg-black/[0.07]">
+                <ArrowRight className="h-4 w-4" />
+              </span>
+            </button>
+          </div>
+        </section>
       </div>
-
-      <footer className="relative z-10 px-5 py-5 text-center text-[11px] text-mirava-ink-muted">
-        MIRAVA Studio · {t.foot}
-      </footer>
     </main>
   )
 }

@@ -10,6 +10,9 @@ import { ensureUserSynced } from "@/lib/auth"
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
+  locale: z
+    .enum(["fr", "es"])
+    .optional(),
 })
 
 export async function POST(req: NextRequest) {
@@ -48,11 +51,25 @@ export async function POST(req: NextRequest) {
     })
 
     if (error) {
-      return apiError(translateAuthError(error.message), 401)
+      return apiError(
+        translateAuthError(
+          error.message,
+          result.data.locale ??
+            "fr",
+        ),
+        401,
+      )
     }
 
     if (!data.session || !data.user) {
-      return apiError(translateAuthError("Échec de la connexion. Session non créée."), 401)
+      return apiError(
+        translateAuthError(
+          "Échec de la connexion. Session non créée.",
+          result.data.locale ??
+            "fr",
+        ),
+        401,
+      )
     }
 
     // Synchronisation immédiate et atomique avec Prisma avant de renvoyer la réponse au navigateur
