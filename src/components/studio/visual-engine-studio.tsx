@@ -31,6 +31,7 @@ import {
   Images,
   Loader2,
   LockKeyhole,
+  LogOut,
   MessageCircle,
   RotateCcw,
   ShieldCheck,
@@ -41,6 +42,7 @@ import {
 import { MiravaWordmark } from "@/components/mirava/mirava-wordmark"
 import { MiravaGrain } from "@/components/mirava/mirava-grain"
 import { Grainient } from "@/components/mirava/grainient"
+import { MiravaDarkroomSheet } from "@/components/mirava/mirava-darkroom-sheet"
 import { BlurText } from "@/components/mirava/blur-text"
 import { enableMiravaPush, MiravaInstallButton } from "@/components/mirava/mirava-pwa"
 import { useMiravaLocale } from "@/components/mirava/mirava-locale"
@@ -4431,6 +4433,59 @@ function AccountView({
   const [pushNotice, setPushNotice] = useState<string | null>(null)
   const [pushError, setPushError] = useState<string | null>(null)
 
+  const [
+    logoutLoading,
+    setLogoutLoading,
+  ] = useState(false)
+
+  const [
+    logoutError,
+    setLogoutError,
+  ] = useState<string | null>(
+    null,
+  )
+
+  const handleLogout = async () => {
+    if (logoutLoading) {
+      return
+    }
+
+    setLogoutLoading(true)
+    setLogoutError(null)
+
+    try {
+      const response =
+        await fetch(
+          "/api/auth/session",
+          {
+            method: "DELETE",
+          },
+        )
+
+      if (!response.ok) {
+        throw new Error(
+          locale === "fr"
+            ? "La déconnexion n’a pas pu être effectuée."
+            : "No se pudo cerrar la sesión.",
+        )
+      }
+
+      window.location.assign(
+        "/visual-engine/studio/login",
+      )
+    } catch (reason) {
+      setLogoutError(
+        reason instanceof Error
+          ? reason.message
+          : locale === "fr"
+            ? "La déconnexion n’a pas pu être effectuée."
+            : "No se pudo cerrar la sesión.",
+      )
+
+      setLogoutLoading(false)
+    }
+  }
+
   const [selectedIdentityAssetId, setSelectedIdentityAssetId] =
     useState<string | null>(null)
   const [confirmAssetDelete, setConfirmAssetDelete] =
@@ -5075,6 +5130,70 @@ function AccountView({
           </div>
         )}
       </div>
+
+
+      <section
+        data-mirava-account-session
+        className="mt-10 max-w-lg"
+      >
+        <p className="mirava-label">
+          MIRAVA /{" "}
+          {locale === "fr"
+            ? "SESSION"
+            : "SESIÓN"}
+        </p>
+
+        <Surface className="mt-4">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="font-jakarta text-lg font-semibold tracking-[-0.035em]">
+                {locale === "fr"
+                  ? "Votre session"
+                  : "Tu sesión"}
+              </h2>
+
+              <p className="mirava-muted mt-2 text-xs leading-5">
+                {locale === "fr"
+                  ? "Déconnectez cet appareil de votre espace MIRAVA."
+                  : "Cierra la sesión de este dispositivo en tu espacio MIRAVA."}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                void handleLogout()
+              }
+              disabled={logoutLoading}
+              className="mirava-button mirava-button-secondary min-h-12 shrink-0 px-4 text-sm font-semibold"
+            >
+              {logoutLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <LogOut className="mr-2 h-4 w-4" />
+              )}
+
+              {logoutLoading
+                ? locale === "fr"
+                  ? "Déconnexion…"
+                  : "Cerrando sesión…"
+                : locale === "fr"
+                  ? "Se déconnecter"
+                  : "Cerrar sesión"}
+            </button>
+          </div>
+
+          {logoutError ? (
+            <div
+              role="alert"
+              className="mirava-alert mt-4 flex items-start gap-2.5 p-3.5 text-xs leading-5"
+            >
+              <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{logoutError}</span>
+            </div>
+          ) : null}
+        </Surface>
+      </section>
     </section>
   )
 }
@@ -5112,8 +5231,6 @@ function CreditPurchaseSheet({
   const [selectedOfferId, setSelectedOfferId] =
     useState<string | null>(null)
   const offerScrollRef =
-    useRef<HTMLDivElement>(null)
-  const creditSheetContentRef =
     useRef<HTMLDivElement>(null)
 
   const packs = account?.packs ?? []
@@ -5255,27 +5372,12 @@ function CreditPurchaseSheet({
       : false
 
   return (
-    <DialogPrimitive.Root
+    <MiravaDarkroomSheet
       open={open}
       onOpenChange={onOpenChange}
+      onReturnFocus={onReturnFocus}
+      variant="credit"
     >
-      <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-[90] bg-black/75 backdrop-blur-md" />
-
-        <DialogPrimitive.Content
-          ref={creditSheetContentRef}
-          tabIndex={-1}
-          onOpenAutoFocus={(event) => {
-            event.preventDefault()
-            creditSheetContentRef.current?.focus()
-          }}
-          onCloseAutoFocus={(event) => {
-            event.preventDefault()
-            onReturnFocus()
-          }}
-          data-mirava-credit-sheet
-          className="fixed inset-x-0 bottom-0 z-[100] mx-auto flex h-[94dvh] max-h-[94dvh] w-full max-w-2xl flex-col overflow-hidden rounded-t-[1.75rem] border border-white/10 bg-[#0a0b0a] text-white shadow-[0_-30px_100px_rgba(0,0,0,0.72)] outline-none sm:bottom-4 sm:h-auto sm:max-h-[92dvh] sm:rounded-[2rem]"
-        >
           <div
             data-mirava-credit-darkroom
             className="relative isolate shrink-0 overflow-hidden border-b border-white/10 px-4 pb-3.5 pt-2.5 sm:px-7 sm:pb-6 sm:pt-3"
@@ -5619,16 +5721,30 @@ function CreditPurchaseSheet({
                 !selectedOffer ||
                 actionPending
               }
-              className="group relative isolate flex min-h-[4.25rem] w-full items-center justify-between overflow-hidden rounded-[1.35rem] border border-[#f2eadc]/90 bg-[linear-gradient(135deg,#fffaf0_0%,#eee4d3_58%,#d8c3a0_100%)] px-3 pl-5 text-left text-[#0b0c0b] shadow-[0_16px_38px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.9)] outline-none transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_20px_48px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.95)] focus-visible:ring-2 focus-visible:ring-[#d7c39a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0b0a] active:translate-y-0 active:scale-[0.985] disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-none disabled:bg-white/[0.07] disabled:text-white/32 disabled:shadow-none sm:min-h-[4.5rem] sm:pl-6"
+              aria-busy={actionPending}
+              className={cn(
+                "group relative isolate flex min-h-[4.25rem] w-full items-center justify-between overflow-hidden rounded-[1.35rem] px-3 pl-5 text-left outline-none transition duration-200 focus-visible:ring-2 focus-visible:ring-[#d7c39a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0b0a] sm:min-h-[4.5rem] sm:pl-6",
+                !selectedOffer
+                  ? "cursor-not-allowed border border-white/10 bg-white/[0.07] text-white/32 shadow-none"
+                  : "border border-[#f2eadc]/90 bg-[linear-gradient(135deg,#fffaf0_0%,#eee4d3_58%,#d8c3a0_100%)] text-[#0b0c0b] shadow-[0_16px_38px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.9)] hover:-translate-y-0.5 hover:shadow-[0_20px_48px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.95)] active:translate-y-0 active:scale-[0.985]",
+                actionPending &&
+                  "cursor-wait opacity-100",
+              )}
             >
               <span
                 aria-hidden="true"
-                className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.92),transparent_34%),linear-gradient(115deg,transparent_0%,rgba(255,255,255,0.26)_45%,transparent_72%)] opacity-90 group-disabled:hidden"
+                className={cn(
+                  "pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,255,255,0.92),transparent_34%),linear-gradient(115deg,transparent_0%,rgba(255,255,255,0.26)_45%,transparent_72%)] opacity-90",
+                  !selectedOffer && "hidden",
+                )}
               />
 
               <span
                 aria-hidden="true"
-                className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 -skew-x-12 bg-white/35 blur-xl transition-transform duration-700 ease-out group-hover:translate-x-[420%] group-disabled:hidden"
+                className={cn(
+                  "pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 -skew-x-12 bg-white/35 blur-xl transition-transform duration-700 ease-out group-hover:translate-x-[420%]",
+                  !selectedOffer && "hidden",
+                )}
               />
 
               <span className="relative z-10 flex min-w-0 flex-1 flex-col pr-3">
@@ -5656,7 +5772,14 @@ function CreditPurchaseSheet({
                         : "Elegir una oferta"}
                 </span>
 
-                <span className="mt-0.5 truncate text-[10px] font-medium leading-4 text-black/55 group-disabled:text-white/24 sm:text-[11px]">
+                <span
+                  className={cn(
+                    "mt-0.5 truncate text-[10px] font-medium leading-4 sm:text-[11px]",
+                    selectedOffer
+                      ? "text-black/55"
+                      : "text-white/24",
+                  )}
+                >
                   {actionPending
                     ? locale === "fr"
                       ? "Redirection sécurisée…"
@@ -5683,7 +5806,12 @@ function CreditPurchaseSheet({
 
               <span
                 aria-hidden="true"
-                className="relative z-10 grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full border border-black/10 bg-[#10110f] text-white shadow-[0_10px_24px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.12)] transition-transform duration-200 group-hover:translate-x-0.5 group-disabled:border-white/5 group-disabled:bg-white/10 group-disabled:text-white/25 group-disabled:shadow-none sm:h-12 sm:w-12"
+                className={cn(
+                  "relative z-10 grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full transition-transform duration-200 sm:h-12 sm:w-12",
+                  selectedOffer
+                    ? "border border-black/10 bg-[#10110f] text-white shadow-[0_10px_24px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.12)] group-hover:translate-x-0.5"
+                    : "border border-white/5 bg-white/10 text-white/25 shadow-none",
+                )}
               >
                 <span
                   aria-hidden="true"
@@ -5704,9 +5832,7 @@ function CreditPurchaseSheet({
                 : "Pago seguro con Stripe · precios con IVA"}
             </p>
           </div>
-        </DialogPrimitive.Content>
-      </DialogPrimitive.Portal>
-    </DialogPrimitive.Root>
+    </MiravaDarkroomSheet>
   )
 }
 

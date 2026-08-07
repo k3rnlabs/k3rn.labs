@@ -20,6 +20,15 @@ describe(
         "utf8",
       )
 
+    const darkroomSheet =
+      readFileSync(
+        path.resolve(
+          process.cwd(),
+          "src/components/mirava/mirava-darkroom-sheet.tsx",
+        ),
+        "utf8",
+      )
+
     it(
       "opens the purchase sheet without navigating away from the active flow",
       () => {
@@ -61,6 +70,9 @@ describe(
           "function CreditPurchaseSheet",
         )
         expect(studio).toContain(
+          'variant="credit"',
+        )
+        expect(darkroomSheet).toContain(
           "data-mirava-credit-sheet",
         )
         expect(studio).toContain(
@@ -160,7 +172,7 @@ describe(
         expect(studio).toContain(
           "consentTarget !== undefined ||\n    creditSheetOpen",
         )
-        expect(studio).toContain(
+        expect(darkroomSheet).toContain(
           "onCloseAutoFocus={(event) => {",
         )
         expect(studio).toContain(
@@ -197,7 +209,7 @@ describe(
         expect(studio).toContain(
           '"MIRAVA / CHAMBRE NOIRE"',
         )
-        expect(studio).toContain(
+        expect(darkroomSheet).toContain(
           "onOpenAutoFocus={(event) => {",
         )
       },
@@ -229,7 +241,7 @@ describe(
     it(
       "keeps the mobile iPhone credit sheet density under control",
       () => {
-        expect(studio).toContain(
+        expect(darkroomSheet).toContain(
           "h-[94dvh] max-h-[94dvh]",
         )
         expect(studio).toContain(
