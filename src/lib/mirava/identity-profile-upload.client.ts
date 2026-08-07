@@ -1,6 +1,9 @@
 "use client"
 
 import { createClient } from "@supabase/supabase-js"
+import type {
+  MiravaIdentityViewKey,
+} from "@/lib/mirava/identity-profile"
 
 export type MiravaIdentityUploadConsent = {
   ageConfirmed: boolean
@@ -10,10 +13,19 @@ export type MiravaIdentityUploadConsent = {
   openaiDisclosureAccepted: boolean
 }
 
+export type MiravaIdentityProfilePreview = {
+  id: string
+  url: string
+  createdAt: string
+  viewKey: MiravaIdentityViewKey
+}
+
 export type MiravaIdentityProfileReceipt = {
   id: string
   assetCount: number
   updatedAt: string
+  viewKeys?: MiravaIdentityViewKey[]
+  previews?: MiravaIdentityProfilePreview[]
 }
 
 type Locale = "fr" | "es"
@@ -348,13 +360,24 @@ export async function uploadMiravaIdentityProfile({
   locale,
   mode = "replace",
   creationId,
+  viewKeys,
 }: {
   files: File[]
   consent: MiravaIdentityUploadConsent
   locale: Locale
   mode?: "replace" | "append"
   creationId?: string
+  viewKeys?: MiravaIdentityViewKey[]
 }): Promise<MiravaIdentityProfileReceipt> {
+  if (
+    viewKeys &&
+    viewKeys.length !== files.length
+  ) {
+    throw new Error(
+      "MIRAVA_IDENTITY_VIEW_KEY_MISMATCH",
+    )
+  }
+
   const masters: File[] = []
 
   for (let index = 0; index < files.length; index += 1) {
@@ -468,6 +491,8 @@ export async function uploadMiravaIdentityProfile({
               path: upload.path,
               mimeType: masters[index].type,
               bytes: masters[index].size,
+              viewKey:
+                viewKeys?.[index],
             }),
           ),
           ageConfirmed: consent.ageConfirmed,

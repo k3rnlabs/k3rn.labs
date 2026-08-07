@@ -37,6 +37,7 @@ export async function POST(req: NextRequest) {
           path: string
           mimeType: string
           bytes: number
+          viewKey?: string
         }>
         ageConfirmed?: boolean
         rightsConfirmed?: boolean

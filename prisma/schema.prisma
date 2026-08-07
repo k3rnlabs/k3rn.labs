@@ -850,6 +850,7 @@ model StudioIdentityAsset {
   id                String   @id @default(cuid())
   identityProfileId String
   userId            String
+  viewKey           String?
   storagePath       String   @unique
   mimeType          String
   bytes             Int
@@ -859,6 +860,7 @@ model StudioIdentityAsset {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([identityProfileId, createdAt])
+  @@index([identityProfileId, viewKey])
   @@index([userId, createdAt])
 }
 

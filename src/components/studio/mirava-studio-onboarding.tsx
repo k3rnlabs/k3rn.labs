@@ -1682,7 +1682,11 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                     initialConsentAccepted={identityConsentAccepted}
                     onClose={() => {}}
                     onActionStateChange={setCaptureActionState}
-                    onComplete={async (files, consent) => {
+                    onComplete={async (
+                      files,
+                      consent,
+                      viewKeys,
+                    ) => {
                       if (
                         files.length < MIRAVA_MIN_IDENTITY_PHOTOS ||
                         files.length > MIRAVA_MAX_IDENTITY_PHOTOS
@@ -1702,6 +1706,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                             files,
                             consent,
                             locale,
+                            viewKeys,
                           })
 
                         if (

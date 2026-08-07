@@ -47,7 +47,26 @@ export type MiravaIdentityConsent = {
   openaiDisclosureAccepted: true
 }
 
-export type PhotoSlotId = "front" | "angle" | "profile_right" | "smile" | "body" | "tattoos"
+export type PhotoSlotId =
+  | "front"
+  | "angle"
+  | "profile_right"
+  | "smile"
+  | "body"
+  | "tattoos"
+
+export type MiravaIdentityExistingView = {
+  id: string
+  url: string
+  createdAt: string
+  viewKey: PhotoSlotId
+}
+
+export type MiravaIdentityManageChange = {
+  viewKey: PhotoSlotId
+  assetId?: string
+  file: File
+}
 
 export interface PhotoSlotDefinition {
   id: PhotoSlotId
@@ -209,8 +228,14 @@ export const PHOTO_SLOTS: PhotoSlotDefinition[] = [
 export interface PhotoSlotState {
   file: File | null
   preview: string | null
-  status: "idle" | "scanning" | "scanned"
+  status:
+    | "idle"
+    | "scanning"
+    | "scanned"
+    | "existing"
   criteriaProgress: number // Number of checkmarks evaluated during live scan
+  existingAssetId?: string
+  existingPreview?: string
   failedCriteria?: number[] // Indices of criteria that failed analysis
   criteriaWarning?: string // User-facing warning message if a criterion fails
   qualityScore?: number // Score 0-100%
@@ -572,37 +597,191 @@ async function analyzeIdentityPhoto(
   }
 }
 
+const MANAGE_VIEW_PRIORITY:
+  PhotoSlotId[] = [
+    "front",
+    "angle",
+    "profile_right",
+    "body",
+    "smile",
+    "tattoos",
+  ]
+
+function emptyPhotoSlotState():
+  PhotoSlotState {
+  return {
+    file: null,
+    preview: null,
+    status: "idle",
+    criteriaProgress: 0,
+  }
+}
+
+function initialManagedSlotStates(
+  existingViews:
+    MiravaIdentityExistingView[],
+): Record<
+  PhotoSlotId,
+  PhotoSlotState
+> {
+  const states =
+    {} as Record<
+      PhotoSlotId,
+      PhotoSlotState
+    >
+
+  for (const slot of PHOTO_SLOTS) {
+    const existing =
+      existingViews.find(
+        (view) =>
+          view.viewKey === slot.id,
+      )
+
+    states[slot.id] =
+      existing
+        ? {
+            file: null,
+            preview: existing.url,
+            status: "existing",
+            criteriaProgress:
+              slot.criteria.fr.length,
+            failedCriteria: [],
+            existingAssetId:
+              existing.id,
+            existingPreview:
+              existing.url,
+          }
+        : emptyPhotoSlotState()
+  }
+
+  return states
+}
+
+function firstManageSlotIndex(
+  existingViews:
+    MiravaIdentityExistingView[],
+  requested?: PhotoSlotId,
+): number {
+  if (requested) {
+    const requestedIndex =
+      PHOTO_SLOTS.findIndex(
+        (slot) =>
+          slot.id === requested,
+      )
+
+    if (requestedIndex >= 0) {
+      return requestedIndex
+    }
+  }
+
+  const existingKeys =
+    new Set(
+      existingViews.map(
+        (view) => view.viewKey,
+      ),
+    )
+
+  const firstMissing =
+    MANAGE_VIEW_PRIORITY.find(
+      (viewKey) =>
+        !existingKeys.has(viewKey),
+    )
+
+  if (!firstMissing) return 0
+
+  return Math.max(
+    0,
+    PHOTO_SLOTS.findIndex(
+      (slot) =>
+        slot.id === firstMissing,
+    ),
+  )
+}
+
 export function MiravaIdentityCapture({
   locale,
   context = "onboarding",
   existingCount = 0,
+  existingViews = [],
+  initialSlotId,
   initialConsentAccepted = false,
   inline = false,
   onClose,
   onComplete,
+  onManageSave,
   onActionStateChange,
 }: {
   locale: Locale
-  context?: "onboarding" | "replace" | "append"
+  context?:
+    | "onboarding"
+    | "replace"
+    | "append"
+    | "manage"
   existingCount?: number
+  existingViews?:
+    MiravaIdentityExistingView[]
+  initialSlotId?: PhotoSlotId
   initialConsentAccepted?: boolean
   inline?: boolean
   onClose: () => void
-  onComplete: (files: File[], consent: MiravaIdentityConsent) => Promise<void>
+  onComplete: (
+    files: File[],
+    consent: MiravaIdentityConsent,
+    viewKeys?: PhotoSlotId[],
+  ) => Promise<void>
+  onManageSave?: (
+    change:
+      MiravaIdentityManageChange,
+  ) => Promise<
+    MiravaIdentityExistingView[]
+  >
   onActionStateChange?: (state: CaptureActionState) => void
 }) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const [activeSlotIndex, setActiveSlotIndex] = useState(0)
-  const [slotStates, setSlotStates] = useState<Record<PhotoSlotId, PhotoSlotState>>({
-    front: { file: null, preview: null, status: "idle", criteriaProgress: 0 },
-    angle: { file: null, preview: null, status: "idle", criteriaProgress: 0 },
-    profile_right: { file: null, preview: null, status: "idle", criteriaProgress: 0 },
-    smile: { file: null, preview: null, status: "idle", criteriaProgress: 0 },
-    body: { file: null, preview: null, status: "idle", criteriaProgress: 0 },
-    tattoos: { file: null, preview: null, status: "idle", criteriaProgress: 0 },
-  })
+  const [
+    activeSlotIndex,
+    setActiveSlotIndex,
+  ] = useState(
+    () =>
+      context === "manage"
+        ? firstManageSlotIndex(
+            existingViews,
+            initialSlotId,
+          )
+        : 0,
+  )
+
+  const [
+    slotStates,
+    setSlotStates,
+  ] = useState<
+    Record<
+      PhotoSlotId,
+      PhotoSlotState
+    >
+  >(
+    () =>
+      context === "manage"
+        ? initialManagedSlotStates(
+            existingViews,
+          )
+        : {
+            front:
+              emptyPhotoSlotState(),
+            angle:
+              emptyPhotoSlotState(),
+            profile_right:
+              emptyPhotoSlotState(),
+            smile:
+              emptyPhotoSlotState(),
+            body:
+              emptyPhotoSlotState(),
+            tattoos:
+              emptyPhotoSlotState(),
+          },
+  )
 
   const [additionalTraitPhotos, setAdditionalTraitPhotos] = useState<
     Array<{ file: File; preview: string }>
@@ -643,6 +822,11 @@ export function MiravaIdentityCapture({
   }, [])
 
   useEffect(() => {
+    if (context === "manage") {
+      setDraftHydrated(true)
+      return
+    }
+
     let cancelled = false
 
     const restoreDraft = async () => {
@@ -731,12 +915,18 @@ export function MiravaIdentityCapture({
       cancelled = true
     }
   }, [
+    context,
     identityDraftKey,
     initialConsentAccepted,
   ])
 
   useEffect(() => {
-    if (!draftHydrated) return
+    if (
+      context === "manage" ||
+      !draftHydrated
+    ) {
+      return
+    }
 
     const persistedSlotStates =
       {} as Record<
@@ -793,6 +983,7 @@ export function MiravaIdentityCapture({
   }, [
     activeSlotIndex,
     additionalTraitPhotos,
+    context,
     draftHydrated,
     identityDraftKey,
     legalAccepted,
@@ -849,24 +1040,46 @@ export function MiravaIdentityCapture({
         const state = slotStates[slot.id]
 
         return (
-          Boolean(state.file) &&
-          state.status === "scanned" &&
-          (state.failedCriteria?.length ?? 0) === 0 &&
-          state.visionResult?.ready === true
+          state.status === "existing" ||
+          (
+            Boolean(state.file) &&
+            state.status === "scanned" &&
+            (state.failedCriteria?.length ?? 0) === 0 &&
+            state.visionResult?.ready === true
+          )
         )
       }),
     [slotStates],
   )
 
   const completedPhotoCount =
-    completedPhotos.length + additionalTraitPhotos.length
+    context === "manage"
+      ? Math.max(
+          existingCount,
+          completedPhotos.length +
+            additionalTraitPhotos.length,
+        )
+      : completedPhotos.length +
+        additionalTraitPhotos.length
 
   const currentTraitPhotoIsValidated =
     currentSlot.id === "tattoos" &&
-    Boolean(currentSlotState.file) &&
-    currentSlotState.status === "scanned" &&
-    (currentSlotState.failedCriteria?.length ?? 0) === 0 &&
-    currentSlotState.visionResult?.ready === true
+    (
+      currentSlotState.status ===
+        "existing" ||
+      (
+        Boolean(currentSlotState.file) &&
+        currentSlotState.status ===
+          "scanned" &&
+        (
+          currentSlotState
+            .failedCriteria
+            ?.length ?? 0
+        ) === 0 &&
+        currentSlotState.visionResult
+          ?.ready === true
+      )
+    )
 
   const traitPhotoCount =
     additionalTraitPhotos.length +
@@ -881,10 +1094,17 @@ export function MiravaIdentityCapture({
     const state = slotStates[slotId]
 
     return (
-      Boolean(state.file) &&
-      state.status === "scanned" &&
-      (state.failedCriteria?.length ?? 0) === 0 &&
-      state.visionResult?.ready === true
+      state.status === "existing" ||
+      (
+        Boolean(state.file) &&
+        state.status === "scanned" &&
+        (
+          state.failedCriteria
+            ?.length ?? 0
+        ) === 0 &&
+        state.visionResult?.ready ===
+          true
+      )
     )
   })
 
@@ -902,10 +1122,16 @@ export function MiravaIdentityCapture({
     const file = event.target.files?.[0]
     if (!file) return
 
-    const previewUrl = URL.createObjectURL(file)
+    const previewUrl =
+      URL.createObjectURL(file)
     const slotId = currentSlot.id
-    const totalCriteria = currentSlot.criteria[locale].length
-    const scanStartedAt = performance.now()
+    const totalCriteria =
+      currentSlot.criteria[locale]
+        .length
+    const scanStartedAt =
+      performance.now()
+    const previousSlotState =
+      slotStates[slotId]
 
     setSlotStates((previous) => ({
       ...previous,
@@ -914,6 +1140,12 @@ export function MiravaIdentityCapture({
         preview: previewUrl,
         status: "scanning",
         criteriaProgress: 0,
+        existingAssetId:
+          previousSlotState
+            .existingAssetId,
+        existingPreview:
+          previousSlotState
+            .existingPreview,
       },
     }))
 
@@ -966,17 +1198,52 @@ export function MiravaIdentityCapture({
   }
 
   const handleResetCurrentPhoto = () => {
-    const slotId = currentSlot.id
-    setSlotStates((prev) => ({
-      ...prev,
-      [slotId]: {
-        file: null,
-        preview: null,
-        status: "idle",
-        criteriaProgress: 0,
+    const slotId =
+      currentSlot.id
+
+    setSlotStates(
+      (previous) => {
+        const state =
+          previous[slotId]
+
+        if (
+          context === "manage" &&
+          state.existingAssetId &&
+          state.existingPreview
+        ) {
+          return {
+            ...previous,
+            [slotId]: {
+              file: null,
+              preview:
+                state.existingPreview,
+              status:
+                "existing",
+              criteriaProgress:
+                currentSlot.criteria[
+                  locale
+                ].length,
+              failedCriteria: [],
+              existingAssetId:
+                state.existingAssetId,
+              existingPreview:
+                state.existingPreview,
+            },
+          }
+        }
+
+        return {
+          ...previous,
+          [slotId]:
+            emptyPhotoSlotState(),
+        }
       },
-    }))
-    if (fileInputRef.current) fileInputRef.current.value = ""
+    )
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value =
+        ""
+    }
   }
 
   const handleAddAnotherTraitPhoto = () => {
@@ -1035,6 +1302,122 @@ export function MiravaIdentityCapture({
     )
   }
 
+  const handleSaveManagedCurrent =
+    async () => {
+      if (
+        context !== "manage" ||
+        !onManageSave ||
+        submitting
+      ) {
+        return
+      }
+
+      const state =
+        slotStates[currentSlot.id]
+
+      if (
+        !state.file ||
+        state.status !== "scanned" ||
+        (
+          state.failedCriteria
+            ?.length ?? 0
+        ) > 0 ||
+        state.visionResult?.ready !==
+          true
+      ) {
+        return
+      }
+
+      setSubmitting(true)
+      setSubmitError(null)
+
+      try {
+        const views =
+          await onManageSave({
+            viewKey:
+              currentSlot.id,
+            assetId:
+              state.existingAssetId,
+            file: state.file,
+          })
+
+        const matchingViews =
+          views.filter(
+            (view) =>
+              view.viewKey ===
+              currentSlot.id,
+          )
+
+        const savedView =
+          state.existingAssetId
+            ? matchingViews.find(
+                (view) =>
+                  view.id ===
+                  state.existingAssetId,
+              ) ??
+              matchingViews[
+                matchingViews.length -
+                  1
+              ]
+            : matchingViews[
+                matchingViews.length -
+                  1
+              ]
+
+        if (!savedView) {
+          throw new Error(
+            locale === "fr"
+              ? "La vue a été enregistrée mais son aperçu n’a pas pu être rechargé."
+              : "La vista se guardó, pero no se pudo recargar su vista previa.",
+          )
+        }
+
+        setSlotStates(
+          (previous) => ({
+            ...previous,
+            [currentSlot.id]: {
+              file: null,
+              preview:
+                savedView.url,
+              status:
+                "existing",
+              criteriaProgress:
+                currentCriteria.length,
+              failedCriteria: [],
+              existingAssetId:
+                savedView.id,
+              existingPreview:
+                savedView.url,
+            },
+          }),
+        )
+
+        const nextIndex =
+          firstManageSlotIndex(
+            views,
+          )
+
+        setActiveSlotIndex(
+          nextIndex,
+        )
+
+        if (fileInputRef.current) {
+          fileInputRef.current.value =
+            ""
+        }
+      } catch (reason) {
+        setSubmitError(
+          reason instanceof Error
+            ? reason.message
+            : locale === "fr"
+              ? "Cette vue n’a pas pu être enregistrée."
+              : "No se pudo guardar esta vista.",
+        )
+      } finally {
+        setSubmitting(false)
+      }
+    }
+
   const handleAdvanceToNext = () => {
     if (activeSlotIndex < PHOTO_SLOTS.length - 1) {
       setActiveSlotIndex((prev) => prev + 1)
@@ -1053,6 +1436,11 @@ export function MiravaIdentityCapture({
 
   const handleCaptureBack = () => {
     if (submitting) return
+
+    if (context === "manage") {
+      close()
+      return
+    }
 
     if (showSummary) {
       setShowSummary(false)
@@ -1127,21 +1515,53 @@ export function MiravaIdentityCapture({
 
     setSubmitting(true)
 
-    const finalFiles = [
-      ...PHOTO_SLOTS.flatMap((slot) => {
-        const state = slotStates[slot.id]
+    const finalEntries = [
+      ...PHOTO_SLOTS.flatMap(
+        (slot) => {
+          const state =
+            slotStates[slot.id]
 
-        return (
-          state.file &&
-          state.status === "scanned" &&
-          (state.failedCriteria?.length ?? 0) === 0 &&
-          state.visionResult?.ready === true
-        )
-          ? [state.file]
-          : []
-      }),
-      ...additionalTraitPhotos.map((photo) => photo.file),
+          return (
+            state.file &&
+            state.status ===
+              "scanned" &&
+            (
+              state.failedCriteria
+                ?.length ?? 0
+            ) === 0 &&
+            state.visionResult
+              ?.ready === true
+          )
+            ? [
+                {
+                  file: state.file,
+                  viewKey:
+                    slot.id,
+                },
+              ]
+            : []
+        },
+      ),
+      ...additionalTraitPhotos.map(
+        (photo) => ({
+          file: photo.file,
+          viewKey:
+            "tattoos" as
+              PhotoSlotId,
+        }),
+      ),
     ]
+
+    const finalFiles =
+      finalEntries.map(
+        (entry) => entry.file,
+      )
+
+    const finalViewKeys =
+      finalEntries.map(
+        (entry) =>
+          entry.viewKey,
+      )
 
     const consent: MiravaIdentityConsent = {
       ageConfirmed: true,
@@ -1152,7 +1572,7 @@ export function MiravaIdentityCapture({
     }
 
     try {
-      await onComplete(finalFiles, consent)
+      await onComplete(finalFiles, consent, finalViewKeys)
 
       draftCompletedRef.current = true
 
@@ -1173,6 +1593,119 @@ export function MiravaIdentityCapture({
   }
 
   const currentActionState = useMemo<CaptureActionState>(() => {
+    if (context === "manage") {
+      if (
+        currentSlotState.status ===
+        "existing"
+      ) {
+        return {
+          label:
+            locale === "fr"
+              ? "Remplacer cette vue"
+              : "Sustituir esta vista",
+          icon: "upload",
+          disabled: submitting,
+          onClick: () =>
+            fileInputRef.current
+              ?.click(),
+        }
+      }
+
+      if (
+        currentSlotState.status ===
+        "scanning"
+      ) {
+        return {
+          label:
+            locale === "fr"
+              ? "Scan en cours…"
+              : "Escaneando…",
+          icon: "loading",
+          disabled: true,
+          onClick: () => {},
+        }
+      }
+
+      if (
+        currentSlotState.status ===
+        "scanned"
+      ) {
+        if (
+          currentPhotoHasBlockingIssues
+        ) {
+          return {
+            label:
+              locale === "fr"
+                ? "Choisir une meilleure photo"
+                : "Elegir una foto mejor",
+            icon: "upload",
+            disabled: submitting,
+            onClick: () =>
+              fileInputRef.current
+                ?.click(),
+            secondaryAction:
+              currentSlotState
+                .existingAssetId
+                ? {
+                    label:
+                      locale ===
+                      "fr"
+                        ? "Annuler le remplacement"
+                        : "Cancelar sustitución",
+                    onClick:
+                      handleResetCurrentPhoto,
+                  }
+                : undefined,
+          }
+        }
+
+        return {
+          label: submitting
+            ? locale === "fr"
+              ? "Enregistrement…"
+              : "Guardando…"
+            : currentSlotState
+                .existingAssetId
+              ? locale === "fr"
+                ? "Enregistrer le remplacement"
+                : "Guardar sustitución"
+              : locale === "fr"
+                ? "Enregistrer cette vue"
+                : "Guardar esta vista",
+          icon: submitting
+            ? "loading"
+            : "submit",
+          disabled: submitting,
+          onClick:
+            handleSaveManagedCurrent,
+          secondaryAction:
+            currentSlotState
+              .existingAssetId
+              ? {
+                  label:
+                    locale === "fr"
+                      ? "Annuler le remplacement"
+                      : "Cancelar sustitución",
+                  onClick:
+                    handleResetCurrentPhoto,
+                }
+              : undefined,
+        }
+      }
+
+      return {
+        label:
+          locale === "fr"
+            ? "Ajouter cette photo"
+            : "Añadir esta foto",
+        icon: "upload",
+        disabled: submitting,
+        onClick: () =>
+          fileInputRef.current
+            ?.click(),
+      }
+    }
+
     if (showSummary) {
       return {
         label: submitting
@@ -1316,6 +1849,7 @@ export function MiravaIdentityCapture({
   }, [
     additionalTraitPhotos.length,
     canAddAnotherTraitPhoto,
+    context,
     completedPhotoCount,
     currentPhotoHasBlockingIssues,
     currentSlot.id,
@@ -1324,6 +1858,7 @@ export function MiravaIdentityCapture({
     handleAddAnotherTraitPhoto,
     handleAdvanceToNext,
     handleResetCurrentPhoto,
+    handleSaveManagedCurrent,
     handleSkipOptionalSlot,
     handleSubmitFinalProfile,
     legalAccepted,
@@ -1425,8 +1960,22 @@ export function MiravaIdentityCapture({
         <div className="flex items-center justify-between gap-1.5 rounded-2xl border border-white/10 bg-white/5 p-2 backdrop-blur-xl">
           {PHOTO_SLOTS.map((slot, idx) => {
             const state = slotStates[slot.id]
-            const isActive = idx === activeSlotIndex
-            const isDone = state.status === "scanned" && state.file
+            const isActive =
+              idx === activeSlotIndex
+            const isDone =
+              state.status ===
+                "existing" ||
+              (
+                state.status ===
+                  "scanned" &&
+                Boolean(state.file) &&
+                (
+                  state.failedCriteria
+                    ?.length ?? 0
+                ) === 0 &&
+                state.visionResult
+                  ?.ready === true
+              )
 
             return (
               <button
@@ -1435,14 +1984,24 @@ export function MiravaIdentityCapture({
                 onClick={() => setActiveSlotIndex(idx)}
                 className={cn(
                   "flex flex-1 items-center justify-center gap-1 rounded-xl py-2 font-jakarta text-xs font-semibold transition-all duration-200",
-                  isActive
+                  isActive &&
+                    isDone
+                    ? "border border-emerald-400/60 bg-emerald-500/25 text-emerald-200 shadow-[0_0_0_1px_rgba(52,211,153,0.15)]"
+                    : isActive
                     ? "bg-[#ede8df] text-[#0d0e0e] shadow-md"
                     : isDone
-                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                    ? "border border-emerald-500/30 bg-emerald-500/20 text-emerald-300"
                     : "bg-white/5 text-white/60 hover:bg-white/10",
                 )}
               >
-                {isDone ? <Check className="h-3.5 w-3.5 stroke-[3]" /> : <span>{slot.number}</span>}
+                {isDone ? (
+                  <>
+                    <Check className="h-3.5 w-3.5 stroke-[3]" />
+                    <span>{slot.number}</span>
+                  </>
+                ) : (
+                  <span>{slot.number}</span>
+                )}
               </button>
             )
           })}
@@ -1456,19 +2015,33 @@ export function MiravaIdentityCapture({
               <div className="rounded-2xl border border-white/15 bg-white/10 p-5 backdrop-blur-xl">
                 <div className="flex items-center justify-between gap-3">
                   <span className="block font-jakarta text-[10px] font-bold tracking-[0.16em] text-[#d5c6b0] uppercase">
-                    {`Étape ${currentSlot.number} sur ${PHOTO_SLOTS.length}`}
+                    {context === "manage"
+                      ? locale === "fr"
+                        ? `Vue ${currentSlot.number} sur ${PHOTO_SLOTS.length}`
+                        : `Vista ${currentSlot.number} de ${PHOTO_SLOTS.length}`
+                      : locale === "fr"
+                        ? `Étape ${currentSlot.number} sur ${PHOTO_SLOTS.length}`
+                        : `Paso ${currentSlot.number} de ${PHOTO_SLOTS.length}`}
                   </span>
                   <span
                     className={cn(
                       "rounded-full border px-2.5 py-0.5 font-jakarta text-[10px] font-bold uppercase",
-                      currentSlot.level === "required"
+                      currentSlotState.status ===
+                        "existing"
+                        ? "border-emerald-400/50 bg-emerald-500/15 text-emerald-200"
+                        : currentSlot.level === "required"
                         ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
                         : currentSlot.level === "recommended"
                         ? "border-amber-400/40 bg-amber-400/10 text-amber-300"
                         : "border-white/20 bg-white/5 text-white/60",
                     )}
                   >
-                    {currentSlot.level === "required"
+                    {currentSlotState.status ===
+                      "existing"
+                      ? locale === "fr"
+                        ? "Validée"
+                        : "Validada"
+                      : currentSlot.level === "required"
                       ? (locale === "fr" ? "Requis" : "Requerido")
                       : currentSlot.level === "recommended"
                       ? (locale === "fr" ? "Recommandé" : "Recomendado")
@@ -1540,7 +2113,8 @@ export function MiravaIdentityCapture({
                       />
                     )}
 
-                    {currentSlotState.status === "scanned" && (
+                    {(currentSlotState.status === "scanned" ||
+                      currentSlotState.status === "existing") && (
                       <div
                         className={cn(
                           "absolute left-3 top-3 flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold backdrop-blur-md",
@@ -1770,8 +2344,23 @@ export function MiravaIdentityCapture({
 
                 <div className="space-y-2.5 font-jakarta text-xs">
                   {currentCriteria.map((criterion, index) => {
-                    const isFailed = currentSlotState.status === "scanned" && currentSlotState.failedCriteria?.includes(index)
-                    const isChecked = (currentSlotState.criteriaProgress > index || currentSlotState.status === "scanned") && !isFailed
+                    const isFailed =
+                      currentSlotState.status ===
+                        "scanned" &&
+                      currentSlotState
+                        .failedCriteria
+                        ?.includes(index)
+                    const isChecked =
+                      (
+                        currentSlotState.status ===
+                          "existing" ||
+                        currentSlotState
+                          .criteriaProgress >
+                          index ||
+                        currentSlotState.status ===
+                          "scanned"
+                      ) &&
+                      !isFailed
                     const isCurrentScanning = currentSlotState.status === "scanning" && currentSlotState.criteriaProgress === index
 
                     return (
@@ -1962,7 +2551,15 @@ export function MiravaIdentityCapture({
       ref={dialogRef}
       role="dialog"
       aria-modal="true"
-      aria-label={locale === "fr" ? "Capture guidée de votre Profil identité" : "Captura guiada de tu Perfil de identidad"}
+      aria-label={
+        context === "manage"
+          ? locale === "fr"
+            ? "Gérer les vues de votre Profil identité"
+            : "Gestionar las vistas de tu Perfil de identidad"
+          : locale === "fr"
+            ? "Capture guidée de votre Profil identité"
+            : "Captura guiada de tu Perfil de identidad"
+      }
       className="mirava-theme fixed inset-0 z-[100] flex touch-pan-y flex-col overscroll-x-none bg-[#0b0c0d] text-[#f1f1ed] selection:bg-[#d5c6b0] selection:text-[#090a0a]"
       style={{
         position: "fixed",

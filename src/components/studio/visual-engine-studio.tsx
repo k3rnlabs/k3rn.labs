@@ -48,7 +48,13 @@ import { enableMiravaPush, MiravaInstallButton } from "@/components/mirava/mirav
 import { useMiravaLocale } from "@/components/mirava/mirava-locale"
 import { MiravaCreativeDirector } from "@/components/studio/mirava-creative-director"
 import { MiravaMakeupSelector } from "@/components/studio/mirava-makeup-selector"
-import { MiravaIdentityCapture, type MiravaIdentityConsent } from "@/components/studio/mirava-identity-capture"
+import {
+  MiravaIdentityCapture,
+  type MiravaIdentityConsent,
+  type MiravaIdentityExistingView,
+  type MiravaIdentityManageChange,
+  type PhotoSlotId,
+} from "@/components/studio/mirava-identity-capture"
 import { MiravaStudioOnboarding } from "@/components/studio/mirava-studio-onboarding"
 import { BottomNavBar, type BottomNavItem } from "@/components/ui/bottom-nav-bar"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -102,7 +108,14 @@ type Creation = {
 }
 type Detail = { creation: Creation; assets: Asset[]; resultUrl: string | null; resultUrls: string[]; resultLocked: boolean; completedResultCount: number; studioCredits: number }
 type Studio = { id: string; name: string; presetId: string | null; createdAt: string; updatedAt: string }
-type IdentityProfile = { id: string; assetCount: number; updatedAt: string; previews: Array<{ id: string; url: string; createdAt: string }> } | null
+type IdentityProfile = {
+  id: string
+  assetCount: number
+  updatedAt: string
+  viewKeys: PhotoSlotId[]
+  previews:
+    MiravaIdentityExistingView[]
+} | null
 type Offer = { id: string; name: string; credits: number; priceEur: number; kind: "pack" | "subscription" }
 type CreditOfferKind = Offer["kind"]
 type Account = { credits: number; subscription: { planId: string | null; status: string | null; currentPeriodEnd: string | null; cancelAtPeriodEnd: boolean } | null; plans: Offer[]; packs: Offer[] }
@@ -1208,7 +1221,22 @@ export function VisualEngineStudio() {
   const [consentTarget, setConsentTarget] = useState<string | null | undefined>(undefined)
   const [consentReference, setConsentReference] = useState<File | null>(null)
   const [directorOpen, setDirectorOpen] = useState(false)
-  const [captureContext, setCaptureContext] = useState<"onboarding" | "replace" | "append" | null>(null)
+  const [
+    captureContext,
+    setCaptureContext,
+  ] = useState<
+    | "onboarding"
+    | "replace"
+    | "append"
+    | "manage"
+    | null
+  >(null)
+  const [
+    captureInitialSlotId,
+    setCaptureInitialSlotId,
+  ] = useState<
+    PhotoSlotId | undefined
+  >(undefined)
   const [pending, setPending] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -1798,13 +1826,31 @@ export function VisualEngineStudio() {
     window.requestAnimationFrame(() => directorTriggerRef.current?.focus())
   }
 
-  const openCapture = (context: "onboarding" | "replace" | "append") => {
-    captureTriggerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  const openCapture = (
+    context:
+      | "onboarding"
+      | "replace"
+      | "append"
+      | "manage",
+    initialSlotId?:
+      PhotoSlotId,
+  ) => {
+    captureTriggerRef.current =
+      document.activeElement
+        instanceof HTMLElement
+        ? document.activeElement
+        : null
+    setCaptureInitialSlotId(
+      initialSlotId,
+    )
     setCaptureContext(context)
   }
 
   const closeCapture = () => {
     setCaptureContext(null)
+    setCaptureInitialSlotId(
+      undefined,
+    )
     window.requestAnimationFrame(() => captureTriggerRef.current?.focus())
   }
 
@@ -1999,6 +2045,7 @@ export function VisualEngineStudio() {
     files: File[],
     consent?: MiravaIdentityConsent,
     mode: "replace" | "append" = "replace",
+    viewKeys?: PhotoSlotId[],
   ) => {
     const remaining = MIRAVA_MAX_IDENTITY_PHOTOS - (identityProfile?.assetCount ?? 0)
     const invalidCount = mode === "append"
@@ -2083,6 +2130,7 @@ export function VisualEngineStudio() {
         locale,
         mode,
         creationId: current?.creation.id,
+        viewKeys,
       })
       if (captureContext === "onboarding" && miravaOnboarding && !isMiravaOnboardingCompleted(miravaOnboarding)) {
         if (!consent) throw new Error(locale === "fr" ? "Le consentement est requis avant de préparer la séance." : "Se requiere el consentimiento antes de preparar la sesión.")
@@ -2103,6 +2151,107 @@ export function VisualEngineStudio() {
       setPending(null)
     }
   }
+
+  const saveManagedIdentityView =
+    async (
+      change:
+        MiravaIdentityManageChange,
+    ): Promise<
+      MiravaIdentityExistingView[]
+    > => {
+      if (!identityProfile) {
+        throw new Error(
+          locale === "fr"
+            ? "Créez d’abord votre Profil identité."
+            : "Crea primero tu Perfil de identidad.",
+        )
+      }
+
+      setPending(
+        "identity-manage",
+      )
+      setError(null)
+      clearNotice()
+
+      try {
+        if (change.assetId) {
+          await uploadMiravaIdentityAsset({
+            assetId:
+              change.assetId,
+            file: change.file,
+            locale,
+          })
+        } else {
+          await uploadMiravaIdentityProfile({
+            files: [
+              change.file,
+            ],
+            consent: {
+              ageConfirmed: true,
+              rightsConfirmed: true,
+              retentionAccepted: true,
+              privacyAccepted: true,
+              openaiDisclosureAccepted:
+                true,
+            },
+            locale,
+            mode: "append",
+            creationId:
+              current?.creation.id,
+            viewKeys: [
+              change.viewKey,
+            ],
+          })
+        }
+
+        const latest =
+          await api<{
+            profile:
+              IdentityProfile
+          }>(
+            "/api/visual-engine/identity-profile",
+          )
+
+        if (!latest.profile) {
+          throw new Error(
+            locale === "fr"
+              ? "Le Profil identité n’a pas pu être rechargé."
+              : "No se pudo recargar el Perfil de identidad.",
+          )
+        }
+
+        setIdentityProfile(
+          latest.profile,
+        )
+
+        showNotice(
+          change.assetId
+            ? locale === "fr"
+              ? "Vue mise à jour."
+              : "Vista actualizada."
+            : locale === "fr"
+              ? "Vue ajoutée au Profil identité."
+              : "Vista añadida al Perfil de identidad.",
+        )
+
+        return latest.profile
+          .previews
+      } catch (reason) {
+        const message =
+          reason instanceof Error &&
+          reason.message !==
+            "MIRAVA_REQUEST_FAILED"
+            ? reason.message
+            : locale === "fr"
+              ? "Cette vue n’a pas pu être enregistrée."
+              : "No se pudo guardar esta vista."
+
+        setError(message)
+        throw new Error(message)
+      } finally {
+        setPending(null)
+      }
+    }
 
   const replaceIdentityAsset = async (
     assetId: string,
@@ -2515,7 +2664,32 @@ export function VisualEngineStudio() {
         <div ref={studioBackgroundRef}>
           <MiravaStudioOnboarding key={miravaOnboarding?.updatedAt ?? "new"} locale={locale} firstName={miravaFirstName} initialUniverseId={entryUniverseId} initialState={miravaOnboarding} onStartCapture={(state) => void startOrResumeOnboarding(state)} onCompleted={completeMiravaOnboarding} />
         </div>
-        {captureContext && <MiravaIdentityCapture inline={false} locale={locale} context={captureContext} existingCount={0} initialConsentAccepted={privacyStatus?.requiredAccepted === true} onClose={closeCapture} onComplete={(files, consent) => uploadIdentityFiles(files, consent)} />}
+        {captureContext && (
+          <MiravaIdentityCapture
+            inline={false}
+            locale={locale}
+            context={captureContext}
+            existingCount={0}
+            existingViews={[]}
+            initialSlotId={
+              captureInitialSlotId
+            }
+            initialConsentAccepted={privacyStatus?.requiredAccepted === true}
+            onClose={closeCapture}
+            onComplete={(
+              files,
+              consent,
+              viewKeys,
+            ) =>
+              uploadIdentityFiles(
+                files,
+                consent,
+                "replace",
+                viewKeys,
+              )
+            }
+          />
+        )}
       </main>
     )
   }
@@ -2629,8 +2803,8 @@ export function VisualEngineStudio() {
             openCreditOffers(
               options.seriesSize ?? 1,
             )
-          } onOpenCapture={() => openCapture(identityProfile ? (identityProfile.assetCount < MIRAVA_MAX_IDENTITY_PHOTOS ? "append" : "replace") : "onboarding")} />
-          : <CreationView locale={locale} t={t} current={current} identityProfile={identityProfile} pending={pending} onUploadReference={uploadReference} onAnalyze={analyze} onOpenCapture={() => openCapture(identityProfile ? (identityProfile.assetCount < MIRAVA_MAX_IDENTITY_PHOTOS ? "append" : "replace") : "onboarding")} onGenerate={generate} onDelete={removeCreation} onStartCreate={startFreshCreation} onOpenCredits={() => openCreditOffers(1)} onContinueSession={(creationId, intent, sourceResultIndex) => void continueSession(creationId, intent, sourceResultIndex)} onCreateFromStudio={(studioId) => void reuse(studioId)} onUnlock={(creationId) => void checkoutDiscovery(creationId)} />)}
+          } onOpenCapture={() => openCapture(identityProfile ? "manage" : "onboarding")} />
+          : <CreationView locale={locale} t={t} current={current} identityProfile={identityProfile} pending={pending} onUploadReference={uploadReference} onAnalyze={analyze} onOpenCapture={() => openCapture(identityProfile ? "manage" : "onboarding")} onGenerate={generate} onDelete={removeCreation} onStartCreate={startFreshCreation} onOpenCredits={() => openCreditOffers(1)} onContinueSession={(creationId, intent, sourceResultIndex) => void continueSession(creationId, intent, sourceResultIndex)} onCreateFromStudio={(studioId) => void reuse(studioId)} onUnlock={(creationId) => void checkoutDiscovery(creationId)} />)}
         {view === "universes" && <UniversesView locale={locale} t={t} selectedUniverseId={selectedUniverseId} setSelectedUniverseId={setSelectedUniverseId} onChoose={(brief) => { setOptions((value) => ({ ...(value.seriesSize ? { seriesSize: value.seriesSize } : {}), ...(value.seriesSize && value.seriesSize > 1 && value.seriesStrategy ? { seriesStrategy: value.seriesStrategy } : {}), ...(brief ? { note: brief } : {}) })); setCreateStep(1); selectView("create") }} />}
         {view === "library" && (
           portfolioCurrent ? (
@@ -2765,7 +2939,7 @@ export function VisualEngineStudio() {
             />
           )
         )}
-        {view === "account" && <AccountView locale={locale} t={t} account={account} identityProfile={identityProfile} pending={pending} onPortal={portal} onOpenCapture={() => openCapture(identityProfile ? "append" : "onboarding")} onReplaceIdentity={() => openCapture("replace")} onReplaceIdentityAsset={replaceIdentityAsset} onDeleteIdentityAsset={deleteIdentityAsset} onDeleteIdentity={removeIdentity} onOpenCreditSheet={(kind) => openCreditOffers(0, kind)} />}
+        {view === "account" && <AccountView locale={locale} t={t} account={account} identityProfile={identityProfile} pending={pending} onPortal={portal} onOpenCapture={() => openCapture(identityProfile ? "manage" : "onboarding")} onReplaceIdentity={() => openCapture("replace")} onReplaceIdentityAsset={replaceIdentityAsset} onDeleteIdentityAsset={deleteIdentityAsset} onDeleteIdentity={removeIdentity} onOpenCreditSheet={(kind) => openCreditOffers(0, kind)} />}
         </div>
       </div>
 
@@ -2809,7 +2983,50 @@ export function VisualEngineStudio() {
       {consentTarget !== undefined && <ConsentGate locale={locale} t={t} consents={consents} setConsents={setConsents} pending={pending} onClose={() => { setConsentTarget(undefined); setConsentReference(null) }} onConfirm={() => void acceptRequiredConsentsAndCreate()} />}
       {directorOpen && <MiravaCreativeDirector locale={locale} universeId={selectedUniverseId} options={options} onApply={applyAlmaDirection} onOpenReference={openReferenceFromAlma} onClose={closeDirector} />}
       </div>
-      {captureContext && <MiravaIdentityCapture inline={false} locale={locale} context={captureContext} existingCount={identityProfile?.assetCount ?? 0} initialConsentAccepted={privacyStatus?.requiredAccepted === true} onClose={closeCapture} onComplete={(files, consent) => uploadIdentityFiles(files, consent, captureContext === "append" ? "append" : "replace")} />}
+      {captureContext && (
+        <MiravaIdentityCapture
+          inline={false}
+          locale={locale}
+          context={captureContext}
+          existingCount={
+            identityProfile?.assetCount ??
+            0
+          }
+          existingViews={
+            captureContext ===
+              "manage"
+              ? identityProfile
+                  ?.previews ?? []
+              : []
+          }
+          initialSlotId={
+            captureInitialSlotId
+          }
+          initialConsentAccepted={privacyStatus?.requiredAccepted === true}
+          onClose={closeCapture}
+          onManageSave={
+            captureContext ===
+              "manage"
+              ? saveManagedIdentityView
+              : undefined
+          }
+          onComplete={(
+            files,
+            consent,
+            viewKeys,
+          ) =>
+            uploadIdentityFiles(
+              files,
+              consent,
+              captureContext ===
+                "append"
+                ? "append"
+                : "replace",
+              viewKeys,
+            )
+          }
+        />
+      )}
     </main>
   )
 }

@@ -15,7 +15,15 @@ import {
   getMiravaOfficialUniverseBlueprint,
   renderMiravaOfficialUniverseMasterPrompt,
 } from "@/lib/mirava/official-universe-blueprints"
-import { MIRAVA_MAX_IDENTITY_PHOTOS, MIRAVA_MIN_IDENTITY_PHOTOS, MIRAVA_RECOMMENDED_IDENTITY_PHOTOS } from "@/lib/mirava/identity-profile"
+import {
+  MIRAVA_MAX_IDENTITY_PHOTOS,
+  MIRAVA_MIN_IDENTITY_PHOTOS,
+  MIRAVA_RECOMMENDED_IDENTITY_PHOTOS,
+  MIRAVA_REQUIRED_IDENTITY_VIEW_KEYS,
+  isMiravaIdentityViewKey,
+  miravaLegacyIdentityViewKey,
+  type MiravaIdentityViewKey,
+} from "@/lib/mirava/identity-profile"
 import { type PhysicalTrait, formatPhysicalTraitsForPrompt, parsePhysicalTraits } from "@/lib/mirava/physical-traits"
 import { buildMiravaSeriesShotBrief, getMiravaSeriesSize } from "@/lib/mirava/series"
 import {
@@ -148,7 +156,17 @@ export type StudioAssetRecord = {
   createdAt: string
 }
 
-type StudioIdentityAssetRecord = Omit<StudioAssetRecord, "creationId" | "kind" | "expiresAt" | "deletedAt"> & { identityProfileId: string }
+type StudioIdentityAssetRecord =
+  Omit<
+    StudioAssetRecord,
+    "creationId" |
+      "kind" |
+      "expiresAt" |
+      "deletedAt"
+  > & {
+    identityProfileId: string
+    viewKey?: string | null
+  }
 
 type StudioProfileRecord = {
   id: string
@@ -1006,22 +1024,139 @@ export async function updateStudioCreationCreativeOptions(args: {
   return studioCreationPublic(updated)
 }
 
-export async function getIdentityProfilePublic(userId: string) {
-  const profile = await db.studioIdentityProfile.findUnique({ where: { userId } })
+function resolveMiravaIdentityViewKey(
+  value: unknown,
+  fallbackIndex: number,
+): MiravaIdentityViewKey {
+  if (
+    value === undefined ||
+    value === null ||
+    value === ""
+  ) {
+    return miravaLegacyIdentityViewKey(
+      fallbackIndex,
+    )
+  }
+
+  if (!isMiravaIdentityViewKey(value)) {
+    throw new StudioError(
+      "La vue du Profil identité est invalide.",
+      "INVALID_FILE",
+    )
+  }
+
+  return value
+}
+
+function normalizeMiravaIdentityAssets(
+  assets: StudioIdentityAssetRecord[],
+): Array<
+  StudioIdentityAssetRecord & {
+    viewKey: MiravaIdentityViewKey
+  }
+> {
+  return assets.map(
+    (asset, index) => ({
+      ...asset,
+      viewKey:
+        resolveMiravaIdentityViewKey(
+          asset.viewKey,
+          index,
+        ),
+    }),
+  )
+}
+
+function assertNoDuplicateSingularIdentityViews(
+  viewKeys: MiravaIdentityViewKey[],
+): void {
+  const singular =
+    viewKeys.filter(
+      (viewKey) =>
+        viewKey !== "tattoos",
+    )
+
+  if (
+    new Set(singular).size !==
+    singular.length
+  ) {
+    throw new StudioError(
+      "Une même vue du Profil identité ne peut être enregistrée qu’une fois.",
+      "INVALID_FILE",
+    )
+  }
+}
+
+export async function getIdentityProfilePublic(
+  userId: string,
+) {
+  const profile =
+    await db.studioIdentityProfile
+      .findUnique({
+        where: { userId },
+      })
+
   if (!profile) return null
-  const assets = await db.studioIdentityAsset.findMany({
-    where: { identityProfileId: profile.id, userId },
-    orderBy: { createdAt: "asc" },
-  }) as StudioIdentityAssetRecord[]
-  const previews = await Promise.all(assets.map(async (asset) => {
-    const { data } = await supabaseAdmin.storage.from(STUDIO_BUCKET).createSignedUrl(asset.storagePath, 120)
-    return data?.signedUrl ? { id: asset.id, url: data.signedUrl, createdAt: asset.createdAt } : null
-  }))
+
+  const rawAssets =
+    await db.studioIdentityAsset
+      .findMany({
+        where: {
+          identityProfileId:
+            profile.id,
+          userId,
+        },
+        orderBy: {
+          createdAt: "asc",
+        },
+      }) as StudioIdentityAssetRecord[]
+
+  const assets =
+    normalizeMiravaIdentityAssets(
+      rawAssets,
+    )
+
+  const previews =
+    await Promise.all(
+      assets.map(
+        async (asset) => {
+          const { data } =
+            await supabaseAdmin.storage
+              .from(STUDIO_BUCKET)
+              .createSignedUrl(
+                asset.storagePath,
+                600,
+              )
+
+          return data?.signedUrl
+            ? {
+                id: asset.id,
+                url: data.signedUrl,
+                createdAt:
+                  asset.createdAt,
+                viewKey:
+                  asset.viewKey,
+              }
+            : null
+        },
+      ),
+    )
+
   return {
     id: profile.id as string,
     assetCount: assets.length,
-    updatedAt: profile.updatedAt as string,
-    previews: previews.filter((preview): preview is NonNullable<typeof preview> => preview !== null),
+    updatedAt:
+      profile.updatedAt as string,
+    viewKeys: assets.map(
+      (asset) => asset.viewKey,
+    ),
+    previews: previews.filter(
+      (
+        preview,
+      ): preview is NonNullable<
+        typeof preview
+      > => preview !== null,
+    ),
   }
 }
 
@@ -1031,51 +1166,253 @@ export async function replaceIdentityProfile(args: {
   ageConfirmed?: boolean
   rightsConfirmed?: boolean
   retentionAccepted?: boolean
-  files: Array<{ mimeType: string; buffer: Buffer }>
+  files: Array<{
+    mimeType: string
+    buffer: Buffer
+    viewKey?: string | null
+  }>
 }) {
-  if (args.files.length < MIN_IDENTITY_ASSETS || args.files.length > MAX_IDENTITY_ASSETS) {
-    throw new StudioError("Ajoutez entre trois et dix photos d’identité.", "IDENTITY_REQUIRED")
+  if (
+    args.files.length <
+      MIN_IDENTITY_ASSETS ||
+    args.files.length >
+      MAX_IDENTITY_ASSETS
+  ) {
+    throw new StudioError(
+      "Ajoutez entre trois et dix photos d’identité.",
+      "IDENTITY_REQUIRED",
+    )
   }
+
   if (args.creationId) {
-    await getStudioCreationForUser(args.userId, args.creationId)
-    const consent = await db.studioConsent.findUnique({ where: { creationId: args.creationId, userId: args.userId } })
-    if (!consent) throw new StudioError("Le consentement complet est requis.", "CONSENT_REQUIRED")
-  } else if (!args.ageConfirmed || !args.rightsConfirmed || !args.retentionAccepted) {
-    throw new StudioError("Le consentement complet est requis avant la création du Profil identité.", "CONSENT_REQUIRED")
+    await getStudioCreationForUser(
+      args.userId,
+      args.creationId,
+    )
+
+    const consent =
+      await db.studioConsent
+        .findUnique({
+          where: {
+            creationId:
+              args.creationId,
+            userId:
+              args.userId,
+          },
+        })
+
+    if (!consent) {
+      throw new StudioError(
+        "Le consentement complet est requis.",
+        "CONSENT_REQUIRED",
+      )
+    }
+  } else if (
+    !args.ageConfirmed ||
+    !args.rightsConfirmed ||
+    !args.retentionAccepted
+  ) {
+    throw new StudioError(
+      "Le consentement complet est requis avant la création du Profil identité.",
+      "CONSENT_REQUIRED",
+    )
   }
-  for (const file of args.files) await validateStudioImage(file.buffer, file.mimeType)
 
-  const existing = await db.studioIdentityProfile.findUnique({ where: { userId: args.userId } })
-  const oldAssets = existing ? await db.studioIdentityAsset.findMany({ where: { identityProfileId: existing.id } }) : []
-  if (oldAssets.length) await supabaseAdmin.storage.from(STUDIO_BUCKET).remove(oldAssets.map((asset: StudioIdentityAssetRecord) => asset.storagePath))
-  if (existing) await db.studioIdentityAsset.deleteMany({ where: { identityProfileId: existing.id } })
-  const profile = existing
-    ? await db.studioIdentityProfile.update({ where: { id: existing.id, userId: args.userId }, data: { retentionAcceptedAt: new Date().toISOString() } })
-    : await db.studioIdentityProfile.create({ data: { userId: args.userId, retentionAcceptedAt: new Date().toISOString() } })
+  const normalizedFiles =
+    args.files.map(
+      (file, index) => ({
+        ...file,
+        viewKey:
+          resolveMiravaIdentityViewKey(
+            file.viewKey,
+            index,
+          ),
+      }),
+    )
 
-  for (const file of args.files) {
+  const viewKeys =
+    normalizedFiles.map(
+      (file) => file.viewKey,
+    )
+
+  assertNoDuplicateSingularIdentityViews(
+    viewKeys,
+  )
+
+  for (
+    const requiredViewKey of
+      MIRAVA_REQUIRED_IDENTITY_VIEW_KEYS
+  ) {
+    if (
+      !viewKeys.includes(
+        requiredViewKey,
+      )
+    ) {
+      throw new StudioError(
+        "Les trois vues essentielles du Profil identité sont requises.",
+        "IDENTITY_REQUIRED",
+      )
+    }
+  }
+
+  for (const file of normalizedFiles) {
+    await validateStudioImage(
+      file.buffer,
+      file.mimeType,
+    )
+  }
+
+  const existing =
+    await db.studioIdentityProfile
+      .findUnique({
+        where: {
+          userId: args.userId,
+        },
+      })
+
+  const oldAssets =
+    existing
+      ? await db.studioIdentityAsset
+          .findMany({
+            where: {
+              identityProfileId:
+                existing.id,
+            },
+          })
+      : []
+
+  if (oldAssets.length) {
+    await supabaseAdmin.storage
+      .from(STUDIO_BUCKET)
+      .remove(
+        oldAssets.map(
+          (
+            asset:
+              StudioIdentityAssetRecord,
+          ) => asset.storagePath,
+        ),
+      )
+  }
+
+  if (existing) {
+    await db.studioIdentityAsset
+      .deleteMany({
+        where: {
+          identityProfileId:
+            existing.id,
+        },
+      })
+  }
+
+  const profile =
+    existing
+      ? await db.studioIdentityProfile
+          .update({
+            where: {
+              id: existing.id,
+              userId: args.userId,
+            },
+            data: {
+              retentionAcceptedAt:
+                new Date()
+                  .toISOString(),
+            },
+          })
+      : await db.studioIdentityProfile
+          .create({
+            data: {
+              userId: args.userId,
+              retentionAcceptedAt:
+                new Date()
+                  .toISOString(),
+            },
+          })
+
+  for (const file of normalizedFiles) {
     const id = randomUUID()
-    const storagePath = `${args.userId}/identity-profile/${id}.${extensionForMime(file.mimeType)}`
-    const { error } = await supabaseAdmin.storage.from(STUDIO_BUCKET).upload(storagePath, file.buffer, { contentType: file.mimeType, upsert: false })
-    if (error) throw new StudioError("Le stockage sécurisé de l’image a échoué.", "STORAGE_ERROR")
-    await db.studioIdentityAsset.create({ data: { id, identityProfileId: profile.id, userId: args.userId, storagePath, mimeType: file.mimeType, bytes: file.buffer.length } })
+    const storagePath =
+      `${args.userId}/identity-profile/` +
+      `${id}.` +
+      extensionForMime(
+        file.mimeType,
+      )
+
+    const { error } =
+      await supabaseAdmin.storage
+        .from(STUDIO_BUCKET)
+        .upload(
+          storagePath,
+          file.buffer,
+          {
+            contentType:
+              file.mimeType,
+            upsert: false,
+          },
+        )
+
+    if (error) {
+      throw new StudioError(
+        "Le stockage sécurisé de l’image a échoué.",
+        "STORAGE_ERROR",
+      )
+    }
+
+    await db.studioIdentityAsset
+      .create({
+        data: {
+          id,
+          identityProfileId:
+            profile.id,
+          userId: args.userId,
+          viewKey: file.viewKey,
+          storagePath,
+          mimeType:
+            file.mimeType,
+          bytes:
+            file.buffer.length,
+        },
+      })
   }
+
   if (args.creationId) {
-    const linkedCreation = asCreation(await db.studioCreation.update({ where: { id: args.creationId, userId: args.userId }, data: { identityProfileId: profile.id } }))
-    // A personal-reference analysis may have completed while the client was
-    // preparing their identity profile. The final required input is now here,
-    // so continue the already approved creation without asking for a second
-    // "generate" click.
-    if (linkedCreation.status === "MASTER_PROMPT_READY" && canAutoGenerateMiravaCreation(args.files.length)) {
+    const linkedCreation =
+      asCreation(
+        await db.studioCreation
+          .update({
+            where: {
+              id: args.creationId,
+              userId:
+                args.userId,
+            },
+            data: {
+              identityProfileId:
+                profile.id,
+            },
+          }),
+      )
+
+    if (
+      linkedCreation.status ===
+        "MASTER_PROMPT_READY" &&
+      canAutoGenerateMiravaCreation(
+        normalizedFiles.length,
+      )
+    ) {
       try {
-        await queueStudioGeneration({ userId: args.userId, creationId: linkedCreation.id })
+        await queueStudioGeneration({
+          userId: args.userId,
+          creationId:
+            linkedCreation.id,
+        })
       } catch {
-        // The creation remains ready and recoverable from its normal screen if
-        // a transient queue failure occurs; never fail a completed identity upload.
+        // Le profil reste durable et la création récupérable.
       }
     }
   }
-  return getIdentityProfilePublic(args.userId)
+
+  return getIdentityProfilePublic(
+    args.userId,
+  )
 }
 
 export async function replaceIdentityProfileFromStagedUploads(args: {
@@ -1089,6 +1426,7 @@ export async function replaceIdentityProfileFromStagedUploads(args: {
     path: string
     mimeType: string
     bytes: number
+    viewKey?: string | null
   }>
 }) {
   if (
@@ -1137,6 +1475,7 @@ export async function replaceIdentityProfileFromStagedUploads(args: {
   const files: Array<{
     mimeType: string
     buffer: Buffer
+    viewKey?: string | null
   }> = []
 
   try {
@@ -1188,6 +1527,7 @@ export async function replaceIdentityProfileFromStagedUploads(args: {
       files.push({
         mimeType: upload.mimeType,
         buffer,
+        viewKey: upload.viewKey,
       })
     }
 
@@ -1220,6 +1560,7 @@ export async function appendIdentityProfileFromStagedUploads(args: {
     path: string
     mimeType: string
     bytes: number
+    viewKey?: string | null
   }>
 }) {
   if (
@@ -1268,6 +1609,7 @@ export async function appendIdentityProfileFromStagedUploads(args: {
   const files: Array<{
     mimeType: string
     buffer: Buffer
+    viewKey?: string | null
   }> = []
 
   try {
@@ -1308,6 +1650,7 @@ export async function appendIdentityProfileFromStagedUploads(args: {
       files.push({
         mimeType: upload.mimeType,
         buffer,
+        viewKey: upload.viewKey,
       })
     }
 
@@ -1514,24 +1857,36 @@ export async function deleteIdentityAsset(args: {
     )
   }
 
-  const assets =
+  const rawAssets =
     await db.studioIdentityAsset.findMany({
       where: {
         identityProfileId: profile.id,
         userId: args.userId,
       },
-    })
+      orderBy: {
+        createdAt: "asc",
+      },
+    }) as StudioIdentityAssetRecord[]
 
-  if (assets.length <= MIN_IDENTITY_ASSETS) {
+  if (
+    rawAssets.length <=
+    MIN_IDENTITY_ASSETS
+  ) {
     throw new StudioError(
       "Conservez au moins trois photos. Remplacez une photo au lieu de la supprimer.",
       "IDENTITY_REQUIRED",
     )
   }
 
+  const assets =
+    normalizeMiravaIdentityAssets(
+      rawAssets,
+    )
+
   const asset = assets.find(
     (candidate) =>
-      candidate.id === args.assetId,
+      candidate.id ===
+      args.assetId,
   )
 
   if (!asset) {
@@ -1541,10 +1896,24 @@ export async function deleteIdentityAsset(args: {
     )
   }
 
+  if (
+    (
+      MIRAVA_REQUIRED_IDENTITY_VIEW_KEYS as
+        readonly MiravaIdentityViewKey[]
+    ).includes(asset.viewKey)
+  ) {
+    throw new StudioError(
+      "Une vue essentielle ne peut pas être supprimée. Remplacez-la directement.",
+      "IDENTITY_REQUIRED",
+    )
+  }
+
   const { error: storageError } =
     await supabaseAdmin.storage
       .from(STUDIO_BUCKET)
-      .remove([asset.storagePath])
+      .remove([
+        asset.storagePath,
+      ])
 
   if (storageError) {
     throw new StudioError(
@@ -1566,7 +1935,8 @@ export async function deleteIdentityAsset(args: {
       },
       data: {
         retentionAcceptedAt:
-          new Date().toISOString(),
+          new Date()
+            .toISOString(),
       },
     }),
   ])
@@ -1582,45 +1952,253 @@ export async function appendIdentityProfile(args: {
   ageConfirmed?: boolean
   rightsConfirmed?: boolean
   retentionAccepted?: boolean
-  files: Array<{ mimeType: string; buffer: Buffer }>
+  files: Array<{
+    mimeType: string
+    buffer: Buffer
+    viewKey?: string | null
+  }>
 }) {
-  if (args.files.length < 1) throw new StudioError("Ajoutez au moins une photo d’identité.", "IDENTITY_REQUIRED")
-  if (!args.ageConfirmed || !args.rightsConfirmed || !args.retentionAccepted) {
-    throw new StudioError("Le consentement complet est requis avant l’ajout au Profil identité.", "CONSENT_REQUIRED")
+  if (args.files.length < 1) {
+    throw new StudioError(
+      "Ajoutez au moins une photo d’identité.",
+      "IDENTITY_REQUIRED",
+    )
   }
-  if (args.creationId) await getStudioCreationForUser(args.userId, args.creationId)
 
-  const profile = await db.studioIdentityProfile.findUnique({ where: { userId: args.userId } })
-  if (!profile) throw new StudioError("Créez d’abord votre Profil identité.", "IDENTITY_REQUIRED")
-  const existingAssets = await db.studioIdentityAsset.findMany({ where: { identityProfileId: profile.id, userId: args.userId } })
-  if (existingAssets.length + args.files.length > MAX_IDENTITY_ASSETS) {
-    throw new StudioError("Dix photos d’identité maximum sont autorisées.", "ASSET_LIMIT")
+  if (
+    !args.ageConfirmed ||
+    !args.rightsConfirmed ||
+    !args.retentionAccepted
+  ) {
+    throw new StudioError(
+      "Le consentement complet est requis avant l’ajout au Profil identité.",
+      "CONSENT_REQUIRED",
+    )
   }
-  for (const file of args.files) await validateStudioImage(file.buffer, file.mimeType)
 
-  const uploadedPaths: string[] = []
-  const createdIds: string[] = []
+  if (args.creationId) {
+    await getStudioCreationForUser(
+      args.userId,
+      args.creationId,
+    )
+  }
+
+  const profile =
+    await db.studioIdentityProfile
+      .findUnique({
+        where: {
+          userId: args.userId,
+        },
+      })
+
+  if (!profile) {
+    throw new StudioError(
+      "Créez d’abord votre Profil identité.",
+      "IDENTITY_REQUIRED",
+    )
+  }
+
+  const rawExistingAssets =
+    await db.studioIdentityAsset
+      .findMany({
+        where: {
+          identityProfileId:
+            profile.id,
+          userId:
+            args.userId,
+        },
+        orderBy: {
+          createdAt: "asc",
+        },
+      }) as StudioIdentityAssetRecord[]
+
+  if (
+    rawExistingAssets.length +
+      args.files.length >
+    MAX_IDENTITY_ASSETS
+  ) {
+    throw new StudioError(
+      "Dix photos d’identité maximum sont autorisées.",
+      "ASSET_LIMIT",
+    )
+  }
+
+  const existingAssets =
+    normalizeMiravaIdentityAssets(
+      rawExistingAssets,
+    )
+
+  const normalizedFiles =
+    args.files.map(
+      (file, index) => ({
+        ...file,
+        viewKey:
+          resolveMiravaIdentityViewKey(
+            file.viewKey,
+            rawExistingAssets.length +
+              index,
+          ),
+      }),
+    )
+
+  assertNoDuplicateSingularIdentityViews(
+    normalizedFiles.map(
+      (file) => file.viewKey,
+    ),
+  )
+
+  const existingSingular =
+    new Set(
+      existingAssets
+        .map(
+          (asset) =>
+            asset.viewKey,
+        )
+        .filter(
+          (viewKey) =>
+            viewKey !==
+            "tattoos",
+        ),
+    )
+
+  for (const file of normalizedFiles) {
+    if (
+      file.viewKey !==
+        "tattoos" &&
+      existingSingular.has(
+        file.viewKey,
+      )
+    ) {
+      throw new StudioError(
+        "Cette vue existe déjà dans le Profil identité. Remplacez-la au lieu de l’ajouter.",
+        "INVALID_STATE",
+      )
+    }
+
+    await validateStudioImage(
+      file.buffer,
+      file.mimeType,
+    )
+  }
+
+  const uploadedPaths:
+    string[] = []
+  const createdIds:
+    string[] = []
+
   try {
-    for (const file of args.files) {
+    for (
+      const file of
+        normalizedFiles
+    ) {
       const id = randomUUID()
-      const storagePath = `${args.userId}/identity-profile/${id}.${extensionForMime(file.mimeType)}`
-      const { error } = await supabaseAdmin.storage.from(STUDIO_BUCKET).upload(storagePath, file.buffer, { contentType: file.mimeType, upsert: false })
-      if (error) throw new StudioError("Le stockage sécurisé de l’image a échoué.", "STORAGE_ERROR")
-      uploadedPaths.push(storagePath)
-      await db.studioIdentityAsset.create({ data: { id, identityProfileId: profile.id, userId: args.userId, storagePath, mimeType: file.mimeType, bytes: file.buffer.length } })
+      const storagePath =
+        `${args.userId}/identity-profile/` +
+        `${id}.` +
+        extensionForMime(
+          file.mimeType,
+        )
+
+      const { error } =
+        await supabaseAdmin.storage
+          .from(STUDIO_BUCKET)
+          .upload(
+            storagePath,
+            file.buffer,
+            {
+              contentType:
+                file.mimeType,
+              upsert: false,
+            },
+          )
+
+      if (error) {
+        throw new StudioError(
+          "Le stockage sécurisé de l’image a échoué.",
+          "STORAGE_ERROR",
+        )
+      }
+
+      uploadedPaths.push(
+        storagePath,
+      )
+
+      await db.studioIdentityAsset
+        .create({
+          data: {
+            id,
+            identityProfileId:
+              profile.id,
+            userId:
+              args.userId,
+            viewKey:
+              file.viewKey,
+            storagePath,
+            mimeType:
+              file.mimeType,
+            bytes:
+              file.buffer.length,
+          },
+        })
+
       createdIds.push(id)
     }
   } catch (error) {
-    if (createdIds.length) await db.studioIdentityAsset.deleteMany({ where: { id: { in: createdIds }, userId: args.userId } })
-    if (uploadedPaths.length) await supabaseAdmin.storage.from(STUDIO_BUCKET).remove(uploadedPaths)
+    if (createdIds.length) {
+      await db.studioIdentityAsset
+        .deleteMany({
+          where: {
+            id: {
+              in: createdIds,
+            },
+            userId:
+              args.userId,
+          },
+        })
+    }
+
+    if (uploadedPaths.length) {
+      await supabaseAdmin.storage
+        .from(STUDIO_BUCKET)
+        .remove(
+          uploadedPaths,
+        )
+    }
+
     throw error
   }
 
-  await db.studioIdentityProfile.update({ where: { id: profile.id, userId: args.userId }, data: { retentionAcceptedAt: new Date().toISOString() } })
+  await db.studioIdentityProfile
+    .update({
+      where: {
+        id: profile.id,
+        userId: args.userId,
+      },
+      data: {
+        retentionAcceptedAt:
+          new Date()
+            .toISOString(),
+      },
+    })
+
   if (args.creationId) {
-    await db.studioCreation.update({ where: { id: args.creationId, userId: args.userId }, data: { identityProfileId: profile.id } })
+    await db.studioCreation
+      .update({
+        where: {
+          id: args.creationId,
+          userId:
+            args.userId,
+        },
+        data: {
+          identityProfileId:
+            profile.id,
+        },
+      })
   }
-  return getIdentityProfilePublic(args.userId)
+
+  return getIdentityProfilePublic(
+    args.userId,
+  )
 }
 
 export async function deleteIdentityProfile(userId: string): Promise<void> {
