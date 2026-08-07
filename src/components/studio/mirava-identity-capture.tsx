@@ -1069,9 +1069,63 @@ export function MiravaIdentityCapture({
 
   // Handle final submission of files + consent
   const handleSubmitFinalProfile = async () => {
-    if (!legalAccepted || submitting) return
-    setSubmitting(true)
+    if (submitting) return
+
     setSubmitError(null)
+
+    if (!requiredPhotosDone) {
+      const firstInvalidRequiredIndex =
+        PHOTO_SLOTS.findIndex(
+          (slot) => {
+            if (!slot.required) {
+              return false
+            }
+
+            const state =
+              slotStates[slot.id]
+
+            return !(
+              state.file &&
+              state.status ===
+                "scanned" &&
+              (
+                state.failedCriteria
+                  ?.length ?? 0
+              ) === 0 &&
+              state.visionResult
+                ?.ready === true
+            )
+          },
+        )
+
+      setSubmitError(
+        locale === "fr"
+          ? "Une photo obligatoire n’est pas encore validée. MIRAVA vous ramène à la première vue à corriger."
+          : "Una foto obligatoria todavía no está validada. MIRAVA te lleva a la primera vista que debes corregir.",
+      )
+
+      if (
+        firstInvalidRequiredIndex >= 0
+      ) {
+        setShowSummary(false)
+        setActiveSlotIndex(
+          firstInvalidRequiredIndex,
+        )
+      }
+
+      return
+    }
+
+    if (!legalAccepted) {
+      setSubmitError(
+        locale === "fr"
+          ? "Confirmez le consentement avant d’enregistrer votre Profil identité."
+          : "Confirma el consentimiento antes de guardar tu Perfil de identidad.",
+      )
+      return
+    }
+
+    setSubmitting(true)
 
     const finalFiles = [
       ...PHOTO_SLOTS.flatMap((slot) => {
@@ -1121,9 +1175,23 @@ export function MiravaIdentityCapture({
   const currentActionState = useMemo<CaptureActionState>(() => {
     if (showSummary) {
       return {
-        label: locale === "fr" ? "Enregistrer mon profil" : "Guardar mi perfil",
-        icon: submitting ? "loading" : "submit",
-        disabled: submitting || !legalAccepted || !requiredPhotosDone,
+        label: submitting
+          ? locale === "fr"
+            ? "Enregistrement du profil…"
+            : "Guardando el perfil…"
+          : !requiredPhotosDone
+            ? locale === "fr"
+              ? "Corriger les photos requises"
+              : "Corregir las fotos obligatorias"
+            : locale === "fr"
+              ? "Enregistrer mon profil"
+              : "Guardar mi perfil",
+        icon: submitting
+          ? "loading"
+          : !requiredPhotosDone
+            ? "next"
+            : "submit",
+        disabled: submitting,
         onClick: handleSubmitFinalProfile,
       }
     }
@@ -1947,6 +2015,43 @@ export function MiravaIdentityCapture({
 
       {/* Main Container */}
       <main className="flex-1 overflow-y-auto p-4 pb-40 sm:p-6 sm:pb-44">
+        {submitting ? (
+          <div
+            role="status"
+            aria-live="polite"
+            data-mirava-identity-submit-status
+            className="mb-4 rounded-2xl border border-[#d7c39a]/25 bg-[#d7c39a]/[0.08] px-4 py-3"
+          >
+            <p className="font-jakarta text-sm font-semibold text-white">
+              {locale === "fr"
+                ? "Enregistrement du Profil identité…"
+                : "Guardando el Perfil de identidad…"}
+            </p>
+            <p className="mt-1 text-xs leading-5 text-white/60">
+              {locale === "fr"
+                ? "Vos nouvelles photos sont enregistrées dans votre espace privé."
+                : "Tus nuevas fotos se están guardando en tu espacio privado."}
+            </p>
+          </div>
+        ) : null}
+
+        {submitError ? (
+          <div
+            role="alert"
+            data-mirava-identity-submit-error
+            className="mb-4 rounded-2xl border border-red-400/25 bg-red-500/[0.08] px-4 py-3"
+          >
+            <p className="font-jakarta text-sm font-semibold text-red-100">
+              {locale === "fr"
+                ? "Action requise"
+                : "Acción requerida"}
+            </p>
+            <p className="mt-1 text-xs leading-5 text-red-100/75">
+              {submitError}
+            </p>
+          </div>
+        ) : null}
+
         {contentUI}
       </main>
 

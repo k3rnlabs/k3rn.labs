@@ -701,6 +701,119 @@ function MiravaDarkroomLoading({
   )
 }
 
+
+function MiravaDarkroomThumbnail({
+  locale,
+  creation,
+}: {
+  locale: Locale
+  creation: Creation
+}) {
+  const reduceMotion =
+    useReducedMotion()
+
+  const shotNumber =
+    Math.max(
+      1,
+      (creation.shotIndex ?? 0) + 1,
+    )
+
+  return (
+    <span
+      data-mirava-darkroom-thumbnail
+      className="relative isolate block h-full w-full overflow-hidden bg-[#090a09] text-white"
+    >
+      <span
+        aria-hidden="true"
+        className="absolute inset-0"
+        style={{
+          background:
+            "linear-gradient(160deg, #101210 0%, #080908 52%, #0d0f0d 100%)",
+        }}
+      />
+
+      <span
+        aria-hidden="true"
+        data-mirava-darkroom-thumbnail-grainient
+        className="pointer-events-none absolute inset-0"
+      >
+        <Grainient
+          className="absolute inset-0 h-full w-full"
+          color1="#b49a68"
+          color2="#171915"
+          color3="#6b5130"
+          timeSpeed={0.72}
+          colorBalance={-0.12}
+          warpStrength={1.75}
+          warpFrequency={5.6}
+          warpSpeed={1.25}
+          warpAmplitude={30}
+          blendAngle={-14}
+          blendSoftness={0.16}
+          rotationAmount={620}
+          noiseScale={1.35}
+          grainAmount={0.035}
+          grainScale={1.8}
+          grainAnimated={false}
+          contrast={1.35}
+          gamma={1}
+          saturation={0.82}
+          centerX={-0.12}
+          centerY={0.03}
+          zoom={1.08}
+          animated={!reduceMotion}
+        />
+      </span>
+
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 bg-black/24"
+      />
+
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse at 48% 46%, transparent 0%, rgba(4,5,4,0.08) 50%, rgba(2,3,2,0.72) 100%)",
+        }}
+      />
+
+      <span
+        aria-hidden="true"
+        data-mirava-darkroom-thumbnail-dot-grid
+        className="pointer-events-none absolute inset-0 opacity-[0.16]"
+        style={{
+          backgroundImage:
+            "radial-gradient(rgba(255,255,255,0.82) 0.55px, transparent 0.8px)",
+          backgroundSize:
+            "5px 5px",
+        }}
+      />
+
+      <span className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-3 pb-3 pt-14">
+        <span className="block text-[9px] font-semibold uppercase tracking-[0.16em] text-[#d7c39a]">
+          MIRAVA /{" "}
+          {locale === "fr"
+            ? "CHAMBRE NOIRE"
+            : "CUARTO OSCURO"}
+        </span>
+
+        <span className="mt-1 block font-jakarta text-xs font-semibold text-white">
+          {locale === "fr"
+            ? `Cliché ${shotNumber} · En création`
+            : `Imagen ${shotNumber} · En creación`}
+        </span>
+      </span>
+
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-white/10"
+      />
+    </span>
+  )
+}
+
 function MiravaCreditsButton({
   locale,
   creditBalance,
@@ -1188,6 +1301,14 @@ export function VisualEngineStudio() {
               ? {
                   ...item,
                   ...detail.creation,
+                  resultUrl:
+                    detail.resultUrl,
+                  resultUrls:
+                    detail.resultUrls,
+                  resultLocked:
+                    detail.resultLocked,
+                  completedResultCount:
+                    detail.completedResultCount,
                 }
               : item,
           ),
@@ -2014,8 +2135,65 @@ export function VisualEngineStudio() {
             },
           )
 
+        const optimisticCredits =
+          Math.max(
+            0,
+            creditBalance - 1,
+          )
+
+        const optimisticCreation:
+          Creation = {
+          ...data.creation,
+          status:
+            "GENERATION_QUEUED",
+          resultUrl: null,
+          resultUrls: [],
+          resultLocked: false,
+          completedResultCount: 0,
+        }
+
+        const optimisticDetail:
+          Detail = {
+          creation:
+            optimisticCreation,
+          assets: [],
+          resultUrl: null,
+          resultUrls: [],
+          resultLocked: false,
+          completedResultCount: 0,
+          studioCredits:
+            optimisticCredits,
+        }
+
+        setCurrent(
+          optimisticDetail,
+        )
+
+        setCreations(
+          (items) => [
+            optimisticCreation,
+            ...items.filter(
+              (item) =>
+                item.id !==
+                optimisticCreation.id,
+            ),
+          ],
+        )
+
+        setAccount(
+          (value) =>
+            value
+              ? {
+                  ...value,
+                  credits:
+                    optimisticCredits,
+                }
+              : value,
+        )
+
         selectView("create")
-        await refresh(
+
+        await refreshCreation(
           data.creation.id,
         )
       },
@@ -3902,77 +4080,35 @@ function LibraryView({
         </p>
       </div>
 
-      {activeCreations.length > 0 && (
-        <section
-          aria-labelledby="mirava-active-creations-title"
-          className="mt-7"
-        >
-          <h2
-            id="mirava-active-creations-title"
-            className="font-jakarta text-lg font-semibold tracking-[-.03em]"
-          >
-            {locale === "fr"
-              ? "En cours"
-              : "En curso"}
-          </h2>
-
-          <div className="mt-3 grid gap-2">
-            {activeCreations.map(
-              (creation) => {
-                const statusLabel =
-                  t.status[
-                    creation.status
-                  ] ??
-                  (locale === "fr"
-                    ? "Création en cours"
-                    : "Creación en curso")
-
-                const progressLabel =
-                  creation.requestedResultCount >
-                  1
-                    ? locale === "fr"
-                      ? `${creation.completedResultCount ?? 0}/${creation.requestedResultCount} photos finalisées`
-                      : `${creation.completedResultCount ?? 0}/${creation.requestedResultCount} fotos finalizadas`
-                    : locale === "fr"
-                      ? "Votre photo est en préparation"
-                      : "Tu foto se está preparando"
-
-                return (
-                  <button
-                    key={creation.id}
-                    type="button"
-                    onClick={() =>
-                      onSelect(
-                        creation.id,
-                        "active",
-                      )
-                    }
-                    className="mirava-surface flex min-h-20 w-full items-center gap-3 p-3.5 text-left"
-                  >
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-mirava-line bg-mirava-surface-raised">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    </span>
-
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-sm font-semibold">
-                        {statusLabel}
-                      </span>
-                      <span className="mirava-muted mt-1 block text-[11px] leading-4">
-                        {progressLabel}
-                      </span>
-                    </span>
-
-                    <ChevronRight className="h-4 w-4 shrink-0" />
-                  </button>
-                )
-              },
-            )}
-          </div>
-        </section>
-      )}
-
-      {portfolioItems.length > 0 ? (
+      {activeCreations.length > 0 ||
+      portfolioItems.length > 0 ? (
         <div className="mt-7 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+          {activeCreations.map(
+            (creation) => (
+              <button
+                key={`active-${creation.id}`}
+                type="button"
+                onClick={() =>
+                  onSelect(
+                    creation.id,
+                    "active",
+                  )
+                }
+                aria-label={
+                  locale === "fr"
+                    ? "Ouvrir la création en cours"
+                    : "Abrir la creación en curso"
+                }
+                className="mirava-image-frame group relative aspect-[4/5] overflow-hidden bg-mirava-surface-raised text-left"
+              >
+                <MiravaDarkroomThumbnail
+                  locale={locale}
+                  creation={creation}
+                />
+              </button>
+            ),
+          )}
+
           {portfolioItems.map(
             ({
               creation,
