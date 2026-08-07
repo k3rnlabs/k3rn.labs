@@ -51,6 +51,16 @@ import {
   detectMiravaCampaignRisk,
 } from "@/lib/mirava/pipeline/coverage-safety-adaptation"
 import { assertNoArtisticReferenceInGenerationPayload, assertAtLeastOneValidatedIdentityImage } from "@/lib/mirava/security/assert-image-role-separation"
+import {
+  KieProviderError,
+  buildMiravaKieReferencePrompt,
+  runKieImageGeneration,
+  shouldRouteMiravaPromptToKie,
+  type MiravaKieReferenceImage,
+} from "@/lib/visual-engine/kie-provider"
+import {
+  isMiravaKieImageProviderEnabled,
+} from "@/lib/mirava/server-config"
 import type { VisualDirectionBlueprint } from "@/lib/mirava/schemas/visual-direction-blueprint.schema"
 
 export const STUDIO_BUCKET = process.env.SUPABASE_STORAGE_VISUAL_ENGINE_BUCKET ?? "visual-engine-private"
@@ -171,6 +181,10 @@ type StudioJobRecord = {
   status: "PENDING" | "RUNNING" | "DONE" | "FAILED"
   attempts: number
   nextRunAt: string
+  provider?: string | null
+  providerTaskId?: string | null
+  providerState?: string | null
+  providerFrameIndex?: number | null
 }
 
 type CreditKind =
@@ -2668,6 +2682,75 @@ export function buildMiravaGenerationPrompt(
     .join("\n\n")
 }
 
+async function purgeMiravaArtisticReferenceAssets(
+  creationId: string,
+): Promise<void> {
+  try {
+    const references =
+      await getStudioAssets(
+        creationId,
+        "REFERENCE",
+      )
+
+    if (
+      references.length === 0
+    ) {
+      return
+    }
+
+    const {
+      error:
+        referencePurgeError,
+    } =
+      await supabaseAdmin.storage
+        .from(STUDIO_BUCKET)
+        .remove(
+          references.map(
+            (asset) =>
+              asset.storagePath,
+          ),
+        )
+
+    if (referencePurgeError) {
+      throw referencePurgeError
+    }
+
+    const deletedAt =
+      new Date()
+        .toISOString()
+
+    await Promise.all(
+      references.map(
+        (asset) =>
+          db.studioAsset.update({
+            where: {
+              id: asset.id,
+              creationId,
+            },
+            data: {
+              deletedAt,
+            },
+          }),
+      ),
+    )
+  } catch (error) {
+    console.error(
+      "[mirava-reference-purge-deferred]",
+      JSON.stringify({
+        creationId,
+        sourceName:
+          providerExceptionName(
+            error,
+          ),
+        sourceMessage:
+          providerExceptionMessage(
+            error,
+          ),
+      }),
+    )
+  }
+}
+
 async function getMiravaContinuityResultAsset(
   creation: StudioCreationRecord,
 ): Promise<StudioAssetRecord | null> {
@@ -2707,6 +2790,7 @@ async function generateStudioImage(
   frameIndex = 0,
   physicalTraits: PhysicalTrait[] = [],
   jobAttempt = 1,
+  studioJob: StudioJobRecord | null = null,
 ): Promise<Buffer> {
   const apiKey =
     process.env.OPENAI_API_KEY
@@ -2806,6 +2890,304 @@ async function generateStudioImage(
         )
       : identityAssets
 
+  const kieProviderEnabled =
+    isMiravaKieImageProviderEnabled()
+
+  const useKieCampaignProvider =
+    kieProviderEnabled &&
+    (
+      campaignRisk
+        .requiresCampaignSafeTransfer ||
+      shouldRouteMiravaPromptToKie(
+        primaryPrompt,
+      )
+    )
+
+  /*
+   * Les erreurs OpenAI 429/5xx et réponses incomplètes sont déjà marquées
+   * retryable par executeCall/failJob. Au lieu de répéter trois fois le même
+   * fournisseur, la tentative suivante bascule vers Kie lorsqu'il est
+   * explicitement activé et autorisé par la configuration de confidentialité.
+   *
+   * Les refus de sécurité OpenAI ne sont pas retryable : ils n'entrent donc
+   * jamais dans ce chemin de récupération.
+   */
+  const useKieProviderRecovery =
+    kieProviderEnabled &&
+    !useKieCampaignProvider &&
+    jobAttempt > 1
+
+  const kieArtisticReference =
+    useKieCampaignProvider &&
+    !isContinuation
+      ? (
+          await getStudioAssets(
+            creation.id,
+            "REFERENCE",
+          )
+        )[0] ?? null
+      : null
+
+  const kieIdentityAssets =
+    (
+      useKieCampaignProvider ||
+      useKieProviderRecovery
+    )
+      ? selectMiravaPrimaryIdentityAssets(
+          identityAssets,
+        )
+      : []
+
+  const clearKieTaskState =
+    async (): Promise<void> => {
+      if (!studioJob) {
+        return
+      }
+
+      await db.studioJob.update({
+        where: {
+          id: studioJob.id,
+        },
+        data: {
+          provider: null,
+          providerTaskId: null,
+          providerState: null,
+          providerFrameIndex: null,
+        },
+      })
+    }
+
+  const executeKieCall =
+    async (
+      promptText: string,
+      variant:
+        | "campaign-safe-kie-primary"
+        | "campaign-safe-kie-fallback"
+        | "provider-recovery-kie",
+      allowResume: boolean,
+    ): Promise<Buffer> => {
+      const startedAt =
+        Date.now()
+
+      const promptHash =
+        createHash("sha256")
+          .update(promptText)
+          .digest("hex")
+          .slice(0, 16)
+
+      const references:
+        MiravaKieReferenceImage[] =
+        []
+
+      if (kieArtisticReference) {
+        references.push({
+          role: "ART_DIRECTION",
+          buffer:
+            await downloadAsset(
+              kieArtisticReference,
+            ),
+          mimeType:
+            kieArtisticReference
+              .mimeType,
+          fileName:
+            `art-direction-${kieArtisticReference.id}.${extensionForMime(kieArtisticReference.mimeType)}`,
+        })
+      }
+
+      if (continuityAsset) {
+        references.push({
+          role: "CONTINUITY",
+          buffer:
+            await downloadAsset(
+              continuityAsset,
+            ),
+          mimeType:
+            continuityAsset
+              .mimeType,
+          fileName:
+            `continuity-${continuityAsset.id}.${extensionForMime(continuityAsset.mimeType)}`,
+        })
+      }
+
+      for (
+        const asset of
+        kieIdentityAssets
+      ) {
+        references.push({
+          role: "IDENTITY",
+          buffer:
+            await downloadAsset(
+              asset,
+            ),
+          mimeType:
+            asset.mimeType,
+          fileName:
+            `identity-${asset.id}.${extensionForMime(asset.mimeType)}`,
+        })
+      }
+
+      if (
+        references.length > 8
+      ) {
+        references.splice(8)
+      }
+
+      const providerPrompt =
+        buildMiravaKieReferencePrompt({
+          prompt:
+            promptText,
+          roles:
+            references.map(
+              (reference) =>
+                reference.role,
+            ),
+        })
+
+      const resumeTaskId =
+        allowResume &&
+        studioJob?.provider ===
+          "kie" &&
+        studioJob
+          .providerFrameIndex ===
+          frameIndex
+          ? studioJob
+              .providerTaskId
+          : null
+
+      console.info(
+        "[mirava-kie-image-attempt]",
+        JSON.stringify({
+          creationId:
+            creation.id,
+          frameIndex,
+          shotIndex:
+            creation.shotIndex ??
+            0,
+          variant,
+          jobAttempt,
+          promptHash,
+          promptLength:
+            providerPrompt.length,
+          inputImageCount:
+            references.length,
+          artisticReferencePresent:
+            Boolean(
+              kieArtisticReference,
+            ),
+          continuityAssetPresent:
+            Boolean(
+              continuityAsset,
+            ),
+          resumeTask:
+            Boolean(
+              resumeTaskId,
+            ),
+        }),
+      )
+
+      try {
+        const result =
+          await runKieImageGeneration({
+            prompt:
+              providerPrompt,
+            images:
+              references,
+            resumeTaskId,
+            onTaskCreated:
+              studioJob
+                ? async (
+                    taskId,
+                  ) => {
+                    await db
+                      .studioJob
+                      .update({
+                        where: {
+                          id:
+                            studioJob.id,
+                        },
+                        data: {
+                          provider:
+                            "kie",
+                          providerTaskId:
+                            taskId,
+                          providerState:
+                            "submitted",
+                          providerFrameIndex:
+                            frameIndex,
+                        },
+                      })
+                  }
+                : undefined,
+          })
+
+        console.info(
+          "[mirava-kie-image-success]",
+          JSON.stringify({
+            creationId:
+              creation.id,
+            frameIndex,
+            variant,
+            taskId:
+              result.taskId,
+            elapsedMs:
+              Date.now() -
+              startedAt,
+          }),
+        )
+
+        return result.image
+      } catch (error) {
+        if (
+          error instanceof
+            KieProviderError
+        ) {
+          console.error(
+            "[mirava-kie-image-error]",
+            JSON.stringify({
+              creationId:
+                creation.id,
+              frameIndex,
+              variant,
+              code:
+                error.code,
+              kind:
+                error.kind,
+              retryable:
+                error.retryable,
+              elapsedMs:
+                Date.now() -
+                startedAt,
+            }),
+          )
+
+          if (
+            error.kind ===
+              "task_not_found"
+          ) {
+            await clearKieTaskState()
+          }
+
+          if (
+            error.kind ===
+              "safety"
+          ) {
+            throw new StudioError(
+              "La génération n’a pas été autorisée par les règles de sécurité.",
+              "SAFETY_REFUSAL",
+            )
+          }
+
+          throw new StudioError(
+            "Le moteur d’image alternatif est temporairement indisponible.",
+            error.code,
+            error.retryable,
+          )
+        }
+
+        throw error
+      }
+    }
+
   const executeCall = async (
     promptText: string,
     assets: Array<
@@ -2872,6 +3254,7 @@ async function generateStudioImage(
     form.append("size", "1024x1536")
     form.append("quality", "high")
     form.append("output_format", "png")
+    form.append("moderation", "low")
 
     if (continuityInput) {
       const buffer =
@@ -2969,6 +3352,14 @@ async function generateStudioImage(
         JSON.stringify({
           status:
             response.status,
+          requestId:
+            response.headers.get(
+              "x-request-id",
+            ),
+          contentType:
+            response.headers.get(
+              "content-type",
+            ),
           model:
             MIRAVA_IMAGE_MODEL,
           variant,
@@ -3077,6 +3468,62 @@ async function generateStudioImage(
     return Buffer.from(
       encoded,
       "base64",
+    )
+  }
+
+  if (useKieCampaignProvider) {
+    try {
+      return await executeKieCall(
+        resolvedPrimaryPrompt,
+        "campaign-safe-kie-primary",
+        true,
+      )
+    } catch (error) {
+      if (
+        !(
+          error instanceof
+            StudioError
+        ) ||
+        error.code !==
+          "SAFETY_REFUSAL"
+      ) {
+        throw error
+      }
+
+      await clearKieTaskState()
+
+      return await executeKieCall(
+        buildMiravaCampaignSafeTransferPrompt(
+          primaryPrompt,
+          "conservative",
+        ),
+        "campaign-safe-kie-fallback",
+        false,
+      )
+    }
+  }
+
+  if (useKieProviderRecovery) {
+    console.info(
+      "[mirava-image-provider-failover]",
+      JSON.stringify({
+        creationId:
+          creation.id,
+        frameIndex,
+        jobAttempt,
+        from:
+          "openai",
+        to:
+          "kie",
+        reason:
+          "retryable-primary-provider-failure",
+      }),
+    )
+
+    return await executeKieCall(
+      resolvedPrimaryPrompt,
+      "provider-recovery-kie",
+      true,
     )
   }
 
@@ -3443,53 +3890,36 @@ async function processStudioJob(job: StudioJobRecord): Promise<void> {
         })
       }
 
-      /*
-       * La référence artistique est purgée après que l'état métier est durable.
-       * Une panne de nettoyage ne doit jamais faire régresser la séance vers
-       * ANALYSIS_QUEUED. Le purgeur d'expiration reste le filet de sécurité.
-       */
-      try {
-        const {
-          error: referencePurgeError,
-        } =
-          await supabaseAdmin.storage
-            .from(STUDIO_BUCKET)
-            .remove([
-              reference.storagePath,
-            ])
+      const extractedCampaignRisk =
+        detectMiravaCampaignRisk(
+          extracted.masterPrompt,
+        )
 
-        if (referencePurgeError) {
-          throw referencePurgeError
-        }
+      const retainReferenceForKieGeneration =
+        isMiravaKieImageProviderEnabled() &&
+        (
+          extractedCampaignRisk
+            .requiresCampaignSafeTransfer ||
+          shouldRouteMiravaPromptToKie(
+            extracted.masterPrompt,
+          )
+        )
 
-        await db.studioAsset.update({
-          where: {
-            id: reference.id,
-            creationId:
-              creation.id,
-          },
-          data: {
-            deletedAt:
-              new Date().toISOString(),
-          },
-        })
-      } catch (purgeError) {
-        console.error(
-          "[mirava-reference-purge-deferred]",
+      if (
+        retainReferenceForKieGeneration
+      ) {
+        console.info(
+          "[mirava-reference-retained-for-kie-generation]",
           JSON.stringify({
             creationId:
               creation.id,
             referenceAssetId:
               reference.id,
-            sourceName:
-              providerExceptionName(
-                purgeError,
-              ),
-            sourceMessage:
-              providerExceptionMessage(
-                purgeError,
-              ),
           }),
+        )
+      } else {
+        await purgeMiravaArtisticReferenceAssets(
+          creation.id,
         )
       }
     } else if (job.kind === "GENERATE") {
@@ -3497,6 +3927,9 @@ async function processStudioJob(job: StudioJobRecord): Promise<void> {
       const existingResults = await getStudioAssets(creation.id, "RESULT")
       if (existingResults.length >= requestedResultCount) {
         await db.studioCreation.update({ where: { id: creation.id }, data: { status: "COMPLETED", completedAt: creation.completedAt ?? new Date().toISOString() } })
+        await purgeMiravaArtisticReferenceAssets(
+          creation.id,
+        )
         await finishJob(job)
         return
       }
@@ -3522,12 +3955,25 @@ async function processStudioJob(job: StudioJobRecord): Promise<void> {
         frameIndex,
         physicalTraits,
         job.attempts + 1,
+        job,
       )
 
       await storeResultAsset(
         creation,
         output,
       )
+
+      await db.studioJob.update({
+        where: {
+          id: job.id,
+        },
+        data: {
+          provider: null,
+          providerTaskId: null,
+          providerState: null,
+          providerFrameIndex: null,
+        },
+      })
 
       const completedResultCount =
         frameIndex + 1
@@ -3571,6 +4017,10 @@ async function processStudioJob(job: StudioJobRecord): Promise<void> {
             new Date().toISOString(),
         },
       })
+
+      await purgeMiravaArtisticReferenceAssets(
+        creation.id,
+      )
 
       void notifyMiravaCreationReady(
         creation.userId,
