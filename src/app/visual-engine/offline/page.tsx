@@ -63,9 +63,11 @@ const offlineCriticalCss = `
     background: #070807;
     color: #fff;
     font-family:
-      var(--font-jakarta),
-      "Arial",
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
       "Helvetica Neue",
+      Arial,
       sans-serif;
     -webkit-font-smoothing: antialiased;
     color-scheme: dark;
@@ -228,9 +230,11 @@ const offlineCriticalCss = `
     margin: 0;
     color: #fff;
     font-family:
-      var(--font-jakarta),
-      "Arial",
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
       "Helvetica Neue",
+      Arial,
       sans-serif;
     font-size: clamp(38px, 9vw, 48px);
     font-weight: 600;
@@ -243,9 +247,11 @@ const offlineCriticalCss = `
     margin: 14px 0 0;
     color: rgba(255, 255, 255, 0.60);
     font-family:
-      var(--font-jakarta),
-      "Arial",
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
       "Helvetica Neue",
+      Arial,
       sans-serif;
     font-size: 13px;
     line-height: 1.6;

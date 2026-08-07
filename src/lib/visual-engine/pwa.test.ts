@@ -33,7 +33,7 @@ describe("MIRAVA PWA privacy policy", () => {
     "refreshes the public shell cache when the branded offline fallback changes",
     () => {
       expect(worker).toContain(
-        'CACHE = "mirava-public-shell-v4"',
+        'CACHE = "mirava-public-shell-v6"',
       )
     },
   )
@@ -71,6 +71,18 @@ describe("MIRAVA PWA privacy policy", () => {
 
       expect(offlinePage).toContain(
         "mirava-offline-cta-icon",
+      )
+
+      expect(offlinePage).toContain(
+        "-apple-system",
+      )
+
+      expect(offlinePage).toContain(
+        "BlinkMacSystemFont",
+      )
+
+      expect(offlinePage).not.toContain(
+        "var(\n        --font-jakarta",
       )
 
       expect(offlinePage).toContain(
