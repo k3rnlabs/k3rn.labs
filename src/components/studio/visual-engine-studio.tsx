@@ -79,6 +79,7 @@ type Locale = "fr" | "es"
 type Status = "DRAFT" | "ANALYSIS_QUEUED" | "ANALYSING" | "IDENTITY_READY" | "GENERATION_QUEUED" | "GENERATING" | "COMPLETED" | "FAILED" | "CANCELLED"
 type View = "create" | "universes" | "library" | "account"
 type ShotIntent = "pose" | "framing" | "sub_location" | "candid"
+const MIRAVA_MAX_CONTINUATION_INSTRUCTION_CHARS = 500
 type Asset = { id: string; kind: "REFERENCE" | "IDENTITY" | "RESULT"; createdAt: string }
 type Creation = {
   id: string
@@ -2345,99 +2346,67 @@ export function VisualEngineStudio() {
 
   const continueSession = (
     creationId: string,
-    intent: ShotIntent,
+    intents: ShotIntent[],
+    customInstruction: string,
     sourceResultIndex: number,
   ): Promise<boolean> => {
     if (creditBalance < 1) {
       openCreditOffers(1)
-
-      return Promise.resolve(
-        false,
-      )
+      return Promise.resolve(false)
     }
 
+    const normalizedInstruction = customInstruction.trim()
+    if (intents.length === 0 && !normalizedInstruction) {
+      return Promise.resolve(false)
+    }
+
+    const pendingKey = intents.length > 0 ? intents.join("-") : "custom"
+
     return run(
-      `continue-${intent}`,
+      `continue-${pendingKey}`,
       async () => {
-        const data =
-          await api<{
-            creation: Creation
-          }>(
-            `/api/visual-engine/creations/${creationId}/continue`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type":
-                  "application/json",
-              },
-              body: JSON.stringify({
-                intent,
-                sourceResultIndex,
-              }),
-            },
-          )
+        const data = await api<{ creation: Creation }>(
+          `/api/visual-engine/creations/${creationId}/continue`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              intents,
+              customInstruction: normalizedInstruction || undefined,
+              sourceResultIndex,
+            }),
+          },
+        )
 
-        const optimisticCredits =
-          Math.max(
-            0,
-            creditBalance - 1,
-          )
-
-        const optimisticCreation:
-          Creation = {
+        const optimisticCredits = Math.max(0, creditBalance - 1)
+        const optimisticCreation: Creation = {
           ...data.creation,
-          status:
-            "GENERATION_QUEUED",
+          status: "GENERATION_QUEUED",
           resultUrl: null,
           resultUrls: [],
           resultLocked: false,
           completedResultCount: 0,
         }
-
-        const optimisticDetail:
-          Detail = {
-          creation:
-            optimisticCreation,
+        const optimisticDetail: Detail = {
+          creation: optimisticCreation,
           assets: [],
           resultUrl: null,
           resultUrls: [],
           resultLocked: false,
           completedResultCount: 0,
-          studioCredits:
-            optimisticCredits,
+          studioCredits: optimisticCredits,
         }
 
-        setCurrent(
-          optimisticDetail,
+        setCurrent(optimisticDetail)
+        setCreations((items) => [
+          optimisticCreation,
+          ...items.filter((item) => item.id !== optimisticCreation.id),
+        ])
+        setAccount((value) =>
+          value ? { ...value, credits: optimisticCredits } : value,
         )
-
-        setCreations(
-          (items) => [
-            optimisticCreation,
-            ...items.filter(
-              (item) =>
-                item.id !==
-                optimisticCreation.id,
-            ),
-          ],
-        )
-
-        setAccount(
-          (value) =>
-            value
-              ? {
-                  ...value,
-                  credits:
-                    optimisticCredits,
-                }
-              : value,
-        )
-
         selectView("create")
-
-        await refreshCreation(
-          data.creation.id,
-        )
+        await refreshCreation(data.creation.id)
       },
     )
   }
@@ -2804,7 +2773,7 @@ export function VisualEngineStudio() {
               options.seriesSize ?? 1,
             )
           } onOpenCapture={() => openCapture(identityProfile ? "manage" : "onboarding")} />
-          : <CreationView locale={locale} t={t} current={current} identityProfile={identityProfile} pending={pending} onUploadReference={uploadReference} onAnalyze={analyze} onOpenCapture={() => openCapture(identityProfile ? "manage" : "onboarding")} onGenerate={generate} onDelete={removeCreation} onStartCreate={startFreshCreation} onOpenCredits={() => openCreditOffers(1)} onContinueSession={(creationId, intent, sourceResultIndex) => void continueSession(creationId, intent, sourceResultIndex)} onCreateFromStudio={(studioId) => void reuse(studioId)} onUnlock={(creationId) => void checkoutDiscovery(creationId)} />)}
+          : <CreationView locale={locale} t={t} current={current} identityProfile={identityProfile} pending={pending} onUploadReference={uploadReference} onAnalyze={analyze} onOpenCapture={() => openCapture(identityProfile ? "manage" : "onboarding")} onGenerate={generate} onDelete={removeCreation} onStartCreate={startFreshCreation} onOpenCredits={() => openCreditOffers(1)} onContinueSession={(creationId, intents, customInstruction, sourceResultIndex) => void continueSession(creationId, intents, customInstruction, sourceResultIndex)} onCreateFromStudio={(studioId) => void reuse(studioId)} onUnlock={(creationId) => void checkoutDiscovery(creationId)} />)}
         {view === "universes" && <UniversesView locale={locale} t={t} selectedUniverseId={selectedUniverseId} setSelectedUniverseId={setSelectedUniverseId} onChoose={(brief) => { setOptions((value) => ({ ...(value.seriesSize ? { seriesSize: value.seriesSize } : {}), ...(value.seriesSize && value.seriesSize > 1 && value.seriesStrategy ? { seriesStrategy: value.seriesStrategy } : {}), ...(brief ? { note: brief } : {}) })); setCreateStep(1); selectView("create") }} />}
         {view === "library" && (
           portfolioCurrent ? (
@@ -2858,12 +2827,14 @@ export function VisualEngineStudio() {
                 }
                 onContinueSession={(
                   creationId,
-                  intent,
+                  intents,
+                  customInstruction,
                   sourceResultIndex,
                 ) => {
                   void continueSession(
                     creationId,
-                    intent,
+                    intents,
+                    customInstruction,
                     sourceResultIndex,
                   ).then(
                     (continued) => {
@@ -3729,7 +3700,8 @@ function CreationView({
   onOpenCredits: () => void
   onContinueSession: (
     creationId: string,
-    intent: ShotIntent,
+    intents: ShotIntent[],
+    customInstruction: string,
     sourceResultIndex: number,
   ) => void
   onCreateFromStudio: (studioId: string) => void
@@ -3737,6 +3709,10 @@ function CreationView({
 }) {
   const [continuationOpen, setContinuationOpen] =
     useState(false)
+  const [continuationIntents, setContinuationIntents] =
+    useState<ShotIntent[]>([])
+  const [continuationInstruction, setContinuationInstruction] =
+    useState("")
   const reduceMotion = useReducedMotion()
   const continuationPending =
     Boolean(
@@ -3744,6 +3720,24 @@ function CreationView({
         "continue-",
       ),
     )
+  const continuationReady =
+    continuationIntents.length > 0 ||
+    continuationInstruction.trim().length > 0
+
+  useEffect(() => {
+    setContinuationOpen(false)
+    setContinuationIntents([])
+    setContinuationInstruction("")
+  }, [current.creation.id])
+
+  const toggleContinuationIntent = (intent: ShotIntent) => {
+    setContinuationIntents((current) =>
+      current.includes(intent)
+        ? current.filter((item) => item !== intent)
+        : [...current, intent],
+    )
+  }
+
   const rawStatus =
     String(
       current.creation.status,
@@ -4065,84 +4059,118 @@ function CreationView({
                 }}
                 className="overflow-hidden"
               >
-                <div className="mirava-surface grid gap-2 p-3 sm:grid-cols-2">
-                  {([
-                    {
-                      intent: "pose",
-                      fr: "Autre pose",
-                      es: "Otra pose",
-                      frHint: "Nouvelle posture, nouveaux bras et nouveau regard.",
-                      esHint: "Nueva postura, brazos y mirada.",
-                    },
-                    {
-                      intent: "framing",
-                      fr: "Autre cadrage",
-                      es: "Otro encuadre",
-                      frHint: "Même moment, avec une nouvelle position de caméra.",
-                      esHint: "El mismo momento desde otra posición de cámara.",
-                    },
-                    {
-                      intent: "sub_location",
-                      fr: "Autre coin du décor",
-                      es: "Otro rincón del escenario",
-                      frHint: "Même pièce, dans un sous-emplacement crédible.",
-                      esHint: "La misma estancia desde otro punto coherente.",
-                    },
-                    {
-                      intent: "candid",
-                      fr: "Moment spontané",
-                      es: "Momento espontáneo",
-                      frHint: "Une action naturelle entre deux prises.",
-                      esHint: "Una acción natural entre dos tomas.",
-                    },
-                  ] as const).map(
-                    (choice) => {
-                      const pendingKey =
-                        `continue-${choice.intent}`
+                <div className="mirava-surface p-3 sm:p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="font-jakarta text-sm font-semibold">
+                        {locale === "fr" ? "Que souhaitez-vous faire évoluer ?" : "¿Qué quieres hacer evolucionar?"}
+                      </p>
+                      <p className="mirava-muted mt-1 text-xs leading-5">
+                        {locale === "fr"
+                          ? "Combinez plusieurs variations, ajoutez vos propres corrections, ou faites les deux."
+                          : "Combina varias variaciones, añade tus propias correcciones o haz ambas cosas."}
+                      </p>
+                    </div>
+                    <span className="mirava-meta shrink-0 text-[10px] font-semibold tabular-nums">
+                      {continuationIntents.length}/4
+                    </span>
+                  </div>
 
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {([
+                      { intent: "pose", fr: "Autre pose", es: "Otra pose", frHint: "Nouvelle posture, nouveaux bras et nouveau regard.", esHint: "Nueva postura, brazos y mirada." },
+                      { intent: "framing", fr: "Autre cadrage", es: "Otro encuadre", frHint: "Même moment, avec une nouvelle position de caméra.", esHint: "El mismo momento desde otra posición de cámara." },
+                      { intent: "sub_location", fr: "Autre coin du décor", es: "Otro rincón del escenario", frHint: "Même pièce, dans un sous-emplacement crédible.", esHint: "La misma estancia desde otro punto coherente." },
+                      { intent: "candid", fr: "Moment spontané", es: "Momento espontáneo", frHint: "Une action naturelle entre deux prises.", esHint: "Una acción natural entre dos tomas." },
+                    ] as const).map((choice) => {
+                      const selected = continuationIntents.includes(choice.intent)
                       return (
                         <button
                           key={choice.intent}
                           type="button"
-                          disabled={
-                            pending ===
-                            pendingKey
-                          }
-                          onClick={() =>
-                            onContinueSession(
-                              current.creation.id,
-                              choice.intent,
-                              Math.max(
-                                0,
-                                resultUrls.length -
-                                  1,
-                              ),
-                            )
-                          }
+                          aria-pressed={selected}
+                          data-selected={selected}
+                          disabled={continuationPending}
+                          onClick={() => toggleContinuationIntent(choice.intent)}
                           className="mirava-control min-h-24 p-4 text-left"
                         >
                           <span className="flex items-center justify-between gap-3">
                             <span className="font-jakarta text-sm font-semibold">
-                              {locale === "fr"
-                                ? choice.fr
-                                : choice.es}
+                              {locale === "fr" ? choice.fr : choice.es}
                             </span>
-                            {pending ===
-                            pendingKey ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
+                            {selected ? (
+                              <Check className="h-4 w-4" />
                             ) : (
-                              <ArrowRight className="h-4 w-4" />
+                              <span aria-hidden="true" className="h-4 w-4 rounded-full border border-current/25" />
                             )}
                           </span>
                           <span className="mirava-muted mt-2 block text-xs leading-5">
-                            {locale === "fr"
-                              ? choice.frHint
-                              : choice.esHint}
+                            {locale === "fr" ? choice.frHint : choice.esHint}
                           </span>
                         </button>
                       )
-                    },
-                  )}
+                    })}
+                  </div>
+
+                  <div className="mt-4 border-t border-mirava-line pt-4">
+                    <label
+                      htmlFor={`mirava-continuation-instruction-${current.creation.id}`}
+                      className="text-xs font-semibold"
+                    >
+                      {locale === "fr" ? "Directives personnalisées" : "Indicaciones personalizadas"}
+                    </label>
+                    <p className="mirava-muted mt-1 text-xs leading-5">
+                      {locale === "fr"
+                        ? "Facultatif. Décrivez précisément ce que MIRAVA doit corriger ou modifier sur cette photo. Les éléments non mentionnés restent verrouillés."
+                        : "Opcional. Describe con precisión qué debe corregir o modificar MIRAVA en esta foto. Los elementos no mencionados permanecen bloqueados."}
+                    </p>
+                    <textarea
+                      id={`mirava-continuation-instruction-${current.creation.id}`}
+                      value={continuationInstruction}
+                      onChange={(event) => setContinuationInstruction(event.target.value)}
+                      maxLength={MIRAVA_MAX_CONTINUATION_INSTRUCTION_CHARS}
+                      rows={4}
+                      disabled={continuationPending}
+                      placeholder={
+                        locale === "fr"
+                          ? "Ex. Garde exactement la tenue et le décor, enlève le sac sur la table et fais-moi regarder légèrement vers la gauche…"
+                          : "Ej. Mantén exactamente el vestuario y el escenario, quita el bolso de la mesa y haz que mire ligeramente hacia la izquierda…"
+                      }
+                      className="mirava-input mt-3 min-h-32 w-full resize-none p-4 text-sm leading-6"
+                    />
+                    <p className="mirava-muted mt-2 text-right text-[10px] tabular-nums">
+                      {continuationInstruction.length}/{MIRAVA_MAX_CONTINUATION_INSTRUCTION_CHARS}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    disabled={!continuationReady || continuationPending}
+                    onClick={() =>
+                      onContinueSession(
+                        current.creation.id,
+                        continuationIntents,
+                        continuationInstruction,
+                        Math.max(0, resultUrls.length - 1),
+                      )
+                    }
+                    className="mirava-button mirava-button-primary mt-4 min-h-12 w-full gap-2 px-5 text-sm"
+                  >
+                    {continuationPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <ArrowRight className="h-4 w-4" />
+                    )}
+                    {locale === "fr" ? "Créer cette variation · 1 crédit" : "Crear esta variación · 1 crédito"}
+                  </button>
+
+                  {!continuationReady ? (
+                    <p className="mirava-muted mt-2 text-center text-[10px] leading-4">
+                      {locale === "fr"
+                        ? "Choisissez au moins une variation ou ajoutez une directive."
+                        : "Elige al menos una variación o añade una indicación."}
+                    </p>
+                  ) : null}
                 </div>
               </motion.div>
             )}

@@ -800,6 +800,27 @@ describe("MIRAVA studio entry contracts", () => {
       "Moment spontané",
     )
     expect(studio).toContain(
+      "continuationIntents",
+    )
+    expect(studio).toContain(
+      "aria-pressed={selected}",
+    )
+    expect(studio).toContain(
+      "Directives personnalisées",
+    )
+    expect(studio).toContain(
+      "MIRAVA_MAX_CONTINUATION_INSTRUCTION_CHARS = 500",
+    )
+    expect(studio).toContain(
+      "customInstruction:",
+    )
+    expect(studio).toContain(
+      "Créer cette variation · 1 crédit",
+    )
+    expect(studio).toContain(
+      "Choisissez au moins une variation ou ajoutez une directive.",
+    )
+    expect(studio).toContain(
       "Créer une nouvelle séance depuis ce studio",
     )
   })

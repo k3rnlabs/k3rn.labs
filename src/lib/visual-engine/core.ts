@@ -28,6 +28,8 @@ import { type PhysicalTrait, formatPhysicalTraitsForPrompt, parsePhysicalTraits 
 import { buildMiravaSeriesShotBrief, getMiravaSeriesSize } from "@/lib/mirava/series"
 import {
   buildMiravaSessionContinuationPrompt,
+  miravaContinuationDirectiveSchema,
+  readMiravaContinuationDirective,
   type MiravaShotIntent,
 } from "@/lib/mirava/session-continuity"
 import {
@@ -804,7 +806,10 @@ async function ensureStudioSessionForCreation(
 export async function continueStudioCreation(args: {
   userId: string
   sourceCreationId: string
-  intent: MiravaShotIntent
+  // `intent` remains for internal/backward-compatible callers.
+  intent?: MiravaShotIntent
+  intents?: MiravaShotIntent[]
+  customInstruction?: string
   sourceResultIndex?: number
 }): Promise<StudioCreationRecord> {
   const source =
@@ -836,6 +841,32 @@ export async function continueStudioCreation(args: {
       "PAYMENT_REQUIRED",
     )
   }
+
+  const parsedDirective =
+    miravaContinuationDirectiveSchema
+      .safeParse({
+        intents:
+          args.intents ??
+          (
+            args.intent
+              ? [args.intent]
+              : []
+          ),
+        customInstruction:
+          args.customInstruction
+            ?.trim() ||
+          undefined,
+      })
+
+  if (!parsedDirective.success) {
+    throw new StudioError(
+      "Choisissez au moins une variation ou ajoutez une directive personnalisée de 500 caractères maximum.",
+      "INVALID_STATE",
+    )
+  }
+
+  const continuationDirective =
+    parsedDirective.data
 
   const sourceResults =
     await getStudioAssets(
@@ -932,8 +963,12 @@ export async function continueStudioCreation(args: {
           parentCreationId:
             source.id,
           shotIndex,
+          // Keep one primary intent in the legacy column for compatibility
+          // and analytics. The composite request lives in creativeOptions.
           shotIntent:
-            args.intent,
+            continuationDirective
+              .intents[0] ??
+            null,
           sourceResultIndex,
           creativeOptions: {
             ...baseOptions,
@@ -941,6 +976,21 @@ export async function continueStudioCreation(args: {
               1,
             referenceMode:
               "faithful",
+            continuation: {
+              intents:
+                continuationDirective
+                  .intents,
+              ...(
+                continuationDirective
+                  .customInstruction
+                  ? {
+                      customInstruction:
+                        continuationDirective
+                          .customInstruction,
+                    }
+                  : {}
+              ),
+            },
           },
           status:
             "MASTER_PROMPT_READY",
@@ -3398,11 +3448,17 @@ async function generateStudioImage(
       : identityAssets,
   })
 
+  const continuationDirective =
+    readMiravaContinuationDirective(
+      creation.creativeOptions,
+      creation.shotIntent,
+    )
+
   const isContinuation =
     Boolean(
       continuityAsset &&
       creation.parentCreationId &&
-      creation.shotIntent,
+      continuationDirective,
     )
 
   const providerTimeoutMs =
@@ -3427,14 +3483,17 @@ async function generateStudioImage(
 
   const scenePrimaryPrompt =
     isContinuation &&
-    creation.shotIntent
+    continuationDirective
       ? buildMiravaSessionContinuationPrompt({
           masterPrompt:
             creation.masterPrompt ?? "",
           negativePrompt:
             creation.negativePrompt ?? "",
-          intent:
-            creation.shotIntent,
+          intents:
+            continuationDirective.intents,
+          customInstruction:
+            continuationDirective
+              .customInstruction,
           shotIndex:
             creation.shotIndex ?? 1,
           hasContinuityImage:
@@ -4164,14 +4223,17 @@ async function generateStudioImage(
 
     const fallbackBase =
       isContinuation &&
-      creation.shotIntent
+      continuationDirective
         ? buildMiravaSessionContinuationPrompt({
             masterPrompt:
               creation.masterPrompt ?? "",
             negativePrompt:
               creation.negativePrompt ?? "",
-            intent:
-              creation.shotIntent,
+            intents:
+              continuationDirective.intents,
+            customInstruction:
+              continuationDirective
+                .customInstruction,
             shotIndex:
               creation.shotIndex ?? 1,
             hasContinuityImage:
