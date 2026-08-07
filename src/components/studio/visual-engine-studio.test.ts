@@ -966,4 +966,29 @@ describe("MIRAVA studio entry contracts", () => {
     },
   )
 
+  it(
+    "keeps failed generations out of Portfolio and surfaces their failure",
+    () => {
+      expect(studio).not.toContain(
+        "const failedCreations =",
+      )
+
+      expect(studio).not.toContain(
+        "key={`failed-${creation.id}`}",
+      )
+
+      expect(studio).toContain(
+        "creationStatusesRef",
+      )
+
+      expect(studio).toContain(
+        "newlyFailed.failureMessage",
+      )
+
+      expect(studio).toContain(
+        'previous.get(',
+      )
+    },
+  )
+
 })

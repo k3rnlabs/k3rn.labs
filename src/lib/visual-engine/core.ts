@@ -3762,6 +3762,9 @@ async function failJob(
 }
 
 function publicFailureMessage(code: string): string {
+  if (code === "KIE_UPLOAD_QUOTA") {
+    return "Le moteur d’image a temporairement atteint sa capacité d’envoi. Votre crédit a été restauré. Vous pourrez relancer votre création dès que le service sera de nouveau disponible."
+  }
   if (
     code === "SAFETY_REFUSAL" ||
     code === "OPENAI_400_moderation_blocked"

@@ -1205,6 +1205,63 @@ export function VisualEngineStudio() {
     setCheckoutNotice(null)
     setNotice(message)
   }
+
+  const creationStatusesRef =
+    useRef<Map<string, string> | null>(
+      null,
+    )
+
+  useEffect(() => {
+    const previous =
+      creationStatusesRef.current
+
+    const next =
+      new Map(
+        creations.map(
+          (creation) => [
+            creation.id,
+            creation.status,
+          ],
+        ),
+      )
+
+    if (previous === null) {
+      creationStatusesRef.current =
+        next
+      return
+    }
+
+    const newlyFailed =
+      creations.find(
+        (creation) =>
+          creation.status ===
+            "FAILED" &&
+          previous.has(
+            creation.id,
+          ) &&
+          previous.get(
+            creation.id,
+          ) !== "FAILED",
+      )
+
+    if (newlyFailed) {
+      setCheckoutNotice(null)
+      setNotice(
+        newlyFailed.failureMessage ??
+          (
+            locale === "fr"
+              ? "La génération n’a pas abouti. Votre crédit a été restauré lorsque nécessaire."
+              : "La generación no se completó. Tu crédito se ha restaurado cuando corresponde."
+          ),
+      )
+    }
+
+    creationStatusesRef.current =
+      next
+  }, [
+    creations,
+    locale,
+  ])
   const displayedNotice =
     checkoutNotice === "discovery-success"
       ? (

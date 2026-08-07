@@ -9,6 +9,7 @@ import {
 import {
   buildKieImageTaskInput,
   buildMiravaKieReferencePrompt,
+  parseKieUploadUrl,
   shouldRouteMiravaPromptToKie,
 } from "./kie-provider"
 
@@ -150,6 +151,57 @@ describe(
         )
         expect(source).toContain(
           "/jobs/recordInfo",
+        )
+      },
+    )
+  },
+)
+
+
+describe(
+  "Kie upload response",
+  () => {
+    it(
+      "treats Kie free upload quota as non-retryable",
+      () => {
+        try {
+          parseKieUploadUrl({
+            success: false,
+            code: 401,
+            msg:
+              "Authentication failed: Free users can upload up to 30 files within 30 days",
+          })
+
+          throw new Error(
+            "Expected quota error",
+          )
+        } catch (error) {
+          expect(error).toMatchObject({
+            code:
+              "KIE_UPLOAD_QUOTA",
+            kind:
+              "billing",
+            retryable:
+              false,
+          })
+        }
+      },
+    )
+
+    it(
+      "accepts a successful Kie upload URL",
+      () => {
+        expect(
+          parseKieUploadUrl({
+            success: true,
+            code: 200,
+            data: {
+              downloadUrl:
+                "https://example.test/input.png",
+            },
+          }),
+        ).toBe(
+          "https://example.test/input.png",
         )
       },
     )

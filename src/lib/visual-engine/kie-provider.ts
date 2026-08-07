@@ -87,6 +87,94 @@ type KieUploadBody = {
   }
 }
 
+export function parseKieUploadUrl(
+  body: KieUploadBody,
+): string {
+  const message =
+    body.msg?.trim() ?? ""
+
+  const normalized =
+    message.toLowerCase()
+
+  if (
+    body.success === false &&
+    (
+      normalized.includes(
+        "free users can upload",
+      ) ||
+      normalized.includes(
+        "upload quota",
+      ) ||
+      normalized.includes(
+        "upload limit",
+      )
+    )
+  ) {
+    throw new KieProviderError({
+      message:
+        "Kie upload quota reached.",
+      code:
+        "KIE_UPLOAD_QUOTA",
+      kind:
+        "billing",
+      retryable:
+        false,
+    })
+  }
+
+  if (
+    body.success === false ||
+    (
+      typeof body.code === "number" &&
+      body.code >= 400
+    )
+  ) {
+    const retryable =
+      typeof body.code === "number" &&
+      (
+        body.code === 429 ||
+        body.code >= 500
+      )
+
+    throw new KieProviderError({
+      message:
+        message ||
+        "Kie upload rejected.",
+      code:
+        typeof body.code === "number"
+          ? `KIE_UPLOAD_${body.code}`
+          : "KIE_UPLOAD_REJECTED",
+      kind:
+        body.code === 402
+          ? "billing"
+          : body.code === 429
+            ? "rate_limit"
+            : retryable
+              ? "transport"
+              : "provider",
+      retryable,
+    })
+  }
+
+  const url =
+    body.data?.downloadUrl?.trim()
+
+  if (!url) {
+    throw new KieProviderError({
+      message:
+        "Kie upload did not return a download URL.",
+      code:
+        "KIE_UPLOAD_URL_MISSING",
+      kind:
+        "invalid_response",
+      retryable:
+        true,
+    })
+  }
+
+  return url
+}
+
 function apiKey(): string {
   const key =
     process.env.KIE_API_KEY?.trim()
@@ -255,20 +343,9 @@ async function uploadReference(
     })
   }
 
-  const url =
-    body.data?.downloadUrl
-
-  if (!url) {
-    throw new KieProviderError({
-      message:
-        "Kie upload did not return a download URL.",
-      code: "KIE_UPLOAD_URL_MISSING",
-      kind: "invalid_response",
-      retryable: true,
-    })
-  }
-
-  return url
+  return parseKieUploadUrl(
+    body,
+  )
 }
 
 export function shouldRouteMiravaPromptToKie(
