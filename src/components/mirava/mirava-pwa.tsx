@@ -91,12 +91,26 @@ export function MiravaPwaRegistration() {
   useEffect(() => {
     const offlinePath =
       "/visual-engine/offline"
+    const returnPathKey =
+      "mirava-offline-return-path"
 
     const redirectOffline = () => {
       if (
         window.location.pathname !==
         offlinePath
       ) {
+        const returnPath =
+          `${window.location.pathname}${window.location.search}${window.location.hash}`
+
+        try {
+          window.sessionStorage.setItem(
+            returnPathKey,
+            returnPath,
+          )
+        } catch {
+          // Session storage may be unavailable in restricted browsing contexts.
+        }
+
         window.location.replace(
           offlinePath,
         )

@@ -2,6 +2,10 @@
 
 import Link from "next/link"
 import {
+  useEffect,
+  useState,
+} from "react"
+import {
   ArrowLeft,
   ArrowRight,
   ShieldCheck,
@@ -398,6 +402,40 @@ const offlineCriticalCss = `
   }
 `
 
+const offlineReturnPathKey =
+  "mirava-offline-return-path"
+
+function readOfflineReturnPath() {
+  if (typeof window === "undefined") {
+    return "/visual-engine/studio"
+  }
+
+  try {
+    const value =
+      window.sessionStorage.getItem(
+        offlineReturnPathKey,
+      )
+
+    if (
+      value &&
+      (
+        value === "/visual-engine" ||
+        value.startsWith(
+          "/visual-engine/",
+        )
+      ) &&
+      value !==
+        "/visual-engine/offline"
+    ) {
+      return value
+    }
+  } catch {
+    // Fall back to Studio when session storage is unavailable.
+  }
+
+  return "/visual-engine/studio"
+}
+
 export default function MiravaOfflinePage() {
   const {
     locale,
@@ -405,13 +443,63 @@ export default function MiravaOfflinePage() {
   } = useMiravaLocale()
 
   const t = copy[locale]
+  const [
+    returnPath,
+    setReturnPath,
+  ] = useState(
+    "/visual-engine/studio",
+  )
+
+  useEffect(() => {
+    const storedReturnPath =
+      readOfflineReturnPath()
+
+    setReturnPath(
+      storedReturnPath,
+    )
+
+    const resumeOnline = () => {
+      const next =
+        readOfflineReturnPath()
+
+      try {
+        window.sessionStorage.removeItem(
+          offlineReturnPathKey,
+        )
+      } catch {
+        // Navigation can continue without session storage.
+      }
+
+      window.location.replace(next)
+    }
+
+    window.addEventListener(
+      "online",
+      resumeOnline,
+    )
+
+    if (navigator.onLine) {
+      resumeOnline()
+    }
+
+    return () => {
+      window.removeEventListener(
+        "online",
+        resumeOnline,
+      )
+    }
+  }, [])
 
   return (
     <main
       data-mirava-offline-shell
       className="mirava-offline"
     >
-      <style>{offlineCriticalCss}</style>
+      <style
+        dangerouslySetInnerHTML={{
+          __html: offlineCriticalCss,
+        }}
+      />
 
       <div
         aria-hidden="true"
@@ -495,7 +583,7 @@ export default function MiravaOfflinePage() {
 
           <div className="mirava-offline-footer">
             <a
-              href="/visual-engine/studio"
+              href={returnPath}
               className="mirava-offline-cta"
             >
               <span>{t.retry}</span>
