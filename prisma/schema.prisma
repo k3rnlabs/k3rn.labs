@@ -758,13 +758,52 @@ model StudioSession {
   studioProfileId   String?
   identityProfileId String?
   presetId          String?
+
+  // MIRAVA Session Builder V1
+  builderVersion    Int?
+  setPresetId       String?
+  lightingPresetId  String?
+  builderConfig     Json?
+
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   creations StudioCreation[]
+  lookItems StudioSessionLookItem[]
 
   @@index([userId, createdAt])
+}
+
+model StudioSessionLookItem {
+  id          String   @id @default(cuid())
+  sessionId   String
+  category    String
+  label       String?
+  brand       String?
+  description String?
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  session StudioSession            @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  assets  StudioSessionLookAsset[]
+
+  @@index([sessionId, position])
+}
+
+model StudioSessionLookAsset {
+  id          String   @id @default(cuid())
+  lookItemId  String
+  storagePath String   @unique
+  mimeType    String
+  bytes       Int
+  viewKey     String?
+  createdAt   DateTime @default(now())
+
+  lookItem StudioSessionLookItem @relation(fields: [lookItemId], references: [id], onDelete: Cascade)
+
+  @@index([lookItemId, createdAt])
 }
 
 model StudioCreation {
