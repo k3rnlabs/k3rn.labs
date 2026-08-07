@@ -922,6 +922,10 @@ model StudioJob {
   nextRunAt  DateTime        @default(now())
   lockedAt   DateTime?
   failureCode String?
+  provider          String?
+  providerTaskId    String?
+  providerState     String?
+  providerFrameIndex Int?
   createdAt  DateTime        @default(now())
   updatedAt  DateTime        @updatedAt
 
