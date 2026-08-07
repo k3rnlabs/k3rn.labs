@@ -991,4 +991,51 @@ describe("MIRAVA studio entry contracts", () => {
     },
   )
 
+
+  it(
+    "downloads generated images directly on desktop and keeps native Photos flow on Apple mobile",
+    () => {
+      const saveButtonStart =
+        studio.indexOf(
+          "function ResultSaveButton",
+        )
+
+      const saveButtonEnd =
+        studio.indexOf(
+          "function onboardingSessionInstruction",
+          saveButtonStart,
+        )
+
+      const saveButton =
+        studio.slice(
+          saveButtonStart,
+          saveButtonEnd,
+        )
+
+      expect(saveButton).toContain(
+        "const isAppleMobile =",
+      )
+
+      expect(saveButton).toContain(
+        "/iPhone|iPad|iPod/i.test(",
+      )
+
+      expect(saveButton).toContain(
+        "navigator.maxTouchPoints > 1",
+      )
+
+      expect(saveButton).toContain(
+        "isAppleMobile &&",
+      )
+
+      expect(saveButton).toContain(
+        "anchor.download = file.name",
+      )
+
+      expect(saveButton).toContain(
+        "anchor.click()",
+      )
+    },
+  )
+
 })

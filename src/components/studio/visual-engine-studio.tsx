@@ -1028,19 +1028,51 @@ function ResultSaveButton({
         title: "MIRAVA Studio",
       }
 
+      /*
+       * Le Web Share API existe aussi sur certains navigateurs desktop
+       * (notamment macOS). L'utiliser systématiquement transforme notre
+       * bouton "télécharger" en bouton de partage AirDrop/Messages.
+       *
+       * Sur iPhone/iPad, le partage natif reste utile pour enregistrer
+       * directement l'image dans Photos. Partout ailleurs, le bouton doit
+       * déclencher un vrai téléchargement de fichier.
+       */
+      const userAgent =
+        navigator.userAgent
+
+      const isAppleMobile =
+        /iPhone|iPad|iPod/i.test(
+          userAgent,
+        ) ||
+        (
+          /Macintosh/i.test(
+            userAgent,
+          ) &&
+          navigator.maxTouchPoints > 1
+        )
+
       const canShareFile =
+        isAppleMobile &&
         Boolean(shareNavigator.share) &&
         (
           !shareNavigator.canShare ||
-          shareNavigator.canShare(shareData)
+          shareNavigator.canShare(
+            shareData,
+          )
         )
 
-      if (canShareFile && shareNavigator.share) {
-        await shareNavigator.share(shareData)
+      if (
+        canShareFile &&
+        shareNavigator.share
+      ) {
+        await shareNavigator.share(
+          shareData,
+        )
         return
       }
 
-      const objectUrl = URL.createObjectURL(file)
+      const objectUrl =
+        URL.createObjectURL(file)
       const anchor = document.createElement("a")
 
       anchor.href = objectUrl
