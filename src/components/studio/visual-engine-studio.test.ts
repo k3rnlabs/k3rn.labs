@@ -1021,7 +1021,11 @@ describe("MIRAVA studio entry contracts", () => {
       )
 
       expect(saveButton).toContain(
-        "navigator.maxTouchPoints > 1",
+        "/Mobile\\//i.test(",
+      )
+
+      expect(saveButton).not.toContain(
+        "navigator.maxTouchPoints",
       )
 
       expect(saveButton).toContain(

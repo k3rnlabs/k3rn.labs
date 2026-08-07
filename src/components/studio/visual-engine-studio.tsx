@@ -1050,7 +1050,9 @@ function ResultSaveButton({
           /Macintosh/i.test(
             userAgent,
           ) &&
-          navigator.maxTouchPoints > 1
+          /Mobile\//i.test(
+            userAgent,
+          )
         )
 
       const canShareFile =
