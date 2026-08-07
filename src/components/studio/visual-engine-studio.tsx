@@ -2594,7 +2594,7 @@ export function VisualEngineStudio() {
               options.seriesSize ?? 1,
             )
           } onOpenCapture={() => openCapture(identityProfile ? (identityProfile.assetCount < MIRAVA_MAX_IDENTITY_PHOTOS ? "append" : "replace") : "onboarding")} />
-          : <CreationView locale={locale} t={t} current={current} identityProfile={identityProfile} pending={pending} onUploadReference={uploadReference} onAnalyze={analyze} onOpenCapture={() => openCapture(identityProfile ? (identityProfile.assetCount < MIRAVA_MAX_IDENTITY_PHOTOS ? "append" : "replace") : "onboarding")} onGenerate={generate} onDelete={removeCreation} onStartCreate={startFreshCreation} onContinueSession={(creationId, intent, sourceResultIndex) => void continueSession(creationId, intent, sourceResultIndex)} onCreateFromStudio={(studioId) => void reuse(studioId)} onUnlock={(creationId) => void checkoutDiscovery(creationId)} />)}
+          : <CreationView locale={locale} t={t} current={current} identityProfile={identityProfile} pending={pending} onUploadReference={uploadReference} onAnalyze={analyze} onOpenCapture={() => openCapture(identityProfile ? (identityProfile.assetCount < MIRAVA_MAX_IDENTITY_PHOTOS ? "append" : "replace") : "onboarding")} onGenerate={generate} onDelete={removeCreation} onStartCreate={startFreshCreation} onOpenCredits={() => openCreditOffers(1)} onContinueSession={(creationId, intent, sourceResultIndex) => void continueSession(creationId, intent, sourceResultIndex)} onCreateFromStudio={(studioId) => void reuse(studioId)} onUnlock={(creationId) => void checkoutDiscovery(creationId)} />)}
         {view === "universes" && <UniversesView locale={locale} t={t} selectedUniverseId={selectedUniverseId} setSelectedUniverseId={setSelectedUniverseId} onChoose={(brief) => { setOptions((value) => ({ ...(value.seriesSize ? { seriesSize: value.seriesSize } : {}), ...(value.seriesSize && value.seriesSize > 1 && value.seriesStrategy ? { seriesStrategy: value.seriesStrategy } : {}), ...(brief ? { note: brief } : {}) })); setCreateStep(1); selectView("create") }} />}
         {view === "library" && (
           portfolioCurrent ? (
@@ -2642,6 +2642,9 @@ export function VisualEngineStudio() {
                 }
                 onStartCreate={
                   startFreshCreation
+                }
+                onOpenCredits={() =>
+                  openCreditOffers(1)
                 }
                 onContinueSession={(
                   creationId,
@@ -3454,6 +3457,7 @@ function CreationView({
   onGenerate,
   onDelete,
   onStartCreate,
+  onOpenCredits,
   onContinueSession,
   onCreateFromStudio,
   onUnlock,
@@ -3469,6 +3473,7 @@ function CreationView({
   onGenerate: () => void
   onDelete: () => void
   onStartCreate: () => void
+  onOpenCredits: () => void
   onContinueSession: (
     creationId: string,
     intent: ShotIntent,
@@ -3479,6 +3484,13 @@ function CreationView({
 }) {
   const [continuationOpen, setContinuationOpen] =
     useState(false)
+  const reduceMotion = useReducedMotion()
+  const continuationPending =
+    Boolean(
+      pending?.startsWith(
+        "continue-",
+      ),
+    )
   const rawStatus =
     String(
       current.creation.status,
@@ -3501,6 +3513,21 @@ function CreationView({
   const referenceCount = current.assets.filter((asset) => asset.kind === "REFERENCE").length
   const busy = pendingStatuses.includes(status)
   const statusLabel = (t.status as Record<string, string>)[status] ?? t.identityReady
+
+  const handleContinuationPrimaryAction = () => {
+    if (continuationPending) {
+      return
+    }
+
+    if (current.studioCredits < 1) {
+      onOpenCredits()
+      return
+    }
+
+    setContinuationOpen(
+      (open) => !open,
+    )
+  }
 
   const failureExplanation =
     current.creation.failureKind ===
@@ -3643,48 +3670,129 @@ function CreationView({
         <div className="mt-5 grid gap-3">
           <button
             type="button"
-            onClick={() =>
-              setContinuationOpen(
-                (open) => !open,
-              )
+            data-mirava-continuation-cta
+            onClick={
+              handleContinuationPrimaryAction
             }
-            disabled={
-              current.studioCredits < 1 ||
-              Boolean(
-                pending?.startsWith(
-                  "continue-",
-                ),
-              )
+            disabled={continuationPending}
+            aria-expanded={
+              current.studioCredits > 0
+                ? continuationOpen
+                : false
             }
-            aria-expanded={continuationOpen}
-            className="mirava-button mirava-button-primary group flex min-h-24 w-full items-center justify-between gap-4 px-5 py-4 text-left"
+            aria-busy={
+              continuationPending
+            }
+            className={cn(
+              "group relative isolate flex min-h-[5.35rem] w-full items-center justify-between overflow-hidden rounded-[1.35rem] border border-[#d7c39a]/55 bg-[#0a0b0a] px-3 pl-5 text-left text-white shadow-[0_16px_38px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.12)] outline-none transition duration-200 hover:-translate-y-0.5 hover:border-[#ead8ae]/75 hover:shadow-[0_20px_48px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.16)] focus-visible:ring-2 focus-visible:ring-[#d7c39a] focus-visible:ring-offset-2 focus-visible:ring-offset-mirava-canvas active:translate-y-0 active:scale-[0.985] disabled:cursor-wait disabled:opacity-80 sm:min-h-[5.6rem] sm:pl-6",
+              continuationOpen &&
+                current.studioCredits > 0 &&
+                "border-[#efd9a7]/85 shadow-[0_20px_55px_rgba(0,0,0,0.44),0_0_0_1px_rgba(239,217,167,0.08),inset_0_1px_0_rgba(255,255,255,0.18)]",
+            )}
           >
-            <span className="flex min-w-0 items-center gap-4">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-black/10">
-                <Camera className="h-5 w-5" />
+            <span
+              aria-hidden="true"
+              data-mirava-continuation-grainient
+              className="pointer-events-none absolute inset-0"
+            >
+              <Grainient
+                className="absolute inset-0 h-full w-full"
+                color1="#b49a68"
+                color2="#171915"
+                color3="#6b5130"
+                timeSpeed={0.72}
+                colorBalance={-0.12}
+                warpStrength={1.75}
+                warpFrequency={5.6}
+                warpSpeed={1.25}
+                warpAmplitude={30}
+                blendAngle={-14}
+                blendSoftness={0.16}
+                rotationAmount={620}
+                noiseScale={1.35}
+                grainAmount={0.035}
+                grainScale={1.8}
+                grainAnimated={false}
+                contrast={1.35}
+                gamma={1}
+                saturation={0.82}
+                centerX={-0.12}
+                centerY={0.03}
+                zoom={1.08}
+                animated={!reduceMotion}
+              />
+            </span>
+
+            <span
+              aria-hidden="true"
+              data-mirava-continuation-dot-grid
+              className="pointer-events-none absolute inset-0 opacity-[0.15]"
+              style={{
+                backgroundImage:
+                  "radial-gradient(rgba(255,255,255,0.82) 0.55px, transparent 0.8px)",
+                backgroundSize:
+                  "5px 5px",
+              }}
+            />
+
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_0%,rgba(255,246,222,0.30),transparent_36%),linear-gradient(90deg,rgba(5,6,5,0.18)_0%,rgba(5,6,5,0.02)_48%,rgba(5,6,5,0.32)_100%)]"
+            />
+
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 -skew-x-12 bg-white/10 blur-xl transition-transform duration-700 ease-out group-hover:translate-x-[420%] group-disabled:hidden"
+            />
+
+            <span className="relative z-10 flex min-w-0 flex-1 flex-col pr-3">
+              <span className="truncate font-jakarta text-[15px] font-semibold tracking-[-0.025em] text-white sm:text-base">
+                {continuationPending
+                  ? locale === "fr"
+                    ? "Préparation du prochain cliché"
+                    : "Preparando la siguiente foto"
+                  : t.continueShoot}
               </span>
 
-              <span className="min-w-0">
-                <span className="block font-jakarta text-lg font-semibold">
-                  {t.continueShoot}
-                </span>
-                <span className="mt-1 block text-xs opacity-65">
-                  {current.studioCredits > 0
-                    ? t.continueHint
-                    : locale === "fr"
-                      ? "Ajoutez un crédit pour poursuivre cette séance."
-                      : "Añade un crédito para continuar esta sesión."}
-                </span>
+              <span className="mt-0.5 truncate text-[10px] font-medium leading-4 text-white/68 sm:text-[11px]">
+                {continuationPending
+                  ? locale === "fr"
+                    ? "Même séance · le nouveau cliché démarre…"
+                    : "Misma sesión · la nueva foto está empezando…"
+                  : current.studioCredits < 1
+                    ? locale === "fr"
+                      ? "1 crédit requis · appuyez pour recharger"
+                      : "Se requiere 1 crédito · pulsa para recargar"
+                    : continuationOpen
+                      ? locale === "fr"
+                        ? "Choisissez le prochain mouvement de la séance"
+                        : "Elige el siguiente movimiento de la sesión"
+                      : t.continueHint}
               </span>
             </span>
 
-            <ArrowRight
-              className={cn(
-                "h-5 w-5 shrink-0 transition-transform",
-                continuationOpen &&
-                  "rotate-90",
+            <span
+              aria-hidden="true"
+              className="relative z-10 grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full border border-white/16 bg-[#10110f]/90 text-white shadow-[0_10px_24px_rgba(0,0,0,0.38),inset_0_1px_0_rgba(255,255,255,0.12)] backdrop-blur-sm transition-transform duration-200 group-hover:translate-x-0.5 group-disabled:translate-x-0 sm:h-12 sm:w-12"
+            >
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_35%_20%,rgba(255,255,255,0.18),transparent_42%)]"
+              />
+
+              {continuationPending ? (
+                <Loader2 className="relative h-4 w-4 animate-spin" />
+              ) : (
+                <ArrowRight
+                  className={cn(
+                    "relative h-5 w-5 transition-transform duration-200",
+                    continuationOpen &&
+                      current.studioCredits > 0 &&
+                      "rotate-90",
+                  )}
+                />
               )}
-            />
+            </span>
           </button>
 
           <AnimatePresence initial={false}>
