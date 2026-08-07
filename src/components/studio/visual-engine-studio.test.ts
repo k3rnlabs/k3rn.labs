@@ -887,4 +887,83 @@ describe("MIRAVA studio entry contracts", () => {
   )
 
 
+  it(
+    "keeps completed portfolio photos inside Portfolio and makes Studio navigation return to its root",
+    () => {
+      expect(studio).toContain(
+        "portfolioCurrent, setPortfolioCurrent",
+      )
+
+      expect(studio).toContain(
+        'kind: "active" | "portfolio"',
+      )
+
+      expect(studio).toContain(
+        'kind ===\n                      "portfolio"',
+      )
+
+      expect(studio).toContain(
+        "current={portfolioCurrent}",
+      )
+
+      expect(studio).toContain(
+        "onDelete={\n                  removePortfolioCreation",
+      )
+
+      const studioHomeStart =
+        studio.indexOf(
+          "const openStudioHome =",
+        )
+
+      const studioHomeEnd =
+        studio.indexOf(
+          "const selectBottomNav =",
+          studioHomeStart,
+        )
+
+      const studioHome =
+        studio.slice(
+          studioHomeStart,
+          studioHomeEnd,
+        )
+
+      expect(studioHome).toContain(
+        "setCurrent(null)",
+      )
+
+      expect(studioHome).toContain(
+        "setPortfolioCurrent(null)",
+      )
+
+      expect(studioHome).toContain(
+        'selectView("create")',
+      )
+
+      const libraryStart =
+        studio.indexOf(
+          "function LibraryView(",
+        )
+
+      const libraryEnd =
+        studio.indexOf(
+          "function localizedOfferName(",
+          libraryStart,
+        )
+
+      const library =
+        studio.slice(
+          libraryStart,
+          libraryEnd,
+        )
+
+      expect(library).toMatch(
+        /creation\.id,\s*"active"/,
+      )
+
+      expect(library).toMatch(
+        /creation\.id,\s*"portfolio"/,
+      )
+    },
+  )
+
 })
