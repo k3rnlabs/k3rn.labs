@@ -13,6 +13,80 @@ function isIosSafari() {
   return /iphone|ipad|ipod/i.test(navigator.userAgent) && /safari/i.test(navigator.userAgent) && !/crios|fxios/i.test(navigator.userAgent)
 }
 
+function isStandaloneDisplayMode() {
+  if (
+    typeof window === "undefined" ||
+    typeof navigator === "undefined"
+  ) {
+    return false
+  }
+
+  const iosNavigator =
+    navigator as Navigator & {
+      standalone?: boolean
+    }
+
+  return (
+    window.matchMedia(
+      "(display-mode: standalone)",
+    ).matches ||
+    iosNavigator.standalone === true
+  )
+}
+
+export type MiravaPushAvailability =
+  | "prompt"
+  | "subscribed"
+  | "requires_install"
+  | "denied"
+  | "unsupported"
+
+export async function getMiravaPushAvailability():
+Promise<MiravaPushAvailability> {
+  if (
+    typeof window === "undefined" ||
+    typeof navigator === "undefined"
+  ) {
+    return "unsupported"
+  }
+
+  if (
+    isIosSafari() &&
+    !isStandaloneDisplayMode()
+  ) {
+    return "requires_install"
+  }
+
+  if (
+    !("serviceWorker" in navigator) ||
+    !("PushManager" in window) ||
+    !("Notification" in window)
+  ) {
+    return "unsupported"
+  }
+
+  if (Notification.permission === "denied") {
+    return "denied"
+  }
+
+  try {
+    const registration =
+      await navigator.serviceWorker.ready
+
+    const existing =
+      await registration.pushManager
+        .getSubscription()
+
+    if (existing) {
+      return "subscribed"
+    }
+  } catch {
+    return "unsupported"
+  }
+
+  return "prompt"
+}
+
 export function MiravaPwaRegistration() {
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return
@@ -63,17 +137,72 @@ export function MiravaInstallButton({ locale }: { locale: "fr" | "es" }) {
 
 export async function enableMiravaPush(locale: "fr" | "es"): Promise<boolean> {
   const publicKey = process.env.NEXT_PUBLIC_MIRAVA_PUSH_PUBLIC_KEY
-  if (!publicKey || !("serviceWorker" in navigator) || !("PushManager" in window)) return false
-  const permission = await Notification.requestPermission()
-  if (permission !== "granted") return false
-  const registration = await navigator.serviceWorker.ready
-  const base64 = publicKey.replace(/-/g, "+").replace(/_/g, "/")
-  const key = Uint8Array.from(atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, "=")), (char) => char.charCodeAt(0))
-  const subscription = await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key })
-  const response = await fetch("/api/visual-engine/push-subscriptions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...subscription.toJSON(), locale }),
-  })
+
+  if (
+    !publicKey ||
+    typeof window === "undefined" ||
+    typeof navigator === "undefined" ||
+    !("serviceWorker" in navigator) ||
+    !("PushManager" in window) ||
+    !("Notification" in window)
+  ) {
+    return false
+  }
+
+  const permission =
+    Notification.permission === "granted"
+      ? "granted"
+      : await Notification.requestPermission()
+
+  if (permission !== "granted") {
+    return false
+  }
+
+  const registration =
+    await navigator.serviceWorker.ready
+
+  const existing =
+    await registration.pushManager
+      .getSubscription()
+
+  const base64 =
+    publicKey
+      .replace(/-/g, "+")
+      .replace(/_/g, "/")
+
+  const key =
+    Uint8Array.from(
+      atob(
+        base64.padEnd(
+          Math.ceil(base64.length / 4) * 4,
+          "=",
+        ),
+      ),
+      (char) => char.charCodeAt(0),
+    )
+
+  const subscription =
+    existing ??
+    await registration.pushManager
+      .subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: key,
+      })
+
+  const response = await fetch(
+    "/api/visual-engine/push-subscriptions",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type":
+          "application/json",
+      },
+      body: JSON.stringify({
+        ...subscription.toJSON(),
+        locale,
+      }),
+    },
+  )
+
   return response.ok
 }

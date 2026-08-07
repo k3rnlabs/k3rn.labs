@@ -3,9 +3,15 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
 import { GlassSurface } from "@/components/ui/glass-surface"
-import { ArrowLeft, ArrowRight, Check, Clock3, Loader2, LockKeyhole, ShieldCheck, Sparkles, Upload, UserCheck } from "lucide-react"
+import { ArrowLeft, ArrowRight, Bell, Check, Clock3, Loader2, LockKeyhole, ShieldCheck, Sparkles, Upload, UserCheck } from "lucide-react"
 import { captureMiravaAnalytics } from "@/lib/mirava/analytics-consent.client"
 import { MiravaWordmark } from "@/components/mirava/mirava-wordmark"
+import {
+  enableMiravaPush,
+  getMiravaPushAvailability,
+  MiravaInstallButton,
+  type MiravaPushAvailability,
+} from "@/components/mirava/mirava-pwa"
 import {
   MIRAVA_ONBOARDING_STEPS,
   MIRAVA_ONBOARDING_VERSION,
@@ -36,6 +42,12 @@ import MiravaIdentityCapture, { type CaptureActionState } from "./mirava-identit
 import { OnboardingPipelineDemo } from "./mirava-pipeline-demo"
 
 type Locale = "fr" | "es"
+
+type OnboardingPushState =
+  | MiravaPushAvailability
+  | "checking"
+  | "activating"
+  | "later"
 
 type IdentityProfileReceipt = {
   id: string
@@ -520,6 +532,10 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
   const [identityPhase, setIdentityPhase] = useState<"intro" | "capture">("intro")
   const [captureActionState, setCaptureActionState] = useState<CaptureActionState | null>(null)
   const [pending, setPending] = useState(false)
+  const [pushState, setPushState] =
+    useState<OnboardingPushState>(
+      "checking",
+    )
   const [error, setError] = useState<string | null>(null)
   const [universeLimitNotice, setUniverseLimitNotice] = useState<string | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -706,6 +722,36 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
     stepId,
   ])
 
+  useEffect(() => {
+    if (
+      stepId !== "capture_activation" ||
+      onboardingState?.status !==
+        "session_ready"
+    ) {
+      return
+    }
+
+    let cancelled = false
+
+    const syncPushState = async () => {
+      const availability =
+        await getMiravaPushAvailability()
+
+      if (!cancelled) {
+        setPushState(availability)
+      }
+    }
+
+    void syncPushState()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    onboardingState?.status,
+    stepId,
+  ])
+
   const persist = async (
     currentStep: MiravaOnboardingStepId,
     overrides: {
@@ -787,6 +833,64 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
     } finally {
       setPending(false)
     }
+  }
+
+  const activateOnboardingPush =
+    async () => {
+      setPushState("activating")
+
+      try {
+        const enabled =
+          await enableMiravaPush(locale)
+
+        if (enabled) {
+          setPushState("subscribed")
+
+          captureMiravaAnalytics(
+            "push_notifications_enabled",
+            {
+              onboarding_version:
+                MIRAVA_ONBOARDING_VERSION,
+              source:
+                "onboarding_activation",
+            },
+          )
+
+          return
+        }
+
+        const availability =
+          await getMiravaPushAvailability()
+
+        setPushState(availability)
+
+        captureMiravaAnalytics(
+          "push_notifications_not_enabled",
+          {
+            onboarding_version:
+              MIRAVA_ONBOARDING_VERSION,
+            source:
+              "onboarding_activation",
+            availability,
+          },
+        )
+      } catch {
+        setPushState("unsupported")
+      }
+    }
+
+  const deferOnboardingPush = () => {
+    setPushState("later")
+
+    captureMiravaAnalytics(
+      "push_notifications_deferred",
+      {
+        onboarding_version:
+          MIRAVA_ONBOARDING_VERSION,
+        source:
+          "onboarding_activation",
+      },
+    )
   }
 
   const next = async () => {
@@ -1782,6 +1886,177 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                       </div>
                     </div>
                   </div>
+
+                  {onboardingState?.status ===
+                    "session_ready" && (
+                      <section
+                        data-mirava-onboarding-push
+                        className="rounded-[24px] border border-[#d5c6b0]/30 bg-[linear-gradient(145deg,rgba(213,198,176,0.13),rgba(255,255,255,0.05))] p-5 shadow-2xl backdrop-blur-xl"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[#d5c6b0]/30 bg-[#d5c6b0]/10">
+                            {pushState ===
+                            "subscribed" ? (
+                              <Check className="h-4 w-4 stroke-[3] text-emerald-300" />
+                            ) : pushState ===
+                                "activating" ||
+                              pushState ===
+                                "checking" ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-[#ede8df]" />
+                            ) : (
+                              <Bell className="h-4 w-4 text-[#ede8df]" />
+                            )}
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <span className="block font-jakarta text-[10px] font-bold tracking-[0.14em] text-[#d5c6b0] uppercase">
+                              {locale === "fr"
+                                ? "NOTIFICATIONS"
+                                : "NOTIFICACIONES"}
+                            </span>
+
+                            <h2 className="mt-1 font-jakarta text-base font-semibold leading-6 text-white">
+                              {pushState ===
+                              "subscribed"
+                                ? locale === "fr"
+                                  ? "Vous serez prévenue dès que vos images seront prêtes."
+                                  : "Te avisaremos en cuanto tus imágenes estén listas."
+                                : locale === "fr"
+                                  ? "Recevoir mes images dès qu’elles sont prêtes"
+                                  : "Recibir mis imágenes en cuanto estén listas"}
+                            </h2>
+
+                            {pushState !==
+                              "subscribed" && (
+                              <p className="mt-1.5 font-jakarta text-xs leading-5 text-white/58">
+                                {locale === "fr"
+                                  ? "MIRAVA peut travailler pendant que vous quittez l’application. Activez les notifications une seule fois et nous vous préviendrons à la fin de chaque création."
+                                  : "MIRAVA puede seguir trabajando aunque cierres la aplicación. Activa las notificaciones una sola vez y te avisaremos al terminar cada creación."}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {pushState ===
+                          "prompt" && (
+                          <div className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto]">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void activateOnboardingPush()
+                              }
+                              className="mirava-button mirava-button-primary min-h-11 w-full gap-2 px-4 text-xs"
+                            >
+                              <Bell className="h-4 w-4" />
+                              {locale === "fr"
+                                ? "Activer les notifications"
+                                : "Activar las notificaciones"}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={
+                                deferOnboardingPush
+                              }
+                              className="mirava-button mirava-button-quiet min-h-11 px-4 text-xs text-white/65"
+                            >
+                              {locale === "fr"
+                                ? "Plus tard"
+                                : "Más tarde"}
+                            </button>
+                          </div>
+                        )}
+
+                        {pushState ===
+                          "activating" && (
+                          <div
+                            role="status"
+                            className="mt-4 flex items-center gap-2 font-jakarta text-xs text-white/65"
+                          >
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            {locale === "fr"
+                              ? "Activation des notifications…"
+                              : "Activando las notificaciones…"}
+                          </div>
+                        )}
+
+                        {pushState ===
+                          "requires_install" && (
+                          <div className="mt-4 space-y-3">
+                            <p className="font-jakarta text-xs leading-5 text-white/65">
+                              {locale === "fr"
+                                ? "Sur iPhone, installez MIRAVA sur l’écran d’accueil. À la prochaine ouverture depuis l’icône MIRAVA, vous pourrez activer les notifications ici."
+                                : "En iPhone, instala MIRAVA en la pantalla de inicio. Al volver a abrirla desde el icono de MIRAVA, podrás activar aquí las notificaciones."}
+                            </p>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                              <MiravaInstallButton
+                                locale={locale}
+                              />
+
+                              <button
+                                type="button"
+                                onClick={
+                                  deferOnboardingPush
+                                }
+                                className="mirava-button mirava-button-quiet min-h-10 px-3 text-xs text-white/60"
+                              >
+                                {locale === "fr"
+                                  ? "Continuer sans notifications"
+                                  : "Continuar sin notificaciones"}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {pushState ===
+                          "denied" && (
+                          <p
+                            role="status"
+                            className="mt-4 rounded-xl border border-amber-300/20 bg-amber-300/[0.07] p-3 font-jakarta text-xs leading-5 text-white/65"
+                          >
+                            {locale === "fr"
+                              ? "Les notifications sont bloquées dans les réglages de votre navigateur. Vous pourrez les réactiver plus tard depuis votre appareil."
+                              : "Las notificaciones están bloqueadas en los ajustes del navegador. Podrás volver a activarlas más tarde desde tu dispositivo."}
+                          </p>
+                        )}
+
+                        {pushState ===
+                          "unsupported" && (
+                          <p
+                            role="status"
+                            className="mt-4 font-jakarta text-xs leading-5 text-white/50"
+                          >
+                            {locale === "fr"
+                              ? "Les notifications ne sont pas disponibles sur ce navigateur. Votre séance peut tout de même continuer normalement."
+                              : "Las notificaciones no están disponibles en este navegador. Tu sesión puede continuar con normalidad."}
+                          </p>
+                        )}
+
+                        {pushState ===
+                          "later" && (
+                          <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/20 p-3">
+                            <p className="font-jakarta text-xs leading-5 text-white/55">
+                              {locale === "fr"
+                                ? "D’accord. Vous pourrez les activer plus tard depuis Compte."
+                                : "De acuerdo. Podrás activarlas más tarde desde Cuenta."}
+                            </p>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void activateOnboardingPush()
+                              }
+                              className="shrink-0 font-jakarta text-xs font-semibold text-[#ede8df] underline decoration-white/30 underline-offset-4"
+                            >
+                              {locale === "fr"
+                                ? "Activer"
+                                : "Activar"}
+                            </button>
+                          </div>
+                        )}
+                      </section>
+                    )}
 
                   {onboardingState?.status ===
                     "session_ready" &&
