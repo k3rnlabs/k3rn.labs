@@ -33,7 +33,7 @@ describe("MIRAVA PWA privacy policy", () => {
     "refreshes the public shell cache when the branded offline fallback changes",
     () => {
       expect(worker).toContain(
-        'CACHE = "mirava-public-shell-v7"',
+        'CACHE = "mirava-public-shell-v8"',
       )
     },
   )
@@ -107,11 +107,44 @@ describe("MIRAVA PWA privacy policy", () => {
       )
 
       expect(pwaRegistration).toContain(
-        'updateViaCache: "none"',
+        "updateViaCache:",
+      )
+
+      expect(pwaRegistration).toContain(
+        '"none",',
       )
 
       expect(pwaRegistration).toContain(
         "registration.update()",
+      )
+
+      expect(pwaRegistration).toContain(
+        "window.addEventListener(",
+      )
+
+      expect(pwaRegistration).toContain(
+        '"offline",',
+      )
+
+      expect(pwaRegistration).toContain(
+        "if (!navigator.onLine)",
+      )
+
+      expect(pwaRegistration).toContain(
+        "window.location.replace(",
+      )
+
+      expect(pwaRegistration).toContain(
+        "offlinePath,",
+      )
+    },
+  )
+
+  it(
+    "uses a network-only navigation request before falling back offline",
+    () => {
+      expect(worker).toContain(
+        'fetch(request, { cache: "no-store" })',
       )
     },
   )

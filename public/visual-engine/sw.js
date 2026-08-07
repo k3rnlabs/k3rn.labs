@@ -1,4 +1,4 @@
-const CACHE = "mirava-public-shell-v7";
+const CACHE = "mirava-public-shell-v8";
 const PUBLIC_SHELL = ["/visual-engine", "/visual-engine/offline"];
 
 self.addEventListener("install", (event) => {
@@ -18,7 +18,11 @@ self.addEventListener("fetch", (event) => {
   // MIRAVA Studio never caches API calls, signed URLs, source images, results or prompts.
   if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/storage/")) return;
   if (request.mode === "navigate" && url.pathname.startsWith("/visual-engine")) {
-    event.respondWith(fetch(request).catch(() => caches.match("/visual-engine/offline")));
+    event.respondWith(
+      fetch(request, { cache: "no-store" }).catch(() =>
+        caches.match("/visual-engine/offline"),
+      ),
+    );
   }
 });
 

@@ -89,20 +89,54 @@ Promise<MiravaPushAvailability> {
 
 export function MiravaPwaRegistration() {
   useEffect(() => {
-    if (!("serviceWorker" in navigator)) return
+    const offlinePath =
+      "/visual-engine/offline"
 
-    void navigator.serviceWorker
-      .register(
-        "/visual-engine/sw.js",
-        {
-          scope: "/visual-engine/",
-          updateViaCache: "none",
-        },
+    const redirectOffline = () => {
+      if (
+        window.location.pathname !==
+        offlinePath
+      ) {
+        window.location.replace(
+          offlinePath,
+        )
+      }
+    }
+
+    window.addEventListener(
+      "offline",
+      redirectOffline,
+    )
+
+    if (!navigator.onLine) {
+      redirectOffline()
+    }
+
+    if ("serviceWorker" in navigator) {
+      void navigator.serviceWorker
+        .register(
+          "/visual-engine/sw.js",
+          {
+            scope:
+              "/visual-engine/",
+            updateViaCache:
+              "none",
+          },
+        )
+        .then((registration) =>
+          registration.update(),
+        )
+        .catch(
+          () => undefined,
+        )
+    }
+
+    return () => {
+      window.removeEventListener(
+        "offline",
+        redirectOffline,
       )
-      .then((registration) =>
-        registration.update(),
-      )
-      .catch(() => undefined)
+    }
   }, [])
 
   return null
