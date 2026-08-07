@@ -150,6 +150,13 @@ describe(
             select: {
               id: true,
             },
+            include: {
+              assets: {
+                select: {
+                  id: true,
+                },
+              },
+            },
           },
         },
         take: 20,
@@ -186,6 +193,13 @@ describe(
           lookItems: {
             select: {
               id: true,
+            },
+            include: {
+              assets: {
+                select: {
+                  id: true,
+                },
+              },
             },
           },
         },
@@ -281,6 +295,12 @@ describe(
             {
               id:
                 "look-item-1",
+              assets: [
+                {
+                  id:
+                    "look-asset-1",
+                },
+              ],
             },
           ],
         })
@@ -298,6 +318,45 @@ describe(
       expect(
         session?.configurationReady,
       ).toBe(true)
+    })
+
+    it("keeps a complete CUSTOM session unready when its look item has no persisted asset", async () => {
+      mocks.findSession
+        .mockResolvedValue({
+          ...baseRow,
+          setPresetId:
+            "white-cyclorama-v1",
+          lightingPresetId:
+            "soft-v1",
+          builderConfig: {
+            mode:
+              "CUSTOM_SHOOT",
+            shotCount: 6,
+            lookMode:
+              "CUSTOM",
+          },
+          lookItems: [
+            {
+              id:
+                "look-item-empty",
+              assets: [],
+            },
+          ],
+        })
+
+      const session =
+        await getMiravaSessionBuilderDraft(
+          "user-1",
+          "session-1",
+        )
+
+      expect(
+        session?.lookItemCount,
+      ).toBe(1)
+
+      expect(
+        session?.configurationReady,
+      ).toBe(false)
     })
 
     it("rejects invalid updates and missing sessions", async () => {

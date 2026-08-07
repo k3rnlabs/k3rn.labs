@@ -23,6 +23,9 @@ type StudioSessionBuilderRow = {
   builderConfig?: unknown
   lookItems?: Array<{
     id?: string | null
+    assets?: Array<{
+      id?: string | null
+    }>
   }>
   createdAt?: string | Date | null
   updatedAt?: string | Date | null
@@ -233,7 +236,13 @@ function toPublicSession(
           Array.isArray(
             row.lookItems,
           ) &&
-          row.lookItems.length > 0
+          row.lookItems.some(
+            (item) =>
+              Array.isArray(
+                item.assets,
+              ) &&
+              item.assets.length > 0,
+          )
         )
       ),
     createdAt:
@@ -309,6 +318,13 @@ export async function listMiravaSessionBuilderDrafts(
           select: {
             id: true,
           },
+          include: {
+            assets: {
+              select: {
+                id: true,
+              },
+            },
+          },
         },
       },
       take: 20,
@@ -339,6 +355,13 @@ export async function getMiravaSessionBuilderDraft(
         lookItems: {
           select: {
             id: true,
+          },
+          include: {
+            assets: {
+              select: {
+                id: true,
+              },
+            },
           },
         },
       },
@@ -380,6 +403,13 @@ export async function updateMiravaSessionBuilderDraft(
         lookItems: {
           select: {
             id: true,
+          },
+          include: {
+            assets: {
+              select: {
+                id: true,
+              },
+            },
           },
         },
       },
