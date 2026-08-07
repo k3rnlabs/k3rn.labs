@@ -1041,6 +1041,8 @@ export function VisualEngineStudio() {
   const [createStep, setCreateStepValue] = useState(0)
   const [furthestCreateStep, setFurthestCreateStep] = useState(0)
   const [current, setCurrent] = useState<Detail | null>(null)
+  const [portfolioCurrent, setPortfolioCurrent] =
+    useState<Detail | null>(null)
   const [creations, setCreations] = useState<Creation[]>([])
   const [studios, setStudios] = useState<Studio[]>([])
   const [identityProfile, setIdentityProfile] = useState<IdentityProfile>(null)
@@ -2049,6 +2051,24 @@ export function VisualEngineStudio() {
     showNotice(locale === "fr" ? "Votre séance en cours reste dans votre galerie. Importez maintenant une inspiration pour créer un nouveau studio personnel." : "Tu sesión actual permanece en tu galería. Ahora importa una inspiración para crear un nuevo estudio personal.")
   }
   const removeCreation = () => current && run("delete", async () => { await api(`/api/visual-engine/creations/${current.creation.id}`, { method: "DELETE" }); setCurrent(null); await refresh() })
+
+  const removePortfolioCreation = () =>
+    portfolioCurrent
+      ? run(
+          "delete",
+          async () => {
+            await api(
+              `/api/visual-engine/creations/${portfolioCurrent.creation.id}`,
+              {
+                method: "DELETE",
+              },
+            )
+
+            setPortfolioCurrent(null)
+            await refresh()
+          },
+        )
+      : Promise.resolve(false)
   const removeIdentity = () => run("identity-delete", async () => { await api("/api/visual-engine/identity-profile", { method: "DELETE" }); await refresh() })
   const checkout =
     (offerId: string) =>
@@ -2122,17 +2142,38 @@ export function VisualEngineStudio() {
     { id: "library", label: t.library, icon: <Images /> },
     { id: "account", label: t.account, icon: <CircleUserRound /> },
   ]
+  const openStudioHome = () => {
+    setDirectorOpen(false)
+    setPortfolioCurrent(null)
+    setCurrent(null)
+    setEntryIntent(null)
+    setCreateStepValue(0)
+    setFurthestCreateStep(0)
+    selectView("create")
+  }
+
   const selectBottomNav = (id: string) => {
-    if (id === "create" || id === "library" || id === "account") {
+    if (id === "create") {
+      openStudioHome()
+      return
+    }
+
+    if (
+      id === "library" ||
+      id === "account"
+    ) {
       setDirectorOpen(false)
+
+      if (id === "library") {
+        setPortfolioCurrent(null)
+      }
+
       selectView(id)
     }
   }
 
   const startFreshCreation = () => {
-    setCurrent(null)
-    setCreateStep(0)
-    selectView("create")
+    openStudioHome()
   }
 
   const isCreateFlow =
@@ -2217,9 +2258,16 @@ export function VisualEngineStudio() {
         brand={<Link href="/visual-engine/studio" aria-label={locale === "fr" ? "Accueil MIRAVA Studio" : "Inicio MIRAVA Studio"} className="mirava-button mirava-button-quiet min-h-12 px-1"><MiravaWordmark /></Link>}
         desktopNavigation={
           <nav aria-label="Navigation principale" className="mirava-desktop-nav hidden items-center gap-1 p-1 lg:flex">
-            <DesktopNavButton active={view === "create" && !directorOpen} primary label={t.create} onClick={() => { setDirectorOpen(false); selectView("create") }} />
+            <DesktopNavButton active={view === "create" && !directorOpen} primary label={t.create} onClick={openStudioHome} />
             <DesktopNavButton active={view === "universes"} label={t.universesNav} onClick={() => selectView("universes")} />
-            <DesktopNavButton active={view === "library"} label={t.library} onClick={() => selectView("library")} />
+            <DesktopNavButton
+              active={view === "library"}
+              label={t.library}
+              onClick={() => {
+                setPortfolioCurrent(null)
+                selectView("library")
+              }}
+            />
             <DesktopNavButton active={directorOpen} icon={<Image src="/visual-engine/alma-directrice.webp" alt="" width={20} height={20} />} label={t.directorNav} onClick={(event) => openDirector(event.currentTarget)} />
             <DesktopNavButton active={view === "account"} label={t.account} onClick={() => selectView("account")} />
           </nav>
@@ -2314,24 +2362,134 @@ export function VisualEngineStudio() {
           : <CreationView locale={locale} t={t} current={current} identityProfile={identityProfile} pending={pending} onUploadReference={uploadReference} onAnalyze={analyze} onOpenCapture={() => openCapture(identityProfile ? (identityProfile.assetCount < MIRAVA_MAX_IDENTITY_PHOTOS ? "append" : "replace") : "onboarding")} onGenerate={generate} onDelete={removeCreation} onStartCreate={startFreshCreation} onContinueSession={(creationId, intent, sourceResultIndex) => void continueSession(creationId, intent, sourceResultIndex)} onCreateFromStudio={(studioId) => void reuse(studioId)} onUnlock={(creationId) => void checkoutDiscovery(creationId)} />)}
         {view === "universes" && <UniversesView locale={locale} t={t} selectedUniverseId={selectedUniverseId} setSelectedUniverseId={setSelectedUniverseId} onChoose={(brief) => { setOptions((value) => ({ ...(value.seriesSize ? { seriesSize: value.seriesSize } : {}), ...(value.seriesSize && value.seriesSize > 1 && value.seriesStrategy ? { seriesStrategy: value.seriesStrategy } : {}), ...(brief ? { note: brief } : {}) })); setCreateStep(1); selectView("create") }} />}
         {view === "library" && (
-          <LibraryView
-            locale={locale}
-            t={t}
-            creations={creations}
-            onSelect={(id) =>
-              void run(
-                "select",
-                async () => {
-                  setCurrent(
-                    await api<Detail>(
-                      `/api/visual-engine/creations/${id}`,
-                    ),
+          portfolioCurrent ? (
+            <div>
+              <button
+                type="button"
+                onClick={() => {
+                  setPortfolioCurrent(null)
+
+                  studioScrollRef.current?.scrollTo({
+                    top: 0,
+                    left: 0,
+                    behavior: "auto",
+                  })
+                }}
+                aria-label={
+                  locale === "fr"
+                    ? "Retour au portfolio"
+                    : "Volver al portfolio"
+                }
+                className="mirava-flow-button mb-2"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span className="mirava-flow-button-copy">
+                  {locale === "fr"
+                    ? "Portfolio"
+                    : "Portfolio"}
+                </span>
+              </button>
+
+              <CreationView
+                locale={locale}
+                t={t}
+                current={portfolioCurrent}
+                identityProfile={identityProfile}
+                pending={pending}
+                onUploadReference={
+                  async () => undefined
+                }
+                onAnalyze={() => undefined}
+                onOpenCapture={() => undefined}
+                onGenerate={() => undefined}
+                onDelete={
+                  removePortfolioCreation
+                }
+                onStartCreate={
+                  startFreshCreation
+                }
+                onContinueSession={(
+                  creationId,
+                  intent,
+                  sourceResultIndex,
+                ) => {
+                  void continueSession(
+                    creationId,
+                    intent,
+                    sourceResultIndex,
+                  ).then(
+                    (continued) => {
+                      if (continued) {
+                        setPortfolioCurrent(
+                          null,
+                        )
+                      }
+                    },
                   )
-                  selectView("create")
-                },
-              )
-            }
-          />
+                }}
+                onCreateFromStudio={(
+                  studioId,
+                ) => {
+                  void reuse(
+                    studioId,
+                  ).then(
+                    (created) => {
+                      if (created) {
+                        setPortfolioCurrent(
+                          null,
+                        )
+                      }
+                    },
+                  )
+                }}
+                onUnlock={(creationId) =>
+                  void checkoutDiscovery(
+                    creationId,
+                  )
+                }
+              />
+            </div>
+          ) : (
+            <LibraryView
+              locale={locale}
+              t={t}
+              creations={creations}
+              onSelect={(id, kind) =>
+                void run(
+                  "select",
+                  async () => {
+                    const detail =
+                      await api<Detail>(
+                        `/api/visual-engine/creations/${id}`,
+                      )
+
+                    if (
+                      kind ===
+                      "portfolio"
+                    ) {
+                      setPortfolioCurrent(
+                        detail,
+                      )
+
+                      studioScrollRef.current?.scrollTo({
+                        top: 0,
+                        left: 0,
+                        behavior: "auto",
+                      })
+
+                      return
+                    }
+
+                    setPortfolioCurrent(
+                      null,
+                    )
+                    setCurrent(detail)
+                    selectView("create")
+                  },
+                )
+              }
+            />
+          )
         )}
         {view === "account" && <AccountView locale={locale} t={t} account={account} identityProfile={identityProfile} pending={pending} onPortal={portal} onOpenCapture={() => openCapture(identityProfile ? "append" : "onboarding")} onReplaceIdentity={() => openCapture("replace")} onReplaceIdentityAsset={replaceIdentityAsset} onDeleteIdentityAsset={deleteIdentityAsset} onDeleteIdentity={removeIdentity} onOpenCreditSheet={(kind) => openCreditOffers(0, kind)} />}
         </div>
@@ -3086,11 +3244,25 @@ function CreationView({
 }) {
   const [continuationOpen, setContinuationOpen] =
     useState(false)
-  const rawStatus = current.creation.status
-  // The public API only exposes public states. Keep the screen resilient if an
-  // outdated intermediary returns an unknown state: it must not crash or reveal
-  // an implementation detail to the customer.
-  const status = ((t.status as Record<string, string>)[rawStatus] ? rawStatus : "IDENTITY_READY") as Status
+  const rawStatus =
+    String(
+      current.creation.status,
+    )
+
+  /*
+   * L’API publique masque déjà les états internes du moteur. Le client ne doit
+   * donc connaître que les états publics. En cas de réponse inconnue, rester
+   * dans un état d’attente non actionnable plutôt que d’afficher "Studio prêt".
+   */
+  const status =
+    (
+      (
+        t.status as
+          Record<string, string>
+      )[rawStatus]
+        ? rawStatus
+        : "ANALYSIS_QUEUED"
+    ) as Status
   const referenceCount = current.assets.filter((asset) => asset.kind === "REFERENCE").length
   const busy = pendingStatuses.includes(status)
   const statusLabel = (t.status as Record<string, string>)[status] ?? t.identityReady
@@ -3657,7 +3829,10 @@ function LibraryView({
   locale: Locale
   t: Copy
   creations: Creation[]
-  onSelect: (id: string) => void
+  onSelect: (
+    id: string,
+    kind: "active" | "portfolio",
+  ) => void
 }) {
   const activeCreations =
     creations.filter((creation) =>
@@ -3769,6 +3944,7 @@ function LibraryView({
                     onClick={() =>
                       onSelect(
                         creation.id,
+                        "active",
                       )
                     }
                     className="mirava-surface flex min-h-20 w-full items-center gap-3 p-3.5 text-left"
@@ -3808,8 +3984,9 @@ function LibraryView({
                 type="button"
                 onClick={() =>
                   onSelect(
-                    creation.id,
-                  )
+                        creation.id,
+                        "portfolio",
+                      )
                 }
                 aria-label={
                   locale === "fr"

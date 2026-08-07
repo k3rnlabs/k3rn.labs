@@ -3357,27 +3357,140 @@ async function processStudioJob(job: StudioJobRecord): Promise<void> {
       const profile = existingProfile
         ? await db.studioProfile.update({ where: { id: existingProfile.id, userId: creation.userId }, data: { creativeDirectionSummary: extracted.creativeDirectionSummary, masterPrompt: extracted.masterPrompt, negativePrompt: extracted.negativePrompt } })
         : await db.studioProfile.create({ data: { userId: creation.userId, sourceCreationId: creation.id, name: profileName(), creativeDirectionSummary: extracted.creativeDirectionSummary, masterPrompt: extracted.masterPrompt, negativePrompt: extracted.negativePrompt } })
-      const analysedCreation = asCreation(await db.studioCreation.update({ where: { id: creation.id }, data: { status: "MASTER_PROMPT_READY", studioProfileId: profile.id, creativeDirectionSummary: extracted.creativeDirectionSummary, masterPrompt: extracted.masterPrompt, negativePrompt: extracted.negativePrompt } }))
-      if (analysedCreation.sessionId) {
+      /*
+       * Ne jamais publier MASTER_PROMPT_READY avant que toute la finalisation
+       * de l'analyse soit durable. Sinon le client peut afficher "Studio prêt"
+       * puis failJob peut remettre la création en ANALYSIS_QUEUED si une
+       * opération post-analyse échoue.
+       *
+       * Si le Profil identité est déjà prêt, on passe directement de ANALYSING
+       * à GENERATION_QUEUED et on crée le job GENERATE dans la même transaction.
+       * L'utilisatrice n'a donc aucun second bouton "Créer" à comprendre.
+       */
+      if (creation.sessionId) {
         await db.studioSession.update({
-          where: { id: analysedCreation.sessionId },
+          where: { id: creation.sessionId },
           data: {
             studioProfileId: profile.id,
-            identityProfileId: analysedCreation.identityProfileId ?? null,
+            identityProfileId:
+              creation.identityProfileId ?? null,
           },
         })
       }
-      await supabaseAdmin.storage.from(STUDIO_BUCKET).remove([reference.storagePath])
-      await db.studioAsset.update({ where: { id: reference.id, creationId: creation.id }, data: { deletedAt: new Date().toISOString() } })
-      await debitMiravaCreditReservation(creation.userId, creation.id, studioKey("studio-analysis-debit", creation.id))
-      const identityAssets = await getIdentityAssetsForCreation(analysedCreation)
-      if (canAutoGenerateMiravaCreation(identityAssets.length)) {
-        try {
-          await queueStudioGeneration({ userId: creation.userId, creationId: creation.id })
-        } catch {
-          // The finished art direction is still usable from the normal creation
-          // screen. A later retry must not invalidate the completed analysis.
+
+      await debitMiravaCreditReservation(
+        creation.userId,
+        creation.id,
+        studioKey(
+          "studio-analysis-debit",
+          creation.id,
+        ),
+      )
+
+      const identityAssets =
+        await getIdentityAssetsForCreation(
+          creation,
+        )
+
+      const analysedData = {
+        studioProfileId: profile.id,
+        creativeDirectionSummary:
+          extracted.creativeDirectionSummary,
+        masterPrompt:
+          extracted.masterPrompt,
+        negativePrompt:
+          extracted.negativePrompt,
+        failureCode: null,
+        failureMessage: null,
+      }
+
+      if (
+        canAutoGenerateMiravaCreation(
+          identityAssets.length,
+        )
+      ) {
+        await db.$transaction([
+          db.studioCreation.update({
+            where: {
+              id: creation.id,
+            },
+            data: {
+              ...analysedData,
+              status:
+                "GENERATION_QUEUED",
+            },
+          }),
+          db.studioJob.create({
+            data: {
+              id: randomUUID(),
+              creationId:
+                creation.id,
+              kind: "GENERATE",
+              status: "PENDING",
+            },
+          }),
+        ])
+      } else {
+        await db.studioCreation.update({
+          where: {
+            id: creation.id,
+          },
+          data: {
+            ...analysedData,
+            status:
+              "MASTER_PROMPT_READY",
+          },
+        })
+      }
+
+      /*
+       * La référence artistique est purgée après que l'état métier est durable.
+       * Une panne de nettoyage ne doit jamais faire régresser la séance vers
+       * ANALYSIS_QUEUED. Le purgeur d'expiration reste le filet de sécurité.
+       */
+      try {
+        const {
+          error: referencePurgeError,
+        } =
+          await supabaseAdmin.storage
+            .from(STUDIO_BUCKET)
+            .remove([
+              reference.storagePath,
+            ])
+
+        if (referencePurgeError) {
+          throw referencePurgeError
         }
+
+        await db.studioAsset.update({
+          where: {
+            id: reference.id,
+            creationId:
+              creation.id,
+          },
+          data: {
+            deletedAt:
+              new Date().toISOString(),
+          },
+        })
+      } catch (purgeError) {
+        console.error(
+          "[mirava-reference-purge-deferred]",
+          JSON.stringify({
+            creationId:
+              creation.id,
+            referenceAssetId:
+              reference.id,
+            sourceName:
+              providerExceptionName(
+                purgeError,
+              ),
+            sourceMessage:
+              providerExceptionMessage(
+                purgeError,
+              ),
+          }),
+        )
       }
     } else if (job.kind === "GENERATE") {
       const requestedResultCount = getMiravaSeriesSize(creation.creativeOptions)
@@ -3466,7 +3579,81 @@ async function processStudioJob(job: StudioJobRecord): Promise<void> {
     }
     await finishJob(job)
   } catch (error) {
-    await failJob(job, creation, error)
+    /*
+     * processStudioJob charge la création avant d'exécuter le job. Si une
+     * opération située après la transition durable échoue, cet objet initial
+     * est obsolète. Ne jamais utiliser cet ancien état pour remettre une
+     * analyse déjà finalisée en file d'attente.
+     */
+    let failureCreation =
+      creation
+
+    try {
+      const latest =
+        await db.studioCreation
+          .findUnique({
+            where: {
+              id: creation.id,
+            },
+          })
+
+      if (latest) {
+        failureCreation =
+          asCreation(latest)
+      }
+    } catch {
+      // Le traitement d'erreur conserve l'état initial si la relecture échoue.
+    }
+
+    const analysisIsDurable =
+      job.kind === "ANALYZE" &&
+      Boolean(
+        failureCreation.masterPrompt
+          ?.trim(),
+      ) &&
+      (
+        failureCreation.status ===
+          "MASTER_PROMPT_READY" ||
+        isMiravaGenerationAlreadyDurable(
+          failureCreation.status,
+        )
+      )
+
+    if (analysisIsDurable) {
+      console.error(
+        "[mirava-analysis-durable-state-preserved]",
+        JSON.stringify({
+          creationId:
+            failureCreation.id,
+          jobId:
+            job.id,
+          status:
+            failureCreation.status,
+          sourceName:
+            providerExceptionName(
+              error,
+            ),
+          sourceMessage:
+            providerExceptionMessage(
+              error,
+            ),
+        }),
+      )
+
+      try {
+        await finishJob(job)
+      } catch {
+        // Le récupérateur de verrous peut reprendre ce job.
+      }
+
+      return
+    }
+
+    await failJob(
+      job,
+      failureCreation,
+      error,
+    )
   }
 }
 
