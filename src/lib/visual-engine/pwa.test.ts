@@ -33,7 +33,7 @@ describe("MIRAVA PWA privacy policy", () => {
     "refreshes the public shell cache when the branded offline fallback changes",
     () => {
       expect(worker).toContain(
-        'CACHE = "mirava-public-shell-v9"',
+        'CACHE = "mirava-public-shell-v10"',
       )
     },
   )
@@ -51,6 +51,10 @@ describe("MIRAVA PWA privacy policy", () => {
 
       expect(offlinePage).toContain(
         "__html: offlineCriticalCss",
+      )
+
+      expect(offlinePage).toContain(
+        "__html: offlineRecoveryScript",
       )
 
       expect(offlinePage).not.toContain(
@@ -94,7 +98,15 @@ describe("MIRAVA PWA privacy policy", () => {
       )
 
       expect(offlinePage).toContain(
-        "href={returnPath}",
+        'href="/visual-engine/studio"',
+      )
+
+      expect(offlinePage).toContain(
+        "data-mirava-offline-retry",
+      )
+
+      expect(offlinePage).toContain(
+        "const offlineRecoveryScript",
       )
 
       expect(offlinePage).toContain(
@@ -106,7 +118,11 @@ describe("MIRAVA PWA privacy policy", () => {
       )
 
       expect(offlinePage).toContain(
-        "readOfflineReturnPath()",
+        '"mirava-offline-return-path"',
+      )
+
+      expect(offlinePage).not.toContain(
+        "useEffect(",
       )
 
       expect(offlinePage).not.toContain(

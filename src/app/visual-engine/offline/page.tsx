@@ -2,10 +2,6 @@
 
 import Link from "next/link"
 import {
-  useEffect,
-  useState,
-} from "react"
-import {
   ArrowLeft,
   ArrowRight,
   ShieldCheck,
@@ -402,39 +398,88 @@ const offlineCriticalCss = `
   }
 `
 
-const offlineReturnPathKey =
-  "mirava-offline-return-path"
+const offlineRecoveryScript = String.raw`
+(() => {
+  const returnPathKey =
+    "mirava-offline-return-path"
+  const fallbackPath =
+    "/visual-engine/studio"
 
-function readOfflineReturnPath() {
-  if (typeof window === "undefined") {
-    return "/visual-engine/studio"
-  }
-
-  try {
-    const value =
-      window.sessionStorage.getItem(
-        offlineReturnPathKey,
-      )
-
-    if (
-      value &&
-      (
-        value === "/visual-engine" ||
-        value.startsWith(
-          "/visual-engine/",
+  const readReturnPath = () => {
+    try {
+      const value =
+        window.sessionStorage.getItem(
+          returnPathKey,
         )
-      ) &&
-      value !==
-        "/visual-engine/offline"
-    ) {
-      return value
+
+      if (
+        value &&
+        (
+          value === "/visual-engine" ||
+          value.startsWith(
+            "/visual-engine/",
+          )
+        ) &&
+        value !==
+          "/visual-engine/offline"
+      ) {
+        return value
+      }
+    } catch {
+      // Fall back to Studio when session storage is unavailable.
     }
-  } catch {
-    // Fall back to Studio when session storage is unavailable.
+
+    return fallbackPath
   }
 
-  return "/visual-engine/studio"
-}
+  const resumeOnline = () => {
+    if (!navigator.onLine) {
+      return
+    }
+
+    const next =
+      readReturnPath()
+
+    try {
+      window.sessionStorage.removeItem(
+        returnPathKey,
+      )
+    } catch {
+      // Navigation can continue without session storage.
+    }
+
+    window.location.replace(next)
+  }
+
+  window.addEventListener(
+    "online",
+    resumeOnline,
+  )
+
+  const retry =
+    document.querySelector(
+      "[data-mirava-offline-retry]",
+    )
+
+  if (retry) {
+    retry.addEventListener(
+      "click",
+      (event) => {
+        if (!navigator.onLine) {
+          return
+        }
+
+        event.preventDefault()
+        resumeOnline()
+      },
+    )
+  }
+
+  if (navigator.onLine) {
+    resumeOnline()
+  }
+})()
+`
 
 export default function MiravaOfflinePage() {
   const {
@@ -443,52 +488,6 @@ export default function MiravaOfflinePage() {
   } = useMiravaLocale()
 
   const t = copy[locale]
-  const [
-    returnPath,
-    setReturnPath,
-  ] = useState(
-    "/visual-engine/studio",
-  )
-
-  useEffect(() => {
-    const storedReturnPath =
-      readOfflineReturnPath()
-
-    setReturnPath(
-      storedReturnPath,
-    )
-
-    const resumeOnline = () => {
-      const next =
-        readOfflineReturnPath()
-
-      try {
-        window.sessionStorage.removeItem(
-          offlineReturnPathKey,
-        )
-      } catch {
-        // Navigation can continue without session storage.
-      }
-
-      window.location.replace(next)
-    }
-
-    window.addEventListener(
-      "online",
-      resumeOnline,
-    )
-
-    if (navigator.onLine) {
-      resumeOnline()
-    }
-
-    return () => {
-      window.removeEventListener(
-        "online",
-        resumeOnline,
-      )
-    }
-  }, [])
 
   return (
     <main
@@ -498,6 +497,12 @@ export default function MiravaOfflinePage() {
       <style
         dangerouslySetInnerHTML={{
           __html: offlineCriticalCss,
+        }}
+      />
+
+      <script
+        dangerouslySetInnerHTML={{
+          __html: offlineRecoveryScript,
         }}
       />
 
@@ -583,7 +588,8 @@ export default function MiravaOfflinePage() {
 
           <div className="mirava-offline-footer">
             <a
-              href={returnPath}
+              href="/visual-engine/studio"
+              data-mirava-offline-retry
               className="mirava-offline-cta"
             >
               <span>{t.retry}</span>
