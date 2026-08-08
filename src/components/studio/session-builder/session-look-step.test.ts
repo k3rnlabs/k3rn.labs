@@ -120,6 +120,20 @@ describe(
       ).toBe(true)
     })
 
+    it("allows a resumed custom look when the server already persisted an asset", () => {
+      expect(
+        canContinueMiravaSessionLook(
+          {
+            lookMode:
+              "CUSTOM",
+            lookItems: [],
+            persistedCustomLookReady:
+              true,
+          },
+        ),
+      ).toBe(true)
+    })
+
     it("exposes localized navigation copy", () => {
       expect(
         SESSION_LOOK_COPY

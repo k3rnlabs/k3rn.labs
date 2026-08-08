@@ -61,6 +61,8 @@ type SessionLookStepProps = {
     MiravaSessionLookMode
   initialLookItems?:
     MiravaSessionLookClientItem[]
+  persistedLookItemCount?: number
+  persistedCustomLookReady?: boolean
   onLookModeChange:
     (
       mode:
@@ -304,15 +306,23 @@ export const SESSION_LOOK_VIEW_LABELS:
 export function canContinueMiravaSessionLook({
   lookMode,
   lookItems,
+  persistedCustomLookReady = false,
 }: {
   lookMode:
     MiravaSessionLookMode
   lookItems:
     readonly MiravaSessionLookClientItem[]
+  persistedCustomLookReady?: boolean
 }): boolean {
   if (
     lookMode ===
     "REFERENCE"
+  ) {
+    return true
+  }
+
+  if (
+    persistedCustomLookReady
   ) {
     return true
   }
@@ -468,6 +478,8 @@ export function SessionLookStep({
   sessionId,
   lookMode,
   initialLookItems = [],
+  persistedLookItemCount = 0,
+  persistedCustomLookReady = false,
   onLookModeChange,
   onSessionChange,
   onBack,
@@ -837,16 +849,23 @@ export function SessionLookStep({
       }
     }
 
+  const effectiveLookItemCount =
+    Math.max(
+      persistedLookItemCount,
+      lookItems.length,
+    )
+
   const canContinue =
     canContinueMiravaSessionLook(
       {
         lookMode,
         lookItems,
+        persistedCustomLookReady,
       },
     )
 
   const itemLimitReached =
-    lookItems.length >=
+    effectiveLookItemCount >=
     MIRAVA_SESSION_LOOK_MAX_ITEMS
 
   return (
@@ -1377,7 +1396,7 @@ export function SessionLookStep({
 
                 <div className="pt-2 text-right font-jakarta text-[10px] tabular-nums text-white/30">
                   {
-                    lookItems.length
+                    effectiveLookItemCount
                   }
                   {" / "}
                   {

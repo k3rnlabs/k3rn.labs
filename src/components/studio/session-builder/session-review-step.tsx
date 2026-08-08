@@ -49,6 +49,7 @@ type SessionReviewStepProps = {
   configurationReady: boolean
   lookItems?:
     readonly MiravaSessionLookClientItem[]
+  lookItemCount?: number
   creditCost: number
   availableCredits?:
     | number
@@ -326,6 +327,7 @@ export function SessionReviewStep({
   config,
   configurationReady,
   lookItems = [],
+  lookItemCount = 0,
   creditCost,
   availableCredits = null,
   onBack,
@@ -366,7 +368,10 @@ export function SessionReviewStep({
     )
 
   const customItemCount =
-    lookItems.length
+    Math.max(
+      lookItemCount,
+      lookItems.length,
+    )
 
   const lookTitle =
     callSheet.lookMode ===
