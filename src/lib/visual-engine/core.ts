@@ -2568,6 +2568,7 @@ export async function launchMiravaSessionShoot(args: {
     where: { id: args.sessionId, userId: args.userId },
     include: {
       identityProfile: { include: { assets: { select: { id: true } } } },
+      referenceCreation: { select: { id: true, userId: true, masterPrompt: true, assets: { where: { kind: "REFERENCE", deletedAt: null }, select: { id: true } } } },
       lookItems: { include: { assets: { select: { viewKey: true } } }, orderBy: { position: "asc" } },
       creations: { select: { id: true, shotIndex: true }, orderBy: { shotIndex: "asc" } },
     },
@@ -2596,11 +2597,8 @@ export async function launchMiravaSessionShoot(args: {
   if (config.data.lookMode === "CUSTOM" && !session.lookItems.some((item) => item.assets.length > 0)) {
     throw new StudioError("Ajoutez au moins un article avec une image privée à votre look.", "INVALID_STATE")
   }
-  // A Builder draft currently has no durable artistic-reference relation. Do
-  // not silently fall back to an arbitrary old reference: that would violate
-  // the locked look contract.
-  if (config.data.lookMode === "REFERENCE") {
-    throw new StudioError("Choisissez un look personnalisé : cette séance ne possède pas encore de référence artistique enregistrée.", "REFERENCE_REQUIRED")
+  if (config.data.lookMode === "REFERENCE" && (!session.referenceCreation || session.referenceCreation.userId !== args.userId || !session.referenceCreation.assets.length)) {
+    throw new StudioError("Une référence artistique enregistrée est requise pour ce look.", "REFERENCE_REQUIRED")
   }
 
   if (session.creations.length > 0) {
@@ -2618,7 +2616,12 @@ export async function launchMiravaSessionShoot(args: {
     viewKeys: item.assets.map((asset) => asset.viewKey ?? "UNKNOWN"),
   }))
   const shots = Array.from({ length: MIRAVA_SESSION_SHOT_COUNT }, (_, shotIndex) => {
-    const context = buildMiravaSessionShotGenerationContext({ config: config.data, shotIndex, lookItems })
+    const context = buildMiravaSessionShotGenerationContext({
+      config: config.data,
+      shotIndex,
+      lookItems,
+      artisticReferenceDirection: config.data.lookMode === "REFERENCE" ? session.referenceCreation?.masterPrompt : null,
+    })
     return {
       shotIndex,
       shotIntent: context.shot.shotIntent,

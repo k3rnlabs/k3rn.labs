@@ -43,6 +43,7 @@ export function buildMiravaSessionShotGenerationContext(args: {
   config: MiravaSessionBuilderReady
   shotIndex: number
   lookItems: readonly MiravaSessionLookPromptItem[]
+  artisticReferenceDirection?: string | null
 }): MiravaSessionShotGenerationContext {
   const direction = resolveMiravaSessionDirection(args.config)
   const shot = createMiravaSessionShotPlan(direction)[args.shotIndex]
@@ -51,7 +52,11 @@ export function buildMiravaSessionShotGenerationContext(args: {
 
   const wardrobe = direction.lookMode === "CUSTOM"
     ? customLookPrompt(args.lookItems)
-    : "ARTISTIC REFERENCE LOCK — Preserve the approved artistic reference wardrobe and photographic character."
+    : [
+        "ARTISTIC REFERENCE LOCK — Preserve only the approved reference wardrobe and photographic character.",
+        args.artisticReferenceDirection?.trim() ?? "",
+        "IDENTITY SEPARATION — The artistic reference is never an identity authority. Do not transfer its face, facial anatomy, body identity, skin identity or distinguishing physical characteristics. Identity comes exclusively from the consenting Identity Profile images.",
+      ].filter(Boolean).join(" ")
 
   const masterPrompt = [
     "MIRAVA SESSION BUILDER V1 — Generate one coherent editorial studio photograph of the same adult identity.",

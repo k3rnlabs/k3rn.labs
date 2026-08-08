@@ -274,12 +274,34 @@ export async function createMiravaSessionBuilderDraft(
   const config =
     createDefaultMiravaSessionBuilderDraft()
 
+  // A reference-mode session may only reuse an owned, already-persisted
+  // artistic reference. This is an identifier, never a client URL or a
+  // private storage path.
+  const referenceCreation =
+    await db.studioCreation.findFirst({
+      where: {
+        userId,
+        status: "DRAFT",
+        assets: {
+          some: {
+            kind: "REFERENCE",
+            deletedAt: null,
+          },
+        },
+      },
+      select: { id: true },
+      orderBy: { createdAt: "desc" },
+    })
+
   const row =
     await db.studioSession.create({
       data: {
         userId,
         identityProfileId:
           identityProfile?.id ??
+          null,
+        referenceCreationId:
+          referenceCreation?.id ??
           null,
         builderVersion:
           MIRAVA_SESSION_BUILDER_VERSION,

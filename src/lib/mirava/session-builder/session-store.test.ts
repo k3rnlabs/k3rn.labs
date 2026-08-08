@@ -9,6 +9,8 @@ import {
 const mocks = vi.hoisted(() => ({
   findIdentity:
     vi.fn(),
+  findReferenceCreation:
+    vi.fn(),
   createSession:
     vi.fn(),
   listSessions:
@@ -24,6 +26,9 @@ vi.mock("@/lib/db", () => ({
     studioIdentityProfile: {
       findUnique:
         mocks.findIdentity,
+    },
+    studioCreation: {
+      findFirst: mocks.findReferenceCreation,
     },
     studioSession: {
       create:
@@ -80,6 +85,7 @@ describe(
         .mockResolvedValue({
           id: "identity-1",
         })
+      mocks.findReferenceCreation.mockResolvedValue(null)
 
       mocks.createSession
         .mockResolvedValue(
@@ -99,6 +105,7 @@ describe(
             "user-1",
           identityProfileId:
             "identity-1",
+          referenceCreationId: null,
           builderVersion: 1,
           setPresetId: null,
           lightingPresetId:

@@ -16,4 +16,16 @@ describe("buildMiravaSessionShotGenerationContext", () => {
     expect(context.masterPrompt).toContain("Robe noire")
     expect(context.negativePrompt).toContain("no wardrobe change")
   })
+
+  it("keeps a reference look out of the identity authority", () => {
+    const context = buildMiravaSessionShotGenerationContext({
+      config: { version: 1, mode: "CUSTOM_SHOOT", setPresetId: "black-cyclorama-v1", lightingPresetId: "dramatic-v1", shotCount: 6, lookMode: "REFERENCE" },
+      shotIndex: 0,
+      lookItems: [],
+      artisticReferenceDirection: "Reference wardrobe: tailored ivory suit; photographic character: polished editorial flash.",
+    })
+    expect(context.masterPrompt).toContain("tailored ivory suit")
+    expect(context.masterPrompt).toContain("never an identity authority")
+    expect(context.masterPrompt).toContain("Do not transfer its face")
+  })
 })
