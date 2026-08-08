@@ -2528,7 +2528,9 @@ export async function getMiravaSessionShootStatus(args: { userId: string; sessio
     db.user.findUnique({ where: { id: args.userId }, select: { studioCredits: true } }),
   ])
   if (!session) throw new StudioError("Séance MIRAVA introuvable.", "NOT_FOUND")
-  const shots = await Promise.all(session.creations.map(async (creation) => {
+  // Continuation creations share the session for lineage, but are never extra
+  // Builder slots. The primary gallery is strictly the canonical 0..5 plan.
+  const shots = await Promise.all(session.creations.filter((creation) => creation.shotIndex >= 0 && creation.shotIndex < MIRAVA_SESSION_SHOT_COUNT).map(async (creation) => {
     const results = await getStudioAssets(creation.id, "RESULT")
     const publicCreation = studioCreationPublic(asCreation(creation))
     return {
