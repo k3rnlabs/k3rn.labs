@@ -51,11 +51,11 @@ describe(
       )
     })
 
-    it("keeps shoot launch disabled until the generation endpoint lands", () => {
+    it("opens the dedicated six-slot darkroom after launch", () => {
       expect(
         source,
       ).toContain(
-        "launchEnabled={false}",
+        "<SessionGallery sessionId={sessionShootId}",
       )
 
       expect(
