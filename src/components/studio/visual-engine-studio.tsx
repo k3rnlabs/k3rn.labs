@@ -2639,6 +2639,25 @@ export function VisualEngineStudio() {
     openStudioHome()
   }
 
+  const launchSessionBuilderShoot =
+    async (
+      builderSession: MiravaSessionBuilderClientSession,
+    ) => {
+      const launch = await api<{
+        creationIds: string[]
+      }>(
+        `/api/visual-engine/sessions/${encodeURIComponent(builderSession.id)}/shoot`,
+        { method: "POST" },
+      )
+
+      if (!launch.creationIds.length) {
+        throw new Error("MIRAVA_SESSION_LAUNCH_EMPTY")
+      }
+
+      setSessionBuilderSession(null)
+      await refresh(launch.creationIds[0])
+    }
+
   const isCreateFlow =
     view === "create" &&
     !current &&
@@ -2859,8 +2878,7 @@ export function VisualEngineStudio() {
               availableCredits={
                 creditBalance
               }
-              launchEnabled={false}
-              onStart={() => {}}
+              onStart={launchSessionBuilderShoot}
             />
           ) : !current ? (
             <StartView

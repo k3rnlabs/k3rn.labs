@@ -72,6 +72,9 @@ import {
   isMiravaKieImageProviderEnabled,
 } from "@/lib/mirava/server-config"
 import type { VisualDirectionBlueprint } from "@/lib/mirava/schemas/visual-direction-blueprint.schema"
+import { MIRAVA_SESSION_BUILDER_VERSION, MIRAVA_SESSION_SHOT_COUNT, miravaSessionBuilderReadySchema } from "@/lib/mirava/session-builder/schema"
+import { buildMiravaSessionShotGenerationContext } from "@/lib/mirava/session-builder/shot-generation-context"
+import { requireMiravaRequiredConsents } from "@/lib/visual-engine/privacy"
 
 export const STUDIO_BUCKET = process.env.SUPABASE_STORAGE_VISUAL_ENGINE_BUCKET ?? "visual-engine-private"
 export const STUDIO_CONSENT_VERSION = "2026-07-29"
@@ -2489,6 +2492,105 @@ export async function queueStudioGeneration(args: { userId: string; creationId: 
 
   await db.studioCreation.update({ where: { id: args.creationId, userId: args.userId }, data: { status: "GENERATION_QUEUED", failureCode: null, failureMessage: null } })
   await db.studioJob.create({ data: { id: randomUUID(), creationId: args.creationId, kind: "GENERATE", status: "PENDING" } })
+}
+
+export type MiravaSessionShootLaunch = Readonly<{
+  sessionId: string
+  creationIds: readonly string[]
+  alreadyLaunched: boolean
+}>
+
+/**
+ * Validates the persisted Builder configuration, then delegates the durable
+ * launch to one DB transaction. Nothing client-authored enters this function.
+ */
+export async function launchMiravaSessionShoot(args: {
+  userId: string
+  sessionId: string
+}): Promise<MiravaSessionShootLaunch> {
+  await requireMiravaRequiredConsents(args.userId)
+
+  const session = await db.studioSession.findFirst({
+    where: { id: args.sessionId, userId: args.userId },
+    include: {
+      identityProfile: { include: { assets: { select: { id: true } } } },
+      lookItems: { include: { assets: { select: { viewKey: true } } }, orderBy: { position: "asc" } },
+      creations: { select: { id: true, shotIndex: true }, orderBy: { shotIndex: "asc" } },
+    },
+  })
+
+  if (!session) throw new StudioError("Séance MIRAVA introuvable.", "NOT_FOUND")
+  if (session.builderVersion !== MIRAVA_SESSION_BUILDER_VERSION) {
+    throw new StudioError("Cette séance MIRAVA utilise une version non prise en charge.", "INVALID_STATE")
+  }
+
+  const metadata = session.builderConfig && typeof session.builderConfig === "object" && !Array.isArray(session.builderConfig)
+    ? session.builderConfig as Record<string, unknown>
+    : {}
+  const config = miravaSessionBuilderReadySchema.safeParse({
+    version: session.builderVersion,
+    mode: metadata.mode,
+    setPresetId: session.setPresetId,
+    lightingPresetId: session.lightingPresetId,
+    shotCount: metadata.shotCount,
+    lookMode: metadata.lookMode,
+  })
+  if (!config.success) throw new StudioError("La configuration de cette séance est incomplète ou invalide.", "INVALID_STATE")
+  if (!session.identityProfile || session.identityProfile.assets.length < MIN_IDENTITY_ASSETS) {
+    throw new StudioError("Un Profil identité utilisable est requis avant le lancement.", "IDENTITY_REQUIRED")
+  }
+  if (config.data.lookMode === "CUSTOM" && !session.lookItems.some((item) => item.assets.length > 0)) {
+    throw new StudioError("Ajoutez au moins un article avec une image privée à votre look.", "INVALID_STATE")
+  }
+  // A Builder draft currently has no durable artistic-reference relation. Do
+  // not silently fall back to an arbitrary old reference: that would violate
+  // the locked look contract.
+  if (config.data.lookMode === "REFERENCE") {
+    throw new StudioError("Choisissez un look personnalisé : cette séance ne possède pas encore de référence artistique enregistrée.", "REFERENCE_REQUIRED")
+  }
+
+  if (session.creations.length > 0) {
+    if (session.creations.length !== MIRAVA_SESSION_SHOT_COUNT) {
+      throw new StudioError("Cette séance possède un lancement incomplet et ne peut pas être relancée automatiquement.", "INVALID_STATE")
+    }
+    return { sessionId: session.id, creationIds: session.creations.map((creation) => creation.id), alreadyLaunched: true }
+  }
+
+  const lookItems = session.lookItems.map((item) => ({
+    category: item.category,
+    label: item.label,
+    brand: item.brand,
+    description: item.description,
+    viewKeys: item.assets.map((asset) => asset.viewKey ?? "UNKNOWN"),
+  }))
+  const shots = Array.from({ length: MIRAVA_SESSION_SHOT_COUNT }, (_, shotIndex) => {
+    const context = buildMiravaSessionShotGenerationContext({ config: config.data, shotIndex, lookItems })
+    return {
+      shotIndex,
+      shotIntent: context.shot.shotIntent,
+      masterPrompt: context.masterPrompt,
+      negativePrompt: context.negativePrompt,
+    }
+  })
+
+  const { data, error } = await supabaseAdmin.rpc("launch_mirava_session_shoot", {
+    p_user_id: args.userId,
+    p_session_id: session.id,
+    p_shots: shots,
+  })
+  if (error) {
+    if (error.message.includes("INSUFFICIENT_STUDIO_CREDITS")) throw new StudioError("Vous n’avez pas assez de crédits pour cette séance de six photos.", "INSUFFICIENT_CREDITS")
+    if (error.message.includes("MIRAVA_SESSION_PARTIAL_RUN")) throw new StudioError("Cette séance possède un lancement incomplet et ne peut pas être relancée automatiquement.", "INVALID_STATE")
+    throw new StudioError("Impossible de lancer cette séance MIRAVA.", "CREDIT_ERROR")
+  }
+  const rows = Array.isArray(data) ? data as Array<{ creationId?: unknown; shotIndex?: unknown }> : []
+  const creationIds = rows
+    .filter((row) => typeof row.creationId === "string" && Number.isInteger(row.shotIndex))
+    .sort((a, b) => Number(a.shotIndex) - Number(b.shotIndex))
+    .map((row) => row.creationId as string)
+  if (creationIds.length !== MIRAVA_SESSION_SHOT_COUNT) throw new StudioError("Le lancement de la séance n’a pas produit les six prises attendues.", "CREDIT_ERROR")
+
+  return { sessionId: session.id, creationIds, alreadyLaunched: false }
 }
 
 async function getIdentityAssetsForCreation(creation: StudioCreationRecord): Promise<Array<StudioAssetRecord | StudioIdentityAssetRecord>> {
