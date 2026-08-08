@@ -54,6 +54,7 @@ type SessionReviewStepProps = {
   availableCredits?:
     | number
     | null
+  launchEnabled?: boolean
   onBack: () => void
   onStart: () => void
   startBusy?: boolean
@@ -97,6 +98,8 @@ export const SESSION_REVIEW_COPY = {
       "Crédits insuffisants pour lancer cette séance.",
     incomplete:
       "La configuration doit être complète avant le lancement.",
+    unavailable:
+      "Votre séance est configurée. Le lancement des 6 prises de vue sera activé avec le moteur de séance.",
     ready:
       "Prêt à photographier",
     back:
@@ -145,6 +148,8 @@ export const SESSION_REVIEW_COPY = {
       "Créditos insuficientes para iniciar esta sesión.",
     incomplete:
       "La configuración debe estar completa antes de iniciar.",
+    unavailable:
+      "Tu sesión está configurada. El lanzamiento de las 6 tomas se activará con el motor de sesión.",
     ready:
       "Listo para fotografiar",
     back:
@@ -244,6 +249,7 @@ export function canStartMiravaSessionReview({
   configurationReady,
   creditCost,
   availableCredits,
+  launchEnabled = true,
   startBusy = false,
 }: {
   configurationReady: boolean
@@ -251,9 +257,11 @@ export function canStartMiravaSessionReview({
   availableCredits?:
     | number
     | null
+  launchEnabled?: boolean
   startBusy?: boolean
 }): boolean {
   if (
+    !launchEnabled ||
     !configurationReady ||
     startBusy ||
     !Number.isFinite(
@@ -330,6 +338,7 @@ export function SessionReviewStep({
   lookItemCount = 0,
   creditCost,
   availableCredits = null,
+  launchEnabled = true,
   onBack,
   onStart,
   startBusy = false,
@@ -363,6 +372,7 @@ export function SessionReviewStep({
         configurationReady,
         creditCost,
         availableCredits,
+        launchEnabled,
         startBusy,
       },
     )
@@ -665,6 +675,12 @@ export function SessionReviewStep({
                   <div className="mt-5 rounded-2xl border border-red-300/15 bg-red-300/[0.045] px-4 py-3 font-jakarta text-[11px] leading-5 text-red-100/70">
                     {
                       copy.insufficient
+                    }
+                  </div>
+                ) : !launchEnabled ? (
+                  <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3 font-jakarta text-[11px] leading-5 text-white/50">
+                    {
+                      copy.unavailable
                     }
                   </div>
                 ) : null}

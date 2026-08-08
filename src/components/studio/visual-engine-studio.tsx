@@ -56,11 +56,19 @@ import {
   type PhotoSlotId,
 } from "@/components/studio/mirava-identity-capture"
 import { MiravaStudioOnboarding } from "@/components/studio/mirava-studio-onboarding"
+import { SessionBuilderFlow } from "@/components/studio/session-builder/session-builder-flow"
 import { BottomNavBar, type BottomNavItem } from "@/components/ui/bottom-nav-bar"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Header } from "@/components/ui/header-2"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import type { MiravaCreativeOptions } from "@/lib/mirava/creative-options"
+import {
+  createMiravaSessionBuilderClientSession,
+  type MiravaSessionBuilderClientSession,
+} from "@/lib/mirava/session-builder/session-builder.client"
+import {
+  MIRAVA_SESSION_SHOT_COUNT,
+} from "@/lib/mirava/session-builder/schema"
 import {
   isMiravaOnboardingCompleted,
   type MiravaOnboardingSessionType,
@@ -1201,6 +1209,17 @@ export function VisualEngineStudio() {
   const { locale, setLocale, isReady: isLocaleReady } = useMiravaLocale()
   const t = copy[locale]
   const [view, setView] = useState<View>("create")
+  const [
+    sessionBuilderSession,
+    setSessionBuilderSession,
+  ] = useState<
+    MiravaSessionBuilderClientSession
+    | null
+  >(null)
+  const [
+    sessionBuilderBusy,
+    setSessionBuilderBusy,
+  ] = useState(false)
   const [createStep, setCreateStepValue] = useState(0)
   const [furthestCreateStep, setFurthestCreateStep] = useState(0)
   const [current, setCurrent] = useState<Detail | null>(null)
@@ -2531,7 +2550,62 @@ export function VisualEngineStudio() {
     { id: "library", label: t.library, icon: <Images /> },
     { id: "account", label: t.account, icon: <CircleUserRound /> },
   ]
+  const startSessionBuilder =
+    async () => {
+      if (sessionBuilderBusy) {
+        return
+      }
+
+      if (
+        !isMiravaIdentityProfileReady(
+          identityProfile,
+        )
+      ) {
+        showNotice(
+          locale === "fr"
+            ? "Préparez votre Profil identité avant de construire une séance."
+            : "Prepara tu Perfil de identidad antes de construir una sesión.",
+        )
+
+        openCapture(
+          identityProfile
+            ? "manage"
+            : "onboarding",
+        )
+
+        return
+      }
+
+      setSessionBuilderBusy(true)
+      setError(null)
+      clearNotice()
+
+      try {
+        const nextSession =
+          await createMiravaSessionBuilderClientSession()
+
+        setSessionBuilderSession(
+          nextSession,
+        )
+        setCurrent(null)
+        setPortfolioCurrent(null)
+        setDirectorOpen(false)
+        selectView("create")
+      } catch (reason) {
+        setError(
+          reason instanceof Error
+            ? reason.message
+            : locale === "fr"
+              ? "Impossible de préparer cette séance MIRAVA."
+              : "No se pudo preparar esta sesión de MIRAVA.",
+        )
+      } finally {
+        setSessionBuilderBusy(false)
+      }
+    }
+
   const openStudioHome = () => {
+    setSessionBuilderSession(null)
     setDirectorOpen(false)
     setPortfolioCurrent(null)
     setCurrent(null)
@@ -2568,6 +2642,7 @@ export function VisualEngineStudio() {
   const isCreateFlow =
     view === "create" &&
     !current &&
+    !sessionBuilderSession &&
     !directorOpen
 
   const creditsRequired =
@@ -2700,7 +2775,7 @@ export function VisualEngineStudio() {
             <button aria-label={locale === "fr" ? "Passer en espagnol" : "Cambiar al francés"} onClick={() => setLocale(locale === "fr" ? "es" : "fr")} className="mirava-button mirava-button-secondary min-w-12 px-3 text-xs">{locale.toUpperCase()}</button>
           </div>
         }
-        steps={view === "create" && !current ? studioStageCopy[locale].map(({ label }) => ({ label })) : undefined}
+        steps={view === "create" && !current && !sessionBuilderSession ? studioStageCopy[locale].map(({ label }) => ({ label })) : undefined}
         activeStep={createStep}
         furthestStep={furthestCreateStep}
         onStepChange={setCreateStep}
@@ -2758,6 +2833,7 @@ export function VisualEngineStudio() {
         {displayedNotice && <div role="status" aria-live="polite" aria-atomic="true" className="mirava-notice mb-6 p-4 text-sm shadow-lg">{displayedNotice}</div>}
         {view === "create" &&
           !current &&
+          !sessionBuilderSession &&
           createStep === 0 &&
           studios.length > 0 && (
             <StudioResumeRail
@@ -2767,13 +2843,77 @@ export function VisualEngineStudio() {
             />
           )}
 
-        {view === "create" && (!current
-          ? <StartView locale={locale} t={t} firstName={miravaFirstName} step={createStep} selectedUniverseId={selectedUniverseId} setSelectedUniverseId={setSelectedUniverseId} options={options} setOptions={setOptions} identityProfile={identityProfile} availableCredits={creditBalance} pending={pending} entryIntent={entryIntent} onCreate={requestCreate} onDirector={() => openDirector()} onOpenAccount={() =>
-            openCreditOffers(
-              options.seriesSize ?? 1,
-            )
-          } onOpenCapture={() => openCapture(identityProfile ? "manage" : "onboarding")} />
-          : <CreationView locale={locale} t={t} current={current} identityProfile={identityProfile} pending={pending} onUploadReference={uploadReference} onAnalyze={analyze} onOpenCapture={() => openCapture(identityProfile ? "manage" : "onboarding")} onGenerate={generate} onDelete={removeCreation} onStartCreate={startFreshCreation} onOpenCredits={() => openCreditOffers(1)} onContinueSession={(creationId, intents, customInstruction, sourceResultIndex) => void continueSession(creationId, intents, customInstruction, sourceResultIndex)} onCreateFromStudio={(studioId) => void reuse(studioId)} onUnlock={(creationId) => void checkoutDiscovery(creationId)} />)}
+        {view === "create" && (
+          sessionBuilderSession ? (
+            <SessionBuilderFlow
+              locale={locale}
+              sessionId={
+                sessionBuilderSession.id
+              }
+              initialSession={
+                sessionBuilderSession
+              }
+              creditCost={
+                MIRAVA_SESSION_SHOT_COUNT
+              }
+              availableCredits={
+                creditBalance
+              }
+              launchEnabled={false}
+              onStart={() => {}}
+            />
+          ) : !current ? (
+            <StartView
+              locale={locale}
+              t={t}
+              firstName={miravaFirstName}
+              step={createStep}
+              selectedUniverseId={
+                selectedUniverseId
+              }
+              setSelectedUniverseId={
+                setSelectedUniverseId
+              }
+              options={options}
+              setOptions={setOptions}
+              identityProfile={
+                identityProfile
+              }
+              availableCredits={
+                creditBalance
+              }
+              pending={pending}
+              entryIntent={
+                entryIntent
+              }
+              sessionBuilderBusy={
+                sessionBuilderBusy
+              }
+              onBuildSession={() =>
+                void startSessionBuilder()
+              }
+              onCreate={requestCreate}
+              onDirector={() =>
+                openDirector()
+              }
+              onOpenAccount={() =>
+                openCreditOffers(
+                  options.seriesSize ??
+                    1,
+                )
+              }
+              onOpenCapture={() =>
+                openCapture(
+                  identityProfile
+                    ? "manage"
+                    : "onboarding",
+                )
+              }
+            />
+          ) : (
+            <CreationView locale={locale} t={t} current={current} identityProfile={identityProfile} pending={pending} onUploadReference={uploadReference} onAnalyze={analyze} onOpenCapture={() => openCapture(identityProfile ? "manage" : "onboarding")} onGenerate={generate} onDelete={removeCreation} onStartCreate={startFreshCreation} onOpenCredits={() => openCreditOffers(1)} onContinueSession={(creationId, intents, customInstruction, sourceResultIndex) => void continueSession(creationId, intents, customInstruction, sourceResultIndex)} onCreateFromStudio={(studioId) => void reuse(studioId)} onUnlock={(creationId) => void checkoutDiscovery(creationId)} />
+          )
+        )}
         {view === "universes" && <UniversesView locale={locale} t={t} selectedUniverseId={selectedUniverseId} setSelectedUniverseId={setSelectedUniverseId} onChoose={(brief) => { setOptions((value) => ({ ...(value.seriesSize ? { seriesSize: value.seriesSize } : {}), ...(value.seriesSize && value.seriesSize > 1 && value.seriesStrategy ? { seriesStrategy: value.seriesStrategy } : {}), ...(brief ? { note: brief } : {}) })); setCreateStep(1); selectView("create") }} />}
         {view === "library" && (
           portfolioCurrent ? (
@@ -3033,6 +3173,8 @@ function StartView({
   onDirector,
   onOpenAccount,
   onOpenCapture,
+  onBuildSession,
+  sessionBuilderBusy,
 }: {
   locale: Locale
   t: Copy
@@ -3050,6 +3192,8 @@ function StartView({
   onDirector: () => void
   onOpenAccount: () => void
   onOpenCapture: () => void
+  onBuildSession: () => void
+  sessionBuilderBusy: boolean
 }) {
   const [referenceFile, setReferenceFile] = useState<File | null>(null)
   const [referencePreview, setReferencePreview] = useState<string | null>(null)
@@ -3140,6 +3284,44 @@ function StartView({
 
       {step === 0 && (
         <div>
+          {entryIntent !== "reference" && !referenceFile ? (
+            <button
+              type="button"
+              data-mirava-session-builder-entry
+              onClick={
+                onBuildSession
+              }
+              disabled={
+                sessionBuilderBusy
+              }
+              className="mirava-dark-panel mb-5 flex min-h-[9rem] w-full items-end justify-between gap-5 overflow-hidden p-5 text-left transition hover:-translate-y-0.5 disabled:pointer-events-none disabled:opacity-55 sm:p-6"
+            >
+              <span className="min-w-0">
+                <span className="mirava-label block">
+                  MIRAVA / SESSION BUILDER
+                </span>
+                <span className="mt-3 block font-jakarta text-2xl font-semibold tracking-[-.045em] text-white sm:text-3xl">
+                  {locale === "fr"
+                    ? "Construire une séance"
+                    : "Construir una sesión"}
+                </span>
+                <span className="mt-2 block max-w-xl text-xs leading-5 text-white/55">
+                  {locale === "fr"
+                    ? "Choisissez le studio, la lumière et le look. MIRAVA prépare un plan cohérent de 6 photos."
+                    : "Elige el estudio, la luz y el look. MIRAVA prepara un plan coherente de 6 fotos."}
+                </span>
+              </span>
+
+              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-white/15 bg-white/[0.06] text-white">
+                {sessionBuilderBusy ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Camera className="h-4 w-4" />
+                )}
+              </span>
+            </button>
+          ) : null}
+
           {entryIntent === "reference" && !referenceFile && <div className="mirava-notice mb-4 border border-mirava-accent/40 p-4 text-sm" role="status">{locale === "fr" ? "Votre studio commence avec votre photo d’inspiration. Ajoutez-la ici, puis MIRAVA vous guidera pour la suite." : "Tu estudio empieza con tu foto de inspiración. Añádela aquí y MIRAVA te guiará después."}</div>}
           {entryIntent === "reference" && <ReferenceUpload locale={locale} referenceFile={referenceFile} onChoose={chooseReference} />}
           {!referenceFile && entryIntent !== "reference" && <div ref={universeRowRef} className="mirava-scroll-row -mx-4 flex gap-3 overflow-x-auto px-4 pb-4 sm:mx-0 sm:grid sm:grid-cols-3 sm:px-0 lg:grid-cols-4">

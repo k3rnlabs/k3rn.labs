@@ -62,6 +62,7 @@ type SessionBuilderFlowProps = {
   availableCredits?:
     | number
     | null
+  launchEnabled?: boolean
   setPreviewImages?:
     Partial<
       Record<
@@ -151,6 +152,7 @@ export function SessionBuilderFlow({
   initialSession,
   creditCost,
   availableCredits = null,
+  launchEnabled = true,
   setPreviewImages,
   lightingPreviewImages,
   onStart,
@@ -650,6 +652,9 @@ export function SessionBuilderFlow({
           }
           availableCredits={
             availableCredits
+          }
+          launchEnabled={
+            launchEnabled
           }
           onBack={() =>
             setStep(

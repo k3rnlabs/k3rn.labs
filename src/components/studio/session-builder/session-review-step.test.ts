@@ -173,6 +173,23 @@ describe(
       ).toBe(false)
     })
 
+    it("blocks launch while the shoot engine is intentionally unavailable", () => {
+      expect(
+        canStartMiravaSessionReview(
+          {
+            configurationReady:
+              true,
+            creditCost:
+              6,
+            availableCredits:
+              20,
+            launchEnabled:
+              false,
+          },
+        ),
+      ).toBe(false)
+    })
+
     it("does not invent a credit requirement when balance is not provided", () => {
       expect(
         canStartMiravaSessionReview(
