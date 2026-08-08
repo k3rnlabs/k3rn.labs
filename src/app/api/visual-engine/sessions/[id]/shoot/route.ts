@@ -1,14 +1,27 @@
 import { verifySession } from "@/lib/auth"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { miravaApiError as apiError, miravaApiSuccess as apiSuccess } from "@/lib/visual-engine/http"
-import { launchMiravaSessionShoot, studioErrorResponse } from "@/lib/visual-engine/core"
+import { getMiravaSessionShootStatus, launchMiravaSessionShoot, studioErrorResponse } from "@/lib/visual-engine/core"
 import { scheduleMiravaStudioWork } from "@/lib/visual-engine/vercel-worker"
 import { recordMiravaAudit } from "@/lib/visual-engine/audit"
 
 export const runtime = "nodejs"
 export const maxDuration = 300
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+type Context = { params: { id: string } }
+
+export async function GET(_request: Request, { params }: Context) {
+  const auth = await verifySession()
+  if (!auth) return apiError("Unauthorized", 401)
+  try {
+    return apiSuccess({ session: await getMiravaSessionShootStatus({ userId: auth.userId, sessionId: params.id }) })
+  } catch (error) {
+    const mapped = studioErrorResponse(error)
+    return apiError(mapped.message, mapped.status)
+  }
+}
+
+export async function POST(request: Request, { params }: Context) {
   const auth = await verifySession()
   if (!auth) return apiError("Unauthorized", 401)
   const limit = await checkRateLimit("studioGeneration", `${auth.userId}:${request.headers.get("x-forwarded-for") ?? "local"}`)

@@ -2500,6 +2500,58 @@ export type MiravaSessionShootLaunch = Readonly<{
   alreadyLaunched: boolean
 }>
 
+export type MiravaSessionShootStatus = Readonly<{
+  sessionId: string
+  shotCount: number
+  completedCount: number
+  failedCount: number
+  activeCount: number
+  status: "QUEUED" | "GENERATING" | "PARTIAL" | "COMPLETED" | "FAILED"
+  studioCredits: number
+  shots: ReadonlyArray<{
+    creationId: string
+    shotIndex: number
+    shotIntent: string | null
+    status: StudioPublicStatus
+    resultUrl: string | null
+    failureKind: StudioPublicFailureKind
+    failureMessage: string | null
+  }>
+}>
+
+export async function getMiravaSessionShootStatus(args: { userId: string; sessionId: string }): Promise<MiravaSessionShootStatus> {
+  const [session, user] = await Promise.all([
+    db.studioSession.findFirst({
+      where: { id: args.sessionId, userId: args.userId },
+      include: { creations: { orderBy: { shotIndex: "asc" } } },
+    }),
+    db.user.findUnique({ where: { id: args.userId }, select: { studioCredits: true } }),
+  ])
+  if (!session) throw new StudioError("Séance MIRAVA introuvable.", "NOT_FOUND")
+  const shots = await Promise.all(session.creations.map(async (creation) => {
+    const results = await getStudioAssets(creation.id, "RESULT")
+    const publicCreation = studioCreationPublic(asCreation(creation))
+    return {
+      creationId: creation.id,
+      shotIndex: creation.shotIndex,
+      shotIntent: creation.shotIntent,
+      status: publicCreation.status,
+      resultUrl: results.length ? `/api/visual-engine/creations/${creation.id}/result?index=0` : null,
+      failureKind: publicCreation.failureKind,
+      failureMessage: publicCreation.failureMessage,
+    }
+  }))
+  const completedCount = shots.filter((shot) => shot.status === "COMPLETED").length
+  const failedCount = shots.filter((shot) => shot.status === "FAILED" || shot.status === "CANCELLED").length
+  const activeCount = shots.filter((shot) => shot.status === "GENERATION_QUEUED" || shot.status === "GENERATING").length
+  const status = completedCount === MIRAVA_SESSION_SHOT_COUNT ? "COMPLETED"
+    : activeCount > 0 && completedCount > 0 ? "PARTIAL"
+    : activeCount > 0 ? "GENERATING"
+    : failedCount === MIRAVA_SESSION_SHOT_COUNT ? "FAILED"
+    : "QUEUED"
+  return { sessionId: session.id, shotCount: MIRAVA_SESSION_SHOT_COUNT, completedCount, failedCount, activeCount, status, studioCredits: user?.studioCredits ?? 0, shots }
+}
+
 /**
  * Validates the persisted Builder configuration, then delegates the durable
  * launch to one DB transaction. Nothing client-authored enters this function.

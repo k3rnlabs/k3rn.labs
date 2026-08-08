@@ -57,6 +57,7 @@ import {
 } from "@/components/studio/mirava-identity-capture"
 import { MiravaStudioOnboarding } from "@/components/studio/mirava-studio-onboarding"
 import { SessionBuilderFlow } from "@/components/studio/session-builder/session-builder-flow"
+import { SessionGallery } from "@/components/studio/session-builder/session-gallery"
 import { BottomNavBar, type BottomNavItem } from "@/components/ui/bottom-nav-bar"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Header } from "@/components/ui/header-2"
@@ -1216,6 +1217,7 @@ export function VisualEngineStudio() {
     MiravaSessionBuilderClientSession
     | null
   >(null)
+  const [sessionShootId, setSessionShootId] = useState<string | null>(null)
   const [
     sessionBuilderBusy,
     setSessionBuilderBusy,
@@ -1481,6 +1483,11 @@ export function VisualEngineStudio() {
     const requestedReference = params.get("source") === "reference"
     const requestedOfferId = params.get("offer")
     const checkoutState = params.get("checkout")
+    const requestedSessionShoot = params.get("sessionShoot")
+    if (requestedSessionShoot && /^[a-zA-Z0-9_-]+$/.test(requestedSessionShoot)) {
+      setSessionShootId(requestedSessionShoot)
+      setView("create")
+    }
     if (requestedView === "identity") setView("account")
     else if (requestedView === "create" || requestedView === "universes" || requestedView === "library" || requestedView === "account") setView(requestedView)
     if (requestedUniverse) {
@@ -2606,6 +2613,7 @@ export function VisualEngineStudio() {
 
   const openStudioHome = () => {
     setSessionBuilderSession(null)
+    setSessionShootId(null)
     setDirectorOpen(false)
     setPortfolioCurrent(null)
     setCurrent(null)
@@ -2655,7 +2663,11 @@ export function VisualEngineStudio() {
       }
 
       setSessionBuilderSession(null)
-      await refresh(launch.creationIds[0])
+      setSessionShootId(builderSession.id)
+      const url = new URL(window.location.href)
+      url.searchParams.set("sessionShoot", builderSession.id)
+      window.history.replaceState(null, "", url)
+      await refresh()
     }
 
   const isCreateFlow =
@@ -2863,7 +2875,9 @@ export function VisualEngineStudio() {
           )}
 
         {view === "create" && (
-          sessionBuilderSession ? (
+          sessionShootId ? (
+            <SessionGallery sessionId={sessionShootId} />
+          ) : sessionBuilderSession ? (
             <SessionBuilderFlow
               locale={locale}
               sessionId={
