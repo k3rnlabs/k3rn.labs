@@ -126,7 +126,7 @@ export function MiravaCreativeDirector({
               <span className="absolute bottom-0 right-0 h-3.5 w-3.5 rounded-full bg-mirava-accent ring-2 ring-mirava-surface" />
             </div>
             <div className="min-w-0">
-              <p className="mirava-label">MIRAVA / {locale === "fr" ? "DIRECTION CRÉATIVE" : "DIRECCIÓN CREATIVA"}</p>
+              <p className="mirava-label">{locale === "fr" ? "DIRECTION CRÉATIVE" : "DIRECCIÓN CREATIVA"}</p>
               <h1 className="mirava-section-title mt-1.5 text-2xl">Alma</h1>
               <p className="mirava-muted mt-0.5 text-xs flex items-center gap-1.5">
                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-mirava-accent" />

@@ -36,6 +36,18 @@ describe("MIRAVA onboarding localization contracts", () => {
       "Elegir mis universos",
     )
     expect(onboarding).toContain('autoFocus autoComplete="given-name"')
+    expect(onboarding).toContain(
+      "votre première image en haute qualité, visible dès la fin de l’onboarding",
+    )
+    expect(onboarding).toContain(
+      "Un second crédit reste offert",
+    )
+    expect(onboarding).toContain(
+      "un pack ou un abonnement",
+    )
+    expect(onboarding).not.toContain(
+      "débloquer le fichier haute qualité",
+    )
   })
 
   it("honors an editorial universe chosen before the onboarding begins", () => {

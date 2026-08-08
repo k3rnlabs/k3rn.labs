@@ -379,7 +379,7 @@ function MiravaDarkroomLoading({
     locale === "fr"
       ? {
           eyebrow:
-            "MIRAVA / CHAMBRE NOIRE",
+            "CHAMBRE NOIRE",
           title:
             "Votre séance prend forme",
           intro:
@@ -397,7 +397,7 @@ function MiravaDarkroomLoading({
         }
       : {
           eyebrow:
-            "MIRAVA / CUARTO OSCURO",
+            "CUARTO OSCURO",
           title:
             "Tu sesión está tomando forma",
           intro:
@@ -818,7 +818,6 @@ function MiravaDarkroomThumbnail({
 
       <span className="absolute inset-x-0 bottom-0 z-10 bg-gradient-to-t from-black/90 via-black/50 to-transparent px-3 pb-3 pt-14">
         <span className="block text-[9px] font-semibold uppercase tracking-[0.16em] text-[#d7c39a]">
-          MIRAVA /{" "}
           {locale === "fr"
             ? "CHAMBRE NOIRE"
             : "CUARTO OSCURO"}
@@ -1277,6 +1276,10 @@ export function VisualEngineStudio() {
     creditSheetHighlightedOfferId,
     setCreditSheetHighlightedOfferId,
   ] = useState<string | null>(null)
+  const [
+    creditSheetUnlockCreationId,
+    setCreditSheetUnlockCreationId,
+  ] = useState<string | null>(null)
   const studioBackgroundRef = useRef<HTMLDivElement>(null)
   const studioScrollRef = useRef<HTMLDivElement>(null)
   const hasHydratedStudioPreferenceRef = useRef(false)
@@ -1352,8 +1355,8 @@ export function VisualEngineStudio() {
     checkoutNotice === "discovery-success"
       ? (
           locale === "fr"
-            ? "Paiement reçu. MIRAVA révèle votre séance dès la confirmation sécurisée de Stripe."
-            : "Pago recibido. MIRAVA revelará tu sesión en cuanto Stripe confirme el pago de forma segura."
+            ? "Paiement reçu. MIRAVA révèle votre création dès la confirmation sécurisée de Stripe."
+            : "Pago recibido. MIRAVA revelará tu creación en cuanto Stripe confirme el pago de forma segura."
         )
       : checkoutNotice === "discovery-cancelled"
       ? (
@@ -1666,8 +1669,12 @@ export function VisualEngineStudio() {
     if (
       !creationId ||
       !current?.resultLocked ||
-      checkoutNotice !==
-        "discovery-success"
+      ![
+        "discovery-success",
+        "success",
+      ].includes(
+        checkoutNotice ?? "",
+      )
     ) {
       return
     }
@@ -1766,6 +1773,8 @@ export function VisualEngineStudio() {
     requiredCredits = 1,
     initialKind: CreditOfferKind =
       "pack",
+    unlockCreationId: string | null =
+      null,
   ) => {
     const normalizedRequiredCredits =
       Math.max(
@@ -1791,6 +1800,9 @@ export function VisualEngineStudio() {
       initialKind,
     )
     setCreditSheetHighlightedOfferId(null)
+    setCreditSheetUnlockCreationId(
+      unlockCreationId,
+    )
     setCreditSheetOpen(true)
 
     if (missingCredits > 0) {
@@ -1982,6 +1994,7 @@ export function VisualEngineStudio() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        onboarding: true,
         ageConfirmed: consent.ageConfirmed,
         rightsConfirmed: consent.rightsConfirmed,
         privacyAccepted: consent.privacyAccepted,
@@ -2506,6 +2519,14 @@ export function VisualEngineStudio() {
                 body:
                   JSON.stringify({
                     offerId,
+                    ...(
+                      creditSheetUnlockCreationId
+                        ? {
+                            creationId:
+                              creditSheetUnlockCreationId,
+                          }
+                        : {}
+                    ),
                   }),
               },
             )
@@ -2862,18 +2883,6 @@ export function VisualEngineStudio() {
         <div className="relative mx-auto max-w-6xl px-4 pt-4 sm:px-7 sm:pt-6">
         {error && <div role="alert" className="mirava-alert mb-6 flex gap-3 p-4 text-sm shadow-lg"><CircleAlert className="h-5 w-5 shrink-0" />{error}</div>}
         {displayedNotice && <div role="status" aria-live="polite" aria-atomic="true" className="mirava-notice mb-6 p-4 text-sm shadow-lg">{displayedNotice}</div>}
-        {view === "create" &&
-          !current &&
-          !sessionBuilderSession &&
-          createStep === 0 &&
-          studios.length > 0 && (
-            <StudioResumeRail
-              locale={locale}
-              studios={studios}
-              onReuse={(id) => void reuse(id)}
-            />
-          )}
-
         {view === "create" && (
           sessionShootId ? (
             <SessionGallery locale={locale} sessionId={sessionShootId} />
@@ -2921,6 +2930,10 @@ export function VisualEngineStudio() {
               sessionBuilderBusy={
                 sessionBuilderBusy
               }
+              studios={studios}
+              onReuse={(id) =>
+                void reuse(id)
+              }
               onBuildSession={() =>
                 void startSessionBuilder()
               }
@@ -2943,7 +2956,7 @@ export function VisualEngineStudio() {
               }
             />
           ) : (
-            <CreationView locale={locale} t={t} current={current} identityProfile={identityProfile} pending={pending} onUploadReference={uploadReference} onAnalyze={analyze} onOpenCapture={() => openCapture(identityProfile ? "manage" : "onboarding")} onGenerate={generate} onDelete={removeCreation} onStartCreate={startFreshCreation} onOpenCredits={() => openCreditOffers(1)} onContinueSession={(creationId, intents, customInstruction, sourceResultIndex) => void continueSession(creationId, intents, customInstruction, sourceResultIndex)} onCreateFromStudio={(studioId) => void reuse(studioId)} onUnlock={(creationId) => void checkoutDiscovery(creationId)} />
+            <CreationView locale={locale} t={t} current={current} identityProfile={identityProfile} pending={pending} onUploadReference={uploadReference} onAnalyze={analyze} onOpenCapture={() => openCapture(identityProfile ? "manage" : "onboarding")} onGenerate={generate} onDelete={removeCreation} onStartCreate={startFreshCreation} onOpenCredits={() => openCreditOffers(1, "pack", current.creation.id)} onContinueSession={(creationId, intents, customInstruction, sourceResultIndex) => void continueSession(creationId, intents, customInstruction, sourceResultIndex)} onCreateFromStudio={(studioId) => void reuse(studioId)} onUnlock={(creationId) => void checkoutDiscovery(creationId)} />
           )
         )}
         {view === "universes" && <UniversesView locale={locale} t={t} selectedUniverseId={selectedUniverseId} setSelectedUniverseId={setSelectedUniverseId} onChoose={(brief) => { setOptions((value) => ({ ...(value.seriesSize ? { seriesSize: value.seriesSize } : {}), ...(value.seriesSize && value.seriesSize > 1 && value.seriesStrategy ? { seriesStrategy: value.seriesStrategy } : {}), ...(brief ? { note: brief } : {}) })); setCreateStep(1); selectView("create") }} />}
@@ -2995,7 +3008,12 @@ export function VisualEngineStudio() {
                   startFreshCreation
                 }
                 onOpenCredits={() =>
-                  openCreditOffers(1)
+                  openCreditOffers(
+                    1,
+                    "pack",
+                    portfolioCurrent
+                      .creation.id,
+                  )
                 }
                 onContinueSession={(
                   creationId,
@@ -3093,6 +3111,7 @@ export function VisualEngineStudio() {
 
           if (!open) {
             setCreditSheetHighlightedOfferId(null)
+            setCreditSheetUnlockCreationId(null)
           }
         }}
         locale={locale}
@@ -3201,6 +3220,8 @@ function StartView({
   availableCredits,
   pending,
   entryIntent,
+  studios,
+  onReuse,
   onCreate,
   onDirector,
   onOpenAccount,
@@ -3220,6 +3241,8 @@ function StartView({
   availableCredits: number
   pending: string | null
   entryIntent: "reference" | null
+  studios: Studio[]
+  onReuse: (id: string) => void
   onCreate: (presetId?: string | null, brief?: string, referenceFile?: File | null) => void
   onDirector: () => void
   onOpenAccount: () => void
@@ -3309,8 +3332,7 @@ function StartView({
 
     <section className="mirava-onboarding mx-auto max-w-5xl pb-12 pt-5 sm:pt-9">
       <div className="mirava-onboarding-heading relative mb-8 max-w-3xl" data-step={`0${step + 1}`}>
-        <p className="mirava-label">MIRAVA / {stageCopy[step].label}</p>
-        <h1 className="mirava-section-title mt-3 text-4xl sm:text-6xl"><BlurText text={stageTitle} /></h1>
+        <h1 className="mirava-section-title text-4xl sm:text-6xl"><BlurText text={stageTitle} /></h1>
         <p className="mirava-copy mt-4 max-w-2xl text-sm leading-6 sm:text-base">{stageText}</p>
       </div>
 
@@ -3329,10 +3351,7 @@ function StartView({
               className="mirava-dark-panel mb-5 flex min-h-[9rem] w-full items-end justify-between gap-5 overflow-hidden p-5 text-left transition hover:-translate-y-0.5 disabled:pointer-events-none disabled:opacity-55 sm:p-6"
             >
               <span className="min-w-0">
-                <span className="mirava-label block">
-                  MIRAVA / SESSION BUILDER
-                </span>
-                <span className="mt-3 block font-jakarta text-2xl font-semibold tracking-[-.045em] text-white sm:text-3xl">
+                <span className="block font-jakarta text-2xl font-semibold tracking-[-.045em] text-white sm:text-3xl">
                   {locale === "fr"
                     ? "Construire une séance"
                     : "Construir una sesión"}
@@ -3363,6 +3382,13 @@ function StartView({
           </div>}
           {entryIntent !== "reference" && <ReferenceUpload locale={locale} referenceFile={referenceFile} onChoose={chooseReference} />}
           {referenceFile && <button onClick={() => chooseReference(null)} className="mirava-button mirava-button-quiet mt-2 px-3 text-xs">{locale === "fr" ? "Retirer la référence" : "Quitar la referencia"}</button>}
+          {studios.length > 0 ? (
+            <StudioResumeRail
+              locale={locale}
+              studios={studios}
+              onReuse={onReuse}
+            />
+          ) : null}
         </div>
       )}
 
@@ -3637,7 +3663,7 @@ function CreativeDirectionSummary({ locale, universe }: { locale: Locale; univer
     <section className="mirava-direction-brief">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="mirava-label">MIRAVA / {locale === "fr" ? "DIRECTION SÉLECTIONNÉE" : "DIRECCIÓN SELECCIONADA"}</p>
+          <p className="mirava-label">{locale === "fr" ? "DIRECTION SÉLECTIONNÉE" : "DIRECCIÓN SELECCIONADA"}</p>
           <h2 className="mt-3 font-jakarta text-3xl font-semibold tracking-[-.055em]">{universe.name[locale]}</h2>
         </div>
         <p className="mirava-direction-source">{locale === "fr" ? "Composition MIRAVA" : "Composición MIRAVA"}</p>
@@ -3732,7 +3758,7 @@ function ConsentGate({ locale, t, consents, setConsents, pending, onClose, onCon
         <DialogPrimitive.Content className="mirava-modal fixed inset-x-0 bottom-0 z-50 max-h-dvh w-full max-w-xl overflow-y-auto p-5 outline-none sm:left-1/2 sm:bottom-auto sm:top-1/2 sm:max-h-[94dvh] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:p-7">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="mirava-label">MIRAVA / {locale === "fr" ? "ACCORDS REQUIS" : "ACUERDOS REQUERIDOS"}</p>
+              <p className="mirava-label">{locale === "fr" ? "ACCORDS REQUIS" : "ACUERDOS REQUERIDOS"}</p>
               <DialogPrimitive.Title className="mirava-section-title mt-2 text-3xl">{t.consent}</DialogPrimitive.Title>
             </div>
             <button onClick={onClose} aria-label={locale === "fr" ? "Fermer" : "Cerrar"} className="mirava-button mirava-button-secondary h-12 w-12 shrink-0"><X className="h-4 w-4" /></button>
@@ -3775,12 +3801,14 @@ function MiravaDiscoveryPaywall({
   current,
   pending,
   onUnlock,
+  onOpenCredits,
 }: {
   locale: Locale
   current: Detail
   pending: string | null
   onUnlock:
     (creationId: string) => void
+  onOpenCredits: () => void
 }) {
   const preview =
     current.resultUrls?.[0] ??
@@ -3789,23 +3817,23 @@ function MiravaDiscoveryPaywall({
   return (
     <section className="mx-auto max-w-3xl py-8 sm:py-14">
       <p className="mirava-label">
-        MIRAVA / SÉANCE DÉCOUVERTE
+        OFFRE DÉCOUVERTE
       </p>
 
       <h1 className="mirava-section-title mt-3 text-4xl sm:text-5xl">
         <BlurText
           text={
             locale === "fr"
-              ? "Votre première séance est prête."
-              : "Tu primera sesión está lista."
+              ? "Votre nouvelle création est prête."
+              : "Tu nueva creación está lista."
           }
         />
       </h1>
 
       <p className="mirava-copy mt-4 max-w-xl text-sm leading-6">
         {locale === "fr"
-          ? "Votre aperçu personnalisé a été créé. Le fichier original reste protégé jusqu’au déverrouillage."
-          : "Tu vista previa personalizada ya está creada. El archivo original permanece protegido hasta el desbloqueo."}
+          ? "Votre crédit a bien servi à créer cette image. Son aperçu reste protégé jusqu’à votre premier paiement."
+          : "Tu crédito se ha utilizado para crear esta imagen. La vista previa permanece protegida hasta tu primer pago."}
       </p>
 
       <div className="mirava-dark-panel relative mt-7 overflow-hidden p-2">
@@ -3814,8 +3842,8 @@ function MiravaDiscoveryPaywall({
             src={preview}
             alt={
               locale === "fr"
-                ? "Aperçu protégé de la première séance"
-                : "Vista previa protegida de la primera sesión"
+                ? "Aperçu protégé de la nouvelle création"
+                : "Vista previa protegida de la nueva creación"
             }
             className="h-auto w-full object-contain bg-black"
           />
@@ -3831,14 +3859,14 @@ function MiravaDiscoveryPaywall({
       <Surface className="mt-5">
         <p className="mirava-label">
           {locale === "fr"
-            ? "PAIEMENT UNIQUE"
-            : "PAGO ÚNICO"}
+            ? "CHOISISSEZ VOTRE FORMULE"
+            : "ELIGE TU FÓRMULA"}
         </p>
 
         <h2 className="mt-2 font-jakarta text-2xl font-semibold tracking-[-.04em]">
           {locale === "fr"
-            ? "Débloquez votre séance découverte"
-            : "Desbloquea tu sesión de descubrimiento"}
+            ? "Débloquez votre nouvelle création"
+            : "Desbloquea tu nueva creación"}
         </h2>
 
         <div className="mirava-copy mt-4 space-y-2 text-sm leading-6">
@@ -3847,6 +3875,12 @@ function MiravaDiscoveryPaywall({
           <p>✓ {locale === "fr" ? "2 nouvelles créations" : "2 nuevas creaciones"}</p>
           <p>✓ {locale === "fr" ? "Sans abonnement" : "Sin suscripción"}</p>
         </div>
+
+        <p className="mirava-copy mt-4 text-xs leading-5">
+          {locale === "fr"
+            ? "L’offre découverte, un pack ou un abonnement MIRAVA déverrouille cette image."
+            : "La oferta de descubrimiento, un paquete o una suscripción de MIRAVA desbloquea esta imagen."}
+        </p>
 
         <button
           type="button"
@@ -3873,10 +3907,21 @@ function MiravaDiscoveryPaywall({
             : "Desbloquear por 2,99 € IVA incluido"}
         </button>
 
+        <button
+          type="button"
+          onClick={onOpenCredits}
+          disabled={pending !== null}
+          className="mirava-button mirava-button-secondary mt-3 min-h-12 w-full px-5 text-sm"
+        >
+          {locale === "fr"
+            ? "Voir les packs et abonnements"
+            : "Ver paquetes y suscripciones"}
+        </button>
+
         <p className="mirava-muted mt-3 text-center text-[10px] leading-4">
           {locale === "fr"
-            ? "Paiement unique · aucune reconduction automatique"
-            : "Pago único · sin renovación automática"}
+            ? "L’offre découverte est un paiement unique, sans reconduction automatique."
+            : "La oferta de descubrimiento es un pago único, sin renovación automática."}
         </p>
       </Surface>
     </section>
@@ -4030,7 +4075,7 @@ function CreationView({
     return (
       <section className="mx-auto max-w-3xl py-8 sm:py-14">
         <p className="mirava-label">
-          MIRAVA / {locale === "fr" ? "SÉANCE TERMINÉE" : "SESIÓN FINALIZADA"}
+          {locale === "fr" ? "SÉANCE TERMINÉE" : "SESIÓN FINALIZADA"}
         </p>
 
         <h1 className="mirava-section-title mt-3 text-4xl sm:text-5xl">
@@ -4107,6 +4152,7 @@ function CreationView({
           current={current}
           pending={pending}
           onUnlock={onUnlock}
+          onOpenCredits={onOpenCredits}
         />
       )
     }
@@ -4114,7 +4160,7 @@ function CreationView({
     const resultUrls = current.resultUrls?.length ? current.resultUrls : [current.resultUrl]
     return (
       <section className="mx-auto max-w-3xl py-8 sm:py-14">
-        <p className="mirava-label">MIRAVA / SIGNATURE</p>
+        <p className="mirava-label">SIGNATURE</p>
         <h1 className="mirava-section-title mt-3 text-4xl sm:text-5xl"><BlurText text={t.result} /></h1>
         <div className={cn("mirava-dark-panel mt-7 grid gap-2 p-2", resultUrls.length > 1 && "sm:grid-cols-2")}>
           {resultUrls.map((url, index) => (
@@ -4427,7 +4473,7 @@ function CreationView({
 
   return (
     <section className="mx-auto max-w-3xl py-8 sm:py-14">
-      <p className="mirava-label">MIRAVA / {status === "DRAFT" ? (locale === "fr" ? "RÉFÉRENCE" : "REFERENCIA") : status === "IDENTITY_READY" ? (locale === "fr" ? "IDENTITÉ" : "IDENTIDAD") : "STUDIO"}</p>
+      <p className="mirava-label">{status === "DRAFT" ? (locale === "fr" ? "RÉFÉRENCE" : "REFERENCIA") : status === "IDENTITY_READY" ? (locale === "fr" ? "IDENTITÉ" : "IDENTIDAD") : "STUDIO"}</p>
       <h1 className="mirava-section-title mt-3 text-4xl sm:text-5xl"><BlurText text={busy ? (status.includes("ANAL") ? t.analysing : t.generating) : statusLabel} /></h1>
 
       {status === "DRAFT" && (
@@ -4497,7 +4543,7 @@ function UniversesView({ locale, t, selectedUniverseId, setSelectedUniverseId, o
   const selected = getMiravaUniverse(selectedUniverseId) ?? MIRAVA_UNIVERSES[0]
   return (
     <section className="py-8 sm:py-14">
-      <p className="mirava-label">MIRAVA / {locale === "fr" ? "DIRECTIONS VISUELLES" : "DIRECCIONES VISUALES"}</p>
+      <p className="mirava-label">{locale === "fr" ? "DIRECTIONS VISUELLES" : "DIRECCIONES VISUALES"}</p>
       <h1 className="mirava-section-title mirava-universes-title mt-3 text-4xl sm:text-6xl"><BlurText text={t.universes} /></h1>
       <p className="mirava-copy mt-4 max-w-2xl text-sm leading-6">{t.universesIntro}</p>
       <div className="mirava-scroll-row -mx-4 mt-8 flex gap-3 overflow-x-auto px-4 pb-4 sm:mx-0 sm:grid sm:grid-cols-3 sm:px-0 lg:grid-cols-4">
@@ -4553,19 +4599,13 @@ function StudioResumeRail({
   return (
     <section
       aria-labelledby="mirava-studio-resume-title"
-      className="mb-7 sm:mb-9"
+      className="mt-7 sm:mt-9"
     >
       <div className="flex items-end justify-between gap-4">
         <div>
-          <p className="mirava-label">
-            MIRAVA /{" "}
-            {locale === "fr"
-              ? "DIRECTIONS ENREGISTRÉES"
-              : "DIRECCIONES GUARDADAS"}
-          </p>
           <h2
             id="mirava-studio-resume-title"
-            className="mt-2 font-jakarta text-xl font-semibold tracking-[-.04em] sm:text-2xl"
+            className="font-jakarta text-xl font-semibold tracking-[-.04em] sm:text-2xl"
           >
             {locale === "fr"
               ? "Reprendre une direction"
@@ -4684,7 +4724,6 @@ function LibraryView({
       (creation) =>
         creation.status ===
           "COMPLETED" &&
-        !creation.resultLocked &&
         Boolean(
           creation.resultUrl ||
             creation.resultUrls
@@ -4725,10 +4764,7 @@ function LibraryView({
     <section className="py-6 sm:py-12">
       <div className="flex items-end justify-between gap-5">
         <div>
-          <p className="mirava-label">
-            MIRAVA / PORTFOLIO
-          </p>
-          <h1 className="mirava-section-title mt-2 text-4xl sm:text-5xl">
+          <h1 className="mirava-section-title text-4xl sm:text-5xl">
             <BlurText
               text={t.libraryTitle}
             />
@@ -4785,7 +4821,12 @@ function LibraryView({
                       )
                 }
                 aria-label={
+                  creation.resultLocked &&
                   locale === "fr"
+                    ? "Débloquer cette photo"
+                    : creation.resultLocked
+                    ? "Desbloquear esta foto"
+                    : locale === "fr"
                     ? `Ouvrir la photo ${index + 1}`
                     : `Abrir la foto ${index + 1}`
                 }
@@ -4801,6 +4842,13 @@ function LibraryView({
                   aria-hidden="true"
                   className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-white/10"
                 />
+                {creation.resultLocked ? (
+                  <span className="pointer-events-none absolute inset-0 grid place-items-center bg-black/20">
+                    <span className="rounded-full border border-white/25 bg-black/60 p-3 text-white shadow-xl backdrop-blur-md">
+                      <LockKeyhole className="h-5 w-5" />
+                    </span>
+                  </span>
+                ) : null}
               </button>
             ),
           )}
@@ -5060,7 +5108,7 @@ function AccountView({
 
   return (
     <section className="py-8 sm:py-14">
-      <p className="mirava-label">MIRAVA / {locale === "fr" ? "ACCÈS" : "ACCESO"}</p>
+      <p className="mirava-label">{locale === "fr" ? "ACCÈS" : "ACCESO"}</p>
       <h1 className="mirava-section-title mt-3 text-4xl sm:text-5xl"><BlurText text={t.accountTitle} /></h1>
       <div className="mt-8 grid gap-4">
         <section className="mirava-surface overflow-hidden">
@@ -5222,7 +5270,6 @@ function AccountView({
             <header className="flex shrink-0 items-center justify-between gap-4 border-b border-white/10 px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))]">
               <div>
                 <p className="mirava-label">
-                  MIRAVA /{" "}
                   {locale === "fr"
                     ? "PHOTO PRIVÉE"
                     : "FOTO PRIVADA"}
@@ -5403,7 +5450,6 @@ function AccountView({
             </div>
 
             <p className="mirava-label mt-5">
-              MIRAVA /{" "}
               {locale === "fr"
                 ? "CONFIDENTIALITÉ"
                 : "PRIVACIDAD"}
@@ -5469,7 +5515,6 @@ function AccountView({
         className="mt-10"
       >
         <p className="mirava-label">
-          MIRAVA /{" "}
           {locale === "fr"
             ? "FACTURATION"
             : "FACTURACIÓN"}
@@ -5598,7 +5643,6 @@ function AccountView({
         className="mt-10 max-w-lg"
       >
         <p className="mirava-label">
-          MIRAVA /{" "}
           {locale === "fr"
             ? "SESSION"
             : "SESIÓN"}
@@ -5917,8 +5961,8 @@ function CreditPurchaseSheet({
               <div className="mt-3 flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.2em] text-[#d7c39a] sm:mt-4 sm:text-[10px] sm:tracking-[0.22em]">
                 <span className="inline-flex h-2 w-2 rounded-full bg-[#d7c39a]" />
                 {locale === "fr"
-                  ? "MIRAVA / CHAMBRE NOIRE"
-                  : "MIRAVA / CUARTO OSCURO"}
+                  ? "CHAMBRE NOIRE"
+                  : "CUARTO OSCURO"}
               </div>
 
               <DialogPrimitive.Title className="mt-2 max-w-xl font-jakarta text-[1.72rem] font-semibold leading-[1.02] tracking-[-0.055em] sm:mt-3 sm:text-[2.35rem]">

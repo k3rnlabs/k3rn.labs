@@ -9,7 +9,25 @@ import {
 
 export type MiravaDiscoveryAccess = {
   firstSessionId: string | null
-  unlockedCreationId: string | null
+  discoveryCreationId: string | null
+  hasVerifiedPurchase: boolean
+}
+
+export function hasVerifiedMiravaPurchase(
+  args: {
+    purchaseStripeSessionIds:
+      Array<string | null | undefined>
+    subscriptionFirstPaidAt:
+      string | null | undefined
+  },
+): boolean {
+  return (
+    args.purchaseStripeSessionIds
+      .some(Boolean) ||
+    Boolean(
+      args.subscriptionFirstPaidAt,
+    )
+  )
 }
 
 function asObject(
@@ -36,6 +54,8 @@ export async function getMiravaDiscoveryAccess(
   const [
     user,
     ledger,
+    paidPurchases,
+    subscription,
   ] = await Promise.all([
     db.user.findUnique({
       where: {
@@ -52,6 +72,22 @@ export async function getMiravaDiscoveryAccess(
             miravaDiscoveryKey(
               userId,
             ),
+        },
+      }),
+    db.studioCreditLedger
+      .findMany({
+        where: {
+          userId,
+          kind: "PURCHASE",
+        },
+      }),
+    db.studioSubscription
+      .findUnique({
+        where: {
+          userId,
+        },
+        select: {
+          firstPaidAt: true,
         },
       }),
   ])
@@ -74,15 +110,29 @@ export async function getMiravaDiscoveryAccess(
       ledger?.metadata,
     )
 
-  const unlockedCreationId =
+  const discoveryCreationId =
     typeof metadata.creationId ===
       "string"
       ? metadata.creationId
       : null
 
+  const hasVerifiedPurchase =
+    hasVerifiedMiravaPurchase({
+      purchaseStripeSessionIds:
+        paidPurchases.map(
+          (purchase) =>
+            purchase
+              .stripeSessionId,
+        ),
+      subscriptionFirstPaidAt:
+        subscription
+          ?.firstPaidAt,
+    })
+
   return {
     firstSessionId,
-    unlockedCreationId,
+    discoveryCreationId,
+    hasVerifiedPurchase,
   }
 }
 
@@ -91,10 +141,12 @@ export function isMiravaDiscoveryCreationLocked(
   creationId: string,
 ): boolean {
   return (
-    access.firstSessionId ===
+    Boolean(
+      access.firstSessionId,
+    ) &&
+    access.firstSessionId !==
       creationId &&
-    access.unlockedCreationId !==
-      creationId
+    !access.hasVerifiedPurchase
   )
 }
 
@@ -117,14 +169,31 @@ export async function grantMiravaDiscoveryUnlock(
     stripeSessionId: string
   },
 ): Promise<number> {
-  const access =
-    await getMiravaDiscoveryAccess(
+  const [
+    access,
+    creation,
+  ] = await Promise.all([
+    getMiravaDiscoveryAccess(
       args.userId,
-    )
+    ),
+    db.studioCreation.findUnique({
+      where: {
+        id:
+          args.creationId,
+        userId:
+          args.userId,
+      },
+      select: {
+        id: true,
+        status: true,
+      },
+    }),
+  ])
 
   if (
-    access.firstSessionId !==
-      args.creationId
+    !creation ||
+    creation.status !==
+      "COMPLETED"
   ) {
     throw new Error(
       "MIRAVA_DISCOVERY_CREATION_INVALID",
@@ -132,12 +201,28 @@ export async function grantMiravaDiscoveryUnlock(
   }
 
   if (
-    access.unlockedCreationId &&
-    access.unlockedCreationId !==
+    access.discoveryCreationId &&
+    access.discoveryCreationId !==
       args.creationId
   ) {
     throw new Error(
       "MIRAVA_DISCOVERY_ALREADY_USED",
+    )
+  }
+
+  const isIdempotentRetry =
+    access.discoveryCreationId ===
+      args.creationId
+
+  if (
+    !isIdempotentRetry &&
+    !isMiravaDiscoveryCreationLocked(
+      access,
+      args.creationId,
+    )
+  ) {
+    throw new Error(
+      "MIRAVA_DISCOVERY_CREATION_INVALID",
     )
   }
 
@@ -164,7 +249,7 @@ export async function grantMiravaDiscoveryUnlock(
       creationId:
         args.creationId,
       entitlement:
-        "first_session_unlocked",
+        "first_purchase_gate_unlocked",
     },
   })
 }

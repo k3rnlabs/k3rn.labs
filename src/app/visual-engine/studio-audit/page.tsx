@@ -9,7 +9,7 @@ export default function MiravaStudioAuditPage() {
 
   return (
     <main className="mirava-theme min-h-dvh bg-mirava-canvas p-6 text-mirava-ink">
-      <p className="mirava-label">MIRAVA / LOCAL REVIEW</p>
+      <p className="mirava-label">LOCAL REVIEW</p>
       <h1 className="mirava-section-title mt-3 text-3xl">Studio audit local</h1>
       <p className="mirava-copy mt-3 max-w-lg text-sm leading-6">
         This route is available only on a local development server. It contains no customer data or production controls.

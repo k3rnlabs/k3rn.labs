@@ -2592,7 +2592,7 @@ export function MiravaIdentityCapture({
 
         <div className="text-center font-jakarta">
           <span className="block text-[10px] font-bold tracking-[0.16em] text-[#d5c6b0] uppercase">
-            MIRAVA / PROFIL IDENTITÉ
+            PROFIL IDENTITÉ
           </span>
           <strong className="block text-xs font-semibold text-white">
             {showSummary

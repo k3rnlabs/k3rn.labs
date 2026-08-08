@@ -387,6 +387,7 @@ export async function createStudioCreation(args: {
   rightsConfirmed: boolean
   privacyAccepted: boolean
   openaiDisclosureAccepted: boolean
+  onboardingKey?: string
   presetId?: MiravaStudioPresetId
   creativeOptions?: Record<string, unknown>
 }): Promise<StudioCreationRecord> {
@@ -464,9 +465,14 @@ export async function createStudioCreation(args: {
           preset.negativePrompt
       )
 
-    const profile =
-      !currentProfile
-        ? asProfile(
+    let createdProfile:
+      StudioProfileRecord |
+      null = null
+
+    if (!currentProfile) {
+      try {
+        createdProfile =
+          asProfile(
             await db.studioProfile.create({
               data: {
                 userId:
@@ -486,6 +492,39 @@ export async function createStudioCreation(args: {
               },
             }),
           )
+      } catch (error) {
+        const concurrentProfile =
+          await db.studioProfile.findFirst({
+            where: {
+              userId:
+                args.userId,
+              presetId:
+                args.presetId,
+              sourceCreationId:
+                null,
+            },
+            orderBy: {
+              createdAt:
+                "asc",
+            },
+          })
+
+        if (!concurrentProfile) {
+          throw error
+        }
+
+        createdProfile =
+          asProfile(
+            concurrentProfile,
+          )
+      }
+    }
+
+    const profile =
+      createdProfile
+        ? createdProfile
+        : !currentProfile
+        ? null
         : profileNeedsRefresh
           ? asProfile(
               await db.studioProfile.update({
@@ -511,8 +550,91 @@ export async function createStudioCreation(args: {
             )
           : currentProfile
 
+    if (!profile) {
+      throw new StudioError(
+        "Le studio officiel n’a pas pu être préparé.",
+        "INVALID_STATE",
+      )
+    }
+
     studioProfileId =
       profile.id
+  }
+
+  if (args.onboardingKey) {
+    if (
+      !preset ||
+      !identityProfile ||
+      !args.presetId
+    ) {
+      throw new StudioError(
+        "La première séance MIRAVA n’est pas prête.",
+        "INVALID_STATE",
+      )
+    }
+
+    const { data, error } =
+      await supabaseAdmin.rpc(
+        "create_mirava_onboarding_creation",
+        {
+          p_user_id:
+            args.userId,
+          p_onboarding_key:
+            args.onboardingKey,
+          p_studio_profile_id:
+            studioProfileId,
+          p_identity_profile_id:
+            identityProfile.id,
+          p_preset_id:
+            args.presetId,
+          p_creative_options:
+            args.creativeOptions ?? {},
+          p_creative_direction_summary:
+            preset.creativeDirectionSummary,
+          p_master_prompt:
+            preset.masterPrompt,
+          p_negative_prompt:
+            preset.negativePrompt,
+          p_consent_version:
+            STUDIO_CONSENT_VERSION,
+        },
+      )
+
+    if (error) {
+      throw new StudioError(
+        "La première séance MIRAVA n’a pas pu être préparée.",
+        "INVALID_STATE",
+      )
+    }
+
+    const row =
+      Array.isArray(data)
+        ? data[0]
+        : data
+
+    const result =
+      row as {
+        creationId?: unknown
+      } | null
+
+    const creationId =
+      typeof result
+        ?.creationId ===
+        "string"
+        ? result.creationId
+        : null
+
+    if (!creationId) {
+      throw new StudioError(
+        "La première séance MIRAVA est incomplète.",
+        "INVALID_STATE",
+      )
+    }
+
+    return getStudioCreationForUser(
+      args.userId,
+      creationId,
+    )
   }
 
   const session =
@@ -2464,7 +2586,25 @@ export async function queueStudioAnalysis(userId: string, creationId: string): P
   }
   try {
     await db.studioCreation.update({ where: { id: creationId, userId }, data: { status: "ANALYSIS_QUEUED", creditReservationKey: reservationKey, failureCode: null, failureMessage: null } })
-    await db.studioJob.create({ data: { id: randomUUID(), creationId, kind: "ANALYZE", status: "PENDING" } })
+    const { error: jobError } =
+      await supabaseAdmin
+        .from("StudioJob")
+        .upsert(
+          {
+            id: randomUUID(),
+            creationId,
+            kind: "ANALYZE",
+            status: "PENDING",
+          },
+          {
+            onConflict:
+              "creationId,kind",
+            ignoreDuplicates:
+              true,
+          },
+        )
+
+    if (jobError) throw jobError
   } catch (error) {
     await releaseMiravaCreditReservation({ userId, creationId, key: studioKey("studio-reservation-release", creationId), reason: "QUEUE_FAILURE" })
     throw error
@@ -2497,7 +2637,26 @@ export async function queueStudioGeneration(args: { userId: string; creationId: 
   }
 
   await db.studioCreation.update({ where: { id: args.creationId, userId: args.userId }, data: { status: "GENERATION_QUEUED", failureCode: null, failureMessage: null } })
-  await db.studioJob.create({ data: { id: randomUUID(), creationId: args.creationId, kind: "GENERATE", status: "PENDING" } })
+  const { error: jobError } =
+    await supabaseAdmin
+      .from("StudioJob")
+      .upsert(
+        {
+          id: randomUUID(),
+          creationId:
+            args.creationId,
+          kind: "GENERATE",
+          status: "PENDING",
+        },
+        {
+          onConflict:
+            "creationId,kind",
+          ignoreDuplicates:
+            true,
+        },
+      )
+
+  if (jobError) throw jobError
 }
 
 export type MiravaSessionShootLaunch = Readonly<{

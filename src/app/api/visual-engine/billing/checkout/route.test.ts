@@ -23,22 +23,31 @@ describe("MIRAVA Stripe checkout contract", () => {
     expect(route).toContain('userId:')
     expect(route).toContain('"Un abonnement MIRAVA est déjà actif. Gérez ou modifiez votre forfait depuis le portail d’abonnement."')
     expect(route).toMatch(
-      /return apiError\(\s*"Un abonnement MIRAVA est déjà actif\. Gérez ou modifiez votre forfait depuis le portail d’abonnement\.",\s*409,?\s*\)/,
+      /message\(\s*"Un abonnement MIRAVA est déjà actif\. Gérez ou modifiez votre forfait depuis le portail d’abonnement\.",/,
+    )
+    expect(route).toMatch(
+      /if \(activeSubscription\)[\s\S]*?409,/,
     )
   })
 
   it("does not return raw Stripe failures to the browser", () => {
     expect(route).toMatch(
-      /return apiError\(\s*"Le paiement MIRAVA Studio est momentanément indisponible\. Réessayez dans un instant\.",\s*500,?\s*\)/,
+      /message\(\s*"Le paiement MIRAVA Studio est momentanément indisponible\. Réessayez dans un instant\.",/,
+    )
+    expect(route).toMatch(
+      /\[billing\] checkout error:[\s\S]*?500,/,
     )
     expect(route).not.toContain('return apiError(error instanceof Error ? error.message')
   })
-  it("requires the generated onboarding creation for the discovery checkout", () => {
+  it("requires the protected post-onboarding creation for discovery checkout", () => {
     expect(route).toContain(
       'offer.kind === "discovery"',
     )
     expect(route).toContain(
       "getMiravaDiscoveryAccess",
+    )
+    expect(route).toContain(
+      "isMiravaDiscoveryCreationLocked",
     )
     expect(route).toContain(
       "discovery-success",

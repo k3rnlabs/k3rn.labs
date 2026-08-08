@@ -99,4 +99,22 @@ describe("MIRAVA creations route", () => {
     expect(mocks.studioCreationPublic).toHaveBeenCalledWith(expect.objectContaining({ masterPrompt: "server-only" }))
     expect(mocks.recordMiravaAudit).toHaveBeenCalledWith("user-1", "CREATED", "creation-1")
   })
+
+  it("derives the onboarding idempotency key from the authenticated owner", async () => {
+    const response = await POST(request({
+      ...validCreation,
+      onboarding: true,
+    }))
+
+    expect(response.status).toBe(201)
+    expect(
+      mocks.createStudioCreation,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: "user-1",
+        onboardingKey:
+          "mirava-onboarding:v4:user-1",
+      }),
+    )
+  })
 })

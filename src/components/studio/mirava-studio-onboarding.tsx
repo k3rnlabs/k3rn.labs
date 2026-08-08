@@ -1255,7 +1255,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                 <div className="space-y-6 pt-2 sm:pt-3">
                   <div>
                     <span className="block font-jakarta text-[10px] font-bold tracking-[0.16em] text-[#d5c6b0] uppercase">
-                      MIRAVA / STUDIO PERSONNEL
+                      STUDIO PERSONNEL
                     </span>
                     <h1 className="mt-3 font-jakarta text-3xl font-semibold tracking-[-0.04em] text-white sm:text-4xl leading-[1.12]">
                       {labels.promise}
@@ -1291,7 +1291,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                 <div className="space-y-6 pt-2 sm:pt-3">
                   <div>
                     <span className="block font-jakarta text-[10px] font-bold tracking-[0.16em] text-[#d5c6b0] uppercase">
-                      MIRAVA / OBJECTIF
+                      OBJECTIF
                     </span>
                     <h1 className="mt-3 font-jakarta text-3xl font-semibold tracking-[-0.04em] text-white sm:text-4xl leading-[1.12]">
                       {labels.objective}
@@ -1358,7 +1358,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                 <div className="space-y-5 pt-2 sm:pt-3">
                   <div>
                     <span className="block font-jakarta text-[10px] font-bold tracking-[0.16em] text-[#d5c6b0] uppercase">
-                      MIRAVA / PREMIÈRE SÉANCE
+                      PREMIÈRE SÉANCE
                     </span>
                     <h1 className="mt-3 font-jakarta text-3xl font-semibold tracking-[-0.04em] text-white sm:text-4xl leading-[1.12]">
                       {labels.primary}
@@ -1432,7 +1432,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                 <div className="space-y-6 pt-2 sm:pt-3">
                   <div>
                     <span className="block font-jakarta text-[10px] font-bold tracking-[0.16em] text-[#d5c6b0] uppercase">
-                      MIRAVA / RÉSULTAT
+                      RÉSULTAT
                     </span>
                     <h1 className="mt-3 font-jakarta text-3xl font-semibold tracking-[-0.04em] text-white sm:text-4xl leading-[1.12]">
                       {labels.session}
@@ -1490,7 +1490,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                 <div className="space-y-6 pt-2 sm:pt-3">
                   <div>
                     <span className="block font-jakarta text-[10px] font-bold tracking-[0.16em] text-[#d5c6b0] uppercase">
-                      MIRAVA / DIRECTION
+                      DIRECTION
                     </span>
                     <h1 className="mt-3 font-jakarta text-3xl font-semibold tracking-[-0.04em] text-white sm:text-4xl leading-[1.12]">
                       {labels.direction}, {name.trim()}.
@@ -1552,8 +1552,8 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
 
                   <div className="rounded-2xl border border-[#d5c6b0]/25 bg-[#d5c6b0]/10 p-4 font-jakarta text-xs leading-5 text-white/72">
                     {locale === "fr"
-                      ? "MIRAVA crée l’aperçu personnalisé de votre première image. Après sa génération, vous pourrez débloquer le fichier haute qualité et deux créations supplémentaires pour 2,99 € TTC, paiement unique et sans abonnement."
-                      : "MIRAVA crea la vista previa personalizada de tu primera imagen. Después de generarla, podrás desbloquear el archivo en alta calidad y dos creaciones adicionales por 2,99 € IVA incluido, pago único y sin suscripción."}
+                      ? "MIRAVA crée votre première image en haute qualité, visible dès la fin de l’onboarding. Un second crédit reste offert pour créer une nouvelle image ; son résultat se déverrouille avec l’offre découverte à 2,99 € TTC, un pack ou un abonnement."
+                      : "MIRAVA crea tu primera imagen en alta calidad, visible al terminar el onboarding. Conservas un segundo crédito para crear una nueva imagen; su resultado se desbloquea con la oferta de descubrimiento de 2,99 € IVA incluido, un paquete o una suscripción."}
                   </div>
 
                   {/* Edit Links */}
@@ -1578,7 +1578,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                 <div className="space-y-5 pt-2 sm:pt-3">
                   <div>
                     <span className="block font-jakarta text-[10px] font-bold tracking-[0.16em] text-[#d5c6b0] uppercase">
-                      MIRAVA / ACCORD & IDENTITÉ
+                      ACCORD & IDENTITÉ
                     </span>
 
                     <h1 className="mt-3 font-jakarta text-2xl font-semibold leading-[1.15] tracking-[-0.04em] text-white sm:text-3xl">
@@ -1799,7 +1799,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                     </div>
 
                     <span className="block font-jakarta text-[10px] font-bold tracking-[0.16em] text-[#d5c6b0] uppercase">
-                      MIRAVA / ACTIVATION
+                      ACTIVATION
                     </span>
 
                     <h1 className="mt-3 font-jakarta text-2xl font-semibold leading-tight tracking-[-0.04em] text-white sm:text-3xl">

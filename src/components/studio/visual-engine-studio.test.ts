@@ -552,7 +552,7 @@ describe("MIRAVA studio entry contracts", () => {
     )
   })
 
-  it("protects the discovery result with a server-rendered preview and an explicit one-time checkout", () => {
+  it("protects the post-onboarding result until the first verified payment", () => {
     expect(studio).toContain(
       "function MiravaDiscoveryPaywall",
     )
@@ -567,6 +567,27 @@ describe("MIRAVA studio entry contracts", () => {
     )
     expect(studio).not.toContain(
       "filter: blur(",
+    )
+    expect(studio).not.toContain(
+      "!creation.resultLocked",
+    )
+    expect(studio).toContain(
+      "Débloquer cette photo",
+    )
+    expect(studio).toContain(
+      "Voir les packs et abonnements",
+    )
+    expect(studio).toContain(
+      "Votre nouvelle création est prête.",
+    )
+    expect(studio).toContain(
+      "Son aperçu reste protégé jusqu’à votre premier paiement.",
+    )
+    expect(studio).toContain(
+      "creditSheetUnlockCreationId",
+    )
+    expect(studio).toContain(
+      'openCreditOffers(1, "pack", current.creation.id)',
     )
   })
 
@@ -903,6 +924,82 @@ describe("MIRAVA studio entry contracts", () => {
       )
       expect(library).not.toContain(
         "studios.map",
+      )
+    },
+  )
+
+  it(
+    "opens Studio on its primary creation content and places saved directions after the reference entry",
+    () => {
+      const shellStart =
+        studio.indexOf(
+          '<main lang={locale}',
+        )
+      const shellEnd =
+        studio.indexOf(
+          "function ReferenceUpload",
+          shellStart,
+        )
+      const shell =
+        studio.slice(
+          shellStart,
+          shellEnd,
+        )
+
+      const startViewStart =
+        studio.indexOf(
+          "function StartView(",
+        )
+      const startViewEnd =
+        studio.indexOf(
+          "function IdentityProfilePreview(",
+          startViewStart,
+        )
+      const startView =
+        studio.slice(
+          startViewStart,
+          startViewEnd,
+        )
+
+      const primaryHeading =
+        startView.indexOf(
+          '<h1 className="mirava-section-title',
+        )
+      const referenceEntry =
+        startView.lastIndexOf(
+          "<ReferenceUpload",
+        )
+      const savedDirections =
+        startView.indexOf(
+          "<StudioResumeRail",
+        )
+
+      expect(shell).not.toContain(
+        "<StudioResumeRail",
+      )
+      expect(primaryHeading).toBeGreaterThanOrEqual(0)
+      expect(referenceEntry).toBeGreaterThan(primaryHeading)
+      expect(savedDirections).toBeGreaterThan(referenceEntry)
+      expect(startView).not.toContain(
+        "MIRAVA / SESSION BUILDER",
+      )
+      expect(startView).not.toContain(
+        "MIRAVA / {stageCopy[step].label}",
+      )
+    },
+  )
+
+  it(
+    "does not repeat the MIRAVA wordmark in Studio or Portfolio section labels",
+    () => {
+      expect(studio).not.toContain(
+        "MIRAVA /",
+      )
+      expect(studio).not.toContain(
+        "DIRECTIONS ENREGISTRÉES",
+      )
+      expect(studio).not.toContain(
+        "MIRAVA / PORTFOLIO",
       )
     },
   )

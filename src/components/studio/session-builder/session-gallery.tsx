@@ -29,7 +29,7 @@ export type MiravaSessionGalleryStatus = {
 
 const galleryCopy = {
   fr: {
-    eyebrow: "MIRAVA / CHAMBRE NOIRE",
+    eyebrow: "CHAMBRE NOIRE",
     title: "Votre séance se révèle.",
     preparing: "Préparation des six prises…",
     ready: (completed: number, total: number) => `${completed}/${total} photos prêtes`,
@@ -54,7 +54,7 @@ const galleryCopy = {
     background: "Vous pouvez quitter cet écran : MIRAVA poursuit la révélation en privé.",
   },
   es: {
-    eyebrow: "MIRAVA / CUARTO OSCURO",
+    eyebrow: "CUARTO OSCURO",
     title: "Tu sesión se revela.",
     preparing: "Preparando las seis imágenes…",
     ready: (completed: number, total: number) => `${completed}/${total} fotos listas`,

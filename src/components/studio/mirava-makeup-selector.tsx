@@ -96,7 +96,7 @@ export function MiravaMakeupSelector({ locale, options, setOptions }: Props) {
       data-mirava-makeup-selector
     >
       <div className="max-w-2xl">
-        <p className="mirava-label">MIRAVA / {locale === "fr" ? "BEAUTÉ" : "BELLEZA"}</p>
+        <p className="mirava-label">{locale === "fr" ? "BEAUTÉ" : "BELLEZA"}</p>
         <h2 id="mirava-makeup-title" className="mt-2 font-jakarta text-2xl font-semibold tracking-[-.045em]">
           {locale === "fr" ? "Quel maquillage pour cette séance ?" : "¿Qué maquillaje quieres para esta sesión?"}
         </h2>

@@ -71,6 +71,21 @@ describe(
     )
 
     it(
+      "records a verified first payment for subscription unlocks",
+      () => {
+        expect(route).toContain(
+          "firstPaidAt:",
+        )
+        expect(route).toContain(
+          "checkoutSession.created",
+        )
+        expect(route).toContain(
+          "invoice.status_transitions?.paid_at",
+        )
+      },
+    )
+
+    it(
       "logs fulfillment failures with enough context",
       () => {
         expect(route).toContain(

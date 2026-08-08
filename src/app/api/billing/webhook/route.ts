@@ -358,6 +358,11 @@ export async function POST(req: NextRequest) {
                     1000,
                 ).toISOString()
               : null,
+          firstPaidAt:
+            new Date(
+              checkoutSession.created *
+                1000,
+            ).toISOString(),
           cancelAtPeriodEnd:
             subscription
               .cancel_at_period_end,
@@ -572,6 +577,12 @@ export async function POST(req: NextRequest) {
           status: sub.status,
           currentPeriodStart: item?.current_period_start ? new Date(item.current_period_start * 1000).toISOString() : null,
           currentPeriodEnd: item?.current_period_end ? new Date(item.current_period_end * 1000).toISOString() : null,
+          firstPaidAt: new Date(
+            (
+              invoice.status_transitions?.paid_at ??
+              invoice.created
+            ) * 1000,
+          ).toISOString(),
           cancelAtPeriodEnd: sub.cancel_at_period_end,
         })
       }

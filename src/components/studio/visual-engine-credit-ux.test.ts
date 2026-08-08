@@ -154,7 +154,7 @@ describe(
           'color1="#b49a68"',
         )
         expect(sheet).toContain(
-          "MIRAVA / CHAMBRE NOIRE",
+          "CHAMBRE NOIRE",
         )
         expect(sheet).toContain(
           "Séance conservée",
@@ -207,7 +207,7 @@ describe(
           "localizedOfferName(",
         )
         expect(studio).toContain(
-          '"MIRAVA / CHAMBRE NOIRE"',
+          '"CHAMBRE NOIRE"',
         )
         expect(darkroomSheet).toContain(
           "onOpenAutoFocus={(event) => {",

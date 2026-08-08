@@ -19,6 +19,7 @@ import {
 } from "@/lib/mirava/brand"
 import {
   getMiravaDiscoveryAccess,
+  isMiravaDiscoveryCreationLocked,
 } from "@/lib/visual-engine/discovery"
 import {
   isMiravaPublicLaunchEnabled,
@@ -181,8 +182,8 @@ export async function POST(
     if (!creationId) {
       return apiError(
         message(
-          "La première séance à débloquer est manquante.",
-          "Falta la primera sesión que se debe desbloquear.",
+          "La création à débloquer est manquante.",
+          "Falta la creación que se debe desbloquear.",
         ),
         400,
       )
@@ -208,9 +209,7 @@ export async function POST(
     if (
       !creation ||
       creation.status !==
-        "COMPLETED" ||
-      access.firstSessionId !==
-        creation.id
+        "COMPLETED"
     ) {
       return apiError(
         message(
@@ -222,12 +221,27 @@ export async function POST(
     }
 
     if (
-      access.unlockedCreationId
+      access.hasVerifiedPurchase
     ) {
       return apiError(
         message(
-          "Votre séance découverte est déjà débloquée.",
-          "Tu sesión de descubrimiento ya está desbloqueada.",
+          "Votre création est déjà débloquée.",
+          "Tu creación ya está desbloqueada.",
+        ),
+        409,
+      )
+    }
+
+    if (
+      !isMiravaDiscoveryCreationLocked(
+        access,
+        creation.id,
+      )
+    ) {
+      return apiError(
+        message(
+          "Cette séance découverte n’est pas disponible.",
+          "Esta sesión de descubrimiento no está disponible.",
         ),
         409,
       )
@@ -296,6 +310,9 @@ export async function POST(
               : "payment",
           billing_address_collection:
             "auto",
+          automatic_tax: {
+            enabled: true,
+          },
           allow_promotion_codes:
             true,
           line_items: [
@@ -357,14 +374,12 @@ export async function POST(
               : {}
           ),
           success_url:
-            isDiscovery &&
             creationId
-              ? `${appUrl}/visual-engine/studio?view=create&checkout=discovery-success&creation=${encodeURIComponent(creationId)}`
+              ? `${appUrl}/visual-engine/studio?view=create&checkout=${isDiscovery ? "discovery-success" : "success"}&creation=${encodeURIComponent(creationId)}`
               : `${appUrl}/visual-engine/studio?view=create&checkout=success`,
           cancel_url:
-            isDiscovery &&
             creationId
-              ? `${appUrl}/visual-engine/studio?view=create&checkout=discovery-cancelled&creation=${encodeURIComponent(creationId)}`
+              ? `${appUrl}/visual-engine/studio?view=create&checkout=${isDiscovery ? "discovery-cancelled" : "cancelled"}&creation=${encodeURIComponent(creationId)}`
               : `${appUrl}/visual-engine/studio?view=create&checkout=cancelled`,
         })
 

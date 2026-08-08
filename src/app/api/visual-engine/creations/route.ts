@@ -7,6 +7,7 @@ import { miravaApiError as apiError, miravaApiSuccess as apiSuccess, withMiravaP
 import { createStudioCreation, ensureStudioActivation, listStudioCreations, studioCreationPublic, studioErrorResponse } from "@/lib/visual-engine/core"
 import { recordMiravaAudit } from "@/lib/visual-engine/audit"
 import { MIRAVA_STUDIO_PRESETS, type MiravaStudioPresetId } from "@/lib/mirava/brand"
+import { MIRAVA_ONBOARDING_VERSION } from "@/lib/mirava/onboarding"
 import { miravaCreativeOptionsSchema } from "@/lib/mirava/creative-options"
 import { isMiravaPublicLaunchEnabled } from "@/lib/mirava/server-config"
 import { requireMiravaRequiredConsents } from "@/lib/visual-engine/privacy"
@@ -16,6 +17,7 @@ const createSchema = z.object({
   rightsConfirmed: z.literal(true),
   privacyAccepted: z.literal(true),
   openaiDisclosureAccepted: z.literal(true),
+  onboarding: z.literal(true).optional(),
   presetId: z.enum(MIRAVA_STUDIO_PRESETS.map((preset) => preset.id) as [string, ...string[]]).optional(),
   creativeOptions: miravaCreativeOptionsSchema.optional(),
 })
@@ -43,7 +45,15 @@ export async function POST(req: NextRequest) {
   if ("error" in result) return withMiravaPrivateHeaders(result.error)
   try {
     await requireMiravaRequiredConsents(session.userId)
-    const creation = await createStudioCreation({ userId: session.userId, ...result.data, presetId: result.data.presetId as MiravaStudioPresetId | undefined })
+    const creation = await createStudioCreation({
+      userId: session.userId,
+      ...result.data,
+      onboardingKey:
+        result.data.onboarding
+          ? `mirava-onboarding:v${MIRAVA_ONBOARDING_VERSION}:${session.userId}`
+          : undefined,
+      presetId: result.data.presetId as MiravaStudioPresetId | undefined,
+    })
     await recordMiravaAudit(session.userId, "CREATED", creation.id)
     return apiSuccess({ creation: studioCreationPublic(creation) }, 201)
   } catch (error) {

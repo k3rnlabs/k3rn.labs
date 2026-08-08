@@ -755,6 +755,7 @@ model AgentMessage {
 model StudioSession {
   id                String   @id @default(cuid())
   userId            String
+  onboardingKey     String?  @unique
   studioProfileId   String?
   identityProfileId String?
   referenceCreationId String?
@@ -979,6 +980,7 @@ model StudioJob {
 
   @@index([status, nextRunAt])
   @@index([creationId, kind])
+  @@unique([creationId, kind])
 }
 
 model StudioCreditLedger {
@@ -1048,6 +1050,7 @@ model StudioSubscription {
   status               String?
   currentPeriodStart   DateTime?
   currentPeriodEnd     DateTime?
+  firstPaidAt          DateTime?
   cancelAtPeriodEnd    Boolean  @default(false)
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt

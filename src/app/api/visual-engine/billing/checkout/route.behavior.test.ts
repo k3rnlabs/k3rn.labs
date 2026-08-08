@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   isMiravaPublicLaunchEnabled: vi.fn(),
   findUser: vi.fn(),
   findSubscription: vi.fn(),
+  findCreation: vi.fn(),
+  getMiravaDiscoveryAccess: vi.fn(),
 }))
 
 vi.mock("@/lib/auth", () => ({ verifySession: mocks.verifySession }))
@@ -17,10 +19,21 @@ vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: mocks.checkRateLimit }))
 vi.mock("@/lib/stripe", () => ({ getStripe: mocks.getStripe, isStripeConfigured: mocks.isStripeConfigured }))
 vi.mock("@/lib/mirava/brand", () => ({ getMiravaOffer: mocks.getMiravaOffer, MIRAVA_STRIPE_PRODUCT: "mirava" }))
 vi.mock("@/lib/mirava/server-config", () => ({ isMiravaPublicLaunchEnabled: mocks.isMiravaPublicLaunchEnabled }))
+vi.mock("@/lib/visual-engine/discovery", () => ({
+  getMiravaDiscoveryAccess: mocks.getMiravaDiscoveryAccess,
+  isMiravaDiscoveryCreationLocked: (
+    access: {
+      firstSessionId: string | null
+      hasVerifiedPurchase: boolean
+    },
+    creationId: string,
+  ) => Boolean(access.firstSessionId) && access.firstSessionId !== creationId && !access.hasVerifiedPurchase,
+}))
 vi.mock("@/lib/db", () => ({
   db: {
     user: { findUnique: mocks.findUser },
     studioSubscription: { findUnique: mocks.findSubscription },
+    studioCreation: { findUnique: mocks.findCreation },
   },
 }))
 
@@ -29,6 +42,7 @@ import { POST } from "./route"
 function request(
   offerId = "mirava-20",
   locale: "fr" | "es" = "fr",
+  creationId?: string,
 ) {
   return new NextRequest(
     "https://mirava.test/api/visual-engine/billing/checkout",
@@ -45,6 +59,9 @@ function request(
       body:
         JSON.stringify({
           offerId,
+          ...(creationId
+            ? { creationId }
+            : {}),
         }),
     },
   )
@@ -93,8 +110,11 @@ describe("MIRAVA subscription checkout guard", () => {
     expect(checkoutParameters).not.toHaveProperty(
       "payment_method_types",
     )
-    expect(checkoutParameters).not.toHaveProperty(
-      "automatic_tax",
+    expect(
+      checkoutParameters,
+    ).toHaveProperty(
+      "automatic_tax.enabled",
+      true,
     )
     expect(
       checkoutParameters,
@@ -175,6 +195,87 @@ describe("MIRAVA subscription checkout guard", () => {
         error:
           "Las compras de MIRAVA todavía no están disponibles.",
       })
+    },
+  )
+
+  it(
+    "opens discovery checkout for the protected post-onboarding creation",
+    async () => {
+      const create =
+        vi.fn().mockResolvedValue({
+          url: "https://stripe.test/discovery",
+        })
+
+      mocks.getMiravaOffer.mockReturnValue({
+        id: "mirava-discovery",
+        kind: "discovery",
+        credits: 2,
+        stripePriceId: "price_discovery",
+      })
+      mocks.findCreation.mockResolvedValue({
+        id: "creation-2",
+        status: "COMPLETED",
+      })
+      mocks.getMiravaDiscoveryAccess.mockResolvedValue({
+        firstSessionId: "creation-1",
+        discoveryCreationId: null,
+        hasVerifiedPurchase: false,
+      })
+      mocks.getStripe.mockReturnValue({
+        checkout: {
+          sessions: {
+            create,
+          },
+        },
+      })
+
+      const response = await POST(
+        request(
+          "mirava-discovery",
+          "fr",
+          "creation-2",
+        ),
+      )
+
+      expect(response.status).toBe(200)
+      expect(
+        create.mock.calls[0]?.[0]
+          .success_url,
+      ).toBe(
+        "https://mirava.test/visual-engine/studio?view=create&checkout=discovery-success&creation=creation-2",
+      )
+    },
+  )
+
+  it(
+    "never places the onboarding wow image behind discovery checkout",
+    async () => {
+      mocks.getMiravaOffer.mockReturnValue({
+        id: "mirava-discovery",
+        kind: "discovery",
+        credits: 2,
+        stripePriceId: "price_discovery",
+      })
+      mocks.findCreation.mockResolvedValue({
+        id: "creation-1",
+        status: "COMPLETED",
+      })
+      mocks.getMiravaDiscoveryAccess.mockResolvedValue({
+        firstSessionId: "creation-1",
+        discoveryCreationId: null,
+        hasVerifiedPurchase: false,
+      })
+
+      const response = await POST(
+        request(
+          "mirava-discovery",
+          "fr",
+          "creation-1",
+        ),
+      )
+
+      expect(response.status).toBe(409)
+      expect(mocks.getStripe).not.toHaveBeenCalled()
     },
   )
 

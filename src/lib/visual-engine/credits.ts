@@ -3,7 +3,12 @@ import { db } from "@/lib/db"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 import { MIRAVA_STRIPE_PRODUCT, MIRAVA_SUBSCRIPTION_PLANS, type MiravaOfferId } from "@/lib/mirava/brand"
 
-export const MIRAVA_ACTIVATION_CREDITS = 1
+export const MIRAVA_ACTIVATION_CREDITS = 2
+
+const MIRAVA_LEGACY_ACTIVATION_VERSION =
+  "2026-07-29"
+const MIRAVA_ACTIVATION_VERSION =
+  "2026-08-08"
 
 export type MiravaCreditLotKind = "ACTIVATION" | "SUBSCRIPTION" | "PURCHASE" | "COMPENSATION" | "MIGRATION"
 type MiravaLedgerKind = "ACTIVATION_GRANT" | "SUBSCRIPTION_GRANT" | "PURCHASE" | "COMPENSATION"
@@ -52,15 +57,46 @@ export async function grantMiravaCredits(args: {
 }
 
 export async function ensureMiravaActivation(userId: string): Promise<number> {
-  const user = await db.user.findUnique({ where: { id: userId }, select: { studioCredits: true } })
+  const [user, legacyGrant] = await Promise.all([
+    db.user.findUnique({ where: { id: userId }, select: { studioCredits: true } }),
+    db.studioCreditLedger.findUnique({
+      where: {
+        idempotencyKey: `mirava-studio-activation:${userId}:${MIRAVA_LEGACY_ACTIVATION_VERSION}`,
+      },
+    }),
+  ])
+
   if (!user) throw new MiravaCreditError("Compte MIRAVA introuvable.", "NOT_FOUND")
+
+  if (legacyGrant) {
+    const topUp = Math.max(
+      0,
+      MIRAVA_ACTIVATION_CREDITS - Number(legacyGrant.amount ?? 0),
+    )
+
+    if (topUp === 0) return Number(user.studioCredits)
+
+    return grantMiravaCredits({
+      userId,
+      kind: "ACTIVATION",
+      ledgerKind: "ACTIVATION_GRANT",
+      amount: topUp,
+      key: `mirava-studio-activation-upgrade:${userId}:${MIRAVA_ACTIVATION_VERSION}`,
+      metadata: {
+        product: MIRAVA_STRIPE_PRODUCT,
+        version: MIRAVA_ACTIVATION_VERSION,
+        previousVersion: MIRAVA_LEGACY_ACTIVATION_VERSION,
+      },
+    })
+  }
+
   return grantMiravaCredits({
     userId,
     kind: "ACTIVATION",
     ledgerKind: "ACTIVATION_GRANT",
     amount: MIRAVA_ACTIVATION_CREDITS,
-    key: `mirava-studio-activation:${userId}:2026-07-29`,
-    metadata: { product: MIRAVA_STRIPE_PRODUCT, version: "2026-07-29" },
+    key: `mirava-studio-activation:${userId}:${MIRAVA_ACTIVATION_VERSION}`,
+    metadata: { product: MIRAVA_STRIPE_PRODUCT, version: MIRAVA_ACTIVATION_VERSION },
   })
 }
 
@@ -119,6 +155,7 @@ export async function recordMiravaSubscription(args: {
   status: string
   currentPeriodStart?: string | null
   currentPeriodEnd?: string | null
+  firstPaidAt?: string | null
   cancelAtPeriodEnd: boolean
 }): Promise<void> {
   await db.studioSubscription.upsert({
@@ -131,6 +168,7 @@ export async function recordMiravaSubscription(args: {
       status: args.status,
       currentPeriodStart: args.currentPeriodStart ?? null,
       currentPeriodEnd: args.currentPeriodEnd ?? null,
+      firstPaidAt: args.firstPaidAt ?? null,
       cancelAtPeriodEnd: args.cancelAtPeriodEnd,
     },
     update: {
@@ -140,6 +178,7 @@ export async function recordMiravaSubscription(args: {
       status: args.status,
       currentPeriodStart: args.currentPeriodStart ?? null,
       currentPeriodEnd: args.currentPeriodEnd ?? null,
+      ...(args.firstPaidAt ? { firstPaidAt: args.firstPaidAt } : {}),
       cancelAtPeriodEnd: args.cancelAtPeriodEnd,
     },
   })
