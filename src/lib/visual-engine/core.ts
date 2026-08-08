@@ -2516,8 +2516,49 @@ export type MiravaSessionShootStatus = Readonly<{
     resultUrl: string | null
     failureKind: StudioPublicFailureKind
     failureMessage: string | null
+    continuationActive: boolean
+    continuationKind: "REGENERATE" | "POSE" | null
+    continuationFailureMessage: string | null
   }>
 }>
+
+function isActiveStudioStatus(status: StudioStatus): boolean {
+  return status === "GENERATION_QUEUED" || status === "GENERATING"
+}
+
+function sessionContinuationKind(creation: StudioCreationRecord): "REGENERATE" | "POSE" | null {
+  const continuation = (creation.creativeOptions as Record<string, unknown> | null)?.continuation as Record<string, unknown> | undefined
+  if (!continuation) return null
+  const intents = continuation.intents
+  return Array.isArray(intents) && intents.includes("pose") ? "POSE" : "REGENERATE"
+}
+
+export async function continueMiravaSessionShot(args: {
+  userId: string
+  sessionId: string
+  shotIndex: number
+  kind: "REGENERATE" | "POSE"
+}): Promise<{ creation: StudioCreationRecord; alreadyQueued: boolean }> {
+  const session = await db.studioSession.findFirst({
+    where: { id: args.sessionId, userId: args.userId },
+    include: { creations: { orderBy: { createdAt: "asc" } } },
+  })
+  if (!session) throw new StudioError("Séance MIRAVA introuvable.", "NOT_FOUND")
+  const canonical = session.creations.find((creation) => creation.shotIndex === args.shotIndex && !creation.parentCreationId)
+  if (!canonical) throw new StudioError("Prise MIRAVA introuvable.", "NOT_FOUND")
+  if (canonical.status !== "COMPLETED") throw new StudioError("Cette prise n’est pas encore prête à être renouvelée.", "INVALID_STATE")
+  const active = session.creations.find((creation) => creation.parentCreationId === canonical.id && isActiveStudioStatus(creation.status))
+  if (active) return { creation: asCreation(active), alreadyQueued: true }
+  const creation = await continueStudioCreation({
+    userId: args.userId,
+    sourceCreationId: canonical.id,
+    intents: args.kind === "POSE" ? ["pose"] : undefined,
+    customInstruction: args.kind === "REGENERATE"
+      ? "Regenerate this exact canonical session shot. Preserve identity, set, lighting, wardrobe, shot role, framing and composition."
+      : undefined,
+  })
+  return { creation, alreadyQueued: false }
+}
 
 export async function getMiravaSessionShootStatus(args: { userId: string; sessionId: string }): Promise<MiravaSessionShootStatus> {
   const [session, user] = await Promise.all([
@@ -2530,17 +2571,25 @@ export async function getMiravaSessionShootStatus(args: { userId: string; sessio
   if (!session) throw new StudioError("Séance MIRAVA introuvable.", "NOT_FOUND")
   // Continuation creations share the session for lineage, but are never extra
   // Builder slots. The primary gallery is strictly the canonical 0..5 plan.
-  const shots = await Promise.all(session.creations.filter((creation) => creation.shotIndex >= 0 && creation.shotIndex < MIRAVA_SESSION_SHOT_COUNT).map(async (creation) => {
-    const results = await getStudioAssets(creation.id, "RESULT")
-    const publicCreation = studioCreationPublic(asCreation(creation))
+  const canonicalShots = session.creations.filter((creation) => creation.shotIndex >= 0 && creation.shotIndex < MIRAVA_SESSION_SHOT_COUNT && !creation.parentCreationId)
+  const shots = await Promise.all(canonicalShots.map(async (creation) => {
+    const versions = session.creations.filter((candidate) => candidate.parentCreationId === creation.id)
+    const activeVersion = versions.filter((candidate) => isActiveStudioStatus(candidate.status)).at(-1) ?? null
+    const displayed = [...versions.filter((candidate) => candidate.status === "COMPLETED"), creation].sort((a, b) => new Date(a.completedAt ?? a.createdAt).getTime() - new Date(b.completedAt ?? b.createdAt).getTime()).at(-1)!
+    const results = await getStudioAssets(displayed.id, "RESULT")
+    const publicCreation = studioCreationPublic(asCreation(activeVersion ?? displayed))
+    const failedVersion = versions.filter((candidate) => candidate.status === "FAILED").at(-1) ?? null
     return {
       creationId: creation.id,
       shotIndex: creation.shotIndex,
       shotIntent: creation.shotIntent,
-      status: publicCreation.status,
-      resultUrl: results.length ? `/api/visual-engine/creations/${creation.id}/result?index=0` : null,
+      status: activeVersion ? studioCreationPublic(asCreation(activeVersion)).status : studioCreationPublic(asCreation(displayed)).status,
+      resultUrl: results.length ? `/api/visual-engine/creations/${displayed.id}/result?index=0` : null,
       failureKind: publicCreation.failureKind,
       failureMessage: publicCreation.failureMessage,
+      continuationActive: Boolean(activeVersion),
+      continuationKind: activeVersion ? sessionContinuationKind(asCreation(activeVersion)) : null,
+      continuationFailureMessage: failedVersion?.failureMessage ?? null,
     }
   }))
   const completedCount = shots.filter((shot) => shot.status === "COMPLETED").length
