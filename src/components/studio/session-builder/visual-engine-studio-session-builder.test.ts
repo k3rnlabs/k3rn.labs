@@ -55,7 +55,7 @@ describe(
       expect(
         source,
       ).toContain(
-        "<SessionGallery sessionId={sessionShootId}",
+        "<SessionGallery locale={locale} sessionId={sessionShootId}",
       )
 
       expect(

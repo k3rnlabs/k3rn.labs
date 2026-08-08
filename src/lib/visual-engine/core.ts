@@ -60,7 +60,7 @@ import {
   buildMiravaCampaignSafeTransferPrompt,
   detectMiravaCampaignRisk,
 } from "@/lib/mirava/pipeline/coverage-safety-adaptation"
-import { assertNoArtisticReferenceInGenerationPayload, assertAtLeastOneValidatedIdentityImage } from "@/lib/mirava/security/assert-image-role-separation"
+import { assertAtLeastOneValidatedIdentityImage } from "@/lib/mirava/security/assert-image-role-separation"
 import {
   KieProviderError,
   buildMiravaKieReferencePrompt,
@@ -74,6 +74,12 @@ import {
 import type { VisualDirectionBlueprint } from "@/lib/mirava/schemas/visual-direction-blueprint.schema"
 import { MIRAVA_SESSION_BUILDER_VERSION, MIRAVA_SESSION_SHOT_COUNT, miravaSessionBuilderReadySchema } from "@/lib/mirava/session-builder/schema"
 import { buildMiravaSessionShotGenerationContext } from "@/lib/mirava/session-builder/shot-generation-context"
+import {
+  selectMiravaCustomLookProviderReferences,
+  selectMiravaReferenceLookProviderReferences,
+  buildMiravaSessionProviderImageInputs,
+  type MiravaSessionProviderReference,
+} from "@/lib/mirava/session-builder/provider-visual-references"
 import { requireMiravaRequiredConsents } from "@/lib/visual-engine/privacy"
 
 export const STUDIO_BUCKET = process.env.SUPABASE_STORAGE_VISUAL_ENGINE_BUCKET ?? "visual-engine-private"
@@ -2533,6 +2539,30 @@ function sessionContinuationKind(creation: StudioCreationRecord): "REGENERATE" |
   return Array.isArray(intents) && intents.includes("pose") ? "POSE" : "REGENERATE"
 }
 
+export function resolveMiravaSessionShotVersions(
+  canonical: StudioCreationRecord,
+  versions: readonly StudioCreationRecord[],
+): {
+  displayed: StudioCreationRecord
+  active: StudioCreationRecord | null
+  failedContinuation: StudioCreationRecord | null
+} {
+  const newestFirst = [...versions].sort(
+    (left, right) => new Date(right.completedAt ?? right.createdAt).getTime() - new Date(left.completedAt ?? left.createdAt).getTime(),
+  )
+  const active = newestFirst.find(
+    (candidate) => isActiveStudioStatus(candidate.status),
+  ) ?? null
+  const displayed = newestFirst.find(
+    (candidate) => candidate.status === "COMPLETED",
+  ) ?? canonical
+  const failedContinuation = newestFirst.find(
+    (candidate) => candidate.status === "FAILED" || candidate.status === "CANCELLED",
+  ) ?? null
+
+  return { displayed, active, failedContinuation }
+}
+
 export async function continueMiravaSessionShot(args: {
   userId: string
   sessionId: string
@@ -2544,11 +2574,12 @@ export async function continueMiravaSessionShot(args: {
     include: { creations: { orderBy: { createdAt: "asc" } } },
   })
   if (!session) throw new StudioError("Séance MIRAVA introuvable.", "NOT_FOUND")
-  const canonical = session.creations.find((creation) => creation.shotIndex === args.shotIndex && !creation.parentCreationId)
+  const creations = (session.creations as unknown[]).map(asCreation)
+  const canonical = creations.find((creation) => creation.shotIndex === args.shotIndex && !creation.parentCreationId)
   if (!canonical) throw new StudioError("Prise MIRAVA introuvable.", "NOT_FOUND")
   if (canonical.status !== "COMPLETED") throw new StudioError("Cette prise n’est pas encore prête à être renouvelée.", "INVALID_STATE")
-  const active = session.creations.find((creation) => creation.parentCreationId === canonical.id && isActiveStudioStatus(creation.status))
-  if (active) return { creation: asCreation(active), alreadyQueued: true }
+  const active = creations.find((creation) => creation.parentCreationId === canonical.id && isActiveStudioStatus(creation.status))
+  if (active) return { creation: active, alreadyQueued: true }
   const creation = await continueStudioCreation({
     userId: args.userId,
     sourceCreationId: canonical.id,
@@ -2564,25 +2595,36 @@ export async function getMiravaSessionShootStatus(args: { userId: string; sessio
   const [session, user] = await Promise.all([
     db.studioSession.findFirst({
       where: { id: args.sessionId, userId: args.userId },
-      include: { creations: { orderBy: { shotIndex: "asc" } } },
+      include: { creations: { orderBy: { createdAt: "asc" } } },
     }),
     db.user.findUnique({ where: { id: args.userId }, select: { studioCredits: true } }),
   ])
   if (!session) throw new StudioError("Séance MIRAVA introuvable.", "NOT_FOUND")
   // Continuation creations share the session for lineage, but are never extra
   // Builder slots. The primary gallery is strictly the canonical 0..5 plan.
-  const canonicalShots = session.creations.filter((creation) => creation.shotIndex >= 0 && creation.shotIndex < MIRAVA_SESSION_SHOT_COUNT && !creation.parentCreationId)
+  const creations = (session.creations as unknown[]).map(asCreation)
+  const canonicalShots = creations.filter((creation): creation is StudioCreationRecord & { shotIndex: number } => (
+    typeof creation.shotIndex === "number"
+    && creation.shotIndex >= 0
+    && creation.shotIndex < MIRAVA_SESSION_SHOT_COUNT
+    && !creation.parentCreationId
+  ))
   const shots = await Promise.all(canonicalShots.map(async (creation) => {
-    const versions = session.creations.filter((candidate) => candidate.parentCreationId === creation.id)
-    const activeVersion = versions.filter((candidate) => isActiveStudioStatus(candidate.status)).at(-1) ?? null
-    const displayed = [...versions.filter((candidate) => candidate.status === "COMPLETED"), creation].sort((a, b) => new Date(a.completedAt ?? a.createdAt).getTime() - new Date(b.completedAt ?? b.createdAt).getTime()).at(-1)!
+    const versions = creations
+      .filter((candidate) => candidate.parentCreationId === creation.id)
+    const resolved = resolveMiravaSessionShotVersions(
+      creation,
+      versions,
+    )
+    const activeVersion = resolved.active
+    const displayed = resolved.displayed
     const results = await getStudioAssets(displayed.id, "RESULT")
     const publicCreation = studioCreationPublic(asCreation(activeVersion ?? displayed))
-    const failedVersion = versions.filter((candidate) => candidate.status === "FAILED").at(-1) ?? null
+    const failedVersion = resolved.failedContinuation
     return {
       creationId: creation.id,
       shotIndex: creation.shotIndex,
-      shotIntent: creation.shotIntent,
+      shotIntent: creation.shotIntent ?? null,
       status: activeVersion ? studioCreationPublic(asCreation(activeVersion)).status : studioCreationPublic(asCreation(displayed)).status,
       resultUrl: results.length ? `/api/visual-engine/creations/${displayed.id}/result?index=0` : null,
       failureKind: publicCreation.failureKind,
@@ -2617,11 +2659,32 @@ export async function launchMiravaSessionShoot(args: {
     where: { id: args.sessionId, userId: args.userId },
     include: {
       identityProfile: { include: { assets: { select: { id: true } } } },
-      referenceCreation: { select: { id: true, userId: true, masterPrompt: true, assets: { where: { kind: "REFERENCE", deletedAt: null }, select: { id: true } } } },
+      referenceCreation: { include: { assets: { where: { kind: "REFERENCE", deletedAt: null } } } },
       lookItems: { include: { assets: { select: { viewKey: true } } }, orderBy: { position: "asc" } },
       creations: { select: { id: true, shotIndex: true }, orderBy: { shotIndex: "asc" } },
     },
-  })
+  }) as {
+    id: string
+    builderVersion: number | null
+    builderConfig: unknown
+    setPresetId: string | null
+    lightingPresetId: string | null
+    identityProfile: { assets: unknown[] } | null
+    referenceCreation: {
+      id: string
+      userId: string
+      masterPrompt: string | null
+      assets: unknown[]
+    } | null
+    lookItems: Array<{
+      category: string
+      label: string | null
+      brand: string | null
+      description: string | null
+      assets: Array<{ viewKey: string | null }>
+    }>
+    creations: Array<{ id: string; shotIndex: number | null }>
+  } | null
 
   if (!session) throw new StudioError("Séance MIRAVA introuvable.", "NOT_FOUND")
   if (session.builderVersion !== MIRAVA_SESSION_BUILDER_VERSION) {
@@ -3617,6 +3680,108 @@ async function getMiravaContinuityResultAsset(
   return results[index] ?? null
 }
 
+async function getMiravaSessionProviderVisualReferences(
+  creation: StudioCreationRecord,
+): Promise<MiravaSessionProviderReference[]> {
+  if (!creation.sessionId) return []
+
+  const session = await db.studioSession.findFirst({
+    where: {
+      id: creation.sessionId,
+      userId: creation.userId,
+    },
+    include: {
+      lookItems: {
+        include: {
+          assets: {
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+        },
+        orderBy: {
+          position: "asc",
+        },
+      },
+      referenceCreation: {
+        include: {
+          assets: {
+            where: {
+              kind: "REFERENCE",
+              deletedAt: null,
+            },
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+        },
+      },
+    },
+  }) as {
+    builderConfig: unknown
+    lookItems: Array<{
+      position: number
+      assets: Array<{
+        id: string
+        storagePath: string
+        mimeType: string
+        viewKey: string | null
+        createdAt: Date | string
+      }>
+    }>
+    referenceCreation: {
+      assets: Array<{
+        id: string
+        storagePath: string
+        mimeType: string
+        createdAt: Date | string
+      }>
+    } | null
+  } | null
+
+  const config = session?.builderConfig
+  const lookMode = config && typeof config === "object" && !Array.isArray(config)
+    ? (config as Record<string, unknown>).lookMode
+    : null
+
+  if (lookMode === "CUSTOM") {
+    return selectMiravaCustomLookProviderReferences({
+      lookItems: session?.lookItems ?? [],
+    })
+  }
+
+  if (lookMode === "REFERENCE") {
+    return selectMiravaReferenceLookProviderReferences({
+      assets: (session?.referenceCreation?.assets ?? []).map((asset) => ({
+        ...asset,
+        viewKey: "FRONT",
+      })),
+    })
+  }
+
+  return []
+}
+
+function buildMiravaSessionProviderInputPrompt(
+  prompt: string,
+  references: readonly MiravaSessionProviderReference[],
+): string {
+  if (!references.length) return prompt
+
+  const roles = references.map((reference, index) => {
+    const image = index + 1
+    return reference.role === "WARDROBE"
+      ? `Attached image ${image} is WARDROBE ONLY: reproduce its garment or accessory faithfully, but never use it as an identity source.`
+      : `Attached image ${image} is ART DIRECTION ONLY: preserve its wardrobe and photographic character, but never transfer its face, body identity, skin identity or distinguishing characteristics.`
+  })
+
+  return [
+    "MIRAVA IMAGE ROLE CONTRACT — Identity Profile images remain the sole authority for the generated person's identity.",
+    ...roles,
+    prompt,
+  ].join("\n\n")
+}
+
 async function generateStudioImage(
   creation: StudioCreationRecord,
   identityAssets: Array<
@@ -3642,19 +3807,19 @@ async function generateStudioImage(
     identityAssets,
   )
 
+  const sessionVisualReferences =
+    await getMiravaSessionProviderVisualReferences(
+      creation,
+    )
+  const sessionProviderInputs =
+    buildMiravaSessionProviderImageInputs(
+      sessionVisualReferences,
+    )
+
   const continuityAsset =
     await getMiravaContinuityResultAsset(
       creation,
     )
-
-  assertNoArtisticReferenceInGenerationPayload({
-    assets: continuityAsset
-      ? [
-          continuityAsset,
-          ...identityAssets,
-        ]
-      : identityAssets,
-  })
 
   const continuationDirective =
     readMiravaContinuationDirective(
@@ -3824,6 +3989,15 @@ async function generateStudioImage(
         MiravaKieReferenceImage[] =
         []
 
+      for (const reference of sessionProviderInputs) {
+        references.push({
+          role: reference.role,
+          buffer: await downloadAsset(reference),
+          mimeType: reference.mimeType,
+          fileName: `${reference.fileName}.${extensionForMime(reference.mimeType)}`,
+        })
+      }
+
       if (kieArtisticReference) {
         references.push({
           role: "ART_DIRECTION",
@@ -3915,6 +4089,14 @@ async function generateStudioImage(
             providerPrompt.length,
           inputImageCount:
             references.length,
+          sessionVisualReferenceIds:
+            sessionVisualReferences.map(
+              (reference) => reference.id,
+            ),
+          sessionVisualReferenceRoles:
+            sessionVisualReferences.map(
+              (reference) => reference.role,
+            ),
           artisticReferencePresent:
             Boolean(
               kieArtisticReference,
@@ -4085,6 +4267,14 @@ async function generateStudioImage(
           promptText.length,
         identityAssetCount:
           assets.length,
+        sessionProviderInputIds:
+          sessionProviderInputs.map(
+            (input) => input.id,
+          ),
+        sessionProviderInputRoles:
+          sessionProviderInputs.map(
+            (input) => input.role,
+          ),
         continuityAssetPresent:
           Boolean(continuityInput),
         model:
@@ -4093,9 +4283,14 @@ async function generateStudioImage(
     )
 
     const form = new FormData()
+    const providerPrompt =
+      buildMiravaSessionProviderInputPrompt(
+        promptText,
+        sessionProviderInputs,
+      )
 
     form.append("model", MIRAVA_IMAGE_MODEL)
-    form.append("prompt", promptText)
+    form.append("prompt", providerPrompt)
     form.append("size", "1024x1536")
     form.append("quality", "high")
     form.append("output_format", "png")
@@ -4117,6 +4312,18 @@ async function generateStudioImage(
           },
         ),
         `continuity-${continuityInput.id}.${extensionForMime(continuityInput.mimeType)}`,
+      )
+    }
+
+    for (const reference of sessionProviderInputs) {
+      const buffer = await downloadAsset(reference)
+      form.append(
+        "image[]",
+        new Blob(
+          [new Uint8Array(buffer)],
+          { type: reference.mimeType },
+        ),
+        `${reference.fileName}.${extensionForMime(reference.mimeType)}`,
       )
     }
 

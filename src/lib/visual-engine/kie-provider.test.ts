@@ -78,6 +78,7 @@ describe(
               "Create the approved fashion frame.",
             roles: [
               "ART_DIRECTION",
+              "WARDROBE",
               "IDENTITY",
               "IDENTITY",
               "IDENTITY",
@@ -92,6 +93,9 @@ describe(
         )
         expect(prompt).toContain(
           "IDENTITY AUTHORITY",
+        )
+        expect(prompt).toContain(
+          "WARDROBE ONLY",
         )
         expect(prompt).toContain(
           "sole authority for the generated person's identity",

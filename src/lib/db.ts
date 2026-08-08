@@ -92,6 +92,7 @@ const RELATIONS: Record<
   StudioSession: {
     user: { table: "User", fk: "userId", selfFk: "userId", type: "belongsTo" },
     creations: { table: "StudioCreation", fk: "sessionId", type: "hasMany" },
+    referenceCreation: { table: "StudioCreation", fk: "referenceCreationId", selfFk: "referenceCreationId", type: "belongsTo" },
     lookItems: { table: "StudioSessionLookItem", fk: "sessionId", type: "hasMany" },
   },
   StudioSessionLookItem: {

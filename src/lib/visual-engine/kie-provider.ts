@@ -14,6 +14,7 @@ const KIE_REQUEST_TIMEOUT_MS =
 
 export type MiravaKieImageRole =
   | "ART_DIRECTION"
+  | "WARDROBE"
   | "CONTINUITY"
   | "IDENTITY"
 
@@ -372,6 +373,10 @@ export function buildMiravaKieReferencePrompt(args: {
       if (role === "ART_DIRECTION") {
         lines.push(
           `Image ${imageNumber}: ART DIRECTION ONLY. Transfer reusable scene, environment, pose geometry, camera height and angle, crop, perspective, lighting, wardrobe construction and photographic finish. Never use this image as an identity source and never copy the person's face or identity.`,
+        )
+      } else if (role === "WARDROBE") {
+        lines.push(
+          `Image ${imageNumber}: WARDROBE ONLY. Reproduce the attached garment, accessory, colour, material and construction faithfully. Never use this image as an identity source or transfer its face, body identity, skin identity or distinguishing characteristics.`,
         )
       } else if (
         role === "CONTINUITY"

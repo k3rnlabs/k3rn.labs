@@ -2876,7 +2876,7 @@ export function VisualEngineStudio() {
 
         {view === "create" && (
           sessionShootId ? (
-            <SessionGallery sessionId={sessionShootId} />
+            <SessionGallery locale={locale} sessionId={sessionShootId} />
           ) : sessionBuilderSession ? (
             <SessionBuilderFlow
               locale={locale}
