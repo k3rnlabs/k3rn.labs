@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server"
+import { requireMiravaIdentityConsent } from "@/lib/visual-engine/privacy"
 import { verifySession } from "@/lib/auth"
 import { checkRateLimit } from "@/lib/rate-limit"
 import {
@@ -28,6 +29,10 @@ export async function POST(
     return apiError("Unauthorized", 401)
   }
 
+  await requireMiravaIdentityConsent(
+    session.userId,
+  )
+
   const limit = await checkRateLimit(
     "studioUpload",
     `${session.userId}:${
@@ -50,6 +55,7 @@ export async function POST(
         path?: string
         mimeType?: string
         bytes?: number
+        faceGeometry?: unknown
       }
     }
 
@@ -74,6 +80,8 @@ export async function POST(
           path: body.upload.path,
           mimeType: body.upload.mimeType,
           bytes: body.upload.bytes,
+          faceGeometry:
+            body.upload.faceGeometry,
         },
       })
 

@@ -105,6 +105,48 @@ describe(
       expect(prompt.positivePrompt).toContain("premium commercial fashion, beauty or lingerie campaign")
     })
 
+    it("explicitly unlocks requested hair styling without unlocking identity", () => {
+      const prompt =
+        buildMiravaSessionContinuationPrompt({
+          masterPrompt:
+            "Approved lingerie campaign with tied hair.",
+          customInstruction:
+            "cheveux relâchés",
+          shotIndex: 2,
+          hasContinuityImage: true,
+        })
+
+      expect(
+        prompt.positivePrompt,
+      ).toContain(
+        "HAIR DELTA",
+      )
+
+      expect(
+        prompt.positivePrompt,
+      ).toContain(
+        'CLIENT DIRECTIVE: "cheveux relâchés"',
+      )
+
+      expect(
+        prompt.positivePrompt,
+      ).toContain(
+        "previous hairstyle arrangement is NOT a continuity constraint",
+      )
+
+      expect(
+        prompt.positivePrompt,
+      ).not.toContain(
+        "different hairstyle unless explicitly requested",
+      )
+
+      expect(
+        prompt.positivePrompt,
+      ).toContain(
+        "natural hairline",
+      )
+    })
+
     it("supports a text-only safety fallback", () => {
       const prompt = buildMiravaSessionContinuationPrompt({
         masterPrompt: "Approved editorial.",

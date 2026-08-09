@@ -175,7 +175,17 @@ COLOR AND FINISH — Neutral grey palette, polished high-contrast digital finish
           "high-waisted brief",
         )
         expect(safePrompt).toContain(
-          "eye-level camera",
+          "CAMERA FIDELITY",
+        )
+        expect(
+          safePrompt.toLowerCase(),
+        ).toContain(
+          "do not replace the reference with a generic standing",
+        )
+        expect(
+          safePrompt.toLowerCase(),
+        ).not.toContain(
+          "neutral balanced standing pose",
         )
         expect(
           safePrompt.toLowerCase(),
@@ -201,6 +211,172 @@ COLOR AND FINISH — Neutral grey palette, polished high-contrast digital finish
           safePrompt.toLowerCase(),
         ).not.toContain(
           "arched",
+        )
+
+        expect(
+          safePrompt.toLowerCase(),
+        ).not.toContain(
+          "transparent lace lingerie",
+        )
+        expect(
+          safePrompt.toLowerCase(),
+        ).not.toContain(
+          "back is arched",
+        )
+        expect(
+          safePrompt.toLowerCase(),
+        ).not.toContain(
+          "hips are projected",
+        )
+      },
+    )
+
+    it(
+      "preserves a raised-leg pose and low camera while adapting garment coverage",
+      () => {
+        const prompt = `
+TRANSFER_MODE = CAMPAIGN_SAFE_TRANSFER
+
+Create a premium black lingerie campaign.
+
+WARDROBE — Use a sheer black bodysuit with a g-string lower construction.
+
+POSE — Stand on one supporting leg. The opposite leg rises almost vertically beside the torso. Keep the raised ankle high, the torso on a strong diagonal, and the free hand anchored to the stair rail.
+
+CAMERA — Use a low camera below torso level with a wide-angle full-body view up the black staircase.
+
+ENVIRONMENT — Preserve the transparent glass balustrade and black open-riser stairs.
+
+LIGHTING — Use hard direct flash.
+        `.trim()
+
+        const safePrompt =
+          buildMiravaCampaignSafeTransferPrompt(
+            prompt,
+          )
+
+        expect(safePrompt).toContain(
+          "opposite leg rises almost vertically",
+        )
+        expect(safePrompt).toContain(
+          "strong diagonal",
+        )
+        expect(safePrompt).toContain(
+          "free hand anchored to the stair rail",
+        )
+        expect(safePrompt).toContain(
+          "low camera below torso level",
+        )
+        expect(safePrompt).toContain(
+          "transparent glass balustrade",
+        )
+        expect(safePrompt).toContain(
+          "high-waisted full-coverage brief",
+        )
+
+        expect(
+          safePrompt.toLowerCase(),
+        ).not.toContain(
+          "g-string",
+        )
+
+        expect(
+          safePrompt.toLowerCase(),
+        ).not.toContain(
+          "neutral balanced standing pose",
+        )
+
+        expect(
+          safePrompt.toLowerCase(),
+        ).not.toContain(
+          "use an eye-level camera",
+        )
+
+        expect(
+          safePrompt.toLowerCase(),
+        ).not.toContain(
+          "opaque layered glass",
+        )
+      },
+    )
+
+    it(
+      "does not re-lock pose framing or a client-directed hair delta during a lingerie continuation",
+      () => {
+        const prompt = `
+TRANSFER_MODE = CAMPAIGN_SAFE_TRANSFER
+
+Premium black lingerie campaign on the same staircase.
+
+POSE — Previous result uses the original pose.
+
+CAMERA — Previous result uses the original framing.
+
+WARDROBE — Fully lined opaque black lingerie.
+
+CLIENT DIRECTIVE: "cheveux relâchés"
+        `.trim()
+
+        const safePrompt =
+          buildMiravaCampaignSafeTransferPrompt(
+            prompt,
+            "standard",
+            {
+              intents: [
+                "pose",
+                "framing",
+              ],
+              customInstruction:
+                "cheveux relâchés",
+            },
+          )
+
+        expect(
+          safePrompt,
+        ).toContain(
+          "POSE DELTA AUTHORIZED",
+        )
+
+        expect(
+          safePrompt,
+        ).toContain(
+          "CAMERA DELTA AUTHORIZED",
+        )
+
+        expect(
+          safePrompt,
+        ).toContain(
+          "previous pose skeleton is NOT a hard continuity constraint",
+        )
+
+        expect(
+          safePrompt,
+        ).toContain(
+          "previous camera height, distance, crop and lateral angle are NOT hard continuity constraints",
+        )
+
+        expect(
+          safePrompt,
+        ).toContain(
+          'cheveux relâchés',
+        )
+
+        expect(
+          safePrompt,
+        ).toContain(
+          "Any non-identity visual element clearly named by this directive is unlocked",
+        )
+
+        expect(
+          safePrompt,
+        ).not.toContain(
+          "POSE FIDELITY — Preserve the reference pose skeleton as a hard constraint.",
+        )
+
+        expect(
+          safePrompt,
+        ).not.toContain(
+          "CAMERA FIDELITY — Reference camera construction remains authoritative.",
         )
       },
     )
@@ -245,6 +421,11 @@ COLOR AND FINISH — Neutral grey palette, polished high-contrast digital finish
           "full-coverage brief",
         )
         expect(safePrompt).toContain(
+          "POSE FIDELITY",
+        )
+        expect(
+          safePrompt.toLowerCase(),
+        ).not.toContain(
           "neutral balanced standing pose",
         )
       },

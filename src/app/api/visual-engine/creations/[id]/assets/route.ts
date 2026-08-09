@@ -16,6 +16,41 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
     const form = await req.formData()
     const kind = form.get("kind")
     const file = form.get("file")
+    const referenceFaceGeometryRaw =
+      form.get(
+        "referenceFaceGeometry",
+      )
+
+    let referenceFaceGeometry:
+      unknown =
+      undefined
+
+    if (
+      referenceFaceGeometryRaw !==
+      null
+    ) {
+      if (
+        typeof referenceFaceGeometryRaw !==
+        "string"
+      ) {
+        return apiError(
+          "La géométrie faciale de la référence est invalide.",
+          400,
+        )
+      }
+
+      try {
+        referenceFaceGeometry =
+          JSON.parse(
+            referenceFaceGeometryRaw,
+          )
+      } catch {
+        return apiError(
+          "La géométrie faciale de la référence est invalide.",
+          400,
+        )
+      }
+    }
     if ((kind !== "REFERENCE" && kind !== "IDENTITY") || !file || typeof file === "string") {
       return apiError("Un fichier image et son type sont requis.", 400)
     }
@@ -25,6 +60,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
       kind,
       mimeType: file.type,
       buffer: Buffer.from(await file.arrayBuffer()),
+      referenceFaceGeometry,
     })
     await recordMiravaAudit(session.userId, "ASSET_UPLOADED", params.id)
     return apiSuccess({ asset: { id: asset.id, kind: asset.kind, createdAt: asset.createdAt } }, 201)

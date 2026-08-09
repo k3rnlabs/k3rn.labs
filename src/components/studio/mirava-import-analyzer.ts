@@ -5,11 +5,32 @@ import type {
   MiravaVisionStep,
   MiravaVisionWorkerResponse,
 } from "./mirava-vision.types"
+import {
+  parseMiravaIdentityFaceGeometry,
+  type MiravaIdentityFaceGeometry,
+} from "@/lib/mirava/identity-face-geometry"
 
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"])
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 const ANALYSIS_EDGE = 1280
+
+/*
+ * Reference localisation receives a larger browser frame.
+ * Profil identité remains at 1280.
+ */
+const REFERENCE_FACE_ANALYSIS_EDGE =
+  2048
+
 const ANALYSIS_TIMEOUT_MS = 20_000
+
+/*
+ * MediaPipe may require more than 20 seconds for the first
+ * artistic-reference cold start on some browsers/devices.
+ *
+ * Profil identité keeps its existing 20-second boundary.
+ */
+const REFERENCE_FACE_TIMEOUT_MS =
+  60_000
 
 type ImportCandidate = {
   file: File
@@ -60,22 +81,90 @@ function validFile(file: File) {
   return ALLOWED_IMAGE_TYPES.has(file.type) && file.size > 0 && file.size <= MAX_IMAGE_BYTES
 }
 
-async function createAnalysisBitmap(file: File) {
-  const source = await createImageBitmap(file)
-  const longestEdge = Math.max(source.width, source.height)
-  if (longestEdge <= ANALYSIS_EDGE) return source
-  const scale = ANALYSIS_EDGE / longestEdge
-  const canvas = document.createElement("canvas")
-  canvas.width = Math.max(1, Math.round(source.width * scale))
-  canvas.height = Math.max(1, Math.round(source.height * scale))
-  const context = canvas.getContext("2d")
+async function createAnalysisBitmap(
+  file: File,
+  maxEdge =
+    ANALYSIS_EDGE,
+) {
+  /*
+   * Keep MediaPipe coordinates in exactly the same
+   * visual pixel coordinate system as the durable
+   * identity/reference master.
+   *
+   * EXIF orientation is applied before analysis.
+   */
+  const source =
+    await createImageBitmap(
+      file,
+      {
+        imageOrientation:
+          "from-image",
+      } as ImageBitmapOptions,
+    )
+
+  const longestEdge =
+    Math.max(
+      source.width,
+      source.height,
+    )
+
+  if (longestEdge <= maxEdge) {
+    return source
+  }
+
+  const scale =
+    maxEdge /
+    longestEdge
+
+  const canvas =
+    document.createElement(
+      "canvas",
+    )
+
+  canvas.width =
+    Math.max(
+      1,
+      Math.round(
+        source.width *
+          scale,
+      ),
+    )
+
+  canvas.height =
+    Math.max(
+      1,
+      Math.round(
+        source.height *
+          scale,
+      ),
+    )
+
+  const context =
+    canvas.getContext(
+      "2d",
+    )
+
   if (!context) {
     source.close()
-    throw new Error("MIRAVA_IMPORT_CANVAS_UNAVAILABLE")
+
+    throw new Error(
+      "MIRAVA_IMPORT_CANVAS_UNAVAILABLE",
+    )
   }
-  context.drawImage(source, 0, 0, canvas.width, canvas.height)
+
+  context.drawImage(
+    source,
+    0,
+    0,
+    canvas.width,
+    canvas.height,
+  )
+
   source.close()
-  return createImageBitmap(canvas)
+
+  return createImageBitmap(
+    canvas,
+  )
 }
 
 async function createImportAnalyzer(mode: MiravaVisionMode): Promise<ImportAnalyzer> {
@@ -86,8 +175,21 @@ async function createImportAnalyzer(mode: MiravaVisionMode): Promise<ImportAnaly
   const pending = new Map<number, PendingAnalysis>()
   let requestId = 0
 
+  const timeoutMs =
+    mode === "reference-face"
+      ? REFERENCE_FACE_TIMEOUT_MS
+      : ANALYSIS_TIMEOUT_MS
+
   const ready = new Promise<void>((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error("MIRAVA_IMPORT_VISION_TIMEOUT")), ANALYSIS_TIMEOUT_MS)
+    const timeout = setTimeout(
+      () =>
+        reject(
+          new Error(
+            "MIRAVA_IMPORT_VISION_TIMEOUT",
+          ),
+        ),
+      timeoutMs,
+    )
     worker.onmessage = (event: MessageEvent<MiravaVisionWorkerResponse>) => {
       const message = event.data
       if (message.kind === "ready") {
@@ -128,13 +230,19 @@ async function createImportAnalyzer(mode: MiravaVisionMode): Promise<ImportAnaly
 
   return {
     analyze: async (file, step) => {
-      const frame = await createAnalysisBitmap(file)
+      const frame =
+        await createAnalysisBitmap(
+          file,
+          mode === "reference-face"
+            ? REFERENCE_FACE_ANALYSIS_EDGE
+            : ANALYSIS_EDGE,
+        )
       const currentId = ++requestId
       return new Promise<MiravaVisionResult>((resolve, reject) => {
         const timeout = setTimeout(() => {
           pending.delete(currentId)
           reject(new Error("MIRAVA_IMPORT_ANALYSIS_TIMEOUT"))
-        }, ANALYSIS_TIMEOUT_MS)
+        }, timeoutMs)
         pending.set(currentId, { resolve, reject, timeout })
         worker.postMessage({ kind: "analyze", requestId: currentId, step, timestamp: performance.now(), frame }, [frame])
       })
@@ -189,6 +297,71 @@ function unavailableVisionResult(
     redEyeRight: null,
     redEyeScore: null,
     diagnostic: diagnostic ?? null,
+  }
+}
+
+/**
+ * Locate the single visible face in an artistic reference.
+ *
+ * This deliberately does NOT require result.ready.
+ * Identity-photo readiness also evaluates frontal pose,
+ * expression, lighting and other capture constraints that
+ * are irrelevant to an artistic reference.
+ *
+ * We need only a trustworthy normalized MediaPipe face box.
+ */
+export async function analyzeMiravaReferenceFaceGeometry(
+  file: File,
+): Promise<MiravaIdentityFaceGeometry | null> {
+  if (!validFile(file)) {
+    return null
+  }
+
+  let analyzer:
+    ImportAnalyzer |
+    null =
+    null
+
+  try {
+    analyzer =
+      await createImportAnalyzer(
+        "reference-face",
+      )
+
+    const result =
+      await analyzer.analyze(
+        file,
+        "front",
+      )
+
+    /*
+     * result.ready is intentionally irrelevant here.
+     *
+     * The reference may have:
+     * - closed eyes;
+     * - strong expression;
+     * - head tilt;
+     * - non-frontal gaze;
+     * - dramatic lighting.
+     *
+     * We only need exactly one detected face and
+     * a trustworthy normalized geometry.
+     */
+    return parseMiravaIdentityFaceGeometry({
+      version: 1,
+      centerX:
+        result.centerX,
+      centerY:
+        result.centerY,
+      boxWidth:
+        result.boxWidth,
+      boxHeight:
+        result.boxHeight,
+    })
+  } catch {
+    return null
+  } finally {
+    analyzer?.close()
   }
 }
 

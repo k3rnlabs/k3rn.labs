@@ -883,6 +883,7 @@ model StudioIdentityProfile {
   userId              String   @unique
   retentionAcceptedAt DateTime
   physicalTraits      Json?
+  identityMorphology  Json?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
@@ -896,6 +897,7 @@ model StudioIdentityAsset {
   identityProfileId String
   userId            String
   viewKey           String?
+  faceGeometry      Json?
   storagePath       String   @unique
   mimeType          String
   bytes             Int
@@ -913,8 +915,9 @@ model StudioAsset {
   id         String          @id @default(cuid())
   creationId String
   userId     String
-  kind       StudioAssetKind
-  storagePath String          @unique
+  kind                  StudioAssetKind
+  referenceFaceGeometry Json?
+  storagePath           String          @unique
   mimeType   String
   bytes      Int
   expiresAt  DateTime?

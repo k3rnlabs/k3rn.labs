@@ -60,7 +60,7 @@ describe("MIRAVA makeup V1", () => {
   })
 
   it("forces the extractor to encode cosmetic details", () => {
-    expect(MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_METADATA.version).toBe("2.5.0")
+    expect(MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_METADATA.version).toBe("2.6.0")
     expect(MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_PROMPT).toContain("MAKEUP TRANSFER CONTRACT")
     expect(MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_PROMPT).toContain("complexion finish")
     expect(MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_PROMPT).toContain("REFERENCE MAKEUP: NONE OR NOT DISCERNIBLE")

@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   checkRateLimit: vi.fn(),
   replaceAsset: vi.fn(),
   deleteAsset: vi.fn(),
+  requireIdentityConsent: vi.fn(),
   audit: vi.fn(),
 }))
 
@@ -34,6 +35,11 @@ vi.mock("@/lib/visual-engine/core", () => ({
   }),
 }))
 
+vi.mock("@/lib/visual-engine/privacy", () => ({
+  requireMiravaIdentityConsent:
+    mocks.requireIdentityConsent,
+}))
+
 vi.mock("@/lib/visual-engine/audit", () => ({
   recordMiravaAudit: mocks.audit,
 }))
@@ -54,6 +60,9 @@ describe("MIRAVA individual identity assets", () => {
     mocks.checkRateLimit.mockResolvedValue({
       success: true,
     })
+
+    mocks.requireIdentityConsent
+      .mockResolvedValue(undefined)
 
     mocks.replaceAsset.mockResolvedValue({
       id: "profile-1",

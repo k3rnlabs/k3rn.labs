@@ -31,6 +31,10 @@ import {
   MIRAVA_MIN_IDENTITY_PHOTOS,
 } from "@/lib/mirava/identity-profile"
 import {
+  parseMiravaIdentityFaceGeometry,
+  type MiravaIdentityFaceGeometry,
+} from "@/lib/mirava/identity-face-geometry"
+import {
   clearMiravaIdentityDraft,
   readMiravaIdentityDraft,
   writeMiravaIdentityDraft,
@@ -45,6 +49,8 @@ export type MiravaIdentityConsent = {
   retentionAccepted: true
   privacyAccepted: true
   openaiDisclosureAccepted: true
+  externalImageGenerationDisclosureAccepted:
+    boolean
 }
 
 export type PhotoSlotId =
@@ -66,6 +72,7 @@ export type MiravaIdentityManageChange = {
   viewKey: PhotoSlotId
   assetId?: string
   file: File
+  faceGeometry?: MiravaIdentityFaceGeometry
 }
 
 export interface PhotoSlotDefinition {
@@ -260,6 +267,7 @@ type IdentityDraftSnapshot = {
   activeSlotIndex: number
   showSummary: boolean
   legalAccepted: boolean
+  externalGenerationAccepted?: boolean
   slotStates: Record<
     PhotoSlotId,
     PersistedPhotoSlotState
@@ -276,6 +284,44 @@ const SLOT_VISION_STEP: Record<PhotoSlotId, MiravaVisionStep> = {
   smile: "smile",
   body: "body-front",
   tattoos: "traits",
+}
+
+
+const MIRAVA_FACE_GEOMETRY_SLOT_IDS =
+  new Set<PhotoSlotId>([
+    "front",
+    "angle",
+    "profile_right",
+    "smile",
+  ])
+
+function identityFaceGeometryFromVisionResult(
+  viewKey: PhotoSlotId,
+  result?: MiravaVisionResult,
+): MiravaIdentityFaceGeometry | undefined {
+  if (
+    !MIRAVA_FACE_GEOMETRY_SLOT_IDS.has(
+      viewKey,
+    ) ||
+    result?.ready !== true
+  ) {
+    return undefined
+  }
+
+  return (
+    parseMiravaIdentityFaceGeometry({
+      version: 1,
+      centerX:
+        result.centerX,
+      centerY:
+        result.centerY,
+      boxWidth:
+        result.boxWidth,
+      boxHeight:
+        result.boxHeight,
+    }) ??
+    undefined
+  )
 }
 
 
@@ -705,6 +751,8 @@ export function MiravaIdentityCapture({
   existingViews = [],
   initialSlotId,
   initialConsentAccepted = false,
+  initialExternalGenerationConsentAccepted =
+    false,
   inline = false,
   onClose,
   onComplete,
@@ -722,12 +770,18 @@ export function MiravaIdentityCapture({
     MiravaIdentityExistingView[]
   initialSlotId?: PhotoSlotId
   initialConsentAccepted?: boolean
+  initialExternalGenerationConsentAccepted?:
+    boolean
   inline?: boolean
   onClose: () => void
   onComplete: (
     files: File[],
     consent: MiravaIdentityConsent,
     viewKeys?: PhotoSlotId[],
+    faceGeometries?: Array<
+      MiravaIdentityFaceGeometry |
+      undefined
+    >,
   ) => Promise<void>
   onManageSave?: (
     change:
@@ -790,7 +844,16 @@ export function MiravaIdentityCapture({
   const [showSummary, setShowSummary] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
-  const [legalAccepted, setLegalAccepted] = useState(initialConsentAccepted)
+  const [legalAccepted, setLegalAccepted] =
+    useState(initialConsentAccepted)
+
+  const [
+    externalGenerationAccepted,
+    setExternalGenerationAccepted,
+  ] = useState(
+    initialExternalGenerationConsentAccepted,
+  )
+
   const [draftHydrated, setDraftHydrated] =
     useState(false)
   const draftCompletedRef = useRef(false)
@@ -906,6 +969,14 @@ export function MiravaIdentityCapture({
         snapshot.legalAccepted === true ||
           initialConsentAccepted,
       )
+
+      setExternalGenerationAccepted(
+        snapshot
+          .externalGenerationAccepted ===
+          true ||
+          initialExternalGenerationConsentAccepted,
+      )
+
       setDraftHydrated(true)
     }
 
@@ -918,6 +989,7 @@ export function MiravaIdentityCapture({
     context,
     identityDraftKey,
     initialConsentAccepted,
+    initialExternalGenerationConsentAccepted,
   ])
 
   useEffect(() => {
@@ -955,6 +1027,7 @@ export function MiravaIdentityCapture({
       activeSlotIndex,
       showSummary,
       legalAccepted,
+      externalGenerationAccepted,
       slotStates: persistedSlotStates,
       additionalTraitPhotos:
         additionalTraitPhotos.map(
@@ -985,6 +1058,7 @@ export function MiravaIdentityCapture({
     additionalTraitPhotos,
     context,
     draftHydrated,
+    externalGenerationAccepted,
     identityDraftKey,
     legalAccepted,
     showSummary,
@@ -1339,6 +1413,11 @@ export function MiravaIdentityCapture({
             assetId:
               state.existingAssetId,
             file: state.file,
+            faceGeometry:
+              identityFaceGeometryFromVisionResult(
+                currentSlot.id,
+                state.visionResult,
+              ),
           })
 
         const matchingViews =
@@ -1537,6 +1616,11 @@ export function MiravaIdentityCapture({
                   file: state.file,
                   viewKey:
                     slot.id,
+                  faceGeometry:
+                    identityFaceGeometryFromVisionResult(
+                      slot.id,
+                      state.visionResult,
+                    ),
                 },
               ]
             : []
@@ -1548,6 +1632,8 @@ export function MiravaIdentityCapture({
           viewKey:
             "tattoos" as
               PhotoSlotId,
+          faceGeometry:
+            undefined,
         }),
       ),
     ]
@@ -1563,16 +1649,29 @@ export function MiravaIdentityCapture({
           entry.viewKey,
       )
 
+    const finalFaceGeometries =
+      finalEntries.map(
+        (entry) =>
+          entry.faceGeometry,
+      )
+
     const consent: MiravaIdentityConsent = {
       ageConfirmed: true,
       rightsConfirmed: true,
       retentionAccepted: true,
       privacyAccepted: true,
       openaiDisclosureAccepted: true,
+      externalImageGenerationDisclosureAccepted:
+        externalGenerationAccepted,
     }
 
     try {
-      await onComplete(finalFiles, consent, finalViewKeys)
+      await onComplete(
+        finalFiles,
+        consent,
+        finalViewKeys,
+        finalFaceGeometries,
+      )
 
       draftCompletedRef.current = true
 
@@ -2517,10 +2616,43 @@ export function MiravaIdentityCapture({
 
                     <div className="font-jakarta text-xs leading-relaxed text-white/80">
                       {locale === "fr"
-                        ? "J’accepte que mes photos soient analysées de manière privée et leur traitement par OpenAI pour préparer ma première séance."
-                        : "Acepto que mis fotos sean analizadas de forma privada y su tratamiento por OpenAI para preparar mi primera sesión."}
+                        ? "J’accepte que mes photos soient analysées de manière privée par les prestataires techniques utilisés par MIRAVA, uniquement pour préparer mon Profil identité et ma première séance."
+                        : "Acepto que mis fotos sean analizadas de forma privada por los proveedores técnicos utilizados por MIRAVA, únicamente para preparar mi Perfil de identidad y mi primera sesión."}
                     </div>
                   </div>
+                </div>
+              )}
+
+              {!initialExternalGenerationConsentAccepted ? (
+                <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/15 bg-white/[0.06] p-5">
+                  <input
+                    type="checkbox"
+                    checked={
+                      externalGenerationAccepted
+                    }
+                    onChange={(event) =>
+                      setExternalGenerationAccepted(
+                        event.target.checked,
+                      )
+                    }
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-[#ede8df]"
+                  />
+
+                  <span className="font-jakarta text-xs leading-relaxed text-white/80">
+                    {locale === "fr"
+                      ? "Optionnel — J’autorise MIRAVA à transmettre, lorsque nécessaire, mes photos validées et mes références à des prestataires techniques externes de génération d’images, uniquement pour produire les créations que je demande. Je peux retirer cette autorisation à tout moment."
+                      : "Opcional — Autorizo a MIRAVA a transmitir, cuando sea necesario, mis fotos validadas y mis referencias a proveedores técnicos externos de generación de imágenes, únicamente para producir las creaciones que solicite. Puedo retirar esta autorización en cualquier momento."}
+                  </span>
+                </label>
+              ) : (
+                <div className="flex items-start gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.07] p-4">
+                  <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
+
+                  <p className="font-jakarta text-xs leading-5 text-white/70">
+                    {locale === "fr"
+                      ? "L’autorisation pour la génération externe d’images est déjà enregistrée."
+                      : "La autorización para la generación externa de imágenes ya está registrada."}
+                  </p>
                 </div>
               )}
 
@@ -2659,4 +2791,3 @@ export function MiravaIdentityCapture({
 }
 
 export default MiravaIdentityCapture
-

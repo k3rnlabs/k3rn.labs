@@ -13,13 +13,17 @@ describe("MIRAVA Session Builder visual provider boundary", () => {
     expect(core).toContain("const sessionProviderInputs")
     expect(core).toContain("buildMiravaSessionProviderImageInputs")
     expect(core).toContain("for (const reference of sessionProviderInputs)")
-    expect(core).toContain("buffer: await downloadAsset(reference)")
+    expect(core).toMatch(
+      /sourceUrl:\s*await createMiravaKieSignedInputUrl\(\s*reference,?\s*\)/,
+    )
     expect(core).toContain("form.append(\n        \"image[]\"")
   })
 
   it("routes the durable reference asset as art direction at the same private provider boundary", () => {
     expect(core).toContain("selectMiravaReferenceLookProviderReferences")
-    expect(core).toContain('role: "ART_DIRECTION"')
+    expect(core).toMatch(
+      /role:\s*reference\.role/,
+    )
     expect(core).toContain("sessionProviderInputRoles")
     expect(core).toContain("images:\n              references")
   })

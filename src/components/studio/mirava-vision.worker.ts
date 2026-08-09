@@ -19,6 +19,11 @@ type VisionModule = typeof import("@mediapipe/tasks-vision")
 type FaceLandmarker = import("@mediapipe/tasks-vision").FaceLandmarker
 type PoseLandmarker = import("@mediapipe/tasks-vision").PoseLandmarker
 type NormalizedLandmark = import("@mediapipe/tasks-vision").NormalizedLandmark
+type WasmFileset =
+  Parameters<
+    typeof import("@mediapipe/tasks-vision")
+      .FaceLandmarker.createFromOptions
+  >[0]
 
 type InitMessage = { kind: "init"; mode: MiravaVisionMode; origin: string }
 type AnalyzeMessage = { kind: "analyze"; requestId: number; step: MiravaVisionStep; timestamp: number; frame: ImageBitmap }
@@ -26,66 +31,195 @@ type CloseMessage = { kind: "close" }
 type WorkerMessage = InitMessage | AnalyzeMessage | CloseMessage
 
 const scope = self as unknown as DedicatedWorkerGlobalScope
+
 let vision: VisionModule | null = null
+let visionFileset: WasmFileset | null = null
 let faceLandmarker: FaceLandmarker | null = null
 let poseLandmarker: PoseLandmarker | null = null
 let allowedOrigin = ""
 let currentMode: MiravaVisionMode | null = null
 
-function sameOriginUrl(input: RequestInfo | URL): URL {
-  const value = input instanceof Request ? input.url : input instanceof URL ? input.href : String(input)
-  const url = new URL(value, allowedOrigin)
-  if (url.origin !== allowedOrigin) throw new Error("MIRAVA_EXTERNAL_VISION_REQUEST_BLOCKED")
+function sameOriginUrl(
+  input: RequestInfo | URL,
+): URL {
+  const value =
+    input instanceof Request
+      ? input.url
+      : input instanceof URL
+        ? input.href
+        : String(input)
+
+  const url =
+    new URL(
+      value,
+      allowedOrigin,
+    )
+
+  if (
+    url.origin !==
+    allowedOrigin
+  ) {
+    throw new Error(
+      "MIRAVA_EXTERNAL_VISION_REQUEST_BLOCKED",
+    )
+  }
+
   return url
 }
 
-const nativeFetch = globalThis.fetch.bind(globalThis)
-globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => nativeFetch(sameOriginUrl(input), init)) as typeof fetch
+const nativeFetch =
+  globalThis.fetch.bind(
+    globalThis,
+  )
+
+globalThis.fetch = (
+  (
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ) =>
+    nativeFetch(
+      sameOriginUrl(input),
+      init,
+    )
+) as typeof fetch
 
 function closeTasks() {
   faceLandmarker?.close()
   poseLandmarker?.close()
+
   faceLandmarker = null
   poseLandmarker = null
   currentMode = null
 }
 
-async function createFaceLandmarker(delegate: "GPU" | "CPU") {
-  if (!vision) vision = await import("@mediapipe/tasks-vision")
-  // The worker itself is an ES module, so MediaPipe must use its module-aware
-  // WASM loader. The classic loader does not expose ModuleFactory to a module
-  // worker and makes identity validation fail before any photo is analysed.
-  const files = await vision.FilesetResolver.forVisionTasks("/visual-engine/vision/wasm", true)
-  return vision.FaceLandmarker.createFromOptions(files, {
-    baseOptions: {
-      modelAssetPath: "/visual-engine/vision/models/face_landmarker.task",
-      delegate,
-    },
-    runningMode: "VIDEO",
-    numFaces: 2,
-    minFaceDetectionConfidence: 0.62,
-    minFacePresenceConfidence: 0.62,
-    minTrackingConfidence: 0.58,
-    outputFaceBlendshapes: true,
-    outputFacialTransformationMatrixes: false,
-  })
+async function getVisionFileset():
+Promise<WasmFileset> {
+  if (!vision) {
+    vision =
+      await import(
+        "@mediapipe/tasks-vision"
+      )
+  }
+
+  if (!visionFileset) {
+    visionFileset =
+      await vision.FilesetResolver
+        .forVisionTasks(
+          "/visual-engine/vision/wasm",
+          true,
+        )
+  }
+
+  return visionFileset
 }
 
-async function createPoseLandmarker(delegate: "GPU" | "CPU") {
-  if (!vision) vision = await import("@mediapipe/tasks-vision")
-  const files = await vision.FilesetResolver.forVisionTasks("/visual-engine/vision/wasm", true)
-  return vision.PoseLandmarker.createFromOptions(files, {
-    baseOptions: {
-      modelAssetPath: "/visual-engine/vision/models/pose_landmarker_lite.task",
-      delegate,
-    },
-    runningMode: "VIDEO",
-    numPoses: 2,
-    minPoseDetectionConfidence: 0.58,
-    minPosePresenceConfidence: 0.58,
-    minTrackingConfidence: 0.55,
-    outputSegmentationMasks: false,
-  })
+async function createFaceLandmarker(
+  delegate: "GPU" | "CPU",
+  mode:
+    | "face"
+    | "reference-face" =
+      "face",
+) {
+  const files =
+    await getVisionFileset()
+
+  if (!vision) {
+    throw new Error(
+      "MIRAVA_VISION_MODULE_UNAVAILABLE",
+    )
+  }
+
+  /*
+   * Profil identité keeps its original strict calibration.
+   *
+   * Artistic references use a separate calibration because
+   * editorial faces may be smaller, tilted, profile,
+   * eyes closed or strongly expressive.
+   */
+  const referenceMode =
+    mode === "reference-face"
+
+  return vision.FaceLandmarker
+    .createFromOptions(
+      files,
+      {
+        baseOptions: {
+          modelAssetPath:
+            "/visual-engine/vision/models/face_landmarker.task",
+          delegate,
+        },
+
+        runningMode:
+          "VIDEO",
+
+        numFaces:
+          2,
+
+        minFaceDetectionConfidence:
+          referenceMode
+            ? 0.35
+            : 0.62,
+
+        minFacePresenceConfidence:
+          referenceMode
+            ? 0.35
+            : 0.62,
+
+        minTrackingConfidence:
+          referenceMode
+            ? 0.35
+            : 0.58,
+
+        outputFaceBlendshapes:
+          true,
+
+        outputFacialTransformationMatrixes:
+          false,
+      },
+    )
+}
+
+async function createPoseLandmarker(
+  delegate: "GPU" | "CPU",
+) {
+  const files =
+    await getVisionFileset()
+
+  if (!vision) {
+    throw new Error(
+      "MIRAVA_VISION_MODULE_UNAVAILABLE",
+    )
+  }
+
+  return vision.PoseLandmarker
+    .createFromOptions(
+      files,
+      {
+        baseOptions: {
+          modelAssetPath:
+            "/visual-engine/vision/models/pose_landmarker_lite.task",
+          delegate,
+        },
+
+        runningMode:
+          "VIDEO",
+
+        numPoses:
+          2,
+
+        minPoseDetectionConfidence:
+          0.58,
+
+        minPosePresenceConfidence:
+          0.58,
+
+        minTrackingConfidence:
+          0.55,
+
+        outputSegmentationMasks:
+          false,
+      },
+    )
 }
 
 async function initialise(
@@ -97,27 +231,68 @@ async function initialise(
 
   if (mode === "quality") {
     currentMode = mode
+
     scope.postMessage({
       kind: "ready",
       mode,
     } satisfies MiravaVisionWorkerResponse)
+
     return
   }
 
-  try {
-    if (mode === "face") {
-      faceLandmarker = await createFaceLandmarker("GPU")
-    } else {
-      poseLandmarker = await createPoseLandmarker("GPU")
+  const createForMode =
+    async (
+      delegate: "GPU" | "CPU",
+    ) => {
+      if (mode === "reference-face") {
+        /*
+         * Artistic-reference localisation uses two local
+         * MediaPipe stages:
+         *
+         * 1. FaceLandmarker full-frame.
+         * 2. PoseLandmarker only as a geometric fallback
+         *    when the full-frame face cannot be found.
+         */
+        faceLandmarker =
+          await createFaceLandmarker(
+            delegate,
+            "reference-face",
+          )
+
+        poseLandmarker =
+          await createPoseLandmarker(
+            delegate,
+          )
+
+        return
+      }
+
+      if (mode === "face") {
+        faceLandmarker =
+          await createFaceLandmarker(
+            delegate,
+            "face",
+          )
+
+        return
+      }
+
+      poseLandmarker =
+        await createPoseLandmarker(
+          delegate,
+        )
     }
+
+  try {
+    await createForMode(
+      "GPU",
+    )
   } catch {
     closeTasks()
 
-    if (mode === "face") {
-      faceLandmarker = await createFaceLandmarker("CPU")
-    } else {
-      poseLandmarker = await createPoseLandmarker("CPU")
-    }
+    await createForMode(
+      "CPU",
+    )
   }
 
   currentMode = mode
@@ -690,6 +865,527 @@ function faceIssues(
   return { issues, yaw, roll }
 }
 
+
+type MiravaReferenceHeadCrop = {
+  left: number
+  top: number
+  size: number
+}
+
+function referencePointUsable(
+  point:
+    | NormalizedLandmark
+    | undefined,
+) {
+  return Boolean(
+    point &&
+      Number.isFinite(
+        point.x,
+      ) &&
+      Number.isFinite(
+        point.y,
+      ) &&
+      (
+        point.visibility ===
+          undefined ||
+        point.visibility >
+          0.2
+      ),
+  )
+}
+
+function clampNumber(
+  value: number,
+  minimum: number,
+  maximum: number,
+) {
+  return Math.min(
+    maximum,
+    Math.max(
+      minimum,
+      value,
+    ),
+  )
+}
+
+function resolveMiravaReferenceHeadCrop(
+  points: NormalizedLandmark[],
+  imageWidth: number,
+  imageHeight: number,
+): MiravaReferenceHeadCrop | null {
+  /*
+   * MediaPipe Pose landmarks 0..10 describe the visible
+   * facial/head area:
+   *
+   * nose, eyes, ears and mouth.
+   *
+   * The crop is derived only from detected anatomy.
+   * There is no fixed fraction of the full photograph.
+   */
+  const headPoints =
+    [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+    ]
+      .map(
+        (index) =>
+          points[index],
+      )
+      .filter(
+        (
+          point,
+        ): point is NormalizedLandmark =>
+          referencePointUsable(
+            point,
+          ),
+      )
+
+  if (
+    headPoints.length < 3
+  ) {
+    return null
+  }
+
+  const pixelPoints =
+    headPoints.map(
+      (point) => ({
+        x:
+          point.x *
+          imageWidth,
+        y:
+          point.y *
+          imageHeight,
+      }),
+    )
+
+  const minX =
+    Math.min(
+      ...pixelPoints.map(
+        (point) =>
+          point.x,
+      ),
+    )
+
+  const maxX =
+    Math.max(
+      ...pixelPoints.map(
+        (point) =>
+          point.x,
+      ),
+    )
+
+  const minY =
+    Math.min(
+      ...pixelPoints.map(
+        (point) =>
+          point.y,
+      ),
+    )
+
+  const maxY =
+    Math.max(
+      ...pixelPoints.map(
+        (point) =>
+          point.y,
+      ),
+    )
+
+  const headWidth =
+    Math.max(
+      1,
+      maxX - minX,
+    )
+
+  const headHeight =
+    Math.max(
+      1,
+      maxY - minY,
+    )
+
+  const leftShoulder =
+    points[11]
+
+  const rightShoulder =
+    points[12]
+
+  let shoulderSpan = 0
+
+  if (
+    referencePointUsable(
+      leftShoulder,
+    ) &&
+    referencePointUsable(
+      rightShoulder,
+    )
+  ) {
+    const dx =
+      (
+        rightShoulder.x -
+        leftShoulder.x
+      ) *
+      imageWidth
+
+    const dy =
+      (
+        rightShoulder.y -
+        leftShoulder.y
+      ) *
+      imageHeight
+
+    shoulderSpan =
+      Math.hypot(
+        dx,
+        dy,
+      )
+  }
+
+  /*
+   * Anatomical expansion:
+   *
+   * - pose facial landmarks do not include the hairline,
+   *   jaw contour or complete lateral head;
+   * - shoulder distance is used only as an additional
+   *   anatomical scale estimate when available;
+   * - 96 px is an absolute detector floor, not a
+   *   percentage of the source frame.
+   */
+  const desiredSize =
+    Math.max(
+      96,
+      headWidth * 3.4,
+      headHeight * 3.1,
+      shoulderSpan > 0
+        ? shoulderSpan *
+          0.72
+        : 0,
+    )
+
+  const maximumSize =
+    Math.min(
+      imageWidth,
+      imageHeight,
+    )
+
+  const size =
+    Math.max(
+      1,
+      Math.min(
+        maximumSize,
+        Math.round(
+          desiredSize,
+        ),
+      ),
+    )
+
+  const centerX =
+    (
+      minX +
+      maxX
+    ) /
+    2
+
+  const centerY =
+    (
+      minY +
+      maxY
+    ) /
+    2
+
+  const left =
+    Math.round(
+      clampNumber(
+        centerX -
+          size / 2,
+        0,
+        imageWidth -
+          size,
+      ),
+    )
+
+  const top =
+    Math.round(
+      clampNumber(
+        centerY -
+          size / 2,
+        0,
+        imageHeight -
+          size,
+      ),
+    )
+
+  return {
+    left,
+    top,
+    size,
+  }
+}
+
+function miravaReferenceGeometryResult(
+  requestId: number,
+  geometry: {
+    centerX: number
+    centerY: number
+    boxWidth: number
+    boxHeight: number
+  },
+): MiravaVisionResult {
+  return {
+    ...emptyResult(
+      requestId,
+      "ready",
+    ),
+
+    issue:
+      "ready",
+
+    issues:
+      [],
+
+    ready:
+      true,
+
+    centerX:
+      geometry.centerX,
+
+    centerY:
+      geometry.centerY,
+
+    boxWidth:
+      geometry.boxWidth,
+
+    boxHeight:
+      geometry.boxHeight,
+  }
+}
+
+function geometryFromFaceLandmarks(
+  landmarks:
+    NormalizedLandmark[],
+) {
+  const box =
+    bounds(
+      landmarks,
+    )
+
+  return {
+    centerX:
+      box.centerX,
+    centerY:
+      box.centerY,
+    boxWidth:
+      box.width,
+    boxHeight:
+      box.height,
+  }
+}
+
+function analyzeReferenceFace(
+  message: AnalyzeMessage,
+): MiravaVisionResult {
+  if (!faceLandmarker) {
+    throw new Error(
+      "MIRAVA_FACE_MODEL_NOT_READY",
+    )
+  }
+
+  /*
+   * Stage 1:
+   * try the relaxed FaceLandmarker on the complete
+   * artistic reference.
+   */
+  const fullFace =
+    faceLandmarker
+      .detectForVideo(
+        message.frame,
+        message.timestamp,
+      )
+
+  if (
+    fullFace.faceLandmarks
+      .length > 1
+  ) {
+    return emptyResult(
+      message.requestId,
+      "multiple-faces",
+    )
+  }
+
+  if (
+    fullFace.faceLandmarks
+      .length === 1
+  ) {
+    return miravaReferenceGeometryResult(
+      message.requestId,
+      geometryFromFaceLandmarks(
+        fullFace.faceLandmarks[
+          0
+        ],
+      ),
+    )
+  }
+
+  /*
+   * Stage 2:
+   * full-frame face failed. Locate the subject through
+   * PoseLandmarker and derive a head ROI from actual
+   * facial/head landmarks.
+   */
+  if (!poseLandmarker) {
+    return emptyResult(
+      message.requestId,
+      "no-face",
+    )
+  }
+
+  const pose =
+    poseLandmarker
+      .detectForVideo(
+        message.frame,
+        message.timestamp,
+      )
+
+  if (
+    pose.landmarks.length !==
+    1
+  ) {
+    return emptyResult(
+      message.requestId,
+      pose.landmarks.length > 1
+        ? "multiple-faces"
+        : "no-face",
+    )
+  }
+
+  const crop =
+    resolveMiravaReferenceHeadCrop(
+      pose.landmarks[0],
+      message.frame.width,
+      message.frame.height,
+    )
+
+  if (!crop) {
+    return emptyResult(
+      message.requestId,
+      "no-face",
+    )
+  }
+
+  /*
+   * Upscale only the anatomy-derived local ROI.
+   * The durable/reference image itself is untouched.
+   */
+  const localSize = 768
+
+  const canvas =
+    new OffscreenCanvas(
+      localSize,
+      localSize,
+    )
+
+  const context =
+    canvas.getContext(
+      "2d",
+    )
+
+  if (!context) {
+    throw new Error(
+      "MIRAVA_REFERENCE_FACE_CANVAS_UNAVAILABLE",
+    )
+  }
+
+  context.drawImage(
+    message.frame,
+    crop.left,
+    crop.top,
+    crop.size,
+    crop.size,
+    0,
+    0,
+    localSize,
+    localSize,
+  )
+
+  const localFrame =
+    canvas.transferToImageBitmap()
+
+  try {
+    const localFace =
+      faceLandmarker
+        .detectForVideo(
+          localFrame,
+          message.timestamp +
+            1,
+        )
+
+    if (
+      localFace.faceLandmarks
+        .length > 1
+    ) {
+      return emptyResult(
+        message.requestId,
+        "multiple-faces",
+      )
+    }
+
+    if (
+      localFace.faceLandmarks
+        .length !== 1
+    ) {
+      return emptyResult(
+        message.requestId,
+        "no-face",
+      )
+    }
+
+    /*
+     * Convert crop-normalized facial landmarks back into
+     * normalized coordinates of the complete reference.
+     */
+    const mapped =
+      localFace.faceLandmarks[
+        0
+      ].map(
+        (point) => ({
+          ...point,
+
+          x:
+            (
+              crop.left +
+              point.x *
+                crop.size
+            ) /
+            message.frame.width,
+
+          y:
+            (
+              crop.top +
+              point.y *
+                crop.size
+            ) /
+            message.frame.height,
+        }),
+      )
+
+    return miravaReferenceGeometryResult(
+      message.requestId,
+      geometryFromFaceLandmarks(
+        mapped,
+      ),
+    )
+  } finally {
+    localFrame.close()
+  }
+}
+
 function analyzeFace(
   message: AnalyzeMessage,
 ): MiravaVisionResult {
@@ -980,9 +1676,24 @@ scope.onmessage = (event: MessageEvent<WorkerMessage>) => {
   try {
     let result: MiravaVisionResult
 
-    if (currentMode === "face") {
-      result = analyzeFace(message)
-    } else if (currentMode === "pose") {
+    if (
+      currentMode ===
+      "reference-face"
+    ) {
+      result =
+        analyzeReferenceFace(
+          message,
+        )
+    } else if (
+      currentMode === "face"
+    ) {
+      result =
+        analyzeFace(
+          message,
+        )
+    } else if (
+      currentMode === "pose"
+    ) {
       result = analyzePose(message)
     } else {
       result = analyzeTraits(message)

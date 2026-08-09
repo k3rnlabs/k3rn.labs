@@ -8,7 +8,9 @@ describe("MIRAVA local vision privacy boundary", () => {
   const nextConfig = readFileSync(path.resolve(process.cwd(), "next.config.mjs"), "utf8")
 
   it("rejects every worker request outside the MIRAVA origin", () => {
-    expect(worker).toContain('url.origin !== allowedOrigin')
+    expect(worker).toMatch(
+      /url\.origin\s*!==\s*allowedOrigin/,
+    )
     expect(worker).toContain("MIRAVA_EXTERNAL_VISION_REQUEST_BLOCKED")
     expect(worker).not.toContain("storage.googleapis.com")
   })
@@ -35,7 +37,9 @@ describe("MIRAVA local vision privacy boundary", () => {
   })
 
   it("uses only self-hosted model and runtime paths", () => {
-    expect(worker).toContain('forVisionTasks("/visual-engine/vision/wasm", true)')
+    expect(worker).toMatch(
+      /forVisionTasks\(\s*"\/visual-engine\/vision\/wasm"\s*,\s*true\s*,?\s*\)/,
+    )
     expect(worker).toContain('"/visual-engine/vision/models/face_landmarker.task"')
     expect(worker).toContain('"/visual-engine/vision/models/pose_landmarker_lite.task"')
   })

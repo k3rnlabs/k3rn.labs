@@ -1,4 +1,4 @@
-export type MiravaVisionMode = "face" | "pose" | "quality"
+export type MiravaVisionMode = "face" | "reference-face" | "pose" | "quality"
 
 export type MiravaVisionIssue =
   | "loading"

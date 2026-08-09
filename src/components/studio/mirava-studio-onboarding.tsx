@@ -1686,6 +1686,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                       files,
                       consent,
                       viewKeys,
+                      faceGeometries,
                     ) => {
                       if (
                         files.length < MIRAVA_MIN_IDENTITY_PHOTOS ||
@@ -1707,6 +1708,7 @@ export function MiravaStudioOnboarding({ locale, firstName, initialUniverseId, i
                             consent,
                             locale,
                             viewKeys,
+                            faceGeometries,
                           })
 
                         if (

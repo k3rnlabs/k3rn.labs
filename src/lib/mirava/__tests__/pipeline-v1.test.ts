@@ -17,7 +17,7 @@ import {
 describe("MIRAVA Visual Direction Pipeline V1", () => {
   describe("0. Extractor anatomy contract", () => {
     it("propagates strict five-toe anatomy requirements for visible feet and open footwear", () => {
-      expect(MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_METADATA.version).toBe("2.5.0")
+      expect(MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_METADATA.version).toBe("2.6.0")
       expect(MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_PROMPT).toContain(
         "exactly five distinct toes on each visible foot",
       )

@@ -1,6 +1,9 @@
 import { createHash, randomUUID } from "crypto"
 import sharp from "sharp"
 import { db } from "@/lib/db"
+import {
+  requireMiravaOpenAiIdentityAnalysisConsent,
+} from "@/lib/visual-engine/privacy"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 import {
   MIRAVA_ANALYSIS_FALLBACK_MODEL,
@@ -24,7 +27,17 @@ import {
   miravaLegacyIdentityViewKey,
   type MiravaIdentityViewKey,
 } from "@/lib/mirava/identity-profile"
+import {
+  parseMiravaIdentityFaceGeometry,
+  resolveMiravaIdentityFaceCrop,
+  resolveMiravaReferenceFaceRestorationCrop,
+} from "@/lib/mirava/identity-face-geometry"
 import { type PhysicalTrait, formatPhysicalTraitsForPrompt, parsePhysicalTraits } from "@/lib/mirava/physical-traits"
+import {
+  MIRAVA_IDENTITY_MORPHOLOGY_EXTRACTOR_PROMPT,
+  formatIdentityMorphologyForPrompt,
+  parseIdentityMorphology,
+} from "@/lib/mirava/identity-morphology"
 import { buildMiravaSeriesShotBrief, getMiravaSeriesSize } from "@/lib/mirava/series"
 import {
   buildMiravaSessionContinuationPrompt,
@@ -80,7 +93,10 @@ import {
   buildMiravaSessionProviderImageInputs,
   type MiravaSessionProviderReference,
 } from "@/lib/mirava/session-builder/provider-visual-references"
-import { requireMiravaRequiredConsents } from "@/lib/visual-engine/privacy"
+import {
+  hasMiravaExternalImageGenerationConsent,
+  requireMiravaRequiredConsents,
+} from "@/lib/visual-engine/privacy"
 
 export const STUDIO_BUCKET = process.env.SUPABASE_STORAGE_VISUAL_ENGINE_BUCKET ?? "visual-engine-private"
 export const STUDIO_CONSENT_VERSION = "2026-07-29"
@@ -132,6 +148,7 @@ export type StudioPublicFailureKind =
   | "INVALID_IMAGE"
   | "ANALYSIS_TIMEOUT"
   | "GENERATION_TIMEOUT"
+  | "PROVIDER_UNAVAILABLE"
   | "TECHNICAL_ERROR"
   | null
 
@@ -162,6 +179,7 @@ export type StudioAssetRecord = {
   storagePath: string
   mimeType: string
   bytes: number
+  referenceFaceGeometry?: unknown
   expiresAt: string | null
   deletedAt: string | null
   createdAt: string
@@ -177,6 +195,7 @@ type StudioIdentityAssetRecord =
   > & {
     identityProfileId: string
     viewKey?: string | null
+    faceGeometry?: unknown
   }
 
 type StudioProfileRecord = {
@@ -270,6 +289,20 @@ function studioPublicFailureKind(
 
   if (code === "GENERATION_TIMEOUT") {
     return "GENERATION_TIMEOUT"
+  }
+
+  /*
+   * Provider-specific billing/capacity details stay
+   * private. Historical Kie codes remain readable so
+   * creations persisted before normalization receive
+   * the same generic public treatment.
+   */
+  if (
+    code === "PROVIDER_UNAVAILABLE" ||
+    code === "KIE_BILLING" ||
+    code === "KIE_CREATE_REJECTED_402"
+  ) {
+    return "PROVIDER_UNAVAILABLE"
   }
 
   return "TECHNICAL_ERROR"
@@ -1229,6 +1262,60 @@ function resolveMiravaIdentityViewKey(
   return value
 }
 
+const MIRAVA_FACE_GEOMETRY_VIEW_KEYS =
+  new Set<MiravaIdentityViewKey>([
+    "front",
+    "angle",
+    "profile_right",
+    "smile",
+  ])
+
+function normalizeMiravaIdentityFaceGeometryForView(
+  value: unknown,
+  viewKey:
+    MiravaIdentityViewKey |
+    null,
+) {
+  if (
+    value === undefined ||
+    value === null
+  ) {
+    return null
+  }
+
+  /*
+   * Browser geometry is untrusted input.
+   *
+   * A body PoseLandmarker box or a traits photo must
+   * never be persisted as facial geometry, even if
+   * the payload itself has valid normalized numbers.
+   */
+  if (
+    !viewKey ||
+    !MIRAVA_FACE_GEOMETRY_VIEW_KEYS
+      .has(viewKey)
+  ) {
+    throw new StudioError(
+      "Cette vue du Profil identité ne peut pas contenir de géométrie faciale.",
+      "INVALID_FILE",
+    )
+  }
+
+  const parsed =
+    parseMiravaIdentityFaceGeometry(
+      value,
+    )
+
+  if (!parsed) {
+    throw new StudioError(
+      "La géométrie faciale de la photo identité est invalide.",
+      "INVALID_FILE",
+    )
+  }
+
+  return parsed
+}
+
 function normalizeMiravaIdentityAssets(
   assets: StudioIdentityAssetRecord[],
 ): Array<
@@ -1351,6 +1438,7 @@ export async function replaceIdentityProfile(args: {
     mimeType: string
     buffer: Buffer
     viewKey?: string | null
+    faceGeometry?: unknown
   }>
 }) {
   if (
@@ -1401,14 +1489,23 @@ export async function replaceIdentityProfile(args: {
 
   const normalizedFiles =
     args.files.map(
-      (file, index) => ({
-        ...file,
-        viewKey:
+      (file, index) => {
+        const viewKey =
           resolveMiravaIdentityViewKey(
             file.viewKey,
             index,
-          ),
-      }),
+          )
+
+        return {
+          ...file,
+          viewKey,
+          faceGeometry:
+            normalizeMiravaIdentityFaceGeometryForView(
+              file.faceGeometry,
+              viewKey,
+            ),
+        }
+      },
     )
 
   const viewKeys =
@@ -1546,6 +1643,8 @@ export async function replaceIdentityProfile(args: {
             profile.id,
           userId: args.userId,
           viewKey: file.viewKey,
+          faceGeometry:
+            file.faceGeometry,
           storagePath,
           mimeType:
             file.mimeType,
@@ -1554,6 +1653,13 @@ export async function replaceIdentityProfile(args: {
         },
       })
   }
+
+  await refreshIdentityMorphologyForProfile({
+    userId:
+      args.userId,
+    profileId:
+      profile.id,
+  })
 
   if (args.creationId) {
     const linkedCreation =
@@ -1608,6 +1714,7 @@ export async function replaceIdentityProfileFromStagedUploads(args: {
     mimeType: string
     bytes: number
     viewKey?: string | null
+    faceGeometry?: unknown
   }>
 }) {
   if (
@@ -1657,6 +1764,7 @@ export async function replaceIdentityProfileFromStagedUploads(args: {
     mimeType: string
     buffer: Buffer
     viewKey?: string | null
+    faceGeometry?: unknown
   }> = []
 
   try {
@@ -1709,6 +1817,8 @@ export async function replaceIdentityProfileFromStagedUploads(args: {
         mimeType: upload.mimeType,
         buffer,
         viewKey: upload.viewKey,
+        faceGeometry:
+          upload.faceGeometry,
       })
     }
 
@@ -1742,6 +1852,7 @@ export async function appendIdentityProfileFromStagedUploads(args: {
     mimeType: string
     bytes: number
     viewKey?: string | null
+    faceGeometry?: unknown
   }>
 }) {
   if (
@@ -1791,6 +1902,7 @@ export async function appendIdentityProfileFromStagedUploads(args: {
     mimeType: string
     buffer: Buffer
     viewKey?: string | null
+    faceGeometry?: unknown
   }> = []
 
   try {
@@ -1832,6 +1944,8 @@ export async function appendIdentityProfileFromStagedUploads(args: {
         mimeType: upload.mimeType,
         buffer,
         viewKey: upload.viewKey,
+        faceGeometry:
+          upload.faceGeometry,
       })
     }
 
@@ -1861,6 +1975,7 @@ export async function replaceIdentityAssetFromStagedUpload(args: {
     path: string
     mimeType: string
     bytes: number
+    faceGeometry?: unknown
   }
 }) {
   if (
@@ -1952,6 +2067,19 @@ export async function replaceIdentityAssetFromStagedUpload(args: {
       args.upload.mimeType,
     )
 
+    const assetViewKey =
+      isMiravaIdentityViewKey(
+        asset.viewKey,
+      )
+        ? asset.viewKey
+        : null
+
+    const nextFaceGeometry =
+      normalizeMiravaIdentityFaceGeometryForView(
+        args.upload.faceGeometry,
+        assetViewKey,
+      )
+
     const nextStoragePath =
       `${args.userId}/identity-profile/` +
       `${randomUUID()}.` +
@@ -1986,6 +2114,8 @@ export async function replaceIdentityAssetFromStagedUpload(args: {
             storagePath: nextStoragePath,
             mimeType: args.upload.mimeType,
             bytes: buffer.length,
+            faceGeometry:
+              nextFaceGeometry,
           },
         }),
         db.studioIdentityProfile.update({
@@ -2009,6 +2139,13 @@ export async function replaceIdentityAssetFromStagedUpload(args: {
     await supabaseAdmin.storage
       .from(STUDIO_BUCKET)
       .remove([asset.storagePath])
+
+    await refreshIdentityMorphologyForProfile({
+      userId:
+        args.userId,
+      profileId:
+        profile.id,
+    })
 
     return getIdentityProfilePublic(
       args.userId,
@@ -2122,6 +2259,13 @@ export async function deleteIdentityAsset(args: {
     }),
   ])
 
+  await refreshIdentityMorphologyForProfile({
+    userId:
+      args.userId,
+    profileId:
+      profile.id,
+  })
+
   return getIdentityProfilePublic(
     args.userId,
   )
@@ -2137,6 +2281,7 @@ export async function appendIdentityProfile(args: {
     mimeType: string
     buffer: Buffer
     viewKey?: string | null
+    faceGeometry?: unknown
   }>
 }) {
   if (args.files.length < 1) {
@@ -2211,15 +2356,24 @@ export async function appendIdentityProfile(args: {
 
   const normalizedFiles =
     args.files.map(
-      (file, index) => ({
-        ...file,
-        viewKey:
+      (file, index) => {
+        const viewKey =
           resolveMiravaIdentityViewKey(
             file.viewKey,
             rawExistingAssets.length +
               index,
-          ),
-      }),
+          )
+
+        return {
+          ...file,
+          viewKey,
+          faceGeometry:
+            normalizeMiravaIdentityFaceGeometryForView(
+              file.faceGeometry,
+              viewKey,
+            ),
+        }
+      },
     )
 
   assertNoDuplicateSingularIdentityViews(
@@ -2314,6 +2468,8 @@ export async function appendIdentityProfile(args: {
               args.userId,
             viewKey:
               file.viewKey,
+            faceGeometry:
+              file.faceGeometry,
             storagePath,
             mimeType:
               file.mimeType,
@@ -2362,6 +2518,13 @@ export async function appendIdentityProfile(args: {
       },
     })
 
+  await refreshIdentityMorphologyForProfile({
+    userId:
+      args.userId,
+    profileId:
+      profile.id,
+  })
+
   if (args.creationId) {
     await db.studioCreation
       .update({
@@ -2396,12 +2559,51 @@ export async function uploadStudioAsset(args: {
   kind: "REFERENCE" | "IDENTITY"
   mimeType: string
   buffer: Buffer
+  referenceFaceGeometry?: unknown
 }): Promise<StudioAssetRecord> {
   const creation = await getStudioCreationForUser(args.userId, args.creationId)
   if (creation.status !== "DRAFT" && !(creation.status === "MASTER_PROMPT_READY" && args.kind === "IDENTITY")) {
     throw new StudioError("Cette étape ne peut plus recevoir de fichier.", "INVALID_STATE")
   }
   await validateStudioImage(args.buffer, args.mimeType)
+
+  if (
+    args.kind !== "REFERENCE" &&
+    args.referenceFaceGeometry !==
+      undefined &&
+    args.referenceFaceGeometry !==
+      null
+  ) {
+    throw new StudioError(
+      "La géométrie faciale artistique ne peut être associée qu’à une référence.",
+      "INVALID_FILE",
+    )
+  }
+
+  const referenceFaceGeometry =
+    args.kind === "REFERENCE" &&
+    args.referenceFaceGeometry !==
+      undefined &&
+    args.referenceFaceGeometry !==
+      null
+      ? parseMiravaIdentityFaceGeometry(
+          args.referenceFaceGeometry,
+        )
+      : null
+
+  if (
+    args.kind === "REFERENCE" &&
+    args.referenceFaceGeometry !==
+      undefined &&
+    args.referenceFaceGeometry !==
+      null &&
+    !referenceFaceGeometry
+  ) {
+    throw new StudioError(
+      "La géométrie faciale de la référence est invalide.",
+      "INVALID_FILE",
+    )
+  }
 
   const existingAssets = (await db.studioAsset.findMany({ where: { creationId: args.creationId, kind: args.kind, deletedAt: null } })).map(asAsset)
   if (args.kind === "REFERENCE" && existingAssets.length >= 1) throw new StudioError("Une seule photo de référence est autorisée.", "ASSET_LIMIT")
@@ -2425,6 +2627,7 @@ export async function uploadStudioAsset(args: {
         storagePath,
         mimeType: args.mimeType,
         bytes: args.buffer.length,
+        referenceFaceGeometry,
         expiresAt: nowPlus24Hours(),
       },
     }))
@@ -2808,6 +3011,896 @@ export async function getMiravaSessionShootStatus(args: { userId: string; sessio
  * Validates the persisted Builder configuration, then delegates the durable
  * launch to one DB transaction. Nothing client-authored enters this function.
  */
+function miravaKieIntermediateStoragePath(
+  creation: Pick<
+    StudioCreationRecord,
+    "id" | "userId"
+  >,
+  frameIndex: number,
+): string {
+  return (
+    `${creation.userId}/` +
+    `${creation.id}/` +
+    `kie-intermediate-frame-${frameIndex}.png`
+  )
+}
+
+async function storeMiravaKieIntermediateAsset(
+  creation: Pick<
+    StudioCreationRecord,
+    "id" | "userId"
+  >,
+  frameIndex: number,
+  image: Buffer,
+): Promise<string> {
+  const storagePath =
+    miravaKieIntermediateStoragePath(
+      creation,
+      frameIndex,
+    )
+
+  const normalized =
+    await sharp(image)
+      .png()
+      .toBuffer()
+
+  const { error } =
+    await supabaseAdmin.storage
+      .from(STUDIO_BUCKET)
+      .upload(
+        storagePath,
+        normalized,
+        {
+          contentType:
+            "image/png",
+          upsert:
+            true,
+        },
+      )
+
+  if (error) {
+    throw new StudioError(
+      "L’image intermédiaire MIRAVA n’a pas pu être stockée.",
+      "STORAGE_ERROR",
+      true,
+    )
+  }
+
+  return storagePath
+}
+
+async function purgeMiravaKieIntermediateAsset(
+  creation: Pick<
+    StudioCreationRecord,
+    "id" | "userId"
+  >,
+  frameIndex: number,
+): Promise<void> {
+  const storagePath =
+    miravaKieIntermediateStoragePath(
+      creation,
+      frameIndex,
+    )
+
+  const { error } =
+    await supabaseAdmin.storage
+      .from(STUDIO_BUCKET)
+      .remove([
+        storagePath,
+      ])
+
+  if (error) {
+    console.error(
+      "[mirava-kie-intermediate-cleanup-error]",
+      JSON.stringify({
+        creationId:
+          creation.id,
+        frameIndex,
+        message:
+          error.message,
+      }),
+    )
+  }
+}
+
+async function purgeMiravaKieIntermediateAssets(
+  creation: Pick<
+    StudioCreationRecord,
+    "id" | "userId"
+  >,
+  frameCount = 6,
+): Promise<void> {
+  await Promise.all(
+    Array.from(
+      {
+        length:
+          Math.max(
+            0,
+            frameCount,
+          ),
+      },
+      (_, frameIndex) =>
+        purgeMiravaKieIntermediateAsset(
+          creation,
+          frameIndex,
+        ),
+    ),
+  )
+}
+
+
+function miravaKieRestorationFaceCropStoragePath(
+  creation: Pick<
+    StudioCreationRecord,
+    "id" | "userId"
+  >,
+  frameIndex: number,
+): string {
+  return (
+    `${creation.userId}/` +
+    `${creation.id}/` +
+    `kie-restoration-face-crop-${frameIndex}.png`
+  )
+}
+
+async function createMiravaKieRestorationFaceCrop(
+  creation: Pick<
+    StudioCreationRecord,
+    "id" | "userId"
+  >,
+  frameIndex: number,
+  intermediateStoragePath: string,
+  referenceFaceGeometry: unknown,
+): Promise<{
+  storagePath: string
+  mimeType: "image/png"
+  cropRegion: {
+    left: number
+    top: number
+    width: number
+    height: number
+  }
+} | null> {
+  const parsedGeometry =
+    parseMiravaIdentityFaceGeometry(
+      referenceFaceGeometry,
+    )
+
+  /*
+   * No reliable artistic-reference face geometry means
+   * no local restoration target.
+   *
+   * V6.9 must later preserve Pass A unchanged rather than
+   * falling back to full-frame identity restoration.
+   */
+  if (!parsedGeometry) {
+    return null
+  }
+
+  const {
+    data,
+    error,
+  } =
+    await supabaseAdmin.storage
+      .from(STUDIO_BUCKET)
+      .download(
+        intermediateStoragePath,
+      )
+
+  if (error || !data) {
+    throw new StudioError(
+      "L’image intermédiaire MIRAVA n’est pas disponible pour préparer la restauration locale.",
+      "STORAGE_ERROR",
+      true,
+    )
+  }
+
+  const source =
+    Buffer.from(
+      await data.arrayBuffer(),
+    )
+
+  const metadata =
+    await sharp(source)
+      .metadata()
+
+  if (
+    !metadata.width ||
+    !metadata.height
+  ) {
+    throw new StudioError(
+      "La zone visage de l’image intermédiaire ne peut pas être préparée.",
+      "INVALID_IMAGE",
+    )
+  }
+
+  const cropRegion =
+    resolveMiravaReferenceFaceRestorationCrop({
+      geometry:
+        parsedGeometry,
+      imageWidth:
+        metadata.width,
+      imageHeight:
+        metadata.height,
+    })
+
+  if (!cropRegion) {
+    return null
+  }
+
+  /*
+   * Exact deterministic extraction only.
+   *
+   * No attention crop.
+   * No semantic recentering.
+   * No percentage of full image height.
+   * No resize before provider submission.
+   *
+   * Keeping the exact Pass-A pixels makes this crop a
+   * faithful local target for the future restoration pass.
+   */
+  const crop =
+    await sharp(source)
+      .extract({
+        left:
+          cropRegion.left,
+        top:
+          cropRegion.top,
+        width:
+          cropRegion.width,
+        height:
+          cropRegion.height,
+      })
+      .png()
+      .toBuffer()
+
+  const storagePath =
+    miravaKieRestorationFaceCropStoragePath(
+      creation,
+      frameIndex,
+    )
+
+  const {
+    error: uploadError,
+  } =
+    await supabaseAdmin.storage
+      .from(STUDIO_BUCKET)
+      .upload(
+        storagePath,
+        crop,
+        {
+          contentType:
+            "image/png",
+          upsert:
+            true,
+        },
+      )
+
+  if (uploadError) {
+    throw new StudioError(
+      "La zone visage temporaire n’a pas pu être préparée.",
+      "STORAGE_ERROR",
+      true,
+    )
+  }
+
+  return {
+    storagePath,
+    mimeType:
+      "image/png",
+    cropRegion,
+  }
+}
+
+async function purgeMiravaKieRestorationFaceCrop(
+  creation: Pick<
+    StudioCreationRecord,
+    "id" | "userId"
+  >,
+  frameIndex: number,
+): Promise<void> {
+  const storagePath =
+    miravaKieRestorationFaceCropStoragePath(
+      creation,
+      frameIndex,
+    )
+
+  const { error } =
+    await supabaseAdmin.storage
+      .from(STUDIO_BUCKET)
+      .remove([
+        storagePath,
+      ])
+
+  if (error) {
+    console.error(
+      "[mirava-kie-restoration-face-crop-cleanup-error]",
+      JSON.stringify({
+        creationId:
+          creation.id,
+        frameIndex,
+        message:
+          error.message,
+      }),
+    )
+  }
+}
+
+async function purgeMiravaKieRestorationFaceCropsForCreation(
+  creation: Pick<
+    StudioCreationRecord,
+    "id" | "userId"
+  >,
+  frameCount = 6,
+): Promise<void> {
+  await Promise.all(
+    Array.from(
+      {
+        length:
+          Math.max(
+            0,
+            frameCount,
+          ),
+      },
+      (_, frameIndex) =>
+        purgeMiravaKieRestorationFaceCrop(
+          creation,
+          frameIndex,
+        ),
+    ),
+  )
+}
+
+const MIRAVA_KIE_V6_PASS_A_READY_STATE =
+  "v6-pass-a-ready"
+
+const MIRAVA_KIE_SIGNED_INPUT_TTL_SECONDS =
+  60 * 60
+
+async function createMiravaKieSignedInputUrl(
+  asset: {
+    storagePath: string
+  },
+): Promise<string> {
+  const {
+    data,
+    error,
+  } =
+    await supabaseAdmin.storage
+      .from(STUDIO_BUCKET)
+      .createSignedUrl(
+        asset.storagePath,
+        MIRAVA_KIE_SIGNED_INPUT_TTL_SECONDS,
+      )
+
+  const signedUrl =
+    data?.signedUrl?.trim()
+
+  if (
+    error ||
+    !signedUrl
+  ) {
+    throw new StudioError(
+      "Une URL privée temporaire n’a pas pu être créée pour le moteur d’image.",
+      "STORAGE_ERROR",
+      true,
+    )
+  }
+
+  try {
+    const parsed =
+      new URL(
+        signedUrl,
+      )
+
+    if (
+      parsed.protocol !==
+        "https:"
+    ) {
+      throw new Error(
+        "non-https",
+      )
+    }
+  } catch {
+    throw new StudioError(
+      "L’URL privée temporaire du moteur d’image est invalide.",
+      "STORAGE_ERROR",
+      true,
+    )
+  }
+
+  return signedUrl
+}
+
+function miravaKieIdentityCropStoragePath(
+  creation: Pick<
+    StudioCreationRecord,
+    "id" | "userId"
+  >,
+  frameIndex: number,
+  identityAssetId: string,
+): string {
+  return (
+    `${creation.userId}/` +
+    `${creation.id}/` +
+    `kie-identity-crop-${frameIndex}-` +
+    `${identityAssetId}.jpg`
+  )
+}
+
+const MIRAVA_KIE_FACE_IDENTITY_VIEW_KEYS =
+  new Set([
+    "front",
+    "angle",
+    "profile_right",
+    "smile",
+  ])
+
+type MiravaKieIdentityFaceInput = {
+  asset:
+    StudioIdentityAssetRecord
+  faceGeometry:
+    NonNullable<
+      ReturnType<
+        typeof parseMiravaIdentityFaceGeometry
+      >
+    >
+}
+
+function getMiravaKieIdentityFaceInputs(
+  identityAssets: Array<
+    StudioAssetRecord |
+    StudioIdentityAssetRecord
+  >,
+): MiravaKieIdentityFaceInput[] {
+  return identityAssets.flatMap<
+    MiravaKieIdentityFaceInput
+  >(
+    (asset) => {
+      /*
+       * Creation-scoped legacy identity assets cannot
+       * become FACE_ID inputs because they have no
+       * durable MediaPipe geometry.
+       */
+      if (
+        !(
+          "identityProfileId" in
+          asset
+        )
+      ) {
+        return []
+      }
+
+      const viewKey =
+        asset.viewKey
+
+      if (
+        typeof viewKey !==
+          "string" ||
+        !MIRAVA_KIE_FACE_IDENTITY_VIEW_KEYS
+          .has(viewKey)
+      ) {
+        return []
+      }
+
+      const faceGeometry =
+        parseMiravaIdentityFaceGeometry(
+          asset.faceGeometry,
+        )
+
+      return faceGeometry
+        ? [
+            {
+              asset,
+              faceGeometry,
+            },
+          ]
+        : []
+    },
+  )
+}
+
+function selectMiravaKieRequiredIdentityFaceInputs(
+  identityAssets: Array<
+    StudioAssetRecord |
+    StudioIdentityAssetRecord
+  >,
+): MiravaKieIdentityFaceInput[] {
+  const faceInputs =
+    getMiravaKieIdentityFaceInputs(
+      identityAssets,
+    )
+
+  /*
+   * Kie receives exactly the three required FACE_ID
+   * views in canonical order.
+   *
+   * Optional views such as "smile" can never displace
+   * front / angle / profile_right because provider
+   * selection is independent from DB insertion order.
+   */
+  return MIRAVA_REQUIRED_IDENTITY_VIEW_KEYS
+    .flatMap(
+      (requiredViewKey) => {
+        const match =
+          faceInputs.find(
+            ({ asset }) =>
+              asset.viewKey ===
+              requiredViewKey,
+          )
+
+        return match
+          ? [match]
+          : []
+      },
+    )
+}
+
+function selectMiravaKieIdentityCropAssets(
+  identityAssets: Array<
+    StudioAssetRecord |
+    StudioIdentityAssetRecord
+  >,
+): StudioIdentityAssetRecord[] {
+  return selectMiravaKieRequiredIdentityFaceInputs(
+    identityAssets,
+  ).map(
+    ({ asset }) =>
+      asset,
+  )
+}
+
+async function createMiravaKieIdentityCrop(
+  creation: Pick<
+    StudioCreationRecord,
+    "id" | "userId"
+  >,
+  frameIndex: number,
+  asset:
+    StudioIdentityAssetRecord,
+  faceGeometry: unknown,
+): Promise<{
+  storagePath: string
+  mimeType: "image/jpeg"
+}> {
+  /*
+   * The geometry has already been validated before
+   * any temporary crop is created. Parse again here
+   * so this helper remains safe if reused later.
+   */
+  const parsedGeometry =
+    parseMiravaIdentityFaceGeometry(
+      faceGeometry,
+    )
+
+  if (!parsedGeometry) {
+    throw new StudioError(
+      "Le Profil identité doit être réenregistré avant de préparer les références visage.",
+      "IDENTITY_REQUIRED",
+    )
+  }
+
+  const source =
+    await downloadAsset(asset)
+
+  const metadata =
+    await sharp(source)
+      .metadata()
+
+  if (
+    !metadata.width ||
+    !metadata.height
+  ) {
+    throw new StudioError(
+      "Une photo identité ne peut pas être préparée pour le moteur d’image.",
+      "INVALID_IMAGE",
+    )
+  }
+
+  const cropRegion =
+    resolveMiravaIdentityFaceCrop({
+      geometry:
+        parsedGeometry,
+      imageWidth:
+        metadata.width,
+      imageHeight:
+        metadata.height,
+    })
+
+  if (!cropRegion) {
+    throw new StudioError(
+      "La zone visage enregistrée pour cette photo identité est invalide.",
+      "IDENTITY_REQUIRED",
+    )
+  }
+
+  /*
+   * No attention crop, no semantic recentering and
+   * no percentage of the source image.
+   *
+   * Sharp receives the exact deterministic rectangle
+   * derived from the MediaPipe face landmarks.
+   */
+  const crop =
+    await sharp(source)
+      .extract(
+        cropRegion,
+      )
+      .resize({
+        width: 768,
+        height: 768,
+        fit: "inside",
+      })
+      .jpeg({
+        quality: 94,
+        chromaSubsampling:
+          "4:4:4",
+      })
+      .toBuffer()
+
+  const storagePath =
+    miravaKieIdentityCropStoragePath(
+      creation,
+      frameIndex,
+      asset.id,
+    )
+
+  const { error } =
+    await supabaseAdmin.storage
+      .from(STUDIO_BUCKET)
+      .upload(
+        storagePath,
+        crop,
+        {
+          contentType:
+            "image/jpeg",
+          upsert: true,
+        },
+      )
+
+  if (error) {
+    console.error(
+      "[mirava-kie-identity-crop-storage-error]",
+      JSON.stringify({
+        creationId:
+          creation.id,
+        frameIndex,
+        identityAssetId:
+          asset.id,
+        message:
+          error.message,
+      }),
+    )
+
+    throw new StudioError(
+      "Une référence identité temporaire n’a pas pu être préparée.",
+      "STORAGE_ERROR",
+      true,
+    )
+  }
+
+  return {
+    storagePath,
+    mimeType:
+      "image/jpeg",
+  }
+}
+
+async function purgeMiravaKieIdentityCrops(
+  creation: Pick<
+    StudioCreationRecord,
+    "id" | "userId"
+  >,
+  frameIndex: number,
+  identityAssets: Array<
+    StudioAssetRecord |
+    StudioIdentityAssetRecord
+  >,
+): Promise<void> {
+  if (
+    identityAssets.length === 0
+  ) {
+    return
+  }
+
+  const paths =
+    identityAssets.map(
+      (asset) =>
+        miravaKieIdentityCropStoragePath(
+          creation,
+          frameIndex,
+          asset.id,
+        ),
+    )
+
+  const { error } =
+    await supabaseAdmin.storage
+      .from(STUDIO_BUCKET)
+      .remove(paths)
+
+  if (error) {
+    console.error(
+      "[mirava-kie-identity-crop-cleanup-error]",
+      JSON.stringify({
+        creationId:
+          creation.id,
+        frameIndex,
+        count:
+          paths.length,
+        message:
+          error.message,
+      }),
+    )
+  }
+}
+
+async function purgeMiravaKieIdentityCropsForCreation(
+  creation: Pick<
+    StudioCreationRecord,
+    "id" | "userId"
+  >,
+): Promise<void> {
+  /*
+   * Terminal cleanup must not depend on the current
+   * identity profile.
+   *
+   * The profile may have changed after temporary crops
+   * were created, so remove every provider crop found
+   * inside this creation's private storage directory.
+   */
+  const folderPath =
+    `${creation.userId}/${creation.id}`
+
+  const {
+    data,
+    error,
+  } =
+    await supabaseAdmin.storage
+      .from(STUDIO_BUCKET)
+      .list(
+        folderPath,
+        {
+          limit:
+            100,
+          search:
+            "kie-identity-crop-",
+        },
+      )
+
+  if (error) {
+    console.error(
+      "[mirava-kie-identity-crop-list-error]",
+      JSON.stringify({
+        creationId:
+          creation.id,
+        message:
+          error.message,
+      }),
+    )
+
+    return
+  }
+
+  const paths =
+    (data ?? [])
+      .flatMap(
+        (
+          item: {
+            name?: string | null
+          },
+        ) => {
+          const name =
+            typeof item?.name ===
+              "string"
+              ? item.name
+              : ""
+
+          return (
+            name.startsWith(
+              "kie-identity-crop-",
+            ) &&
+            name.endsWith(
+              ".jpg",
+            )
+          )
+            ? [
+                `${folderPath}/${name}`,
+              ]
+            : []
+        },
+      )
+
+  if (
+    paths.length === 0
+  ) {
+    return
+  }
+
+  const {
+    error:
+      removeError,
+  } =
+    await supabaseAdmin.storage
+      .from(STUDIO_BUCKET)
+      .remove(paths)
+
+  if (removeError) {
+    console.error(
+      "[mirava-kie-identity-crop-cleanup-error]",
+      JSON.stringify({
+        creationId:
+          creation.id,
+        count:
+          paths.length,
+        message:
+          removeError.message,
+      }),
+    )
+  }
+}
+
+async function purgeMiravaKieTemporaryAssetsForFrame(
+  creation: Pick<
+    StudioCreationRecord,
+    "id" | "userId"
+  >,
+  frameIndex: number,
+  identityAssets: Array<
+    StudioAssetRecord |
+    StudioIdentityAssetRecord
+  >,
+): Promise<void> {
+  /*
+   * Cleanup occurs only after RESULT is durable.
+   * Until then Pass A and FACE_ID crops remain
+   * available for retry/resume.
+   */
+  await Promise.all([
+    purgeMiravaKieIntermediateAsset(
+      creation,
+      frameIndex,
+    ),
+    purgeMiravaKieRestorationFaceCrop(
+      creation,
+      frameIndex,
+    ),
+    purgeMiravaKieIdentityCrops(
+      creation,
+      frameIndex,
+      selectMiravaKieIdentityCropAssets(
+        identityAssets,
+      ),
+    ),
+  ])
+}
+
+async function purgeMiravaKieTemporaryAssetsForCreation(
+  creation: Pick<
+    StudioCreationRecord,
+    "id" | "userId"
+  >,
+  frameCount = 6,
+): Promise<void> {
+  /*
+   * Terminal cleanup does not depend on the current
+   * identity profile, which may have changed since
+   * temporary provider artifacts were created.
+   */
+  await Promise.all([
+    purgeMiravaKieIntermediateAssets(
+      creation,
+      frameCount,
+    ),
+    purgeMiravaKieRestorationFaceCropsForCreation(
+      creation,
+      frameCount,
+    ),
+    purgeMiravaKieIdentityCropsForCreation(
+      creation,
+    ),
+  ])
+}
+
 export async function launchMiravaSessionShoot(args: {
   userId: string
   sessionId: string
@@ -2817,7 +3910,6 @@ export async function launchMiravaSessionShoot(args: {
   const session = await db.studioSession.findFirst({
     where: { id: args.sessionId, userId: args.userId },
     include: {
-      identityProfile: { include: { assets: { select: { id: true } } } },
       referenceCreation: { include: { assets: { where: { kind: "REFERENCE", deletedAt: null } } } },
       lookItems: { include: { assets: { select: { viewKey: true } } }, orderBy: { position: "asc" } },
       creations: { select: { id: true, shotIndex: true }, orderBy: { shotIndex: "asc" } },
@@ -2828,7 +3920,7 @@ export async function launchMiravaSessionShoot(args: {
     builderConfig: unknown
     setPresetId: string | null
     lightingPresetId: string | null
-    identityProfile: { assets: unknown[] } | null
+    identityProfileId: string | null
     referenceCreation: {
       id: string
       userId: string
@@ -2862,8 +3954,75 @@ export async function launchMiravaSessionShoot(args: {
     lookMode: metadata.lookMode,
   })
   if (!config.success) throw new StudioError("La configuration de cette séance est incomplète ou invalide.", "INVALID_STATE")
-  if (!session.identityProfile || session.identityProfile.assets.length < MIN_IDENTITY_ASSETS) {
-    throw new StudioError("Un Profil identité utilisable est requis avant le lancement.", "IDENTITY_REQUIRED")
+  const currentIdentityProfile =
+    await db.studioIdentityProfile.findUnique({
+      where: {
+        userId:
+          args.userId,
+      },
+    })
+
+  const identityAssets =
+    currentIdentityProfile
+      ? await db.studioIdentityAsset.findMany({
+          where: {
+            identityProfileId:
+              currentIdentityProfile.id,
+            userId:
+              args.userId,
+          },
+        })
+      : []
+
+  const identityAssetCount =
+    identityAssets.length
+
+  if (
+    !currentIdentityProfile ||
+    identityAssetCount <
+      MIN_IDENTITY_ASSETS
+  ) {
+    throw new StudioError(
+      "Un Profil identité utilisable est requis avant le lancement.",
+      "IDENTITY_REQUIRED",
+    )
+  }
+
+  const requiredIdentityFaceInputs =
+    selectMiravaKieRequiredIdentityFaceInputs(
+      identityAssets as
+        StudioIdentityAssetRecord[],
+    )
+
+  if (
+    requiredIdentityFaceInputs.length !==
+      MIRAVA_REQUIRED_IDENTITY_VIEW_KEYS.length
+  ) {
+    throw new StudioError(
+      "Votre Profil identité doit être réenregistré afin d’activer la représentation visage haute fidélité.",
+      "IDENTITY_REQUIRED",
+    )
+  }
+
+  if (
+    session.identityProfileId !==
+      currentIdentityProfile.id
+  ) {
+    await db.studioSession.update({
+      where: {
+        id:
+          session.id,
+        userId:
+          args.userId,
+      },
+      data: {
+        identityProfileId:
+          currentIdentityProfile.id,
+      },
+    })
+
+    session.identityProfileId =
+      currentIdentityProfile.id
   }
   if (config.data.lookMode === "CUSTOM" && !session.lookItems.some((item) => item.assets.length > 0)) {
     throw new StudioError("Ajoutez au moins un article avec une image privée à votre look.", "INVALID_STATE")
@@ -3086,11 +4245,45 @@ export async function studioCreationDTO(
   }
 }
 
-export async function deleteStudioCreation(userId: string, creationId: string): Promise<void> {
-  await getStudioCreationForUser(userId, creationId)
-  const assets = await getStudioAssets(creationId)
-  if (assets.length) await supabaseAdmin.storage.from(STUDIO_BUCKET).remove(assets.map((asset) => asset.storagePath))
-  await db.studioCreation.delete({ where: { id: creationId, userId } })
+export async function deleteStudioCreation(
+  userId: string,
+  creationId: string,
+): Promise<void> {
+  const creation =
+    await getStudioCreationForUser(
+      userId,
+      creationId,
+    )
+
+  const assets =
+    await getStudioAssets(
+      creationId,
+    )
+
+  if (assets.length) {
+    await supabaseAdmin.storage
+      .from(STUDIO_BUCKET)
+      .remove(
+        assets.map(
+          (asset) =>
+            asset.storagePath,
+        ),
+      )
+  }
+
+  /*
+   * Kie intermediates are not StudioAsset rows.
+   */
+  await purgeMiravaKieTemporaryAssetsForCreation(
+    creation,
+  )
+
+  await db.studioCreation.delete({
+    where: {
+      id: creationId,
+      userId,
+    },
+  })
 }
 
 async function downloadAsset(asset: Pick<StudioAssetRecord, "storagePath">): Promise<Buffer> {
@@ -3101,6 +4294,456 @@ async function downloadAsset(asset: Pick<StudioAssetRecord, "storagePath">): Pro
 
 function toDataUrl(buffer: Buffer, mimeType: string): string {
   return `data:${mimeType};base64,${buffer.toString("base64")}`
+}
+
+const MIRAVA_IDENTITY_MORPHOLOGY_TIMEOUT_MS =
+  90_000
+
+const MIRAVA_IDENTITY_MORPHOLOGY_MAX_IMAGES =
+  5
+
+function miravaMorphologyViewPriority(
+  viewKey: MiravaIdentityViewKey,
+): number {
+  if (viewKey === "body") {
+    return 0
+  }
+
+  if (viewKey === "front") {
+    return 1
+  }
+
+  if (viewKey === "angle") {
+    return 2
+  }
+
+  if (viewKey === "profile_right") {
+    return 3
+  }
+
+  if (viewKey === "smile") {
+    return 4
+  }
+
+  return 100
+}
+
+async function refreshIdentityMorphologyForProfile(
+  args: {
+    userId: string
+    profileId: string
+  },
+): Promise<void> {
+  /*
+   * Always invalidate first.
+   *
+   * If extraction is unavailable or fails, MIRAVA keeps
+   * no stale morphology from older identity photographs.
+   */
+  await db.studioIdentityProfile.update({
+    where: {
+      id:
+        args.profileId,
+      userId:
+        args.userId,
+    },
+    data: {
+      identityMorphology:
+        null,
+    },
+  })
+
+  /*
+   * External identity analysis is optional and
+   * fail-closed.
+   *
+   * The identity profile itself remains durable even
+   * when no current OpenAI disclosure evidence exists.
+   * In that case morphology stays null and no identity
+   * derivative is prepared or transmitted externally.
+   */
+  try {
+    await requireMiravaOpenAiIdentityAnalysisConsent(
+      args.userId,
+    )
+  } catch (error) {
+    console.info(
+      "[mirava-identity-morphology-skipped-consent]",
+      JSON.stringify({
+        profileId:
+          args.profileId,
+        reason:
+          error instanceof Error
+            ? error.message
+            : "CONSENT_VERIFICATION_FAILED",
+      }),
+    )
+
+    return
+  }
+
+  const rawAssets =
+    await db.studioIdentityAsset.findMany({
+      where: {
+        identityProfileId:
+          args.profileId,
+        userId:
+          args.userId,
+      },
+      orderBy: {
+        createdAt:
+          "asc",
+      },
+    }) as StudioIdentityAssetRecord[]
+
+  const assets =
+    normalizeMiravaIdentityAssets(
+      rawAssets,
+    )
+      .filter(
+        (asset) =>
+          asset.viewKey !==
+            "tattoos",
+      )
+      .sort(
+        (a, b) =>
+          miravaMorphologyViewPriority(
+            a.viewKey,
+          ) -
+          miravaMorphologyViewPriority(
+            b.viewKey,
+          ),
+      )
+      .slice(
+        0,
+        MIRAVA_IDENTITY_MORPHOLOGY_MAX_IMAGES,
+      )
+
+  if (
+    assets.length <
+      MIRAVA_MIN_IDENTITY_PHOTOS
+  ) {
+    console.info(
+      "[mirava-identity-morphology-skipped]",
+      JSON.stringify({
+        profileId:
+          args.profileId,
+        reason:
+          "insufficient_identity_views",
+        imageCount:
+          assets.length,
+      }),
+    )
+
+    return
+  }
+
+  const apiKey =
+    process.env.OPENAI_API_KEY
+
+  if (!apiKey) {
+    console.info(
+      "[mirava-identity-morphology-skipped]",
+      JSON.stringify({
+        profileId:
+          args.profileId,
+        reason:
+          "provider_not_configured",
+      }),
+    )
+
+    return
+  }
+
+  const startedAt =
+    Date.now()
+
+  try {
+    const userContent:
+      Array<Record<string, unknown>> =
+      [
+        {
+          type:
+            "text",
+          text:
+            [
+              "Analyze these identity views together.",
+              "Every image depicts the same consenting adult.",
+              "Use each VIEW label as context only.",
+              "Extract intrinsic morphology according to the system contract.",
+            ].join(" "),
+        },
+      ]
+
+    for (
+      const asset of
+        assets
+    ) {
+      const source =
+        await downloadAsset(
+          asset,
+        )
+
+      /*
+       * Vision analysis receives a temporary,
+       * metadata-free derivative only.
+       * The durable high-resolution identity
+       * master is left unchanged.
+       */
+      const preview =
+        await sharp(source)
+          .rotate()
+          .resize({
+            width:
+              1280,
+            height:
+              1280,
+            fit:
+              "inside",
+            withoutEnlargement:
+              true,
+          })
+          .jpeg({
+            quality:
+              88,
+            chromaSubsampling:
+              "4:4:4",
+          })
+          .toBuffer()
+
+      userContent.push(
+        {
+          type:
+            "text",
+          text:
+            `VIEW: ${asset.viewKey}`,
+        },
+        {
+          type:
+            "image_url",
+          image_url: {
+            url:
+              toDataUrl(
+                preview,
+                "image/jpeg",
+              ),
+            detail:
+              "high",
+          },
+        },
+      )
+    }
+
+    console.info(
+      "[mirava-identity-morphology-attempt]",
+      JSON.stringify({
+        profileId:
+          args.profileId,
+        model:
+          MIRAVA_ANALYSIS_MODEL,
+        imageCount:
+          assets.length,
+        viewKeys:
+          assets.map(
+            (asset) =>
+              asset.viewKey,
+          ),
+        timeoutMs:
+          MIRAVA_IDENTITY_MORPHOLOGY_TIMEOUT_MS,
+      }),
+    )
+
+    const response =
+      await fetch(
+        "https://api.openai.com/v1/chat/completions",
+        {
+          method:
+            "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+            Authorization:
+              `Bearer ${apiKey}`,
+          },
+          body:
+            JSON.stringify({
+              model:
+                MIRAVA_ANALYSIS_MODEL,
+              store:
+                false,
+              reasoning_effort:
+                "low",
+              max_completion_tokens:
+                1800,
+              response_format: {
+                type:
+                  "json_object",
+              },
+              messages: [
+                {
+                  role:
+                    "system",
+                  content:
+                    MIRAVA_IDENTITY_MORPHOLOGY_EXTRACTOR_PROMPT,
+                },
+                {
+                  role:
+                    "user",
+                  content:
+                    userContent,
+                },
+              ],
+            }),
+          signal:
+            AbortSignal.timeout(
+              MIRAVA_IDENTITY_MORPHOLOGY_TIMEOUT_MS,
+            ),
+        },
+      )
+
+    const responseText =
+      await response.text()
+
+    if (!response.ok) {
+      throw new Error(
+        `IDENTITY_MORPHOLOGY_HTTP_${response.status}: ` +
+        responseText.slice(
+          0,
+          500,
+        ),
+      )
+    }
+
+    const body =
+      JSON.parse(
+        responseText,
+      ) as {
+        choices?: Array<{
+          message?: {
+            content?:
+              | string
+              | null
+          }
+        }>
+      }
+
+    const content =
+      body.choices?.[0]
+        ?.message?.content
+
+    if (
+      typeof content !==
+        "string" ||
+      !content.trim()
+    ) {
+      throw new Error(
+        "IDENTITY_MORPHOLOGY_EMPTY_RESPONSE",
+      )
+    }
+
+    let rawMorphology:
+      unknown
+
+    try {
+      rawMorphology =
+        JSON.parse(
+          content,
+        )
+    } catch {
+      throw new Error(
+        "IDENTITY_MORPHOLOGY_INVALID_JSON",
+      )
+    }
+
+    const parsed =
+      parseIdentityMorphology(
+        rawMorphology,
+      )
+
+    if (!parsed) {
+      throw new Error(
+        "IDENTITY_MORPHOLOGY_INVALID_SCHEMA",
+      )
+    }
+
+    const durableMorphology = {
+      ...parsed,
+      sourceViewKeys:
+        assets.map(
+          (asset) =>
+            asset.viewKey,
+        ),
+    }
+
+    /*
+     * sourceViewKeys are server-owned.
+     * Never trust model-provided provenance.
+     */
+    await db.studioIdentityProfile.update({
+      where: {
+        id:
+          args.profileId,
+        userId:
+          args.userId,
+      },
+      data: {
+        identityMorphology:
+          durableMorphology,
+      },
+    })
+
+    console.info(
+      "[mirava-identity-morphology-success]",
+      JSON.stringify({
+        profileId:
+          args.profileId,
+        durationMs:
+          Date.now() -
+          startedAt,
+        imageCount:
+          assets.length,
+        viewKeys:
+          durableMorphology
+            .sourceViewKeys,
+        observedFields:
+          Object.keys(
+            parsed,
+          ).filter(
+            (key) =>
+              key !==
+                "version" &&
+              key !==
+                "sourceViewKeys",
+          ),
+      }),
+    )
+  } catch (error) {
+    /*
+     * Identity upload remains durable even when
+     * morphology analysis is temporarily unavailable.
+     *
+     * The null value is intentional: stale morphology
+     * is strictly worse than missing morphology.
+     */
+    console.error(
+      "[mirava-identity-morphology-error]",
+      JSON.stringify({
+        profileId:
+          args.profileId,
+        durationMs:
+          Date.now() -
+          startedAt,
+        name:
+          providerExceptionName(
+            error,
+          ),
+        message:
+          providerExceptionMessage(
+            error,
+          ),
+      }),
+    )
+  }
 }
 
 const MIRAVA_ANALYSIS_TIMEOUT_MS =
@@ -3949,6 +5592,7 @@ async function generateStudioImage(
   >,
   frameIndex = 0,
   physicalTraits: PhysicalTrait[] = [],
+  bodyIdentityPrompt = "",
   jobAttempt = 1,
   studioJob: StudioJobRecord | null = null,
 ): Promise<Buffer> {
@@ -4044,10 +5688,25 @@ async function generateStudioImage(
       primaryPrompt,
     )
 
+  const campaignSafeContinuation =
+    isContinuation &&
+    continuationDirective
+      ? {
+          intents:
+            continuationDirective
+              .intents,
+          customInstruction:
+            continuationDirective
+              .customInstruction,
+        }
+      : undefined
+
   const resolvedPrimaryPrompt =
     campaignRisk.requiresCampaignSafeTransfer
       ? buildMiravaCampaignSafeTransferPrompt(
           primaryPrompt,
+          "standard",
+          campaignSafeContinuation,
         )
       : primaryPrompt
 
@@ -4060,7 +5719,10 @@ async function generateStudioImage(
       : identityAssets
 
   const kieProviderEnabled =
-    isMiravaKieImageProviderEnabled()
+    isMiravaKieImageProviderEnabled() &&
+    await hasMiravaExternalImageGenerationConsent(
+      creation.userId,
+    )
 
   const useKieCampaignProvider =
     kieProviderEnabled &&
@@ -4102,9 +5764,7 @@ async function generateStudioImage(
       useKieCampaignProvider ||
       useKieProviderRecovery
     )
-      ? selectMiravaPrimaryIdentityAssets(
-          identityAssets,
-        )
+      ? identityAssets
       : []
 
   const clearKieTaskState =
@@ -4138,45 +5798,138 @@ async function generateStudioImage(
       const startedAt =
         Date.now()
 
-      const promptHash =
-        createHash("sha256")
-          .update(promptText)
-          .digest("hex")
-          .slice(0, 16)
+      /*
+       * V6 FACE_ID boundary:
+       * only profile-backed identity assets with durable
+       * MediaPipe faceGeometry may become provider FACE_ID.
+       */
+      const identityProfileAssets =
+        kieIdentityAssets.flatMap(
+          (asset) =>
+            "identityProfileId" in asset
+              ? [
+                  asset as
+                    StudioIdentityAssetRecord,
+                ]
+              : [],
+        )
+
+      if (
+        identityProfileAssets.length !==
+        kieIdentityAssets.length
+      ) {
+        throw new StudioError(
+          "Votre Profil identité doit être réenregistré afin d’activer la représentation visage haute fidélité.",
+          "IDENTITY_REQUIRED",
+        )
+      }
+
+      const identityFaceInputs =
+        getMiravaKieIdentityFaceInputs(
+          identityProfileAssets,
+        )
+
+      const availableFaceViews =
+        new Set(
+          identityFaceInputs.map(
+            ({ asset }) =>
+              asset.viewKey,
+          ),
+        )
+
+      const requiredFaceGeometryMissing =
+        MIRAVA_REQUIRED_IDENTITY_VIEW_KEYS
+          .some(
+            (viewKey) =>
+              !availableFaceViews.has(
+                viewKey,
+              ),
+          )
+
+      if (
+        requiredFaceGeometryMissing
+      ) {
+        throw new StudioError(
+          "Votre Profil identité doit être réenregistré afin d’activer la représentation visage haute fidélité.",
+          "IDENTITY_REQUIRED",
+        )
+      }
+
+      const selectedIdentityFaceInputs =
+        selectMiravaKieRequiredIdentityFaceInputs(
+          identityProfileAssets,
+        )
+
+      const identityReferences:
+        MiravaKieReferenceImage[] =
+        []
+
+      /*
+       * FACE_ID crops are deterministic server-side
+       * crops. Kie receives signed private URLs, never
+       * the raw full identity photographs.
+       */
+      try {
+        for (
+          const {
+            asset,
+            faceGeometry,
+          } of
+          selectedIdentityFaceInputs
+        ) {
+          const crop =
+            await createMiravaKieIdentityCrop(
+              creation,
+              frameIndex,
+              asset,
+              faceGeometry,
+            )
+
+          identityReferences.push({
+            role:
+              "IDENTITY",
+            sourceUrl:
+              await createMiravaKieSignedInputUrl(
+                crop,
+              ),
+            mimeType:
+              crop.mimeType,
+            fileName:
+              `identity-face-${asset.id}.jpg`,
+          })
+        }
+      } catch (error) {
+        await purgeMiravaKieIdentityCrops(
+          creation,
+          frameIndex,
+          selectedIdentityFaceInputs.map(
+            ({ asset }) =>
+              asset,
+          ),
+        )
+
+        throw error
+      }
 
       const references:
         MiravaKieReferenceImage[] =
         []
 
-      for (const reference of sessionProviderInputs) {
-        references.push({
-          role: reference.role,
-          buffer: await downloadAsset(reference),
-          mimeType: reference.mimeType,
-          fileName: `${reference.fileName}.${extensionForMime(reference.mimeType)}`,
-        })
-      }
-
-      if (kieArtisticReference) {
-        references.push({
-          role: "ART_DIRECTION",
-          buffer:
-            await downloadAsset(
-              kieArtisticReference,
-            ),
-          mimeType:
-            kieArtisticReference
-              .mimeType,
-          fileName:
-            `art-direction-${kieArtisticReference.id}.${extensionForMime(kieArtisticReference.mimeType)}`,
-        })
-      }
-
+      /*
+       * Continuation contract:
+       * the previous approved RESULT is reference #1
+       * because the continuation prompt explicitly
+       * declares the first attached image as CONTINUITY.
+       *
+       * Session Builder references keep their roles and
+       * relative ordering immediately after CONTINUITY.
+       */
       if (continuityAsset) {
         references.push({
-          role: "CONTINUITY",
-          buffer:
-            await downloadAsset(
+          role:
+            "CONTINUITY",
+          sourceUrl:
+            await createMiravaKieSignedInputUrl(
               continuityAsset,
             ),
           mimeType:
@@ -4188,21 +5941,42 @@ async function generateStudioImage(
       }
 
       for (
-        const asset of
-        kieIdentityAssets
+        const reference of
+        sessionProviderInputs
       ) {
         references.push({
-          role: "IDENTITY",
-          buffer:
-            await downloadAsset(
-              asset,
+          role:
+            reference.role,
+          sourceUrl:
+            await createMiravaKieSignedInputUrl(
+              reference,
             ),
           mimeType:
-            asset.mimeType,
+            reference.mimeType,
           fileName:
-            `identity-${asset.id}.${extensionForMime(asset.mimeType)}`,
+            `${reference.fileName}.${extensionForMime(reference.mimeType)}`,
         })
       }
+
+      if (kieArtisticReference) {
+        references.push({
+          role:
+            "ART_DIRECTION",
+          sourceUrl:
+            await createMiravaKieSignedInputUrl(
+              kieArtisticReference,
+            ),
+          mimeType:
+            kieArtisticReference
+              .mimeType,
+          fileName:
+            `art-direction-${kieArtisticReference.id}.${extensionForMime(kieArtisticReference.mimeType)}`,
+        })
+      }
+
+      references.push(
+        ...identityReferences,
+      )
 
       if (
         references.length > 8
@@ -4210,6 +5984,10 @@ async function generateStudioImage(
         references.splice(8)
       }
 
+      /*
+       * BODY_ID remains server-owned textual morphology.
+       * FACE_ID photographs must never become its fallback.
+       */
       const providerPrompt =
         buildMiravaKieReferencePrompt({
           prompt:
@@ -4219,7 +5997,15 @@ async function generateStudioImage(
               (reference) =>
                 reference.role,
             ),
+          bodyIdentity:
+            bodyIdentityPrompt,
         })
+
+      const promptHash =
+        createHash("sha256")
+          .update(providerPrompt)
+          .digest("hex")
+          .slice(0, 16)
 
       const resumeTaskId =
         allowResume &&
@@ -4248,6 +6034,11 @@ async function generateStudioImage(
             providerPrompt.length,
           inputImageCount:
             references.length,
+          referenceRoles:
+            references.map(
+              (reference) =>
+                reference.role,
+            ),
           sessionVisualReferenceIds:
             sessionVisualReferences.map(
               (reference) => reference.id,
@@ -4340,6 +6131,11 @@ async function generateStudioImage(
                 error.kind,
               retryable:
                 error.retryable,
+              providerMessage:
+                error.message.slice(
+                  0,
+                  500,
+                ),
               elapsedMs:
                 Date.now() -
                 startedAt,
@@ -4360,6 +6156,22 @@ async function generateStudioImage(
             throw new StudioError(
               "La génération n’a pas été autorisée par les règles de sécurité.",
               "SAFETY_REFUSAL",
+            )
+          }
+
+          if (
+            error.kind ===
+              "billing"
+          ) {
+            /*
+             * Never expose provider account state to
+             * Studio clients. Exact provider diagnostics
+             * have already been written to the private log.
+             */
+            throw new StudioError(
+              "Le service d’image est temporairement indisponible.",
+              "PROVIDER_UNAVAILABLE",
+              false,
             )
           }
 
@@ -4682,39 +6494,210 @@ async function generateStudioImage(
     )
   }
 
-  if (useKieCampaignProvider) {
-    try {
-      return await executeKieCall(
-        resolvedPrimaryPrompt,
-        "campaign-safe-kie-primary",
-        true,
-      )
-    } catch (error) {
-      if (
-        !(
-          error instanceof
-            StudioError
-        ) ||
-        error.code !==
-          "SAFETY_REFUSAL"
-      ) {
-        throw error
-      }
+  if (
+     useKieCampaignProvider &&
+     kieArtisticReference &&
+     isReferenceAnchor
+   ) {
+     /*
+      * MIRAVA V6.9
+      *
+      * Pass A is the immutable final full-frame image.
+      * Identity restoration must never trigger a second
+      * full-frame provider generation.
+      */
+     const durablePassAStoragePath =
+       miravaKieIntermediateStoragePath(
+         creation,
+         frameIndex,
+       )
 
-      await clearKieTaskState()
+     const passAAlreadyDurable =
+       studioJob?.provider ===
+         "kie" &&
+       studioJob.providerState ===
+         MIRAVA_KIE_V6_PASS_A_READY_STATE &&
+       studioJob.providerFrameIndex ===
+         frameIndex
 
-      return await executeKieCall(
-        buildMiravaCampaignSafeTransferPrompt(
-          primaryPrompt,
-          "conservative",
-        ),
-        "campaign-safe-kie-fallback",
-        false,
-      )
-    }
-  }
+     if (passAAlreadyDurable) {
+       console.info(
+         "[mirava-v6-pass-a-resume]",
+         JSON.stringify({
+           creationId:
+             creation.id,
+           frameIndex,
+           storagePath:
+             durablePassAStoragePath,
+         }),
+       )
 
-  if (useKieProviderRecovery) {
+       const durablePassA =
+         await downloadAsset({
+           storagePath:
+             durablePassAStoragePath,
+         })
+
+       /*
+        * Local target preparation only.
+        * Invalid/missing geometry returns null and
+        * Pass A remains untouched.
+        */
+       await createMiravaKieRestorationFaceCrop(
+         creation,
+         frameIndex,
+         durablePassAStoragePath,
+         kieArtisticReference
+           .referenceFaceGeometry,
+       )
+
+       return durablePassA
+     }
+
+     let passAImage:
+       Buffer
+
+     try {
+       passAImage =
+         await executeKieCall(
+           resolvedPrimaryPrompt,
+           "campaign-safe-kie-primary",
+           true,
+         )
+     } catch (error) {
+       if (
+         !(
+           error instanceof
+             StudioError
+         ) ||
+         error.code !==
+           "SAFETY_REFUSAL"
+       ) {
+         throw error
+       }
+
+       /*
+        * Conservative fallback is still Pass A.
+        * This is a replacement for a rejected attempt,
+        * not an identity-restoration Pass B.
+        */
+       await clearKieTaskState()
+
+       passAImage =
+         await executeKieCall(
+           buildMiravaCampaignSafeTransferPrompt(
+             primaryPrompt,
+             "conservative",
+             campaignSafeContinuation,
+           ),
+           "campaign-safe-kie-fallback",
+           false,
+         )
+     }
+
+     /*
+      * Durability boundary:
+      * after this storage succeeds, the full frame
+      * must not be regenerated for identity restoration.
+      */
+     const storedPassAPath =
+       await storeMiravaKieIntermediateAsset(
+         creation,
+         frameIndex,
+         passAImage,
+       )
+
+     if (studioJob) {
+       await db.studioJob.update({
+         where: {
+           id:
+             studioJob.id,
+         },
+         data: {
+           provider:
+             "kie",
+           providerTaskId:
+             null,
+           providerState:
+             MIRAVA_KIE_V6_PASS_A_READY_STATE,
+           providerFrameIndex:
+             frameIndex,
+         },
+       })
+     }
+
+     const restorationFaceTarget =
+       await createMiravaKieRestorationFaceCrop(
+         creation,
+         frameIndex,
+         storedPassAPath,
+         kieArtisticReference
+           .referenceFaceGeometry,
+       )
+
+     console.info(
+       "[mirava-v6-pass-a-ready]",
+       JSON.stringify({
+         creationId:
+           creation.id,
+         frameIndex,
+         storagePath:
+           storedPassAPath,
+         restorationFaceTargetPrepared:
+           Boolean(
+             restorationFaceTarget,
+           ),
+       }),
+     )
+
+     /*
+      * First execution and resumed execution both return
+      * the exact durable normalized Pass-A artifact.
+      */
+     return await downloadAsset({
+       storagePath:
+         storedPassAPath,
+     })
+   }
+
+   /*
+    * Kie without an artistic reference remains the
+    * existing single-pass path.
+    */
+   if (useKieCampaignProvider) {
+     try {
+       return await executeKieCall(
+         resolvedPrimaryPrompt,
+         "campaign-safe-kie-primary",
+         true,
+       )
+     } catch (error) {
+       if (
+         !(
+           error instanceof
+             StudioError
+         ) ||
+         error.code !==
+           "SAFETY_REFUSAL"
+       ) {
+         throw error
+       }
+
+       await clearKieTaskState()
+
+       return await executeKieCall(
+         buildMiravaCampaignSafeTransferPrompt(
+           primaryPrompt,
+           "conservative",
+           campaignSafeContinuation,
+         ),
+         "campaign-safe-kie-fallback",
+         false,
+       )
+     }
+   }
+
+   if (useKieProviderRecovery) {
     console.info(
       "[mirava-image-provider-failover]",
       JSON.stringify({
@@ -4788,6 +6771,7 @@ async function generateStudioImage(
         buildMiravaCampaignSafeTransferPrompt(
           primaryPrompt,
           "conservative",
+          campaignSafeContinuation,
         ),
         primaryIdentityAssets,
         "campaign-safe-fallback",
@@ -4845,7 +6829,17 @@ async function generateStudioImage(
   }
 }
 
-export async function cropMiravaResult(image: Buffer): Promise<Buffer> {
+export async function cropMiravaResult(
+  image: Buffer,
+): Promise<Buffer> {
+  /*
+   * Preserve the provider composition and native
+   * aspect ratio.
+   *
+   * MIRAVA may reduce oversized output to 1024px wide,
+   * but must never impose a second full-frame crop after
+   * Pass A has established the final composition.
+   */
   return sharp(image)
     .resize({
       width: 1024,
@@ -4877,6 +6871,10 @@ async function finishJob(job: StudioJobRecord): Promise<void> {
       status: "DONE",
       lockedAt: null,
       failureCode: null,
+      provider: null,
+      providerTaskId: null,
+      providerState: null,
+      providerFrameIndex: null,
     },
   })
 }
@@ -4945,6 +6943,18 @@ async function failJob(
     return
   }
 
+  /*
+   * Retryable GENERATE failures return above this point,
+   * preserving v6-pass-a-ready and temporary inputs.
+   *
+   * Reaching this branch means failure is terminal.
+   */
+  if (job.kind === "GENERATE") {
+    await purgeMiravaKieTemporaryAssetsForCreation(
+      creation,
+    )
+  }
+
   if (job.kind === "ANALYZE" && creation.creditReservationKey) {
     await releaseMiravaCreditReservation({
       userId: creation.userId,
@@ -4971,11 +6981,30 @@ async function failJob(
     })
     }
   }
-  await db.studioJob.update({ where: { id: job.id }, data: { status: "FAILED", attempts, lockedAt: null, failureCode: studioError.code } })
+  await db.studioJob.update({
+    where: {
+      id: job.id,
+    },
+    data: {
+      status: "FAILED",
+      attempts,
+      lockedAt: null,
+      failureCode:
+        studioError.code,
+      provider: null,
+      providerTaskId: null,
+      providerState: null,
+      providerFrameIndex: null,
+    },
+  })
   await db.studioCreation.update({ where: { id: creation.id }, data: { status: "FAILED", failureCode: studioError.code, failureMessage: publicFailureMessage(studioError.code) } })
 }
 
 function publicFailureMessage(code: string): string {
+  if (code === "PROVIDER_UNAVAILABLE") {
+    return "Le service d’image est momentanément indisponible. Les crédits correspondant aux images non livrées ont été restaurés. Vous pourrez réessayer plus tard."
+  }
+
   if (code === "KIE_UPLOAD_QUOTA") {
     return "Le moteur d’image a temporairement atteint sa capacité d’envoi. Votre crédit a été restauré. Vous pourrez relancer votre création dès que le service sera de nouveau disponible."
   }
@@ -5114,6 +7143,9 @@ async function processStudioJob(job: StudioJobRecord): Promise<void> {
 
       const retainReferenceForKieGeneration =
         isMiravaKieImageProviderEnabled() &&
+        await hasMiravaExternalImageGenerationConsent(
+          creation.userId,
+        ) &&
         (
           extractedCampaignRisk
             .requiresCampaignSafeTransfer ||
@@ -5147,6 +7179,9 @@ async function processStudioJob(job: StudioJobRecord): Promise<void> {
         await purgeMiravaArtisticReferenceAssets(
           creation.id,
         )
+        await purgeMiravaKieTemporaryAssetsForCreation(
+          creation,
+        )
         await finishJob(job)
         return
       }
@@ -5157,7 +7192,37 @@ async function processStudioJob(job: StudioJobRecord): Promise<void> {
       const identityProfile = currentCreation.identityProfileId
         ? await db.studioIdentityProfile.findUnique({ where: { id: currentCreation.identityProfileId } })
         : await db.studioIdentityProfile.findUnique({ where: { userId: currentCreation.userId } })
-      const physicalTraits = parsePhysicalTraits((identityProfile as unknown as Record<string, unknown> | null)?.physicalTraits)
+
+      const identityProfileRecord =
+        identityProfile as
+          | Record<string, unknown>
+          | null
+
+      const physicalTraits =
+        parsePhysicalTraits(
+          identityProfileRecord
+            ?.physicalTraits,
+        )
+
+      /*
+       * BODY_ID is generated only from the strict,
+       * server-owned morphology contract.
+       *
+       * Invalid, absent or low-confidence morphology
+       * produces an empty prompt. It never falls back
+       * to body inference from FACE_ID photographs.
+       */
+      const identityMorphology =
+        parseIdentityMorphology(
+          identityProfileRecord
+            ?.identityMorphology,
+        )
+
+      const bodyIdentityPrompt =
+        formatIdentityMorphologyForPrompt(
+          identityMorphology,
+        )
+
       /*
        * Une invocation Vercel produit une seule image.
        *
@@ -5171,6 +7236,7 @@ async function processStudioJob(job: StudioJobRecord): Promise<void> {
         identities,
         frameIndex,
         physicalTraits,
+        bodyIdentityPrompt,
         job.attempts + 1,
         job,
       )
@@ -5178,6 +7244,16 @@ async function processStudioJob(job: StudioJobRecord): Promise<void> {
       await storeResultAsset(
         creation,
         output,
+      )
+
+      /*
+       * RESULT is now durable.
+       * Temporary Pass-A artifacts may now be removed.
+       */
+      await purgeMiravaKieTemporaryAssetsForFrame(
+        creation,
+        frameIndex,
+        identities,
       )
 
       await db.studioJob.update({

@@ -109,10 +109,10 @@ describe("MIRAVA private creation engine", () => {
     await expect(validateStudioImage(png, "image/jpeg")).rejects.toMatchObject({ code: "INVALID_IMAGE" })
   })
 
-  it("always crops a vertical generation to the delivery-safe 4:5 format", async () => {
+  it("preserves the provider native vertical aspect ratio at delivery", async () => {
     const original = await sharp({ create: { width: 1024, height: 1536, channels: 4, background: "#111111" } }).png().toBuffer()
     const cropped = await cropMiravaResult(original)
-    await expect(sharp(cropped).metadata()).resolves.toMatchObject({ width: 1024, height: 1280, format: "png" })
+    await expect(sharp(cropped).metadata()).resolves.toMatchObject({ width: 1024, height: 1536, format: "png" })
   })
 
   it("only auto-continues a creation after its required identity views exist", () => {

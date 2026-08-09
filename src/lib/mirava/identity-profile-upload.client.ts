@@ -4,6 +4,9 @@ import { createClient } from "@supabase/supabase-js"
 import type {
   MiravaIdentityViewKey,
 } from "@/lib/mirava/identity-profile"
+import type {
+  MiravaIdentityFaceGeometry,
+} from "@/lib/mirava/identity-face-geometry"
 
 export type MiravaIdentityUploadConsent = {
   ageConfirmed: boolean
@@ -361,6 +364,7 @@ export async function uploadMiravaIdentityProfile({
   mode = "replace",
   creationId,
   viewKeys,
+  faceGeometries,
 }: {
   files: File[]
   consent: MiravaIdentityUploadConsent
@@ -368,6 +372,10 @@ export async function uploadMiravaIdentityProfile({
   mode?: "replace" | "append"
   creationId?: string
   viewKeys?: MiravaIdentityViewKey[]
+  faceGeometries?: Array<
+    MiravaIdentityFaceGeometry |
+    undefined
+  >
 }): Promise<MiravaIdentityProfileReceipt> {
   if (
     viewKeys &&
@@ -375,6 +383,16 @@ export async function uploadMiravaIdentityProfile({
   ) {
     throw new Error(
       "MIRAVA_IDENTITY_VIEW_KEY_MISMATCH",
+    )
+  }
+
+  if (
+    faceGeometries &&
+    faceGeometries.length !==
+      files.length
+  ) {
+    throw new Error(
+      "MIRAVA_IDENTITY_FACE_GEOMETRY_MISMATCH",
     )
   }
 
@@ -493,6 +511,8 @@ export async function uploadMiravaIdentityProfile({
               bytes: masters[index].size,
               viewKey:
                 viewKeys?.[index],
+              faceGeometry:
+                faceGeometries?.[index],
             }),
           ),
           ageConfirmed: consent.ageConfirmed,
@@ -555,10 +575,13 @@ export async function uploadMiravaIdentityAsset({
   assetId,
   file,
   locale,
+  faceGeometry,
 }: {
   assetId: string
   file: File
   locale: Locale
+  faceGeometry?:
+    MiravaIdentityFaceGeometry
 }): Promise<MiravaIdentityProfileReceipt> {
   let master: File
 
@@ -656,6 +679,7 @@ export async function uploadMiravaIdentityAsset({
             path: upload.path,
             mimeType: master.type,
             bytes: master.size,
+            faceGeometry,
           },
         }),
       },

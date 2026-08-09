@@ -116,7 +116,7 @@ const CAMPAIGN_RISK_SIGNALS: RiskSignal[] = [
     id: "projected-pelvis-pose",
     score: 2,
     pattern:
-      /\b(?:arched back|back arched|pelvis projected|hips projected|hips pushed|pelvis pushed|pronounced hip thrust)\b/i,
+      /\b(?:arched back|back (?:is )?arched|pelvis (?:is )?projected(?: toward the camera)?|hips? (?:are )?projected(?: toward the camera)?|hips? pushed|pelvis pushed|pronounced hip thrust)\b/i,
   },
   {
     id: "sexualized-commercial-language",
@@ -145,12 +145,6 @@ const CONSERVATIVE_COVERAGE_INVARIANT = [
   "Keep the robe, dress, skirt, towel, or outer garment closed and continuously covering the pelvis, seat, and upper thighs.",
   "Use only neutral commercial fashion language and omit sexualized genre labels.",
 ].join(" ")
-
-const SAFE_DIRECTION_KEYWORDS =
-  /\b(?:environment|setting|interior|exterior|background|wall|marble|stone|wood|glass|architecture|surface|texture|studio|window|lighting|light|flash|shadow|exposure|camera|lens|perspective|depth of field|palette|color|colour|contrast|tone|finish|digital|editorial|grain|sharpness|white balance|highlight|reflection)\b/i
-
-const UNSAFE_DIRECTION_CONTENT =
-  /(?:\b(?:penthouse|playboy|adult magazine|pornographic|pornography|xxx|erotic|seductive|provocative|boudoir|thong|g-string|string bottom|micro brief|micro bikini|nipples?|genitals?|buttocks?|seat cleavage|crotch|pelvis projected|hips projected|arched back|back (?:is )?arched|pelvis (?:is )?projected|hips? (?:are )?projected|chest[-–— ]to[-–— ]pelvis)\b|\b(?:finger(?:tip)?|hand)\b[^.!?\n]{0,100}\b(?:lip|mouth)s?\b)/i
 
 function splitPositiveAndNegative(prompt: string): {
   positive: string
@@ -273,6 +267,35 @@ function sanitizeNegativeGuardrails(
       /\bboudoir(?:-fashion)?\b/gi,
       "non-commercial styling",
     )
+    /*
+     * A raised leg or split-like leg geometry is not
+     * itself a coverage failure. Do not let the safety
+     * layer silently negate the reference pose.
+     */
+    .replace(
+      /\b(?:extreme\s+)?leg raise\b/gi,
+      "",
+    )
+    .replace(
+      /\braised leg\b/gi,
+      "",
+    )
+    .replace(
+      /\bsplit pose\b/gi,
+      "",
+    )
+    .replace(
+      /\s*,\s*,+/g,
+      ", ",
+    )
+    .replace(
+      /,\s*(?=\n|$)/g,
+      "",
+    )
+    .replace(
+      /[ \t]{2,}/g,
+      " ",
+    )
 }
 
 function rewriteCoverageConstruction(
@@ -283,6 +306,10 @@ function rewriteCoverageConstruction(
 
   const replacements:
     Array<[RegExp, string]> = [
+      [
+        /\b(?:penthouse|playboy|adult magazine|adult-publication|pornographic|pornography|xxx)\b/gi,
+        "premium retail campaign",
+      ],
       [
         /\bintimate adult boudoir-fashion style\b/gi,
         "intimate editorial fashion style",
@@ -315,6 +342,28 @@ function rewriteCoverageConstruction(
         /\bsensual\b/gi,
         "expressive",
       ],
+
+      /*
+       * Garment-only adaptation.
+       * Do not touch architectural transparency such
+       * as windows or glass balustrades.
+       */
+      [
+        /\b(?:(?:very\s+)?narrow\s+)?(?:thong|g-string|string bottom|string brief|micro brief|micro bikini|very narrow front panel|narrow front panel|ultra high-cut bottom)(?:\s+(?:bottom|lower construction))?\b/gi,
+        "high-waisted full-coverage brief",
+      ],
+      [
+        /\b(?:sheer|transparent|semi-transparent|see-through|unlined)\s+(lace|mesh)\s+(lingerie|bodysuit|bra|bralette|cups?|bodice|briefs?|panties|lower garment)\b/gi,
+        "opaque-backed decorative $1 over fully lined $2",
+      ],
+      [
+        /\b(?:sheer|transparent|semi-transparent|see-through|unlined)\s+(lingerie|bodysuit|bra|bralette|cups?|bodice|briefs?|panties|lower garment)\b/gi,
+        "fully opaque lined $1",
+      ],
+      [
+        /\bunlined\s+(?:mesh|lace)\s+(cups?|bodice|briefs?|panties|lower garment)\b/gi,
+        "opaque-backed decorative mesh over fully lined $1",
+      ],
       [
         /\b(?:long,?\s+)?sheer white lace kimono robe\b/gi,
         "long white embroidered lace kimono robe layered over a fully opaque high-waisted neutral underlayer",
@@ -344,7 +393,7 @@ function rewriteCoverageConstruction(
         "arranging the robe fabric at the side without lifting it from the covered regions",
       ],
       [
-        /\bgather(?:ed|ing)?\s+(?:the\s+)?(?:back|rear)\s+of\s+(?:the\s+)?(?:robe|dress|skirt|fabric)\b/gi,
+        /\bgather(?:ed|ing)?\s+(?:the\s+)?(?:back|rear)\s+of\s+(?:the\s+)?(?:robe|dress|skirt|fabric|garment)\b/gi,
         "arranging the side panel of the garment while preserving full rear coverage",
       ],
       [
@@ -352,20 +401,12 @@ function rewriteCoverageConstruction(
         "closed and continuously draped below the waist",
       ],
       [
+        /\bopen beneath the waist\b/gi,
+        "closed and continuously draped beneath the waist",
+      ],
+      [
         /\brear-facing garment coverage\b/gi,
         "rear-facing garment construction with full seat coverage",
-      ],
-      [
-        /\bhips? sharply resolved and subtly projected backward\b/gi,
-        "garment construction sharply resolved with a natural balanced rear three-quarter stance",
-      ],
-      [
-        /\bhips? sharply resolved\b/gi,
-        "garment construction and pose sharply resolved",
-      ],
-      [
-        /\bhips? subtly projected backward\b/gi,
-        "a natural balanced rear three-quarter stance",
       ],
       [
         /\bwithout increasing exposure\b/gi,
@@ -379,10 +420,59 @@ function rewriteCoverageConstruction(
         /\bvisible seat cleavage\b/gi,
         "continuous opaque seat coverage",
       ],
+
+      /*
+       * Gesture adaptation modifies only the hand,
+       * not the rest of the pose.
+       */
+      [
+        /\b(?:one\s+)?(?:finger|fingertip|hand)\b[^.!?\n]{0,100}\b(?:on|against|touching|resting on|near)\b[^.!?\n]{0,40}\b(?:lips?|mouth)\b/gi,
+        "The same arm path is preserved, with only the hand repositioned neutrally away from the mouth",
+      ],
+
+      /*
+       * Pelvis-led risk: preserve all other pose
+       * geometry, especially leg height and anchors.
+       */
+      [
+        /\bhips? sharply resolved and subtly projected backward\b/gi,
+        "garment construction sharply resolved with neutral pelvis alignment while preserving the original leg positions and pose skeleton",
+      ],
+      [
+        /\bhips? subtly projected backward\b/gi,
+        "neutral pelvis alignment while preserving the original leg positions and pose skeleton",
+      ],
+      [
+        /\bhips? sharply resolved\b/gi,
+        "garment construction and pose sharply resolved",
+      ],
+      [
+        /\b(?:arched back|back (?:is )?arched)\b/gi,
+        "natural spinal alignment while preserving the original limb positions and pose silhouette",
+      ],
+      [
+        /\b(?:pelvis (?:is )?projected(?: toward the camera)?|hips? (?:are )?projected(?: toward the camera)?|hips? pushed|pelvis pushed|pronounced hip thrust)\b/gi,
+        "neutral pelvis alignment while preserving the original leg positions, weight distribution, and overall pose skeleton",
+      ],
+
+      /*
+       * Crop/hierarchy adaptation preserves camera
+       * geometry and changes only the emphasis.
+       */
+      [
+        /\b(?:frontal\s+)?chest[-–— ]to[-–— ]pelvis framing\b/gi,
+        "the original camera geometry with minimally rebalanced framing so no intimate region dominates",
+      ],
+      [
+        /\b(?:the\s+)?(?:chest|bust|pelvis|hips?|lower garment)(?:\s+and\s+(?:the\s+)?(?:chest|bust|pelvis|hips?|lower garment))?\s+(?:are|is)\s+the\s+dominant visual emphasis\b/gi,
+        "the face, garment silhouette, pose, and environment share balanced visual emphasis",
+      ],
     ]
 
-  for (const [pattern, replacement] of
-    replacements) {
+  for (
+    const [pattern, replacement]
+    of replacements
+  ) {
     prompt = prompt.replace(
       pattern,
       replacement,
@@ -390,18 +480,19 @@ function rewriteCoverageConstruction(
   }
 
   if (mode === "conservative") {
+    /*
+     * Conservative retry increases garment coverage,
+     * but still must not rewrite unrelated words like
+     * "transparent glass" or "raised leg".
+     */
     prompt = prompt
       .replace(
-        /\b(?:sheer|transparent|semi-transparent)\b/gi,
-        "opaque layered",
+        /\btransparent cups?\b/gi,
+        "fully lined opaque cups",
       )
       .replace(
-        /\b(?:lifted|lifting|raised|pulled up)\b/gi,
-        "kept continuously draped",
-      )
-      .replace(
-        /\bopen beneath the waist\b/gi,
-        "closed beneath the waist",
+        /\bunlined (?:mesh|lace) (?:cups?|bodice)\b/gi,
+        "opaque-backed decorative mesh over a fully lined bodice",
       )
   }
 
@@ -410,89 +501,175 @@ function rewriteCoverageConstruction(
 
 function extractSafeReferenceDirection(
   prompt: string,
+  mode: MiravaCampaignSafetyMode,
 ): string {
   const { positive } =
     splitPositiveAndNegative(prompt)
 
-  const candidates = positive
-    .replace(
-      /\bTRANSFER_MODE\s*=\s*(?:FIDELITY|POLISHED|CAMPAIGN_SAFE_TRANSFER)\b/gi,
-      "",
-    )
-    .split(
-      /(?:\n{2,}|(?<=[.!?])\s+)/,
-    )
-    .map((segment) =>
-      segment
-        .replace(
-          /^(?:[A-Z][A-Z /&-]{2,40})\s*[—:-]\s*/,
-          "",
-        )
-        .replace(/\s+/g, " ")
-        .trim(),
-    )
-    .filter(Boolean)
-    .filter((segment) =>
-      SAFE_DIRECTION_KEYWORDS.test(
-        segment,
-      ),
-    )
-    .filter((segment) =>
-      !UNSAFE_DIRECTION_CONTENT.test(
-        segment,
-      ),
-    )
-    .filter((segment) =>
-      !COMMERCIAL_INTIMATE_CATEGORY.test(
-        segment,
-      ),
-    )
-    .slice(0, 8)
+  const source =
+    positive
+      .replace(
+        /\bTRANSFER_MODE\s*=\s*(?:FIDELITY|POLISHED|CAMPAIGN_SAFE_TRANSFER)\b/gi,
+        "",
+      )
+      .trim()
 
-  if (candidates.length === 0) {
-    return "Preserve the approved environment, architectural materials, lighting direction, shadow structure, palette, contrast, lens perspective, and photographic finish from the extracted reference direction."
+  const rewritten =
+    rewriteCoverageConstruction(
+      source,
+      mode,
+    ).trim()
+
+  if (rewritten) {
+    return rewritten
   }
 
-  return candidates.join(" ")
+  return "Preserve the approved reference direction, changing only the localized element that requires safer commercial coverage."
 }
 
 export function buildMiravaCampaignSafeTransferPrompt(
   prompt: string,
   mode: MiravaCampaignSafetyMode =
     "standard",
+  continuation: {
+    intents?: readonly string[]
+    customInstruction?: string
+  } = {},
 ): string {
-  const safeReferenceDirection =
+  const risk =
+    detectMiravaCampaignRisk(
+      prompt,
+    )
+
+  const continuationIntents =
+    new Set(
+      continuation.intents ?? [],
+    )
+
+  const poseUnlocked =
+    continuationIntents.has("pose") ||
+    continuationIntents.has("candid")
+
+  const framingUnlocked =
+    continuationIntents.has("framing")
+
+  const subLocationUnlocked =
+    continuationIntents.has(
+      "sub_location",
+    )
+
+  const customInstruction =
+    continuation.customInstruction
+      ?.trim() ||
+    ""
+
+  const preservedDirection =
     extractSafeReferenceDirection(
+      prompt,
+      mode,
+    )
+
+  const {
+    negative,
+  } =
+    splitPositiveAndNegative(
       prompt,
     )
 
   const wardrobe =
     mode === "conservative"
-      ? "Use a premium fully opaque black lingerie set with structured lined cups, a conventional neckline, and a high-waisted full-coverage brief. Lace may appear only as an opaque-backed decorative layer. Keep seams, straps, cup construction, front panel, side panels, and rear panel physically coherent."
-      : "Use a premium black retail lingerie set with structured fully lined opaque cups and a high-waisted brief with complete front and rear panels. Lace or mesh may be used as decorative texture only when backed by opaque fabric. Preserve realistic seams, straps, fabric weight, and product construction."
+      ? "WARDROBE SAFETY — Preserve the reference garment category, silhouette, sleeves, neckline, hosiery, footwear, accessories, and non-risky material character. Where intimate apparel is present, use a premium fully opaque black lingerie set with structured fully lined opaque cups and a high-waisted full-coverage brief with complete front and rear panels. Lace or mesh may remain as decorative texture when reliably backed across covered zones."
+      : "WARDROBE SAFETY — Preserve the reference garment category, silhouette, sleeves, neckline, hosiery, footwear, accessories, and non-risky material character. Adapt only unsafe coverage construction. Where intimate apparel is present, use structured fully lined opaque cups and a high-waisted brief with complete front and rear panels. Lace or mesh may remain when opaque-backed across covered zones."
+
+  const pelvisRule =
+    risk.reasons.includes(
+      "projected-pelvis-pose",
+    )
+      ? "A pelvis-led risk was detected: neutralize only the necessary pelvis or spinal alignment while preserving the supporting leg, raised-leg height, knee and ankle geometry, torso direction, shoulder relationship, arm paths, hand anchors, and overall pose silhouette."
+      : "Do not alter pelvis, spine, leg, arm, or torso geometry unless that exact element is the detected risk."
+
+  const handRule =
+    risk.reasons.includes(
+      "hand-to-lips-gesture",
+    )
+      ? "A hand-to-mouth risk was detected: move only that hand away from the lips or mouth while preserving the same shoulder and elbow position, arm path, remaining hand anchors, and body geometry as closely as possible."
+      : "Preserve every original hand anchor and support contact."
+
+  const framingRule =
+    (
+      risk.reasons.includes(
+        "chest-pelvis-framing",
+      ) ||
+      risk.reasons.includes(
+        "intimate-region-visual-priority",
+      )
+    )
+      ? "A framing or visual-hierarchy risk was detected: minimally rebalance or expand only the crop necessary to distribute attention, while retaining the original camera height, camera pitch, lens character, perspective strength, architectural geometry, pose, and subject scale as closely as possible."
+      : "Preserve the exact camera height, camera pitch, crop, lens character, perspective strength, subject scale, and frame-edge relationships."
 
   const pose =
-    mode === "conservative"
-      ? "Use a neutral balanced standing pose with relaxed shoulders, a slight three-quarter torso turn, one hand resting naturally at the waist and the other relaxed alongside the body. Keep the posture stable, composed, and suitable for a retail lookbook."
-      : "Use a confident balanced three-quarter standing pose with relaxed shoulders, natural weight distribution, one hand at the waist and the other relaxed alongside the body. Keep the gesture composed and product-focused."
+    poseUnlocked
+      ? [
+          "POSE DELTA AUTHORIZED — The client explicitly selected a pose-changing continuation axis.",
+          "The previous pose skeleton is NOT a hard continuity constraint for this continuation.",
+          "Create a clearly different pose as requested while preserving the same adult identity, BODY_ID proportions, approved garment coverage, environment, lighting family, photographic finish, and all non-pose elements.",
+          "Safety adaptation may still neutralize only a localized unsafe gesture or pelvis-led construction; it must not cancel the authorized pose variation.",
+        ].join(" ")
+      : [
+          "POSE FIDELITY — Preserve the reference pose skeleton as a hard constraint.",
+          "Keep the original supporting leg, raised-leg geometry, knee and ankle positions, weight distribution, torso diagonal, shoulder relationship, head orientation, arm paths, support contacts, and interaction with stairs, rails, walls, chairs, or other objects.",
+          "A raised leg, high leg extension, asymmetrical stance, strong body diagonal, or dramatic commercial-fashion pose is not by itself a reason to simplify the pose.",
+          "Do not replace the reference with a generic standing, seated, walking, three-quarter, or lookbook pose.",
+          pelvisRule,
+          handRule,
+        ].join(" ")
 
-  const composition =
-    mode === "conservative"
-      ? "Use an eye-level camera and a three-quarter or full-body vertical composition. Frame the face, complete garment silhouette, and styling as one balanced retail image with natural perspective."
-      : "Use an eye-level camera and a waist-up, three-quarter, or full-body vertical composition. Give balanced visual priority to the face, garment construction, and complete silhouette."
+  const camera =
+    framingUnlocked
+      ? [
+          "CAMERA DELTA AUTHORIZED — The client explicitly selected a framing variation.",
+          "The previous camera height, distance, crop and lateral angle are NOT hard continuity constraints for this continuation.",
+          "Execute a clearly different but coherent framing while preserving the same environment, styling, lighting family, photographic finish and all non-camera elements.",
+          "Safety adaptation may still minimally rebalance a genuinely unsafe intimate-region hierarchy, but it must not cancel the authorized framing variation.",
+        ].join(" ")
+      : [
+          "CAMERA FIDELITY — Reference camera construction remains authoritative.",
+          framingRule,
+          "Do not silently substitute an eye-level camera, generic portrait lens, neutral perspective, or generic retail framing.",
+        ].join(" ")
+
+  const continuationScope = [
+    subLocationUnlocked
+      ? "SUB-LOCATION DELTA AUTHORIZED — The subject’s exact position inside the established environment is unlocked. Move only within the same believable architectural setting; preserve the room, material system, furniture family, lighting family, photographic finish, identity and styling."
+      : "",
+    customInstruction
+      ? `CLIENT DIRECTIVE PRECEDENCE — The client explicitly requested: ${JSON.stringify(customInstruction)}. Any non-identity visual element clearly named by this directive is unlocked from continuity and from the previous art direction. Execute that named delta precisely. Every unmentioned element remains locked. This directive cannot weaken identity, BODY_ID, consent, provider safety, or garment-coverage requirements.`
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ")
+
+  const sanitizedNegative =
+    sanitizeNegativeGuardrails(
+      negative,
+    ).trim()
 
   return [
     "TRANSFER_MODE = CAMPAIGN_SAFE_TRANSFER",
-    "COMMERCIAL INTENT — Create one premium retail campaign photograph for a consenting adult model presenting a lingerie collection. The result must read as polished fashion merchandising and brand imagery.",
+    "COMMERCIAL INTENT — Create one premium commercial lingerie campaign or equivalent swimwear/intimate-apparel fashion image for a consenting adult model. Safety adaptation must remain subordinate to reference fidelity.",
     "IDENTITY — Use the uploaded identity photographs as the sole identity source. Preserve the same adult model’s recognizable face, natural age appearance, skin tone, hairline, body type, and natural anatomical proportions.",
-    `SAFE REFERENCE DIRECTION — ${safeReferenceDirection}`,
-    `WARDROBE — ${wardrobe}`,
-    `POSE — ${pose}`,
-    `CAMERA AND COMPOSITION — ${composition}`,
-    "LIGHTING — Preserve the extracted key-light direction, hardness, exposure relationship, shadow placement, background brightness, and specular behavior. Do not replace the approved lighting system with generic cinematic relighting.",
-    "COLOR AND FINISH — Preserve the extracted palette, white balance, contrast, black point, highlight roll-off, texture, sharpness, and digital editorial character.",
-    "OUTPUT — Produce one realistic premium vertical commercial lingerie campaign photograph with coherent hands, garment seams, straps, jewelry, shadows, reflections, and natural body proportions.",
-  ].join("\n\n")
+    `PRESERVED ART DIRECTION — ${preservedDirection}`,
+    wardrobe,
+    pose,
+    camera,
+    continuationScope,
+    "LIGHTING FIDELITY — Preserve the extracted key-light position, direction, hardness, exposure relationship, shadow placement, practical-light behavior, background brightness, and specular response. Do not replace the reference lighting with generic studio or cinematic relighting.",
+    "COLOR AND FINISH FIDELITY — Preserve the extracted palette, white balance, contrast, black point, highlight roll-off, texture, sharpness, grain, and digital or filmic character.",
+    "MINIMUM-CHANGE RULE — Modify only the localized element responsible for CAMPAIGN_SAFE_TRANSFER. Every unrelated architectural, pose, camera, lighting, styling, and compositional relationship remains authoritative.",
+    sanitizedNegative,
+  ]
+    .filter(Boolean)
+    .join("\n\n")
 }
 
 export function adaptMiravaCoverageForGeneration(

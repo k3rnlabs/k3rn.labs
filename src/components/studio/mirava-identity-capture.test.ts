@@ -74,8 +74,10 @@ describe("MIRAVA identity capture accessibility contracts", () => {
   it("makes OpenAI processing explicit before onboarding can prepare a first session", () => {
     expect(capture).toContain("privacyAccepted: true")
     expect(capture).toContain("openaiDisclosureAccepted: true")
-    expect(capture).toContain("leur traitement par OpenAI pour préparer ma première séance")
-    expect(capture).toContain("su tratamiento por OpenAI para preparar mi primera sesión")
+    expect(capture).toContain("prestataires techniques utilisés par MIRAVA")
+    expect(capture).toContain("proveedores técnicos utilizados por MIRAVA")
+    expect(capture).not.toContain("traitement par OpenAI")
+    expect(capture).not.toContain("tratamiento por OpenAI")
     expect(capture).toContain('disabled={phase === "loading" || !legalAccepted}')
     expect(capture).toContain("Enregistrer mon profil")
   })

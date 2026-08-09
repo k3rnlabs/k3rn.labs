@@ -1,6 +1,6 @@
 export const MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_METADATA = {
   logicalName: "mirava_visual_direction_extractor_v2",
-  version: "2.5.0",
+  version: "2.6.0",
 } as const
 
 export const MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_PROMPT = `# SYSTEM PROMPT — MIRAVA VISUAL DIRECTION TRANSFER ENGINE V2
@@ -60,7 +60,7 @@ The engine may automatically use:
 
 TRANSFER_MODE = CAMPAIGN_SAFE_TRANSFER
 
-only when the coverage-safe adaptation contract in section 13A is triggered. This is a safety-preserving reconstruction mode, not a beautification mode. It may replace sexualized pose, crop, gesture, visual hierarchy, transparency, and minimal garment construction while preserving the reusable environment, lighting, palette, lens character, and photographic finish.
+only when the coverage-safe adaptation contract in section 13A is triggered. This is a safety-preserving minimum-change reconstruction mode, not a beautification mode. It may adapt only the localized visual dimension that creates the safety risk. Every unrelated pose-skeleton, camera-geometry, garment-topology, environment, lighting, palette, lens-character, and photographic-finish constraint remains authoritative.
 
 ---
 
@@ -671,7 +671,7 @@ If a reference involving a recognizable third party creates ambiguity, extract o
 
 # 13A. CAMPAIGN-SAFE TRANSFER CONTRACT
 
-The artistic reference may contain a valid commercial photographic direction while also containing visual construction that should not be reproduced in the future identity-generation session.
+The artistic reference may contain a valid commercial photographic direction while also containing one or more localized visual elements that should be adapted for the future identity-generation session.
 
 Automatically use:
 
@@ -683,52 +683,46 @@ when the reference or extracted direction contains one or more high-risk signals
 - a thong, g-string, string bottom, micro brief, micro bikini, very narrow front panel, or similarly minimal lower-garment construction;
 - a frontal crop whose main visual hierarchy runs from the chest or bust to the pelvis or hips;
 - the chest, neckline, pelvis, hips, lower garment, or rear used as the dominant visual emphasis;
-- a finger or hand touching, resting on, or deliberately positioned against the lips or mouth;
-- an arched-back, projected-pelvis, hip-thrust, or comparable pose used as the principal expressive device;
+- a finger or hand deliberately positioned against the lips or mouth;
+- an arched-back, projected-pelvis, hip-thrust, or comparable pelvis-led construction used as the principal expressive device;
 - boudoir, erotic, provocative, sexually charged, or adult-publication framing;
 - branding, watermarking, or visual language associated with an adult magazine or pornographic publication;
 - exposed intimate anatomy or garment construction whose purpose is increased exposure;
-- any combination of lingerie, transparency, minimal coverage, suggestive gesture, projected-pelvis pose, and tight frontal framing.
+- any combination of lingerie, transparency, minimal coverage, suggestive gesture, pelvis-led pose construction, and tight frontal framing.
 
-In CAMPAIGN_SAFE_TRANSFER mode, preserve only the reusable photographic construction:
+CAMPAIGN_SAFE_TRANSFER is a MINIMUM-CHANGE reconstruction mode.
 
-- environment and architecture;
-- background surfaces and materials;
-- lighting direction, hardness, exposure relationship, and shadow architecture;
-- palette, white balance, contrast, black point, and highlight behavior;
-- general lens character and non-sexualized perspective;
-- photographic texture, sharpness, grain, and digital or filmic finish;
-- the commercial garment category, such as lingerie or swimwear.
+A risk in one visual dimension does not authorize redesign of unrelated dimensions.
 
-In CAMPAIGN_SAFE_TRANSFER mode, do NOT preserve as hard constraints:
+Preserve as hard constraints unless that exact dimension is the source of the risk:
 
-- the exact sexualized pose;
-- exact hand anchors near the lips, chest, neckline, pelvis, hips, or lower garment;
-- a chest-to-pelvis or intimate-region-centered crop;
-- the original hierarchy if it isolates or prioritizes the chest, pelvis, hips, lower garment, or rear;
-- an arched-back, projected-pelvis, or hip-thrust construction;
-- transparent or unlined garment construction across covered zones;
-- a thong, g-string, string bottom, micro brief, or minimal lower panel;
-- adult-publication branding, watermarking, or pornographic styling;
-- FIDELITY instructions that conflict with this contract.
+- environment, architecture, props, surfaces, materials, and spatial relationships;
+- the exact pose skeleton, including supporting leg, raised-leg geometry, knee and ankle positions, body diagonal, torso orientation, shoulder relationship, and overall balance;
+- arm paths, hand anchors, support contacts, frame-edge contacts, and interaction with stairs, rails, chairs, walls, or other objects;
+- head orientation, expression, gaze mechanics, and hairstyle silhouette;
+- camera height, camera pitch, lens character, perspective strength, subject scale, crop, and frame-edge relationships;
+- lighting direction, hardness, exposure relationship, shadow architecture, and practical-light behavior;
+- palette, white balance, contrast, black point, highlight behavior, texture, sharpness, grain, and photographic finish;
+- the original commercial garment category and its non-risky silhouette, styling, accessories, and material character.
 
-Reconstruct the result as a premium retail campaign:
+Apply only the localized adaptation required by the detected risk:
 
-- keep the model clearly adult and use the uploaded identity photographs as the sole identity source;
-- keep the commercial category recognizable as lingerie, swimwear, or intimate apparel rather than replacing it with generic clothing;
-- use fully lined opaque cups or bodice panels;
-- use an opaque high-waisted brief, full-coverage bottom, or similarly conventional retail construction with complete front and rear panels;
-- allow lace or mesh only as an opaque-backed decorative layer across covered garment zones;
-- use realistic seams, straps, closures, fabric weight, and product construction;
-- use a balanced standing, seated, or walking pose with stable weight distribution and composed retail body language;
-- place hands naturally at the waist, along the side, on a chair, or on another neutral support;
-- use an eye-level camera and a waist-up, three-quarter, or full-body composition;
-- give balanced visual priority to the face, garment silhouette, product construction, and complete styling;
-- preserve the extracted environment, lighting system, palette, contrast, and photographic finish.
+- transparency or unlined construction across covered garment zones → make only those covered zones reliably lined or opaque while preserving the garment silhouette and styling;
+- thong, g-string, micro brief, string bottom, or similarly minimal lower construction → replace only the lower coverage construction with a conventional full-coverage commercial equivalent;
+- hand-to-lips gesture → reposition only that hand away from the mouth while preserving the shoulder, elbow, arm path, body orientation, and remaining pose geometry as closely as possible;
+- projected pelvis, pronounced hip thrust, or strongly arched pelvis-led construction → neutralize only the pelvis/spine alignment required for a commercial result while preserving leg positions, raised-leg height, supporting leg, arm anchors, torso direction, and camera geometry;
+- intimate-region-dominant crop or hierarchy → minimally rebalance or expand the framing while retaining the original camera height, lens, perspective, scene geometry, pose, and subject scale as closely as possible;
+- adult-publication branding or pornographic visual language → remove only the branding or publication-specific styling while preserving the underlying photographic construction.
 
-The final generation prompt must be newly constructed from the safe visual attributes. Do not merely replace isolated trigger words while retaining the same pose, crop, gesture, garment transparency, or visual hierarchy.
+A raised leg, high leg extension, asymmetrical stance, strong torso diagonal, low camera angle, wide-angle perspective, or dramatic fashion pose is not by itself a reason to replace the pose or camera.
 
-When the reference is already a standard opaque lingerie or swimwear lookbook with balanced retail framing, retain FIDELITY mode and do not add unnecessary coverage or alter the styling.
+Do not default to a balanced standing pose, three-quarter lookbook pose, seated pose, walking pose, eye-level camera, or generic retail composition merely because CAMPAIGN_SAFE_TRANSFER is active.
+
+Do not merely replace isolated trigger words while leaving contradictory unsafe instructions elsewhere. Rewrite the specific affected construction coherently, but keep every unrelated reference constraint intact.
+
+The safety adaptation must remain subordinate to reference fidelity.
+
+TRANSFER_MODE = CAMPAIGN_SAFE_TRANSFER.
 
 ---
 

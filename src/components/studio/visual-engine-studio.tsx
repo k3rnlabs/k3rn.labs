@@ -80,6 +80,12 @@ import {
   uploadMiravaIdentityAsset,
   uploadMiravaIdentityProfile,
 } from "@/lib/mirava/identity-profile-upload.client"
+import type {
+  MiravaIdentityFaceGeometry,
+} from "@/lib/mirava/identity-face-geometry"
+import {
+  analyzeMiravaReferenceFaceGeometry,
+} from "@/components/studio/mirava-import-analyzer"
 import { MIRAVA_UNIVERSES, getMiravaUniverse, type MiravaUniverse } from "@/lib/mirava/universes"
 import { cn } from "@/lib/utils"
 import { captureMiravaAnalytics } from "@/lib/mirava/analytics-consent.client"
@@ -106,6 +112,7 @@ type Creation = {
     | "INVALID_IMAGE"
     | "ANALYSIS_TIMEOUT"
     | "GENERATION_TIMEOUT"
+    | "PROVIDER_UNAVAILABLE"
     | "TECHNICAL_ERROR"
     | null
   createdAt: string
@@ -134,6 +141,7 @@ type PrivacyStatus = {
   termsAccepted: boolean
   identityProcessingAccepted: boolean
   analyticsAccepted: boolean | null
+  externalImageGenerationAccepted: boolean
   requiredAccepted: boolean
   identityWithdrawnAt: string | null
 }
@@ -166,7 +174,7 @@ const copy = {
     adult: "J’ai au moins 18 ans et toutes les personnes représentées sont majeures.",
     rights: "J’ai les droits nécessaires et le consentement explicite de chaque personne représentée.",
     privacy: "J’ai lu la politique : les références artistiques sont purgées après analyse ; mon Profil identité reste privé jusqu’à sa suppression.",
-    provider: "Je comprends que mes images sont traitées par l’API OpenAI pour réaliser ma création.",
+    provider: "Je comprends que mes images peuvent être traitées par les prestataires techniques nécessaires pour réaliser ma création.",
     enter: "Confirmer et lancer",
     reference: "Votre inspiration",
     referenceHint: "Une seule image suffit pour construire un studio personnel. Elle ne sera jamais affichée publiquement.",
@@ -236,7 +244,7 @@ const copy = {
     adult: "Tengo al menos 18 años y todas las personas representadas son adultas.",
     rights: "Tengo los derechos necesarios y el consentimiento explícito de cada persona representada.",
     privacy: "He leído la política: las referencias artísticas se eliminan tras el análisis; mi Perfil de identidad permanece privado hasta que lo elimine.",
-    provider: "Entiendo que mis imágenes se tratan mediante la API de OpenAI para realizar mi creación.",
+    provider: "Entiendo que mis imágenes pueden ser tratadas por los proveedores técnicos necesarios para realizar mi creación.",
     enter: "Confirmar y crear",
     reference: "Tu inspiración",
     referenceHint: "Una sola imagen basta para construir un estudio personal. Nunca se mostrará públicamente.",
@@ -1336,12 +1344,12 @@ export function VisualEngineStudio() {
     if (newlyFailed) {
       setCheckoutNotice(null)
       setNotice(
-        newlyFailed.failureMessage ??
-          (
-            locale === "fr"
-              ? "La génération n’a pas abouti. Votre crédit a été restauré lorsque nécessaire."
-              : "La generación no se completó. Tu crédito se ha restaurado cuando corresponde."
-          ),
+        locale === "fr"
+          ? (
+              newlyFailed.failureMessage ??
+              "La génération n’a pas abouti. Votre crédit a été restauré lorsque nécessaire."
+            )
+          : "La generación no se completó. Tu crédito se ha restaurado cuando corresponde.",
       )
     }
 
@@ -1910,9 +1918,23 @@ export function VisualEngineStudio() {
         }),
       })
       if (!presetId && referenceFile) {
+        const referenceFaceGeometry =
+          await analyzeMiravaReferenceFaceGeometry(
+            referenceFile,
+          ).catch(() => null)
+
         const form = new FormData()
         form.set("kind", "REFERENCE")
         form.set("file", referenceFile)
+
+        if (referenceFaceGeometry) {
+          form.set(
+            "referenceFaceGeometry",
+            JSON.stringify(
+              referenceFaceGeometry,
+            ),
+          )
+        }
         await api(`/api/visual-engine/creations/${data.creation.id}/assets`, { method: "POST", body: form })
         await api(`/api/visual-engine/creations/${data.creation.id}/analyze`, { method: "POST" })
       }
@@ -1964,9 +1986,23 @@ export function VisualEngineStudio() {
     const file = event.target.files?.[0]
     if (!file || !current) return
     await run("reference", async () => {
+      const referenceFaceGeometry =
+        await analyzeMiravaReferenceFaceGeometry(
+          file,
+        ).catch(() => null)
+
       const form = new FormData()
       form.set("kind", "REFERENCE")
       form.set("file", file)
+
+      if (referenceFaceGeometry) {
+        form.set(
+          "referenceFaceGeometry",
+          JSON.stringify(
+            referenceFaceGeometry,
+          ),
+        )
+      }
       await api(`/api/visual-engine/creations/${current.creation.id}/assets`, { method: "POST", body: form })
       await refresh(current.creation.id)
     })
@@ -2064,6 +2100,10 @@ export function VisualEngineStudio() {
             retentionAccepted: true,
             privacyAccepted: true,
             openaiDisclosureAccepted: true,
+            externalImageGenerationDisclosureAccepted:
+              privacyStatus
+                ?.externalImageGenerationAccepted ===
+              true,
           },
         )
 
@@ -2086,6 +2126,10 @@ export function VisualEngineStudio() {
     consent?: MiravaIdentityConsent,
     mode: "replace" | "append" = "replace",
     viewKeys?: PhotoSlotId[],
+    faceGeometries?: Array<
+      MiravaIdentityFaceGeometry |
+      undefined
+    >,
   ) => {
     const remaining = MIRAVA_MAX_IDENTITY_PHOTOS - (identityProfile?.assetCount ?? 0)
     const invalidCount = mode === "append"
@@ -2164,13 +2208,117 @@ export function VisualEngineStudio() {
         )
       }
 
-      await uploadMiravaIdentityProfile({
+      const explicitOpenAiDisclosureAccepted =
+        consent
+          ?.openaiDisclosureAccepted ===
+        true
+
+      if (
+        explicitOpenAiDisclosureAccepted
+      ) {
+        const openAiConsentData =
+          await api<{
+            privacy:
+              PrivacyStatus & {
+                openaiIdentityAnalysisAccepted:
+                  boolean
+              }
+          }>(
+            "/api/visual-engine/privacy",
+            {
+              method: "PATCH",
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+              body: JSON.stringify({
+                action:
+                  "accept_openai_identity_analysis",
+                disclosureAccepted:
+                  true,
+                locale,
+              }),
+            },
+          )
+
+        const openaiIdentityAnalysisAccepted =
+          openAiConsentData
+            .privacy
+            .openaiIdentityAnalysisAccepted
+
+        if (
+          !openaiIdentityAnalysisAccepted
+        ) {
+          throw new Error(
+            locale === "fr"
+              ? "Votre autorisation pour l’analyse privée de votre Profil identité n’a pas pu être enregistrée."
+              : "No se pudo registrar tu autorización para el análisis privado de tu Perfil de identidad.",
+          )
+        }
+
+        setPrivacyStatus(
+          openAiConsentData.privacy,
+        )
+      }
+
+                  const explicitExternalImageGenerationDisclosureAccepted =
+        consent
+          ?.externalImageGenerationDisclosureAccepted ===
+        true
+
+      if (
+        explicitExternalImageGenerationDisclosureAccepted &&
+        privacyStatus
+          ?.externalImageGenerationAccepted !==
+          true
+      ) {
+        const externalConsentData =
+          await api<{
+            privacy: PrivacyStatus
+          }>(
+            "/api/visual-engine/privacy",
+            {
+              method: "PATCH",
+              headers: {
+                "Content-Type":
+                  "application/json",
+              },
+              body: JSON.stringify({
+                action:
+                  "accept_external_image_generation",
+                disclosureAccepted:
+                  true,
+                locale,
+              }),
+            },
+          )
+
+        if (
+          externalConsentData
+            .privacy
+            .externalImageGenerationAccepted !==
+          true
+        ) {
+          throw new Error(
+            locale === "fr"
+              ? "Votre autorisation pour la génération externe d’images n’a pas pu être enregistrée."
+              : "No se pudo registrar tu autorización para la generación externa de imágenes.",
+          )
+        }
+
+        setPrivacyStatus(
+          externalConsentData.privacy,
+        )
+      }
+
+await uploadMiravaIdentityProfile({
         files,
         consent: effectiveConsent,
         locale,
         mode,
         creationId: current?.creation.id,
         viewKeys,
+        faceGeometries,
       })
       if (captureContext === "onboarding" && miravaOnboarding && !isMiravaOnboardingCompleted(miravaOnboarding)) {
         if (!consent) throw new Error(locale === "fr" ? "Le consentement est requis avant de préparer la séance." : "Se requiere el consentimiento antes de preparar la sesión.")
@@ -2220,6 +2368,8 @@ export function VisualEngineStudio() {
               change.assetId,
             file: change.file,
             locale,
+            faceGeometry:
+              change.faceGeometry,
           })
         } else {
           await uploadMiravaIdentityProfile({
@@ -2240,6 +2390,9 @@ export function VisualEngineStudio() {
               current?.creation.id,
             viewKeys: [
               change.viewKey,
+            ],
+            faceGeometries: [
+              change.faceGeometry,
             ],
           })
         }
@@ -2771,17 +2924,24 @@ export function VisualEngineStudio() {
               captureInitialSlotId
             }
             initialConsentAccepted={privacyStatus?.requiredAccepted === true}
+            initialExternalGenerationConsentAccepted={
+              privacyStatus
+                ?.externalImageGenerationAccepted ===
+              true
+            }
             onClose={closeCapture}
             onComplete={(
               files,
               consent,
               viewKeys,
+              faceGeometries,
             ) =>
               uploadIdentityFiles(
                 files,
                 consent,
                 "replace",
                 viewKeys,
+                faceGeometries,
               )
             }
           />
@@ -3165,6 +3325,11 @@ export function VisualEngineStudio() {
             captureInitialSlotId
           }
           initialConsentAccepted={privacyStatus?.requiredAccepted === true}
+          initialExternalGenerationConsentAccepted={
+            privacyStatus
+              ?.externalImageGenerationAccepted ===
+            true
+          }
           onClose={closeCapture}
           onManageSave={
             captureContext ===
@@ -3176,6 +3341,7 @@ export function VisualEngineStudio() {
             files,
             consent,
             viewKeys,
+            faceGeometries,
           ) =>
             uploadIdentityFiles(
               files,
@@ -3185,6 +3351,7 @@ export function VisualEngineStudio() {
                 ? "append"
                 : "replace",
               viewKeys,
+              faceGeometries,
             )
           }
         />
@@ -3781,8 +3948,8 @@ function ConsentGate({ locale, t, consents, setConsents, pending, onClose, onCon
             <label className="mirava-control flex min-h-16 cursor-pointer items-start gap-3 p-4 text-sm leading-6">
               <input type="checkbox" checked={consents.identity} onChange={(event) => setConsents((value) => ({ ...value, identity: event.target.checked }))} className="mt-1 h-4 w-4 shrink-0 accent-mirava-accent" />
               <span>{locale === "fr"
-                ? "Je consens explicitement au traitement de mes photos de visage et de mon Profil identité par MIRAVA et ses prestataires techniques, dont OpenAI, uniquement pour les créations que je demande."
-                : "Consiento explícitamente el tratamiento de mis fotos faciales y de mi Perfil de identidad por MIRAVA y sus proveedores técnicos, incluido OpenAI, únicamente para las creaciones que solicito."}</span>
+                ? "Je consens explicitement au traitement de mes photos de visage et de mon Profil identité par MIRAVA et les prestataires techniques nécessaires à son fonctionnement, uniquement pour les créations que je demande."
+                : "Consiento explícitamente el tratamiento de mis fotos faciales y de mi Perfil de identidad por MIRAVA y los proveedores técnicos necesarios para su funcionamiento, únicamente para las creaciones que solicito."}</span>
             </label>
           </div>
 
@@ -4060,6 +4227,11 @@ function CreationView({
             ? locale === "fr"
               ? "Le moteur d’image n’a pas terminé votre création dans le délai prévu. Votre crédit a été restauré. Vous pouvez relancer la séance sans importer à nouveau vos photos d’identité."
               : "El motor de imágenes no terminó tu creación dentro del tiempo previsto. Tu crédito ha sido restaurado. Puedes reiniciar la sesión sin volver a subir tus fotos de identidad."
+            : current.creation.failureKind ===
+                "PROVIDER_UNAVAILABLE"
+              ? locale === "fr"
+                ? "Le service d’image est momentanément indisponible. Les crédits correspondant aux images non livrées ont été restaurés. Vous pourrez réessayer plus tard."
+                : "El servicio de imágenes no está disponible temporalmente. Los créditos correspondientes a las imágenes no entregadas han sido restaurados. Podrás volver a intentarlo más tarde."
             : current.creation.failureKind ===
                 "TECHNICAL_ERROR"
               ? locale === "fr"
