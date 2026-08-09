@@ -111,6 +111,34 @@ measurement; a thresholded acceptance report must use a separately calibrated,
 versioned threshold and a complete `acceptance` object. Both the input manifest
 and output report are private biometric evidence and must not be committed.
 
+### Derive, then verify, a threshold policy
+
+First run the calibration split without thresholds. The offline calibrator reads
+only that signed-digest report and emits a proposal without paths, embeddings or
+subject identifiers. Every acceptance limit and minimum cohort size is explicit;
+there are no fallback production values:
+
+```bash
+.venv/bin/python -m app.threshold_calibration \
+  --input benchmark-calibration-raw.private.json \
+  --output threshold-proposal.private.json \
+  --calibration-version consented-cohorts-v1 \
+  --expected-source-digest sha256:<raw-report-artifact-digest> \
+  --max-false-accept-rate 0.001 \
+  --max-false-reject-rate 0.05 \
+  --minimum-genuine-cases 30 \
+  --minimum-impostor-cases 30
+```
+
+The expected digest must be obtained from trusted evidence configuration—not
+copied from the report being read. The source must be fully scorable; identity
+delivery failures are remediated in the dataset before threshold selection.
+Review the proposal, then copy its `cohortThresholds` and global values into a
+new thresholded calibration manifest and rerun the benchmark. Use the exact same
+policy in a separately held-out test manifest, run the split-isolation verifier,
+and only then pin the resulting artifact digests at service startup. The
+proposal itself is not calibration evidence and can never activate the gate.
+
 Schema v4 also requires the canonical v1 coverage contract and the immutable
 `mirava-face-measurement/v1` contract. Candidate yaw, pitch and roll are
 estimated from the detected SCRFD five-point landmarks with the pinned

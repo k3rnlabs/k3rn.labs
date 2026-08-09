@@ -165,6 +165,17 @@ separates genuine and impostor cases, emits configuration and artifact digests,
 and never emits paths or embeddings. The example manifest is
 `services/mirava-face-identity/benchmark.example.json`.
 
+An unthresholded calibration report can be passed to
+`python -m app.threshold_calibration`. This offline step enumerates observed
+similarity/residual pairs and emits a versioned policy only when its explicit
+FAR/FRR and minimum-count limits are satisfied globally and in every measured
+geometry cohort. It contains aggregate counts, rates and digests—not image paths,
+embeddings, subject IDs or row-level evidence. It is a proposal: MIRAVA still
+requires a thresholded calibration rerun, an independent held-out rerun and split
+isolation before a service can become ready. The runner requires a separately
+pinned expected source digest and rejects every unscorable source row, so it
+cannot hide delivery failures or calibrate from a self-rehashed report.
+
 ## 2026-08-09 two-reference diagnostic — not a gate calibration
 
 The supplied Amy fixture contains two real identity photographs, not the three
