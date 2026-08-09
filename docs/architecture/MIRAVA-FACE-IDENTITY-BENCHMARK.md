@@ -94,3 +94,43 @@ The system can be called end-to-end only when replayable evidence proves:
 Each benchmark run produces an immutable manifest containing command, commit,
 configuration hashes, evaluator digests, dataset version, scenario rows,
 aggregate metrics and failures. A PASS without that artifact is invalid.
+
+## Executable runner
+
+The private service exposes a deterministic runner:
+
+```bash
+python -m app.benchmark \
+  --manifest benchmark.private.json \
+  --output benchmark-report.private.json
+```
+
+It requires every scenario axis, retains unscorable rows in the denominator,
+separates genuine and impostor cases, emits configuration and artifact digests,
+and never emits paths or embeddings. The example manifest is
+`services/mirava-face-identity/benchmark.example.json`.
+
+## 2026-08-09 two-reference diagnostic — not a gate calibration
+
+The supplied Amy fixture contains two real identity photographs, not the three
+canonical views required by the production contract. An ephemeral diagnostic
+used OpenCV SFace 2021dec with YuNet 2023mar and therefore cannot produce a
+MIRAVA PASS. Raw cosine similarities were:
+
+| Pair | SFace cosine |
+| --- | ---: |
+| `id1` ↔ `id2` | 0.766840 |
+| generated full frame ↔ `id1` | 0.838531 |
+| generated full frame ↔ `id2` | 0.809144 |
+| generated zoom ↔ `id1` | 0.857241 |
+| generated zoom ↔ `id2` | 0.825967 |
+
+Observation: this evaluator ranks the generated face closer to each reference
+than the two real photographs are to one another, despite the visible anatomical
+drift documented in the review.
+
+Inference: a single face-recognition embedding is not sufficient evidence for
+MIRAVA's fine-grained identity promise. Production calibration must add
+independent facial-geometry/landmark residuals and blinded human review, and
+must contain genuine and impostor pairs across pose cohorts. These values must
+not be converted into an invented identity percentage or production threshold.

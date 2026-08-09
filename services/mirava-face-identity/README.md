@@ -21,11 +21,13 @@ MIRAVA_FACE_MODEL_VERSION=1.0
 MIRAVA_FACE_MODEL_DIGEST=sha256:<verified-manifest-digest>
 MIRAVA_FACE_PREPROCESSING_VERSION=mirava-auraface-align-v1
 MIRAVA_FACE_GATE_THRESHOLD=<calibrated cohort threshold>
+MIRAVA_FACE_LANDMARK_RESIDUAL_MAX=<calibrated five-landmark residual ceiling>
 MIRAVA_FACE_SERVICE_TOKEN=<private random token>
 ```
 
-The threshold has no default. The service refuses to become ready until a
-calibrated value is supplied.
+Neither threshold has a default. The service refuses to become ready until both
+calibrated values are supplied. A PASS requires both the embedding threshold
+and the normalized landmark-shape residual ceiling.
 
 ## API
 
@@ -50,3 +52,20 @@ python -m venv .venv
 Unit tests inject a deterministic fake engine and do not require biometric
 weights. A separate gated integration suite must exercise the pinned ONNX files
 before production activation.
+
+## Private benchmark
+
+The benchmark runner evaluates genuine and impostor cases with the same pinned
+engine while keeping image paths and embeddings out of its report:
+
+```bash
+.venv/bin/python -m app.benchmark \
+  --manifest benchmark.private.json \
+  --output benchmark-report.private.json
+```
+
+Start from `benchmark.example.json`. Every row must declare all scenario axes,
+including rows expected to be unscorable. `threshold` may be `null` for raw
+measurement; a thresholded acceptance report must use a separately calibrated,
+versioned threshold. Both the input manifest and output report are private
+biometric evidence and must not be committed.

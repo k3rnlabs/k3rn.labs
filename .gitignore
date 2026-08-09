@@ -46,6 +46,8 @@ next-env.d.ts
 __pycache__/
 *.py[cod]
 .venv/
+benchmark.private.json
+benchmark-report.private.json
 
 /src/generated/prisma
 

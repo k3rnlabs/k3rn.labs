@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "mirava-face-identity-benchmark/v1",
+  "datasetVersion": "private-consented-dataset-v1",
+  "commit": "replace-with-git-commit",
+  "threshold": null,
+  "landmarkThreshold": null,
+  "evaluator": {
+    "name": "auraface",
+    "version": "replace-with-model-version",
+    "weightsDigest": "sha256:replace-with-pinned-weight-digest",
+    "preprocessingVersion": "mirava-auraface-align-v1"
+  },
+  "cases": [
+    {
+      "caseId": "pseudonymous-case-id",
+      "subjectKey": "pseudonymous-subject-key",
+      "expectedIdentityMatch": true,
+      "candidatePath": "/private/path/candidate.png",
+      "referencePaths": [
+        "/private/path/front.jpg",
+        "/private/path/angle.jpg",
+        "/private/path/profile.jpg"
+      ],
+      "scenario": {
+        "yaw": "frontal",
+        "pitch": "neutral",
+        "roll": "neutral",
+        "expression": "neutral",
+        "gaze": "camera",
+        "faceScale": "portrait",
+        "light": "soft-frontal",
+        "occlusion": "none",
+        "styling": "natural",
+        "context": "studio"
+      }
+    }
+  ]
+}
