@@ -9,6 +9,7 @@ import {
   MIRAVA_ANALYSIS_FALLBACK_MODEL,
   MIRAVA_ANALYSIS_MODEL,
   MIRAVA_IMAGE_MODEL,
+  getMiravaFaceIdentityGateMode,
 } from "@/lib/mirava/server-config"
 import { MIRAVA_STRIPE_PRODUCT, getMiravaStudioPreset, type MiravaStudioPresetId } from "@/lib/mirava/brand"
 import { formatMiravaCreativeOptions, miravaCreativeOptionsSchema, type MiravaCreativeOptions } from "@/lib/mirava/creative-options"
@@ -97,6 +98,10 @@ import {
   hasMiravaExternalImageGenerationConsent,
   requireMiravaRequiredConsents,
 } from "@/lib/visual-engine/privacy"
+import {
+  MiravaFaceIdentityGateError,
+  evaluateMiravaFaceIdentity,
+} from "@/lib/visual-engine/face-identity-gate"
 
 export const STUDIO_BUCKET = process.env.SUPABASE_STORAGE_VISUAL_ENGINE_BUCKET ?? "visual-engine-private"
 export const STUDIO_CONSENT_VERSION = "2026-07-29"
@@ -5584,7 +5589,7 @@ function buildMiravaSessionProviderInputPrompt(
   ].join("\n\n")
 }
 
-async function generateStudioImage(
+async function generateStudioImageCandidate(
   creation: StudioCreationRecord,
   identityAssets: Array<
     StudioAssetRecord |
@@ -6827,6 +6832,226 @@ async function generateStudioImage(
       null,
     )
   }
+}
+
+function miravaIdentityManifestVersion(
+  identityAssets: StudioIdentityAssetRecord[],
+): string {
+  const canonical =
+    [...identityAssets]
+      .sort(
+        (left, right) =>
+          `${left.viewKey ?? ""}:${left.id}`
+            .localeCompare(
+              `${right.viewKey ?? ""}:${right.id}`,
+            ),
+      )
+      .map(
+        (asset) => ({
+          id: asset.id,
+          viewKey:
+            asset.viewKey ?? null,
+          storagePath:
+            asset.storagePath,
+          createdAt:
+            asset.createdAt,
+          faceGeometry:
+            asset.faceGeometry ?? null,
+        }),
+      )
+
+  return createHash("sha256")
+    .update(
+      JSON.stringify(canonical),
+    )
+    .digest("hex")
+}
+
+async function generateStudioImage(
+  creation: StudioCreationRecord,
+  identityAssets: Array<
+    StudioAssetRecord |
+    StudioIdentityAssetRecord
+  >,
+  frameIndex = 0,
+  physicalTraits: PhysicalTrait[] = [],
+  bodyIdentityPrompt = "",
+  jobAttempt = 1,
+  studioJob: StudioJobRecord | null = null,
+): Promise<Buffer> {
+  const candidate =
+    await generateStudioImageCandidate(
+      creation,
+      identityAssets,
+      frameIndex,
+      physicalTraits,
+      bodyIdentityPrompt,
+      jobAttempt,
+      studioJob,
+    )
+
+  const gateMode =
+    getMiravaFaceIdentityGateMode()
+
+  if (gateMode === "off") {
+    return candidate
+  }
+
+  const canonicalInputs =
+    selectMiravaKieRequiredIdentityFaceInputs(
+      identityAssets,
+    )
+
+  if (
+    canonicalInputs.length !==
+      MIRAVA_REQUIRED_IDENTITY_VIEW_KEYS.length
+  ) {
+    console.warn(
+      "[mirava-face-identity-gate-unscorable]",
+      JSON.stringify({
+        creationId:
+          creation.id,
+        frameIndex,
+        gateMode,
+        reasonCode:
+          "CANONICAL_IDENTITY_VIEWS_MISSING",
+      }),
+    )
+
+    if (gateMode === "required") {
+      throw new StudioError(
+        "Votre Profil identité doit être réenregistré avant la vérification haute fidélité.",
+        "IDENTITY_REQUIRED",
+        false,
+      )
+    }
+
+    return candidate
+  }
+
+  const requestId =
+    randomUUID()
+
+  try {
+    const referenceImages =
+      await Promise.all(
+        canonicalInputs.map(
+          async ({ asset }) => ({
+            buffer:
+              await downloadAsset(
+                asset,
+              ),
+            mimeType:
+              asset.mimeType,
+            fileName:
+              `identity-${asset.viewKey ?? asset.id}.${extensionForMime(asset.mimeType)}`,
+          }),
+        ),
+      )
+
+    const gateResult =
+      await evaluateMiravaFaceIdentity({
+        candidate: {
+          buffer:
+            candidate,
+          mimeType:
+            "image/png",
+          fileName:
+            `candidate-${creation.id}-${frameIndex}.png`,
+        },
+        references:
+          referenceImages as [
+            typeof referenceImages[number],
+            typeof referenceImages[number],
+            typeof referenceImages[number],
+          ],
+        identityManifestVersion:
+          miravaIdentityManifestVersion(
+            canonicalInputs.map(
+              ({ asset }) =>
+                asset,
+            ),
+          ),
+        requestId,
+      })
+
+    console.info(
+      "[mirava-face-identity-gate-result]",
+      JSON.stringify({
+        creationId:
+          creation.id,
+        frameIndex,
+        gateMode,
+        requestId,
+        decision:
+          gateResult.decision,
+        reasonCode:
+          gateResult.reasonCode,
+        aggregateSimilarity:
+          gateResult.aggregateSimilarity,
+        threshold:
+          gateResult.threshold,
+        evaluator:
+          gateResult.evaluator,
+        candidateFaceCount:
+          gateResult.candidateFace.count,
+      }),
+    )
+
+    if (
+      gateMode === "required" &&
+      gateResult.decision !== "PASS"
+    ) {
+      throw new StudioError(
+        "Le visage généré n’atteint pas encore la fidélité d’identité requise. MIRAVA relance la création.",
+        gateResult.decision === "UNSCORABLE"
+          ? "IDENTITY_FIDELITY_UNSCORABLE"
+          : "IDENTITY_FIDELITY_REJECTED",
+        true,
+      )
+    }
+  } catch (error) {
+    if (error instanceof StudioError) {
+      throw error
+    }
+
+    console.error(
+      "[mirava-face-identity-gate-error]",
+      JSON.stringify({
+        creationId:
+          creation.id,
+        frameIndex,
+        gateMode,
+        requestId,
+        code:
+          error instanceof
+            MiravaFaceIdentityGateError
+            ? error.code
+            : "FACE_IDENTITY_GATE_INTERNAL",
+        retryable:
+          error instanceof
+            MiravaFaceIdentityGateError
+            ? error.retryable
+            : true,
+      }),
+    )
+
+    if (gateMode === "required") {
+      throw new StudioError(
+        "La vérification d’identité du visage est temporairement indisponible.",
+        error instanceof
+          MiravaFaceIdentityGateError
+          ? error.code
+          : "FACE_IDENTITY_GATE_INTERNAL",
+        error instanceof
+          MiravaFaceIdentityGateError
+          ? error.retryable
+          : true,
+      )
+    }
+  }
+
+  return candidate
 }
 
 export async function cropMiravaResult(

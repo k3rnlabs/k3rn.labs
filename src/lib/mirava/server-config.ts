@@ -47,3 +47,21 @@ export function isMiravaKieImageProviderEnabled(): boolean {
     productionDisclosureReady
   )
 }
+
+export type MiravaFaceIdentityGateMode =
+  | "off"
+  | "shadow"
+  | "required"
+
+export function getMiravaFaceIdentityGateMode(): MiravaFaceIdentityGateMode {
+  const configured =
+    process.env
+      .MIRAVA_FACE_IDENTITY_GATE_MODE
+      ?.trim()
+      .toLowerCase()
+
+  return configured === "shadow" ||
+    configured === "required"
+    ? configured
+    : "off"
+}
