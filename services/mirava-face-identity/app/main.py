@@ -29,7 +29,7 @@ from .cohort_thresholds import resolve_cohort_thresholds
 from .split_isolation import load_and_verify_split_isolation_report
 
 
-SCHEMA_VERSION = "mirava-face-identity-gate/v6"
+SCHEMA_VERSION = "mirava-face-identity-gate/v7"
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 MIN_REFERENCE_COUNT = 3
 MAX_REFERENCE_COUNT = 6
@@ -125,6 +125,12 @@ def _evaluator_manifest(
         "poseEstimatorVersion": POSE_ESTIMATOR_VERSION,
         "measurementContractDigest": str(calibration["measurementContractDigest"]),
         "cohortThresholdsDigest": str(calibration["cohortThresholdsDigest"]),
+        "thresholdProposalDigest": str(
+            calibration["thresholdProvenance"]["proposalArtifactDigest"]
+        ),
+        "thresholdSourceBenchmarkDigest": str(
+            calibration["thresholdProvenance"]["sourceBenchmarkArtifactDigest"]
+        ),
         **isolation,
     }, calibration["cohortThresholds"]
 

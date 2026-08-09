@@ -26,7 +26,7 @@ def inventory(split: str, subjects: list[str]) -> dict:
 def report(split: str, subject_ids: list[str]) -> dict:
     subjects = [_subject_key(PSEUDONYM_KEY, subject_id) for subject_id in subject_ids]
     value = {
-        "schemaVersion": "mirava-face-identity-benchmark/v4",
+        "schemaVersion": "mirava-face-identity-benchmark/v5",
         "datasetSplit": split,
         "subjectKeyScheme": "hmac-sha256/v1",
         "subjectKeyKeyId": _hmac_key_id(PSEUDONYM_KEY),
@@ -65,6 +65,11 @@ def verified_metadata(value: dict) -> dict:
         "coverageContractDigest": "sha256:" + "b" * 64,
         "measurementContractDigest": "sha256:" + "c" * 64,
         "cohortThresholdsDigest": "sha256:" + "d" * 64,
+        "thresholdProvenance": {
+            "schemaVersion": "mirava-face-threshold-provenance/v1",
+            "proposalArtifactDigest": "sha256:" + "e" * 64,
+            "sourceBenchmarkArtifactDigest": "sha256:" + "f" * 64,
+        },
     }
 
 
@@ -83,6 +88,35 @@ def test_emits_digest_only_evidence_for_disjoint_subjects() -> None:
     assert evidence["calibrationSubjectCount"] == 2
     assert evidence["testSubjectCount"] == 1
     assert "subject-a" not in _canonical_json(evidence)
+
+
+def test_rejects_mixed_threshold_provenance(tmp_path: Path) -> None:
+    calibration_report = report("calibration", ["subject-a"])
+    test_report = report("test", ["subject-b"])
+    evidence = verify_split_isolation(
+        calibration_report,
+        test_report,
+        pseudonym_key=PSEUDONYM_KEY,
+        calibration_subject_inventory=inventory("calibration", ["subject-a"]),
+        test_subject_inventory=inventory("test", ["subject-b"]),
+    )
+    path = tmp_path / "split-isolation.json"
+    path.write_text(json.dumps(evidence), encoding="utf-8")
+
+    calibration = verified_metadata(calibration_report)
+    held_out = verified_metadata(test_report)
+    held_out["thresholdProvenance"] = {
+        **held_out["thresholdProvenance"],
+        "proposalArtifactDigest": "sha256:" + "0" * 64,
+    }
+
+    with pytest.raises(RuntimeError, match="threshold provenance"):
+        load_and_verify_split_isolation_report(
+            path,
+            expected_digest="sha256:" + evidence["artifactDigest"],
+            calibration_report=calibration,
+            test_report=held_out,
+        )
 
 
 def test_rejects_subject_leakage_between_calibration_and_test() -> None:

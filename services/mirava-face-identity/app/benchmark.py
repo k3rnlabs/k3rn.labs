@@ -25,9 +25,10 @@ from .cohort_thresholds import (
     resolve_cohort_thresholds,
     validate_cohort_thresholds,
 )
+from .threshold_provenance import validate_threshold_provenance
 
 
-BENCHMARK_SCHEMA = "mirava-face-identity-benchmark/v4"
+BENCHMARK_SCHEMA = "mirava-face-identity-benchmark/v5"
 REQUIRED_SCENARIO_AXES = (
     "yaw",
     "pitch",
@@ -158,6 +159,7 @@ def _validate_spec(spec: dict[str, Any]) -> None:
             global_similarity=float(threshold),
             global_landmark_residual=float(landmark_threshold),
         )
+        validate_threshold_provenance(spec.get("thresholdProvenance"))
         if not isinstance(spec.get("calibrationVersion"), str) or not spec[
             "calibrationVersion"
         ].strip():
@@ -183,8 +185,13 @@ def _validate_spec(spec: dict[str, Any]) -> None:
             value = acceptance.get(key)
             if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
                 raise ValueError(f"acceptance.{key} must be a positive integer")
-    elif spec.get("cohortThresholds") is not None:
-        raise ValueError("cohortThresholds must be null for unthresholded runs")
+    elif (
+        spec.get("cohortThresholds") is not None
+        or spec.get("thresholdProvenance") is not None
+    ):
+        raise ValueError(
+            "cohortThresholds and thresholdProvenance must be null for unthresholded runs"
+        )
     cases = spec.get("cases")
     if not isinstance(cases, list) or not cases:
         raise ValueError("at least one benchmark case is required")
@@ -309,6 +316,11 @@ def run_benchmark(
             global_similarity=float(threshold),
             global_landmark_residual=float(landmark_threshold),
         )
+        if thresholded
+        else None
+    )
+    threshold_provenance = (
+        validate_threshold_provenance(spec.get("thresholdProvenance"))
         if thresholded
         else None
     )
@@ -527,6 +539,7 @@ def run_benchmark(
                     "threshold": threshold,
                     "landmarkThreshold": landmark_threshold,
                     "cohortThresholds": cohort_thresholds,
+                    "thresholdProvenance": threshold_provenance,
                 }
             )
         ),
@@ -534,6 +547,7 @@ def run_benchmark(
         "threshold": threshold,
         "landmarkThreshold": landmark_threshold,
         "cohortThresholds": cohort_thresholds,
+        "thresholdProvenance": threshold_provenance,
         "acceptance": acceptance,
         "acceptanceStatus": acceptance_status,
         "rows": rows,

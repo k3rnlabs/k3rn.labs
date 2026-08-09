@@ -1,5 +1,5 @@
 const MIRAVA_FACE_IDENTITY_GATE_SCHEMA =
-  "mirava-face-identity-gate/v6" as const
+  "mirava-face-identity-gate/v7" as const
 
 const MIRAVA_FACE_POSE_ESTIMATOR_VERSION =
   "mirava-five-point-sqpnp-v1" as const
@@ -56,6 +56,8 @@ export type MiravaFaceIdentityGateResult = {
     poseEstimatorVersion: string
     measurementContractDigest: string
     cohortThresholdsDigest: string
+    thresholdProposalDigest: string
+    thresholdSourceBenchmarkDigest: string
   }
   candidateFace: {
     count: number
@@ -489,6 +491,12 @@ function parseGateResult(
     ) ||
     !validSha256Digest(
       evaluator.cohortThresholdsDigest,
+    ) ||
+    !validSha256Digest(
+      evaluator.thresholdProposalDigest,
+    ) ||
+    !validSha256Digest(
+      evaluator.thresholdSourceBenchmarkDigest,
     ) ||
     evaluator.measurementContractDigest !==
       MIRAVA_FACE_MEASUREMENT_CONTRACT_DIGEST ||

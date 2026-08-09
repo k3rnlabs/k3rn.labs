@@ -47,6 +47,14 @@ def cohort_thresholds(similarity: float, residual: float) -> dict:
     }
 
 
+def threshold_provenance() -> dict:
+    return {
+        "schemaVersion": "mirava-face-threshold-provenance/v1",
+        "proposalArtifactDigest": "sha256:" + "a" * 64,
+        "sourceBenchmarkArtifactDigest": "sha256:" + "b" * 64,
+    }
+
+
 def candidate_geometry(scenario: dict[str, str]) -> dict:
     return geometry_payload(
         FaceGeometry(
@@ -121,7 +129,7 @@ def _report() -> dict:
                 ),
             })
     value = {
-        "schemaVersion": "mirava-face-identity-benchmark/v4",
+        "schemaVersion": "mirava-face-identity-benchmark/v5",
         "datasetVersion": "private-v1",
         "datasetSplit": "calibration",
         "subjectKeyScheme": "hmac-sha256/v1",
@@ -135,6 +143,7 @@ def _report() -> dict:
         "threshold": 0.8,
         "landmarkThreshold": 0.2,
         "cohortThresholds": threshold_policy,
+        "thresholdProvenance": threshold_provenance(),
         "acceptance": {
             "maxFalseAcceptRate": 0.0,
             "maxFalseRejectRate": 0.0,
@@ -174,6 +183,7 @@ def _report() -> dict:
                 "threshold": 0.8,
                 "landmarkThreshold": 0.2,
                 "cohortThresholds": threshold_policy,
+                "thresholdProvenance": value["thresholdProvenance"],
             }
         ).encode("utf-8")
     ).hexdigest()
@@ -231,6 +241,7 @@ def test_verifies_a_held_out_test_report_with_the_same_runtime_contract(
                 "threshold": 0.8,
                 "landmarkThreshold": 0.2,
                 "cohortThresholds": report["cohortThresholds"],
+                "thresholdProvenance": report["thresholdProvenance"],
             }
         ).encode("utf-8")
     ).hexdigest()
@@ -312,6 +323,7 @@ def test_replays_integer_json_thresholds_as_runtime_floats(tmp_path: Path) -> No
                 "threshold": 1.0,
                 "landmarkThreshold": 1.0,
                 "cohortThresholds": report["cohortThresholds"],
+                "thresholdProvenance": report["thresholdProvenance"],
             }
         ).encode("utf-8")
     ).hexdigest()

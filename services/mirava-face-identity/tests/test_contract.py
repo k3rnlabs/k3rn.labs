@@ -190,7 +190,7 @@ def configure(
                     }
                 )
         report = {
-            "schemaVersion": "mirava-face-identity-benchmark/v4",
+            "schemaVersion": "mirava-face-identity-benchmark/v5",
             "datasetVersion": f"private-{split}-v1",
             "datasetSplit": split,
             "subjectKeyScheme": "hmac-sha256/v1",
@@ -205,6 +205,11 @@ def configure(
             "threshold": 0.8,
             "landmarkThreshold": 0.25,
             "cohortThresholds": threshold_policy,
+            "thresholdProvenance": {
+                "schemaVersion": "mirava-face-threshold-provenance/v1",
+                "proposalArtifactDigest": "sha256:" + "a" * 64,
+                "sourceBenchmarkArtifactDigest": "sha256:" + "b" * 64,
+            },
             "acceptance": {
                 "maxFalseAcceptRate": 0.0,
                 "maxFalseRejectRate": 0.0,
@@ -244,6 +249,7 @@ def configure(
                     "threshold": 0.8,
                     "landmarkThreshold": 0.25,
                     "cohortThresholds": threshold_policy,
+                    "thresholdProvenance": report["thresholdProvenance"],
                 }
             ).encode("utf-8")
         ).hexdigest()
@@ -324,7 +330,7 @@ def test_calibrated_pass_returns_no_embedding(monkeypatch, tmp_path: Path) -> No
 
     assert response.status_code == 200
     body = response.json()
-    assert body["schemaVersion"] == "mirava-face-identity-gate/v6"
+    assert body["schemaVersion"] == "mirava-face-identity-gate/v7"
     assert body["decision"] == "PASS"
     assert body["candidateFace"]["count"] == 1
     assert body["candidateFace"]["poseEstimatorVersion"] == "mirava-five-point-sqpnp-v1"
@@ -334,6 +340,7 @@ def test_calibrated_pass_returns_no_embedding(monkeypatch, tmp_path: Path) -> No
     assert body["evaluator"]["testStatus"] == "PASS"
     assert body["evaluator"]["splitIsolationStatus"] == "PASS"
     assert body["evaluator"]["cohortThresholdsDigest"].startswith("sha256:")
+    assert body["evaluator"]["thresholdProposalDigest"].startswith("sha256:")
     assert "embedding" not in str(body).lower()
 
 

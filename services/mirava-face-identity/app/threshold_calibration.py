@@ -75,6 +75,7 @@ def _source_rows(report: dict[str, Any]) -> list[dict[str, Any]]:
         report.get("threshold") is not None
         or report.get("landmarkThreshold") is not None
         or report.get("cohortThresholds") is not None
+        or report.get("thresholdProvenance") is not None
     ):
         raise ValueError("Threshold calibration requires an unthresholded report")
     digest = report.get("artifactDigest")
@@ -190,6 +191,7 @@ def derive_cohort_threshold_policy(
     expected_source_digest: str,
     max_false_accept_rate: float,
     max_false_reject_rate: float,
+    max_unscorable_rate: float,
     minimum_genuine_cases: int,
     minimum_impostor_cases: int,
 ) -> dict[str, Any]:
@@ -197,6 +199,7 @@ def derive_cohort_threshold_policy(
         raise ValueError("calibration_version is required")
     _valid_rate(max_false_accept_rate, "max_false_accept_rate")
     _valid_rate(max_false_reject_rate, "max_false_reject_rate")
+    _valid_rate(max_unscorable_rate, "max_unscorable_rate")
     if minimum_genuine_cases <= 0 or minimum_impostor_cases <= 0:
         raise ValueError("Minimum cohort counts must be positive")
     actual_source_digest = "sha256:" + str(report.get("artifactDigest", ""))
@@ -297,6 +300,7 @@ def derive_cohort_threshold_policy(
         "requirements": {
             "maxFalseAcceptRate": max_false_accept_rate,
             "maxFalseRejectRate": max_false_reject_rate,
+            "maxUnscorableRate": max_unscorable_rate,
             "minimumGenuineCases": minimum_genuine_cases,
             "minimumImpostorCases": minimum_impostor_cases,
         },
@@ -322,6 +326,7 @@ def main() -> None:
     parser.add_argument("--expected-source-digest", required=True)
     parser.add_argument("--max-false-accept-rate", required=True, type=float)
     parser.add_argument("--max-false-reject-rate", required=True, type=float)
+    parser.add_argument("--max-unscorable-rate", required=True, type=float)
     parser.add_argument("--minimum-genuine-cases", required=True, type=int)
     parser.add_argument("--minimum-impostor-cases", required=True, type=int)
     args = parser.parse_args()
@@ -332,6 +337,7 @@ def main() -> None:
         expected_source_digest=args.expected_source_digest,
         max_false_accept_rate=args.max_false_accept_rate,
         max_false_reject_rate=args.max_false_reject_rate,
+        max_unscorable_rate=args.max_unscorable_rate,
         minimum_genuine_cases=args.minimum_genuine_cases,
         minimum_impostor_cases=args.minimum_impostor_cases,
     )

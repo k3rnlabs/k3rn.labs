@@ -26,6 +26,7 @@ from .cohort_thresholds import (
     resolve_cohort_thresholds,
     validate_cohort_thresholds,
 )
+from .threshold_provenance import validate_threshold_provenance
 
 
 def canonical_json(value: object) -> str:
@@ -108,6 +109,12 @@ def _recompute_metrics_and_status(
         )
     except (TypeError, ValueError) as exc:
         raise RuntimeError("Calibration cohort thresholds are invalid") from exc
+    try:
+        threshold_provenance = validate_threshold_provenance(
+            report.get("thresholdProvenance")
+        )
+    except ValueError as exc:
+        raise RuntimeError("Calibration threshold provenance is invalid") from exc
     rows = report.get("rows")
     if not isinstance(rows, list) or not rows:
         raise RuntimeError("Calibration benchmark rows are missing")
@@ -373,6 +380,12 @@ def load_and_verify_benchmark_report(
         )
     except ValueError as exc:
         raise RuntimeError("Calibration cohort thresholds do not match runtime") from exc
+    try:
+        threshold_provenance = validate_threshold_provenance(
+            report.get("thresholdProvenance")
+        )
+    except ValueError as exc:
+        raise RuntimeError("Calibration threshold provenance does not match runtime") from exc
 
     coverage = report.get("coverage")
     if not isinstance(coverage, dict):
@@ -390,6 +403,7 @@ def load_and_verify_benchmark_report(
         "threshold": expected_threshold,
         "landmarkThreshold": expected_landmark_threshold,
         "cohortThresholds": cohort_thresholds,
+        "thresholdProvenance": threshold_provenance,
     }
     expected_configuration_digest = hashlib.sha256(
         canonical_json(configuration).encode("utf-8")
@@ -462,6 +476,7 @@ def load_and_verify_benchmark_report(
         + hashlib.sha256(canonical_json(MEASUREMENT_CONTRACT).encode("utf-8")).hexdigest(),
         "cohortThresholds": cohort_thresholds,
         "cohortThresholdsDigest": cohort_thresholds_digest(cohort_thresholds),
+        "thresholdProvenance": threshold_provenance,
     }
 
 

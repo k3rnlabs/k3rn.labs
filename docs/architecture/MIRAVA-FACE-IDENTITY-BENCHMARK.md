@@ -96,7 +96,9 @@ Each benchmark run produces an immutable manifest containing command, commit,
 configuration hashes, evaluator digests, dataset version, scenario rows,
 aggregate metrics and failures. A PASS without that artifact is invalid.
 
-A thresholded run must additionally declare a calibration version and explicit
+A thresholded run must additionally declare a calibration version, a
+`mirava-face-threshold-provenance/v1` record binding the approved policy
+proposal and its raw calibration-report digest, and explicit
 ceilings for false accepts, false rejects and unscorable delivery, plus minimum
 genuine and impostor cohort sizes. The runner computes `acceptanceStatus`; the
 private gate re-verifies this report and cannot emit `PASS` when that status is
@@ -134,7 +136,8 @@ extreme pose. Its boundaries require population calibration and held-out
 validation; synthetic projection recovery proves the convention, not real-world
 accuracy.
 
-Schema v4 additionally binds `mirava-face-cohort-thresholds/v1` to calibration
+Schema v5 additionally binds `mirava-face-cohort-thresholds/v1` and
+`mirava-face-threshold-provenance/v1` to calibration
 and held-out test artifacts. It covers every measured yaw, pitch, roll and
 face-scale value. Runtime applies `strictest-applicable/v1`: the effective
 similarity floor is the maximum and the landmark-residual ceiling is the
@@ -175,6 +178,11 @@ requires a thresholded calibration rerun, an independent held-out rerun and spli
 isolation before a service can become ready. The runner requires a separately
 pinned expected source digest and rejects every unscorable source row, so it
 cannot hide delivery failures or calibrate from a self-rehashed report.
+After approval, `python -m app.threshold_manifest` materializes a thresholded
+calibration manifest from that proposal while preserving the external proposal
+digest, raw-report digest and no-weaker acceptance limits. The provenance is
+hashed into both benchmark reports and must be identical across calibration and
+held-out test before split isolation can PASS.
 
 ## 2026-08-09 two-reference diagnostic — not a gate calibration
 

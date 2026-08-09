@@ -126,6 +126,7 @@ there are no fallback production values:
   --expected-source-digest sha256:<raw-report-artifact-digest> \
   --max-false-accept-rate 0.001 \
   --max-false-reject-rate 0.05 \
+  --max-unscorable-rate 0.02 \
   --minimum-genuine-cases 30 \
   --minimum-impostor-cases 30
 ```
@@ -133,13 +134,32 @@ there are no fallback production values:
 The expected digest must be obtained from trusted evidence configuration—not
 copied from the report being read. The source must be fully scorable; identity
 delivery failures are remediated in the dataset before threshold selection.
-Review the proposal, then copy its `cohortThresholds` and global values into a
-new thresholded calibration manifest and rerun the benchmark. Use the exact same
-policy in a separately held-out test manifest, run the split-isolation verifier,
-and only then pin the resulting artifact digests at service startup. The
-proposal itself is not calibration evidence and can never activate the gate.
+After human review, generate rather than hand-copy the thresholded calibration
+manifest. The proposal digest is separately pinned and becomes part of the
+report configuration digest:
 
-Schema v4 also requires the canonical v1 coverage contract and the immutable
+```bash
+.venv/bin/python -m app.threshold_manifest \
+  --manifest benchmark-calibration-raw.private.json \
+  --proposal threshold-proposal.private.json \
+  --source-report benchmark-calibration-raw-report.private.json \
+  --output benchmark-calibration-thresholded.private.json \
+  --expected-proposal-digest sha256:<proposal-artifact-digest> \
+  --max-false-accept-rate 0.001 \
+  --max-false-reject-rate 0.05 \
+  --max-unscorable-rate 0.02 \
+  --minimum-genuine-cases 30 \
+  --minimum-impostor-cases 30
+```
+
+The builder rejects an already-thresholded manifest, a digest mismatch, a
+proposal from another calibration population, or acceptance criteria weaker
+than the proposal. Use the resulting policy unchanged in a separately held-out
+test manifest, run the split-isolation verifier, and only then pin the
+resulting artifact digests at service startup. The proposal itself is not
+calibration evidence and can never activate the gate.
+
+Schema v5 also requires the canonical v1 coverage contract and the immutable
 `mirava-face-measurement/v1` contract. Candidate yaw, pitch and roll are
 estimated from the detected SCRFD five-point landmarks with the pinned
 `mirava-five-point-sqpnp-v1` convention; face scale is computed from the
@@ -150,7 +170,9 @@ those measurements becomes `UNSCORABLE` with
 `SCENARIO_MEASUREMENT_MISMATCH`. The explicit boundary tolerances are part of
 the hashed contract and cannot be loosened by a benchmark manifest.
 
-For thresholded runs, schema v4 requires a complete cohort policy. Every
+For thresholded runs, schema v5 requires a complete cohort policy and a
+`mirava-face-threshold-provenance/v1` record that binds the approved proposal
+digest and raw calibration-report digest. Every
 scorable row records its measured cohorts and resolved thresholds. The verifier
 replays the strictest-applicable selection, row decision, aggregate metrics and
 acceptance status. Calibration and held-out test must expose the same policy

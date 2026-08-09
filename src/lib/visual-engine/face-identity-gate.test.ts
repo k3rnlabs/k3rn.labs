@@ -29,7 +29,7 @@ const image = {
 function validGateResponse() {
   return {
     schemaVersion:
-      "mirava-face-identity-gate/v6",
+      "mirava-face-identity-gate/v7",
     decision:
       "PASS",
     reasonCode:
@@ -75,6 +75,10 @@ function validGateResponse() {
         "sha256:f4749d3adf7af528627a0a54f18100f7f331c06aee7cd05841180d7db32bb9d4",
       cohortThresholdsDigest:
         `sha256:${"e".repeat(64)}`,
+      thresholdProposalDigest:
+        `sha256:${"f".repeat(64)}`,
+      thresholdSourceBenchmarkDigest:
+        `sha256:${"0".repeat(64)}`,
     },
     candidateFace: {
       count: 1,
@@ -400,6 +404,53 @@ describe(
                   ),
                   { status: 200 },
                 ),
+          }),
+        ).rejects.toMatchObject({
+          code:
+            "FACE_IDENTITY_GATE_INVALID_RESPONSE",
+        })
+      },
+    )
+
+    it(
+      "rejects a response without valid threshold provenance digests",
+      async () => {
+        process.env
+          .MIRAVA_FACE_IDENTITY_GATE_URL =
+          "http://127.0.0.1:9000"
+        process.env
+          .MIRAVA_FACE_IDENTITY_GATE_TOKEN =
+          "private-token"
+
+        const invalid =
+          validGateResponse()
+        invalid.evaluator
+          .thresholdSourceBenchmarkDigest =
+          "not-a-digest"
+
+        const fetchImpl:
+          typeof fetch =
+          async () =>
+            new Response(
+              JSON.stringify(invalid),
+              {
+                status: 200,
+              },
+            )
+
+        await expect(
+          evaluateMiravaFaceIdentity({
+            candidate: image,
+            references: [
+              image,
+              image,
+              image,
+            ],
+            identityManifestVersion:
+              "manifest-7",
+            requestId:
+              "request-1",
+            fetchImpl,
           }),
         ).rejects.toMatchObject({
           code:

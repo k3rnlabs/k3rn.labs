@@ -58,6 +58,14 @@ def cohort_thresholds(similarity: float, residual: float) -> dict:
     }
 
 
+def threshold_provenance() -> dict:
+    return {
+        "schemaVersion": "mirava-face-threshold-provenance/v1",
+        "proposalArtifactDigest": "sha256:" + "a" * 64,
+        "sourceBenchmarkArtifactDigest": "sha256:" + "b" * 64,
+    }
+
+
 def face(embedding: tuple[float, ...]) -> FaceObservation:
     return FaceObservation(
         confidence=0.99,
@@ -131,6 +139,7 @@ def spec() -> dict:
         "threshold": 0.8,
         "landmarkThreshold": 0.25,
         "cohortThresholds": cohort_thresholds(0.8, 0.25),
+        "thresholdProvenance": threshold_provenance(),
         "calibrationVersion": "calibration-v1",
         "acceptance": {
             "maxFalseAcceptRate": 0.0,
@@ -185,6 +194,14 @@ def test_benchmark_reports_genuine_and_impostor_metrics_without_embeddings() -> 
     assert len(report["artifactDigest"]) == 64
     assert "embedding" not in str(report).lower()
     assert "candidatePath" not in str(report)
+
+
+def test_thresholded_benchmark_requires_pinned_threshold_provenance() -> None:
+    value = spec()
+    value["thresholdProvenance"] = None
+
+    with pytest.raises(ValueError, match="thresholdProvenance"):
+        run_benchmark(value, FakeEngine([]), read_bytes=lambda path: path.encode())
 
 
 def test_benchmark_applies_the_strictest_measured_cohort_threshold() -> None:

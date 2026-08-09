@@ -39,7 +39,7 @@ def source_report() -> dict:
                 }
             )
     report = {
-        "schemaVersion": "mirava-face-identity-benchmark/v4",
+        "schemaVersion": "mirava-face-identity-benchmark/v5",
         "datasetVersion": "private-consented-calibration-v1",
         "datasetSplit": "calibration",
         "measurementContract": MEASUREMENT_CONTRACT,
@@ -59,6 +59,7 @@ def derive(report: dict) -> dict:
         expected_source_digest="sha256:" + report["artifactDigest"],
         max_false_accept_rate=0.0,
         max_false_reject_rate=0.0,
+        max_unscorable_rate=0.0,
         minimum_genuine_cases=1,
         minimum_impostor_cases=1,
     )
@@ -86,6 +87,17 @@ def test_derives_a_replayable_policy_from_an_unthresholded_calibration_report() 
 def test_refuses_a_thresholded_source_report() -> None:
     report = source_report()
     report["threshold"] = 0.8
+    report["artifactDigest"] = benchmark_artifact_digest(report)
+
+    with pytest.raises(ValueError, match="unthresholded"):
+        derive(report)
+
+
+def test_refuses_a_source_report_with_threshold_provenance() -> None:
+    report = source_report()
+    report["thresholdProvenance"] = {
+        "schemaVersion": "mirava-face-threshold-provenance/v1"
+    }
     report["artifactDigest"] = benchmark_artifact_digest(report)
 
     with pytest.raises(ValueError, match="unthresholded"):
@@ -123,6 +135,7 @@ def test_requires_a_digest_pinned_outside_the_source_report() -> None:
             expected_source_digest="sha256:" + "0" * 64,
             max_false_accept_rate=0.0,
             max_false_reject_rate=0.0,
+            max_unscorable_rate=0.0,
             minimum_genuine_cases=1,
             minimum_impostor_cases=1,
         )

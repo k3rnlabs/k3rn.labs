@@ -234,6 +234,10 @@ def load_and_verify_split_isolation_report(
         "cohortThresholdsDigest"
     ):
         raise RuntimeError("Calibration and test cohort threshold contracts differ")
+    if calibration_report.get("thresholdProvenance") != test_report.get(
+        "thresholdProvenance"
+    ):
+        raise RuntimeError("Calibration and test threshold provenance differs")
 
     expected_fields = {
         "subjectKeyScheme": calibration_report.get("subjectKeyScheme"),
