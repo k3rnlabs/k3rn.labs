@@ -4,7 +4,13 @@ from collections import deque
 
 import pytest
 
-from app.benchmark import BENCHMARK_SCHEMA, _canonical_json, run_benchmark
+from app.benchmark import (
+    BENCHMARK_SCHEMA,
+    CANONICAL_SCENARIO_COHORTS,
+    _canonical_json,
+    _partition_digest,
+    run_benchmark,
+)
 from app.engine import FaceObservation
 
 
@@ -44,7 +50,10 @@ def face(embedding: tuple[float, ...]) -> FaceObservation:
 def case(case_id: str, expected: bool) -> dict:
     return {
         "caseId": case_id,
-        "subjectKey": "subject-pseudonym",
+        "candidateSubjectKey": (
+            "subject-pseudonym" if expected else "impostor-pseudonym"
+        ),
+        "referenceSubjectKey": "subject-pseudonym",
         "expectedIdentityMatch": expected,
         "candidatePath": f"{case_id}-candidate",
         "referencePaths": ["front", "angle", "profile"],
@@ -64,10 +73,33 @@ def case(case_id: str, expected: bool) -> dict:
 
 
 def spec() -> dict:
+    coverage_axes = {
+        key: [value]
+        for key, value in case("coverage", True)["scenario"].items()
+    }
+    cases = [
+        case("genuine", True),
+        case("impostor", False),
+    ]
+    subjects = {
+        item[field]
+        for item in cases
+        for field in ("candidateSubjectKey", "referenceSubjectKey")
+    }
     return {
         "schemaVersion": BENCHMARK_SCHEMA,
         "datasetVersion": "private-dataset-v1",
+        "datasetSplit": "calibration",
+        "subjectKeyScheme": "hmac-sha256/v1",
+        "subjectKeyKeyId": "sha256:test-pseudonym-key-fingerprint",
+        "subjectPartitionDigest": "sha256:" + _partition_digest(subjects),
         "commit": "deadbeef",
+        "coverageContract": {
+            "profile": "diagnostic-custom-v1",
+            "minimumGenuineCasesPerValue": 1,
+            "minimumImpostorCasesPerValue": 1,
+            "axes": coverage_axes,
+        },
         "threshold": 0.8,
         "landmarkThreshold": 0.25,
         "calibrationVersion": "calibration-v1",
@@ -84,11 +116,18 @@ def spec() -> dict:
             "weightsDigest": "sha256:test",
             "preprocessingVersion": "test-v1",
         },
-        "cases": [
-            case("genuine", True),
-            case("impostor", False),
-        ],
+        "cases": cases,
     }
+
+
+def refresh_partition(value: dict) -> None:
+    value["subjectPartitionDigest"] = "sha256:" + _partition_digest(
+        {
+            item[field]
+            for item in value["cases"]
+            for field in ("candidateSubjectKey", "referenceSubjectKey")
+        }
+    )
 
 
 def test_benchmark_reports_genuine_and_impostor_metrics_without_embeddings() -> None:
@@ -112,7 +151,8 @@ def test_benchmark_reports_genuine_and_impostor_metrics_without_embeddings() -> 
 
     assert report["metrics"]["falseRejectRate"] == 0
     assert report["metrics"]["falseAcceptRate"] == 0
-    assert report["acceptanceStatus"] == "PASS"
+    assert report["acceptanceStatus"] == "FAIL"
+    assert report["coverage"]["status"] == "PASS"
     assert len(report["artifactDigest"]) == 64
     assert "embedding" not in str(report).lower()
     assert "candidatePath" not in str(report)
@@ -147,6 +187,7 @@ def test_benchmark_normalizes_integer_thresholds_for_runtime_replay() -> None:
 def test_benchmark_keeps_unscorable_rows_in_the_denominator() -> None:
     value = spec()
     value["cases"] = [case("missing-face", True)]
+    refresh_partition(value)
     report = run_benchmark(
         value,
         FakeEngine([[]]),
@@ -168,6 +209,7 @@ def test_benchmark_counts_unscorable_genuine_delivery_as_a_rejection() -> None:
         case("genuine-pass", True),
         case("genuine-unscorable", True),
     ]
+    refresh_partition(value)
     report = run_benchmark(
         value,
         FakeEngine(
@@ -216,6 +258,75 @@ def test_benchmark_requires_every_scenario_axis() -> None:
     del value["cases"][0]["scenario"]["light"]
 
     with pytest.raises(ValueError, match="every scenario axis"):
+        run_benchmark(value, FakeEngine([]))
+
+
+def test_benchmark_fails_when_a_declared_pose_cohort_is_missing() -> None:
+    value = spec()
+    value["coverageContract"]["axes"]["yaw"].append("profile")
+    report = run_benchmark(
+        value,
+        FakeEngine(
+            [
+                [face((1.0, 0.0))],
+                [face((1.0, 0.0))],
+                [face((0.9, 0.1))],
+                [face((0.8, 0.2))],
+                [face((0.0, 1.0))],
+                [face((1.0, 0.0))],
+                [face((0.9, 0.1))],
+                [face((0.8, 0.2))],
+            ]
+        ),
+        read_bytes=lambda path: path.encode("utf-8"),
+    )
+
+    assert report["coverage"]["status"] == "FAIL"
+    assert {"axis": "yaw", "value": "profile"} in report["coverage"]["missing"]
+    assert report["acceptanceStatus"] == "FAIL"
+
+
+def test_benchmark_rejects_an_incomplete_canonical_matrix() -> None:
+    value = spec()
+    value["coverageContract"]["profile"] = "canonical-v1"
+
+    with pytest.raises(ValueError, match="canonical cohorts are incomplete"):
+        run_benchmark(value, FakeEngine([]))
+
+
+def test_benchmark_rejects_values_outside_the_canonical_taxonomy() -> None:
+    value = spec()
+    value["coverageContract"] = {
+        "profile": "canonical-v1",
+        "minimumGenuineCasesPerValue": 1,
+        "minimumImpostorCasesPerValue": 1,
+        "axes": {
+            axis: list(values)
+            for axis, values in CANONICAL_SCENARIO_COHORTS.items()
+        },
+    }
+    value["cases"][0]["scenario"]["yaw"] = "invented-angle"
+
+    with pytest.raises(ValueError, match="outside canonical cohorts"):
+        run_benchmark(value, FakeEngine([]))
+
+
+def test_benchmark_rejects_a_forged_subject_partition_digest() -> None:
+    value = spec()
+    value["subjectPartitionDigest"] = "sha256:" + "0" * 64
+
+    with pytest.raises(ValueError, match="subjectPartitionDigest"):
+        run_benchmark(value, FakeEngine([]))
+
+
+def test_benchmark_rejects_an_impostor_label_for_the_same_subject() -> None:
+    value = spec()
+    value["cases"][1]["candidateSubjectKey"] = value["cases"][1][
+        "referenceSubjectKey"
+    ]
+    refresh_partition(value)
+
+    with pytest.raises(ValueError, match="identity label contradicts"):
         run_benchmark(value, FakeEngine([]))
 
 

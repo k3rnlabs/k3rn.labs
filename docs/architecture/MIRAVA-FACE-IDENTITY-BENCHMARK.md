@@ -101,6 +101,16 @@ genuine and impostor cohort sizes. The runner computes `acceptanceStatus`; the
 private gate re-verifies this report and cannot emit `PASS` when that status is
 `FAIL`.
 
+Schema v2 encodes the table above as the immutable `canonical-v1` coverage
+profile. Omitting a cohort or using an undeclared value invalidates calibration;
+a custom diagnostic profile can never receive an accepted PASS. Candidate and
+reference subjects use separate HMAC-derived pseudonyms so impostor pairs do
+not hide a second identity. Calibration/test isolation is verified with the
+same private HMAC key, whose non-secret SHA-256 key ID is recomputed by the
+trusted verifier rather than accepted from report metadata. The verifier also
+re-derives the complete expected pseudonym set from private per-split subject
+inventories and refuses missing, additional or differently keyed subjects.
+
 Minimum cohort sizes count only `SCORABLE` genuine and impostor rows. An
 unscorable genuine delivery remains a false reject; an unscorable impostor is
 excluded from the false-accept denominator and cannot satisfy the minimum

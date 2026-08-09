@@ -9,6 +9,11 @@ from fastapi.testclient import TestClient
 import pytest
 
 from app.calibration_report import benchmark_artifact_digest, canonical_json
+from app.benchmark import (
+    CANONICAL_SCENARIO_COHORTS,
+    _coverage_report,
+    _partition_digest,
+)
 from app.engine import FaceObservation
 from app.main import create_app
 
@@ -60,34 +65,50 @@ def configure(
         "weightsDigest": "sha256:test",
         "preprocessingVersion": "mirava-auraface-align-v1",
     }
-    scenario = {
-        "yaw": "frontal",
-        "pitch": "neutral",
-        "roll": "neutral",
-        "expression": "neutral",
-        "gaze": "camera",
-        "faceScale": "portrait",
-        "light": "soft",
-        "occlusion": "none",
-        "styling": "natural",
-        "context": "studio",
+    minimum_genuine = 6 if acceptance_status == "FAIL" else 1
+    coverage_contract = {
+        "profile": "canonical-v1",
+        "minimumGenuineCasesPerValue": 1,
+        "minimumImpostorCasesPerValue": 1,
+        "axes": {
+            axis: list(values)
+            for axis, values in CANONICAL_SCENARIO_COHORTS.items()
+        },
     }
-    minimum_genuine = 2 if acceptance_status == "FAIL" else 1
+    rows = []
+    for index in range(5):
+        scenario = {
+            axis: values[index % len(values)]
+            for axis, values in CANONICAL_SCENARIO_COHORTS.items()
+        }
+        for expected in (True, False):
+            score = 0.9 if expected else 0.1
+            rows.append({
+                "caseId": f"{'genuine' if expected else 'impostor'}-{index}",
+                "candidateSubjectKey": "subject-a" if expected else "subject-b",
+                "referenceSubjectKey": "subject-a",
+                "expectedIdentityMatch": expected,
+                "scenario": scenario,
+                "candidateContentSha256": ("a" if expected else "c") * 64,
+                "referenceContentSha256": [("b" if expected else "d") * 64] * 3,
+                "status": "SCORABLE",
+                "reasonCode": "MEASURED",
+                "aggregateSimilarity": score,
+                "perReferenceSimilarity": [score] * 3,
+                "landmarkResidual": 0.1,
+                "perReferenceLandmarkResidual": [0.1] * 3,
+                "decision": "PASS" if expected else "FAIL",
+            })
     report = {
-        "schemaVersion": "mirava-face-identity-benchmark/v1",
+        "schemaVersion": "mirava-face-identity-benchmark/v2",
         "datasetVersion": "private-test-v1",
+        "datasetSplit": "calibration",
+        "subjectKeyScheme": "hmac-sha256/v1",
+        "subjectKeyKeyId": "sha256:test-pseudonym-key-fingerprint",
+        "subjectPartitionDigest": "sha256:" + _partition_digest({"subject-a", "subject-b"}),
         "commit": "test-commit",
         "calibrationVersion": "calibration-v1",
-        "configurationDigest": hashlib.sha256(
-            canonical_json(
-                {
-                    "datasetVersion": "private-test-v1",
-                    "evaluator": evaluator,
-                    "threshold": 0.8,
-                    "landmarkThreshold": 0.25,
-                }
-            ).encode("utf-8")
-        ).hexdigest(),
+        "configurationDigest": "",
         "evaluator": evaluator,
         "threshold": 0.8,
         "landmarkThreshold": 0.25,
@@ -99,51 +120,38 @@ def configure(
             "minimumImpostorCases": 1,
         },
         "acceptanceStatus": acceptance_status,
-        "rows": [
-            {
-                "caseId": "genuine",
-                "subjectKey": "subject-a",
-                "expectedIdentityMatch": True,
-                "scenario": scenario,
-                "candidateContentSha256": "a" * 64,
-                "referenceContentSha256": ["b" * 64] * 3,
-                "status": "SCORABLE",
-                "reasonCode": "MEASURED",
-                "aggregateSimilarity": 0.9,
-                "perReferenceSimilarity": [0.9] * 3,
-                "landmarkResidual": 0.1,
-                "perReferenceLandmarkResidual": [0.1] * 3,
-                "decision": "PASS",
-            },
-            {
-                "caseId": "impostor",
-                "subjectKey": "subject-b",
-                "expectedIdentityMatch": False,
-                "scenario": scenario,
-                "candidateContentSha256": "c" * 64,
-                "referenceContentSha256": ["d" * 64] * 3,
-                "status": "SCORABLE",
-                "reasonCode": "MEASURED",
-                "aggregateSimilarity": 0.1,
-                "perReferenceSimilarity": [0.1] * 3,
-                "landmarkResidual": 0.1,
-                "perReferenceLandmarkResidual": [0.1] * 3,
-                "decision": "FAIL",
-            },
-        ],
+        "rows": rows,
         "metrics": {
-            "caseCount": 2,
-            "scorableCount": 2,
+            "caseCount": 10,
+            "scorableCount": 10,
             "unscorableCount": 0,
-            "genuineCount": 1,
-            "impostorCount": 1,
-            "scorableGenuineCount": 1,
-            "scorableImpostorCount": 1,
+            "genuineCount": 5,
+            "impostorCount": 5,
+            "scorableGenuineCount": 5,
+            "scorableImpostorCount": 5,
             "falseRejectRate": 0.0,
             "falseAcceptRate": 0.0,
             "unscorableRate": 0.0,
         },
     }
+    report["coverage"] = _coverage_report(
+        {"coverageContract": coverage_contract}, report["rows"]
+    )
+    report["configurationDigest"] = hashlib.sha256(
+        canonical_json(
+            {
+                "datasetVersion": report["datasetVersion"],
+                "datasetSplit": report["datasetSplit"],
+                "subjectKeyScheme": report["subjectKeyScheme"],
+                "subjectKeyKeyId": report["subjectKeyKeyId"],
+                "subjectPartitionDigest": report["subjectPartitionDigest"],
+                "coverageContract": coverage_contract,
+                "evaluator": evaluator,
+                "threshold": 0.8,
+                "landmarkThreshold": 0.25,
+            }
+        ).encode("utf-8")
+    ).hexdigest()
     report["artifactDigest"] = benchmark_artifact_digest(report)
     report_path = tmp_path / "calibration-report.json"
     report_path.write_text(json.dumps(report), encoding="utf-8")

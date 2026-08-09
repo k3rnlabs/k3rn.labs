@@ -7,19 +7,13 @@ from pathlib import Path
 from statistics import median
 from typing import Any
 
-
-BENCHMARK_SCHEMA = "mirava-face-identity-benchmark/v1"
-REQUIRED_SCENARIO_AXES = (
-    "yaw",
-    "pitch",
-    "roll",
-    "expression",
-    "gaze",
-    "faceScale",
-    "light",
-    "occlusion",
-    "styling",
-    "context",
+from .benchmark import (
+    BENCHMARK_SCHEMA,
+    CANONICAL_SCENARIO_COHORTS,
+    REQUIRED_SCENARIO_AXES,
+    _coverage_report,
+    _partition_digest,
+    _validate_coverage_contract,
 )
 
 
@@ -55,7 +49,7 @@ def _valid_rate(value: object) -> bool:
 
 def _recompute_metrics_and_status(
     report: dict[str, Any],
-) -> tuple[dict[str, int | float | None], str]:
+) -> tuple[dict[str, int | float | None], str, dict[str, Any]]:
     threshold = report["threshold"]
     landmark_threshold = report["landmarkThreshold"]
     rows = report.get("rows")
@@ -72,6 +66,15 @@ def _recompute_metrics_and_status(
         seen.add(case_id)
         if not isinstance(row.get("expectedIdentityMatch"), bool):
             raise RuntimeError("Calibration benchmark identity labels are invalid")
+        for subject_field in ("candidateSubjectKey", "referenceSubjectKey"):
+            if not isinstance(row.get(subject_field), str) or not row[
+                subject_field
+            ].strip():
+                raise RuntimeError("Calibration subject keys are invalid")
+        if (
+            row["candidateSubjectKey"] == row["referenceSubjectKey"]
+        ) != row["expectedIdentityMatch"]:
+            raise RuntimeError("Calibration identity label contradicts subject keys")
         if not _valid_sha256(row.get("candidateContentSha256")):
             raise RuntimeError("Calibration candidate digest is invalid")
         scenario = row.get("scenario")
@@ -176,6 +179,22 @@ def _recompute_metrics_and_status(
         "unscorableRate": unscorable_count / len(rows),
     }
 
+    try:
+        _validate_coverage_contract(report.get("coverage", {}).get("contract"))
+    except (AttributeError, ValueError) as exc:
+        raise RuntimeError("Calibration coverage contract is invalid") from exc
+    if report["coverage"]["contract"].get("profile") != "canonical-v1":
+        raise RuntimeError("Calibration requires the canonical coverage profile")
+    if any(
+        row["scenario"][axis] not in CANONICAL_SCENARIO_COHORTS[axis]
+        for row in rows
+        for axis in REQUIRED_SCENARIO_AXES
+    ):
+        raise RuntimeError("Calibration scenario value is outside canonical cohorts")
+    recomputed_coverage = _coverage_report(
+        {"coverageContract": report["coverage"]["contract"]}, rows
+    )
+
     acceptance = report.get("acceptance")
     if not isinstance(acceptance, dict):
         raise RuntimeError("Calibration acceptance contract is missing")
@@ -198,8 +217,9 @@ def _recompute_metrics_and_status(
         and false_accept_rate <= acceptance["maxFalseAcceptRate"]
         and false_reject_rate <= acceptance["maxFalseRejectRate"]
         and metrics["unscorableRate"] <= acceptance["maxUnscorableRate"]
+        and recomputed_coverage["status"] == "PASS"
     )
-    return metrics, "PASS" if accepted else "FAIL"
+    return metrics, "PASS" if accepted else "FAIL", recomputed_coverage
 
 
 def load_and_verify_calibration_report(
@@ -219,6 +239,16 @@ def load_and_verify_calibration_report(
         raise RuntimeError("Calibration benchmark report is missing or invalid") from exc
     if not isinstance(report, dict) or report.get("schemaVersion") != BENCHMARK_SCHEMA:
         raise RuntimeError("Calibration benchmark schema is invalid")
+    if report.get("datasetSplit") != "calibration":
+        raise RuntimeError("Calibration report must use the calibration split")
+    if not isinstance(report.get("subjectKeyScheme"), str) or not report[
+        "subjectKeyScheme"
+    ].strip():
+        raise RuntimeError("Calibration subject key scheme is missing")
+    if not isinstance(report.get("subjectKeyKeyId"), str) or not report[
+        "subjectKeyKeyId"
+    ].strip():
+        raise RuntimeError("Calibration subject key ID is missing")
 
     artifact_digest = report.get("artifactDigest")
     actual_digest = benchmark_artifact_digest(report)
@@ -251,8 +281,17 @@ def load_and_verify_calibration_report(
     ) != expected_landmark_threshold:
         raise RuntimeError("Calibration thresholds do not match runtime")
 
+    coverage = report.get("coverage")
+    if not isinstance(coverage, dict):
+        raise RuntimeError("Calibration coverage is missing")
+
     configuration = {
         "datasetVersion": report["datasetVersion"],
+        "datasetSplit": report["datasetSplit"],
+        "subjectKeyScheme": report["subjectKeyScheme"],
+        "subjectKeyKeyId": report["subjectKeyKeyId"],
+        "subjectPartitionDigest": report.get("subjectPartitionDigest"),
+        "coverageContract": coverage.get("contract"),
         "evaluator": evaluator,
         "threshold": expected_threshold,
         "landmarkThreshold": expected_landmark_threshold,
@@ -263,7 +302,19 @@ def load_and_verify_calibration_report(
     if report.get("configurationDigest") != expected_configuration_digest:
         raise RuntimeError("Calibration configuration digest does not match")
 
-    recomputed_metrics, status = _recompute_metrics_and_status(report)
+    expected_partition_digest = "sha256:" + _partition_digest(
+        {
+            row[subject_field]
+            for row in report.get("rows", [])
+            if isinstance(row, dict)
+            for subject_field in ("candidateSubjectKey", "referenceSubjectKey")
+            if isinstance(row.get(subject_field), str)
+        }
+    )
+    if report.get("subjectPartitionDigest") != expected_partition_digest:
+        raise RuntimeError("Calibration subject partition digest does not match rows")
+
+    recomputed_metrics, status, recomputed_coverage = _recompute_metrics_and_status(report)
     supplied_metrics = report.get("metrics")
     metrics_match = isinstance(supplied_metrics, dict) and all(
         key in supplied_metrics
@@ -284,6 +335,8 @@ def load_and_verify_calibration_report(
     )
     if not metrics_match:
         raise RuntimeError("Calibration metrics do not match rows")
+    if canonical_json(report.get("coverage")) != canonical_json(recomputed_coverage):
+        raise RuntimeError("Calibration coverage does not match rows")
     if report.get("acceptanceStatus") != status:
         raise RuntimeError("Calibration acceptance status does not match evidence")
 

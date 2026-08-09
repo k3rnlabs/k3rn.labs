@@ -2607,7 +2607,18 @@ export async function deleteIdentityProfile(userId: string): Promise<void> {
   const profile = await db.studioIdentityProfile.findUnique({ where: { userId } })
   if (!profile) return
   const assets = await db.studioIdentityAsset.findMany({ where: { identityProfileId: profile.id } }) as StudioIdentityAssetRecord[]
-  if (assets.length) await supabaseAdmin.storage.from(STUDIO_BUCKET).remove(assets.map((asset) => asset.storagePath))
+  if (assets.length) {
+    const { error } = await supabaseAdmin.storage
+      .from(STUDIO_BUCKET)
+      .remove(assets.map((asset) => asset.storagePath))
+    if (error) {
+      throw new StudioError(
+        "La suppression sécurisée du Profil identité n’a pas pu être confirmée.",
+        "IDENTITY_DELETION_STORAGE_ERROR",
+        true,
+      )
+    }
+  }
   await db.studioIdentityProfile.delete({ where: { id: profile.id, userId } })
 }
 

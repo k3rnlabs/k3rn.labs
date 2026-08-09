@@ -105,5 +105,26 @@ describe(
         )
       },
     )
+
+    it(
+      "fails closed before deleting database evidence when identity storage removal fails",
+      () => {
+        const deletion = core.indexOf(
+          "export async function deleteIdentityProfile(",
+        )
+        const nextFunction = core.indexOf(
+          "export async function uploadStudioAsset(",
+          deletion,
+        )
+        const body = core.slice(deletion, nextFunction)
+        const storageRemoval = body.indexOf(".remove(")
+        const storageFailure = body.indexOf('"IDENTITY_DELETION_STORAGE_ERROR"')
+        const databaseDeletion = body.indexOf("studioIdentityProfile.delete(")
+
+        expect(storageRemoval).toBeGreaterThan(-1)
+        expect(storageFailure).toBeGreaterThan(storageRemoval)
+        expect(databaseDeletion).toBeGreaterThan(storageFailure)
+      },
+    )
   },
 )

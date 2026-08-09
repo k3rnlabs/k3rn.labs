@@ -95,3 +95,36 @@ including rows expected to be unscorable. `threshold` may be `null` for raw
 measurement; a thresholded acceptance report must use a separately calibrated,
 versioned threshold and a complete `acceptance` object. Both the input manifest
 and output report are private biometric evidence and must not be committed.
+
+Schema v2 also requires the canonical v1 coverage contract. A thresholded run
+cannot PASS unless every cohort documented in the architecture matrix has the
+configured minimum number of scorable genuine and impostor cases. Custom
+diagnostic matrices always produce a non-accepted report.
+
+Use stable HMAC-derived pseudonyms for `candidateSubjectKey` and
+`referenceSubjectKey` (never names, emails or user IDs). Genuine rows require
+the same key; impostor rows require different keys. `subjectPartitionDigest` is
+the SHA-256 of the canonical sorted union of both key fields. Calibration and
+final test populations must be disjoint and use the same pseudonym scheme.
+`subjectKeyKeyId` must be a non-secret identifier or fingerprint of the HMAC
+key; both splits must use the same value so a changed secret cannot hide a
+shared person. Verify this before accepting production thresholds:
+
+```bash
+export MIRAVA_BENCHMARK_PSEUDONYM_KEY='<private high-entropy key>'
+.venv/bin/python -m app.split_isolation \
+  --calibration benchmark-calibration.private.json \
+  --test benchmark-test.private.json \
+  --calibration-subjects subjects-calibration.private.json \
+  --test-subjects subjects-test.private.json \
+  --output split-isolation.private.json
+```
+
+Each private subject inventory has the shape
+`{"datasetSplit":"calibration|test","subjectIds":["private-stable-id"]}`.
+The verifier derives every expected pseudonym itself with the supplied HMAC key,
+requires an exact match with each report, and checks both raw and pseudonymous
+partitions for overlap. The isolation evidence contains only counts and
+digests, not source IDs or subject keys. Keep all inventories, manifests and
+reports in private evidence storage; do not commit biometric dataset paths or
+pseudonymous row-level evidence.

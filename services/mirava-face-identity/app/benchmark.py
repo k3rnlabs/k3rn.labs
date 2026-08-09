@@ -16,7 +16,7 @@ from .engine import (
 )
 
 
-BENCHMARK_SCHEMA = "mirava-face-identity-benchmark/v1"
+BENCHMARK_SCHEMA = "mirava-face-identity-benchmark/v2"
 REQUIRED_SCENARIO_AXES = (
     "yaw",
     "pitch",
@@ -29,6 +29,18 @@ REQUIRED_SCENARIO_AXES = (
     "styling",
     "context",
 )
+CANONICAL_SCENARIO_COHORTS = {
+    "yaw": ("frontal", "three-quarter-left", "three-quarter-right", "profile-left", "profile-right"),
+    "pitch": ("down", "neutral", "up"),
+    "roll": ("neutral", "tilted-left", "tilted-right"),
+    "expression": ("neutral", "closed-mouth-smile", "open-smile", "serious", "surprised"),
+    "gaze": ("camera", "left", "right", "up", "down"),
+    "faceScale": ("close-portrait", "half-body", "full-body"),
+    "light": ("soft-frontal", "side-light", "hard-light", "low-light", "warm-cool-mixed"),
+    "occlusion": ("none", "hair-partial", "glasses", "hand-near-face"),
+    "styling": ("natural", "makeup", "wet-look", "hairstyle-change"),
+    "context": ("studio", "interior", "exterior", "night", "campaign-reference-transfer"),
+}
 
 
 def _canonical_json(value: Any) -> str:
@@ -45,6 +57,39 @@ def _digest(value: bytes | str) -> str:
     return sha256(payload).hexdigest()
 
 
+def _partition_digest(subject_keys: set[str]) -> str:
+    return _digest(_canonical_json(sorted(subject_keys)))
+
+
+def _validate_coverage_contract(value: object) -> None:
+    if not isinstance(value, dict):
+        raise ValueError("coverageContract is required")
+    for key in ("minimumGenuineCasesPerValue", "minimumImpostorCasesPerValue"):
+        minimum = value.get(key)
+        if not isinstance(minimum, int) or isinstance(minimum, bool) or minimum <= 0:
+            raise ValueError(f"coverageContract.{key} must be a positive integer")
+    axes = value.get("axes")
+    if not isinstance(axes, dict) or set(axes) != set(REQUIRED_SCENARIO_AXES):
+        raise ValueError("coverageContract.axes must declare every scenario axis")
+    for axis in REQUIRED_SCENARIO_AXES:
+        required_values = axes[axis]
+        if (
+            not isinstance(required_values, list)
+            or not required_values
+            or not all(isinstance(item, str) and item.strip() for item in required_values)
+            or len(set(required_values)) != len(required_values)
+        ):
+            raise ValueError(f"coverageContract.axes.{axis} is invalid")
+    profile = value.get("profile")
+    if profile not in ("canonical-v1", "diagnostic-custom-v1"):
+        raise ValueError("coverageContract.profile is invalid")
+    if profile == "canonical-v1" and any(
+        set(axes[axis]) != set(CANONICAL_SCENARIO_COHORTS[axis])
+        for axis in REQUIRED_SCENARIO_AXES
+    ):
+        raise ValueError("coverageContract canonical cohorts are incomplete")
+
+
 def _validate_spec(spec: dict[str, Any]) -> None:
     if spec.get("schemaVersion") != BENCHMARK_SCHEMA:
         raise ValueError("Unsupported MIRAVA benchmark schema")
@@ -54,6 +99,17 @@ def _validate_spec(spec: dict[str, Any]) -> None:
         raise ValueError("datasetVersion is required")
     if not isinstance(spec.get("commit"), str) or not spec["commit"].strip():
         raise ValueError("commit is required")
+    if spec.get("datasetSplit") not in ("calibration", "test"):
+        raise ValueError("datasetSplit must be calibration or test")
+    if not isinstance(spec.get("subjectKeyScheme"), str) or not spec[
+        "subjectKeyScheme"
+    ].strip():
+        raise ValueError("subjectKeyScheme is required")
+    if not isinstance(spec.get("subjectKeyKeyId"), str) or not spec[
+        "subjectKeyKeyId"
+    ].strip():
+        raise ValueError("subjectKeyKeyId is required")
+    _validate_coverage_contract(spec.get("coverageContract"))
 
     evaluator = spec.get("evaluator")
     if not isinstance(evaluator, dict):
@@ -122,12 +178,16 @@ def _validate_spec(spec: dict[str, Any]) -> None:
         if not case_id or case_id in seen:
             raise ValueError("caseId must be present and unique")
         seen.add(case_id)
-        if not isinstance(case.get("subjectKey"), str) or not case[
-            "subjectKey"
-        ].strip():
-            raise ValueError(f"{case_id}: subjectKey is required")
+        for subject_field in ("candidateSubjectKey", "referenceSubjectKey"):
+            if not isinstance(case.get(subject_field), str) or not case[
+                subject_field
+            ].strip():
+                raise ValueError(f"{case_id}: {subject_field} is required")
         if not isinstance(case.get("expectedIdentityMatch"), bool):
             raise ValueError(f"{case_id}: expectedIdentityMatch is required")
+        same_subject = case["candidateSubjectKey"] == case["referenceSubjectKey"]
+        if same_subject != case["expectedIdentityMatch"]:
+            raise ValueError(f"{case_id}: identity label contradicts subject keys")
         if not isinstance(case.get("candidatePath"), str) or not case[
             "candidatePath"
         ].strip():
@@ -145,6 +205,57 @@ def _validate_spec(spec: dict[str, Any]) -> None:
             for axis in REQUIRED_SCENARIO_AXES
         ):
             raise ValueError(f"{case_id}: every scenario axis is required")
+        if spec["coverageContract"]["profile"] == "canonical-v1" and any(
+            scenario[axis] not in CANONICAL_SCENARIO_COHORTS[axis]
+            for axis in REQUIRED_SCENARIO_AXES
+        ):
+            raise ValueError(f"{case_id}: scenario value is outside canonical cohorts")
+
+    actual_partition_digest = _partition_digest(
+        {
+            subject_key
+            for case in cases
+            for subject_key in (
+                case["candidateSubjectKey"],
+                case["referenceSubjectKey"],
+            )
+        }
+    )
+    if spec.get("subjectPartitionDigest") != f"sha256:{actual_partition_digest}":
+        raise ValueError("subjectPartitionDigest does not match subjectKey evidence")
+
+
+def _coverage_report(spec: dict[str, Any], rows: list[dict[str, Any]]) -> dict[str, Any]:
+    contract = spec["coverageContract"]
+    axes: dict[str, dict[str, dict[str, int | str]]] = {}
+    missing: list[dict[str, str]] = []
+    for axis in REQUIRED_SCENARIO_AXES:
+        axis_report: dict[str, dict[str, int | str]] = {}
+        for value in contract["axes"][axis]:
+            matching = [row for row in rows if row["scenario"][axis] == value]
+            genuine = [row for row in matching if row["expectedIdentityMatch"]]
+            impostor = [row for row in matching if not row["expectedIdentityMatch"]]
+            counts: dict[str, int | str] = {
+                "genuineCount": len(genuine),
+                "scorableGenuineCount": sum(row["status"] == "SCORABLE" for row in genuine),
+                "impostorCount": len(impostor),
+                "scorableImpostorCount": sum(row["status"] == "SCORABLE" for row in impostor),
+            }
+            covered = (
+                counts["scorableGenuineCount"] >= contract["minimumGenuineCasesPerValue"]
+                and counts["scorableImpostorCount"] >= contract["minimumImpostorCasesPerValue"]
+            )
+            counts["status"] = "PASS" if covered else "FAIL"
+            axis_report[value] = counts
+            if not covered:
+                missing.append({"axis": axis, "value": value})
+        axes[axis] = axis_report
+    return {
+        "contract": contract,
+        "status": "PASS" if not missing else "FAIL",
+        "missing": missing,
+        "axes": axes,
+    }
 
 
 def run_benchmark(
@@ -170,7 +281,8 @@ def run_benchmark(
         candidate_faces = engine.observe(candidate_bytes)
         base = {
             "caseId": case["caseId"],
-            "subjectKey": case["subjectKey"],
+            "candidateSubjectKey": case["candidateSubjectKey"],
+            "referenceSubjectKey": case["referenceSubjectKey"],
             "expectedIdentityMatch": case["expectedIdentityMatch"],
             "scenario": case["scenario"],
             "candidateContentSha256": _digest(candidate_bytes),
@@ -298,6 +410,7 @@ def run_benchmark(
         else 1.0
     )
     metrics["unscorableRate"] = unscorable_rate
+    coverage = _coverage_report(spec, rows)
     acceptance = spec.get("acceptance")
     acceptance_status = (
         "PASS"
@@ -307,17 +420,28 @@ def run_benchmark(
         and metrics["falseAcceptRate"] <= acceptance["maxFalseAcceptRate"]
         and metrics["falseRejectRate"] <= acceptance["maxFalseRejectRate"]
         and unscorable_rate <= acceptance["maxUnscorableRate"]
+        and coverage["status"] == "PASS"
+        and spec["coverageContract"]["profile"] == "canonical-v1"
         else "FAIL"
     )
     report = {
         "schemaVersion": BENCHMARK_SCHEMA,
         "datasetVersion": spec["datasetVersion"],
+        "datasetSplit": spec["datasetSplit"],
+        "subjectKeyScheme": spec["subjectKeyScheme"],
+        "subjectKeyKeyId": spec["subjectKeyKeyId"],
+        "subjectPartitionDigest": spec["subjectPartitionDigest"],
         "commit": spec["commit"],
         "calibrationVersion": spec.get("calibrationVersion"),
         "configurationDigest": _digest(
             _canonical_json(
                 {
                     "datasetVersion": spec["datasetVersion"],
+                    "datasetSplit": spec["datasetSplit"],
+                    "subjectKeyScheme": spec["subjectKeyScheme"],
+                    "subjectKeyKeyId": spec["subjectKeyKeyId"],
+                    "subjectPartitionDigest": spec["subjectPartitionDigest"],
+                    "coverageContract": spec["coverageContract"],
                     "evaluator": spec["evaluator"],
                     "threshold": threshold,
                     "landmarkThreshold": landmark_threshold,
@@ -331,6 +455,7 @@ def run_benchmark(
         "acceptanceStatus": acceptance_status,
         "rows": rows,
         "metrics": metrics,
+        "coverage": coverage,
     }
     report["artifactDigest"] = _digest(_canonical_json(report))
     return report
