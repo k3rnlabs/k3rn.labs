@@ -6934,6 +6934,63 @@ async function generateStudioImage(
             requestId,
           })
 
+        const {
+          error:
+            evidenceError,
+        } =
+          await supabaseAdmin
+            .from(
+              "StudioIdentityEvaluation",
+            )
+            .insert({
+              id:
+                requestId,
+              creationId:
+                creation.id,
+              identityProfileId,
+              userId:
+                creation.userId,
+              frameIndex,
+              stage,
+              decision:
+                result.decision,
+              reasonCode:
+                result.reasonCode,
+              aggregateSimilarity:
+                result.aggregateSimilarity,
+              threshold:
+                result.threshold,
+              perReferenceSimilarity:
+                result.perReferenceSimilarity,
+              evaluator:
+                result.evaluator,
+              candidateFace:
+                result.candidateFace,
+              identityManifestVersion:
+                identityManifest.versionHash,
+            })
+
+        if (evidenceError) {
+          console.error(
+            "[mirava-face-identity-evidence-storage-error]",
+            JSON.stringify({
+              creationId:
+                creation.id,
+              frameIndex,
+              stage,
+              requestId,
+            }),
+          )
+
+          if (gateMode === "required") {
+            throw new StudioError(
+              "La preuve privée de fidélité du visage n’a pas pu être enregistrée.",
+              "IDENTITY_EVIDENCE_STORAGE_ERROR",
+              true,
+            )
+          }
+        }
+
         console.info(
           "[mirava-face-identity-gate-result]",
           JSON.stringify({

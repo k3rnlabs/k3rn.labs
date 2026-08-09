@@ -78,6 +78,7 @@ const RELATIONS: Record<
     studioSessions: { table: "StudioSession", fk: "userId", type: "hasMany" },
     studioProfiles: { table: "StudioProfile", fk: "userId", type: "hasMany" },
     studioIdentityProfile: { table: "StudioIdentityProfile", fk: "userId", type: "hasOne" },
+    studioIdentityEvaluations: { table: "StudioIdentityEvaluation", fk: "userId", type: "hasMany" },
   },
   StudioCreation: {
     user: { table: "User", fk: "userId", selfFk: "userId", type: "belongsTo" },
@@ -88,6 +89,7 @@ const RELATIONS: Record<
     assets: { table: "StudioAsset", fk: "creationId", type: "hasMany" },
     jobs: { table: "StudioJob", fk: "creationId", type: "hasMany" },
     consent: { table: "StudioConsent", fk: "creationId", type: "hasOne" },
+    identityEvaluations: { table: "StudioIdentityEvaluation", fk: "creationId", type: "hasMany" },
   },
   StudioSession: {
     user: { table: "User", fk: "userId", selfFk: "userId", type: "belongsTo" },
@@ -108,6 +110,7 @@ const RELATIONS: Record<
   StudioIdentityProfile: {
     assets: { table: "StudioIdentityAsset", fk: "identityProfileId", type: "hasMany" },
     manifests: { table: "StudioIdentityManifest", fk: "identityProfileId", type: "hasMany" },
+    evaluations: { table: "StudioIdentityEvaluation", fk: "identityProfileId", type: "hasMany" },
     creations: { table: "StudioCreation", fk: "identityProfileId", type: "hasMany" },
   },
   Mission: {
@@ -437,6 +440,7 @@ class DbClient {
   studioIdentityProfile = new DbModel("StudioIdentityProfile")
   studioIdentityAsset = new DbModel("StudioIdentityAsset")
   studioIdentityManifest = new DbModel("StudioIdentityManifest")
+  studioIdentityEvaluation = new DbModel("StudioIdentityEvaluation")
 
   // Raw text search via Supabase textSearch (uses GIN index)
   async cardFullTextSearch(args: {

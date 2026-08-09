@@ -261,6 +261,7 @@ model User {
   studioIdentityProfile StudioIdentityProfile?
   studioIdentityAssets StudioIdentityAsset[]
   studioIdentityManifests StudioIdentityManifest[]
+  studioIdentityEvaluations StudioIdentityEvaluation[]
   studioConsentEvents StudioConsentEvent[]
   studioSessions       StudioSession[]
 }
@@ -845,6 +846,7 @@ model StudioCreation {
   studioProfile StudioProfile? @relation("StudioProfileCreations", fields: [studioProfileId], references: [id], onDelete: SetNull)
   sourceStudioProfile StudioProfile? @relation("StudioProfileSource")
   identityProfile StudioIdentityProfile? @relation(fields: [identityProfileId], references: [id], onDelete: SetNull)
+  identityEvaluations StudioIdentityEvaluation[]
   session StudioSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
   parentCreation StudioCreation? @relation("StudioCreationLineage", fields: [parentCreationId], references: [id], onDelete: SetNull)
   childCreations StudioCreation[] @relation("StudioCreationLineage")
@@ -891,6 +893,7 @@ model StudioIdentityProfile {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   assets StudioIdentityAsset[]
   manifests StudioIdentityManifest[]
+  evaluations StudioIdentityEvaluation[]
   creations StudioCreation[]
 }
 
@@ -907,6 +910,32 @@ model StudioIdentityManifest {
   user    User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([identityProfileId, versionHash])
+  @@index([userId, createdAt])
+}
+
+model StudioIdentityEvaluation {
+  id                     String   @id
+  creationId             String
+  identityProfileId      String
+  userId                  String
+  frameIndex              Int
+  stage                   String
+  decision                String
+  reasonCode              String
+  aggregateSimilarity     Float?
+  threshold               Float?
+  perReferenceSimilarity  Json
+  evaluator               Json
+  candidateFace           Json
+  identityManifestVersion String
+  createdAt                DateTime @default(now())
+
+  creation StudioCreation        @relation(fields: [creationId], references: [id], onDelete: Cascade)
+  profile  StudioIdentityProfile @relation(fields: [identityProfileId], references: [id], onDelete: Cascade)
+  user     User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([creationId, frameIndex, stage])
+  @@index([identityProfileId, createdAt])
   @@index([userId, createdAt])
 }
 
