@@ -8,6 +8,7 @@ import pytest
 from app.calibration_report import (
     benchmark_artifact_digest,
     canonical_json,
+    load_and_verify_benchmark_report,
     load_and_verify_calibration_report,
 )
 import hashlib
@@ -143,6 +144,46 @@ def test_verifies_replayable_calibration_report(tmp_path: Path) -> None:
         "calibrationDigest": "sha256:" + report["artifactDigest"],
         "calibrationStatus": "PASS",
     }
+
+
+def test_verifies_a_held_out_test_report_with_the_same_runtime_contract(
+    tmp_path: Path,
+) -> None:
+    report = _report()
+    report["datasetSplit"] = "test"
+    report["datasetVersion"] = "private-held-out-v1"
+    report["configurationDigest"] = hashlib.sha256(
+        canonical_json(
+            {
+                "datasetVersion": report["datasetVersion"],
+                "datasetSplit": report["datasetSplit"],
+                "subjectKeyScheme": report["subjectKeyScheme"],
+                "subjectKeyKeyId": report["subjectKeyKeyId"],
+                "subjectPartitionDigest": report["subjectPartitionDigest"],
+                "coverageContract": report["coverage"]["contract"],
+                "evaluator": report["evaluator"],
+                "threshold": 0.8,
+                "landmarkThreshold": 0.2,
+            }
+        ).encode("utf-8")
+    ).hexdigest()
+    report["artifactDigest"] = benchmark_artifact_digest(report)
+
+    result = load_and_verify_benchmark_report(
+        _write(tmp_path, report),
+        expected_split="test",
+        expected_digest="sha256:" + report["artifactDigest"],
+        expected_model_name="auraface",
+        expected_model_version="model-v1",
+        expected_model_digest="sha256:model",
+        expected_preprocessing_version="align-v1",
+        expected_threshold=0.8,
+        expected_landmark_threshold=0.2,
+    )
+
+    assert result["datasetSplit"] == "test"
+    assert result["datasetVersion"] == "private-held-out-v1"
+    assert result["status"] == "PASS"
 
 
 def test_rejects_tampered_calibration_report(tmp_path: Path) -> None:

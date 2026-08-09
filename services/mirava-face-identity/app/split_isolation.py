@@ -13,6 +13,7 @@ from .calibration_report import benchmark_artifact_digest
 
 
 SUBJECT_KEY_SCHEME = "hmac-sha256/v1"
+SPLIT_ISOLATION_SCHEMA = "mirava-face-identity-split-isolation/v1"
 
 
 def _hmac_key_id(pseudonym_key: bytes) -> str:
@@ -85,6 +86,12 @@ def _verified_report(value: object, expected_split: str) -> dict[str, Any]:
     return value
 
 
+def split_isolation_artifact_digest(evidence: dict[str, Any]) -> str:
+    content = dict(evidence)
+    content.pop("artifactDigest", None)
+    return hashlib.sha256(_canonical_json(content).encode("utf-8")).hexdigest()
+
+
 def verify_split_isolation(
     calibration: object,
     test: object,
@@ -141,7 +148,7 @@ def verify_split_isolation(
         raise ValueError("Calibration and test subject partitions overlap")
 
     evidence = {
-        "schemaVersion": "mirava-face-identity-split-isolation/v1",
+        "schemaVersion": SPLIT_ISOLATION_SCHEMA,
         "subjectKeyScheme": calibration_report["subjectKeyScheme"],
         "subjectKeyKeyId": calibration_report["subjectKeyKeyId"],
         "calibrationArtifactDigest": "sha256:" + calibration_report["artifactDigest"],
@@ -152,10 +159,92 @@ def verify_split_isolation(
         "testSubjectCount": len(test_subjects),
         "status": "PASS",
     }
-    evidence["artifactDigest"] = hashlib.sha256(
-        _canonical_json(evidence).encode("utf-8")
-    ).hexdigest()
+    evidence["artifactDigest"] = split_isolation_artifact_digest(evidence)
     return evidence
+
+
+def load_and_verify_split_isolation_report(
+    path: Path,
+    *,
+    expected_digest: str,
+    calibration_report: dict[str, Any],
+    test_report: dict[str, Any],
+) -> dict[str, str]:
+    try:
+        evidence = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError("Split isolation evidence is missing or invalid") from exc
+    if (
+        not isinstance(evidence, dict)
+        or evidence.get("schemaVersion") != SPLIT_ISOLATION_SCHEMA
+    ):
+        raise RuntimeError("Split isolation evidence schema is invalid")
+    actual_digest = split_isolation_artifact_digest(evidence)
+    if evidence.get("artifactDigest") != actual_digest:
+        raise RuntimeError("Split isolation artifact digest does not match")
+    if expected_digest != f"sha256:{actual_digest}":
+        raise RuntimeError("Configured split isolation digest does not match evidence")
+    if evidence.get("status") != "PASS":
+        raise RuntimeError("Split isolation evidence is not accepted")
+
+    if calibration_report.get("datasetSplit") != "calibration":
+        raise RuntimeError("Verified calibration metadata is invalid")
+    if test_report.get("datasetSplit") != "test":
+        raise RuntimeError("Verified test metadata is invalid")
+    if calibration_report.get("status") != "PASS":
+        raise RuntimeError("Calibration benchmark is not accepted")
+    if test_report.get("status") != "PASS":
+        raise RuntimeError("Held-out test benchmark is not accepted")
+    if calibration_report.get("commit") != test_report.get("commit"):
+        raise RuntimeError("Calibration and test benchmark commits differ")
+    if (
+        calibration_report.get("subjectKeyScheme") != SUBJECT_KEY_SCHEME
+        or test_report.get("subjectKeyScheme") != SUBJECT_KEY_SCHEME
+    ):
+        raise RuntimeError("Benchmark subject key scheme is not supported")
+    if calibration_report.get("subjectKeyKeyId") != test_report.get(
+        "subjectKeyKeyId"
+    ):
+        raise RuntimeError("Calibration and test subject HMAC key IDs differ")
+    calibration_subjects = calibration_report.get("subjectKeys")
+    test_subjects = test_report.get("subjectKeys")
+    if not isinstance(calibration_subjects, frozenset) or not isinstance(
+        test_subjects, frozenset
+    ):
+        raise RuntimeError("Verified benchmark subject evidence is invalid")
+    if calibration_subjects & test_subjects:
+        raise RuntimeError("Calibration and test subject partitions overlap")
+    if calibration_report.get("calibrationVersion") != test_report.get(
+        "calibrationVersion"
+    ):
+        raise RuntimeError("Calibration and test threshold versions differ")
+    if calibration_report.get("acceptanceContractDigest") != test_report.get(
+        "acceptanceContractDigest"
+    ):
+        raise RuntimeError("Calibration and test acceptance contracts differ")
+    if calibration_report.get("coverageContractDigest") != test_report.get(
+        "coverageContractDigest"
+    ):
+        raise RuntimeError("Calibration and test coverage contracts differ")
+
+    expected_fields = {
+        "subjectKeyScheme": calibration_report.get("subjectKeyScheme"),
+        "subjectKeyKeyId": calibration_report.get("subjectKeyKeyId"),
+        "calibrationArtifactDigest": calibration_report.get("artifactDigest"),
+        "testArtifactDigest": test_report.get("artifactDigest"),
+        "calibrationPartitionDigest": calibration_report.get(
+            "subjectPartitionDigest"
+        ),
+        "testPartitionDigest": test_report.get("subjectPartitionDigest"),
+        "calibrationSubjectCount": calibration_report.get("subjectCount"),
+        "testSubjectCount": test_report.get("subjectCount"),
+    }
+    if any(evidence.get(key) != value for key, value in expected_fields.items()):
+        raise RuntimeError("Split isolation evidence does not match benchmark reports")
+    return {
+        "splitIsolationDigest": expected_digest,
+        "splitIsolationStatus": "PASS",
+    }
 
 
 def main() -> None:

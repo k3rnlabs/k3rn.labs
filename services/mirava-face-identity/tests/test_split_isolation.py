@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import json
+from pathlib import Path
 
 import pytest
 
 from app.benchmark import _canonical_json, _partition_digest
 from app.calibration_report import benchmark_artifact_digest
-from app.split_isolation import _hmac_key_id, _subject_key, verify_split_isolation
+from app.split_isolation import (
+    _hmac_key_id,
+    _subject_key,
+    load_and_verify_split_isolation_report,
+    verify_split_isolation,
+)
 
 
 PSEUDONYM_KEY = b"mirava-test-pseudonym-key-32-bytes-minimum"
@@ -34,6 +41,29 @@ def report(split: str, subject_ids: list[str]) -> dict:
     }
     value["artifactDigest"] = benchmark_artifact_digest(value)
     return value
+
+
+def verified_metadata(value: dict) -> dict:
+    subject_keys = {
+        row[field]
+        for row in value["rows"]
+        for field in ("candidateSubjectKey", "referenceSubjectKey")
+    }
+    return {
+        "datasetSplit": value["datasetSplit"],
+        "datasetVersion": f"private-{value['datasetSplit']}-v1",
+        "commit": "test-commit",
+        "calibrationVersion": "calibration-v1",
+        "artifactDigest": "sha256:" + value["artifactDigest"],
+        "status": "PASS",
+        "subjectKeyScheme": value["subjectKeyScheme"],
+        "subjectKeyKeyId": value["subjectKeyKeyId"],
+        "subjectPartitionDigest": value["subjectPartitionDigest"],
+        "subjectCount": len(subject_keys),
+        "subjectKeys": frozenset(subject_keys),
+        "acceptanceContractDigest": "sha256:" + "a" * 64,
+        "coverageContractDigest": "sha256:" + "b" * 64,
+    }
 
 
 def test_emits_digest_only_evidence_for_disjoint_subjects() -> None:
@@ -147,4 +177,80 @@ def test_rejects_arbitrary_subject_keys_not_derived_from_private_inventory() -> 
             pseudonym_key=PSEUDONYM_KEY,
             calibration_subject_inventory=inventory("calibration", ["subject-a"]),
             test_subject_inventory=inventory("test", ["subject-c"]),
+        )
+
+
+def test_runtime_verifies_isolation_evidence_against_both_reports(
+    tmp_path: Path,
+) -> None:
+    calibration = report("calibration", ["subject-a"])
+    test = report("test", ["subject-c"])
+    evidence = verify_split_isolation(
+        calibration,
+        test,
+        pseudonym_key=PSEUDONYM_KEY,
+        calibration_subject_inventory=inventory("calibration", ["subject-a"]),
+        test_subject_inventory=inventory("test", ["subject-c"]),
+    )
+    path = tmp_path / "split-isolation.json"
+    path.write_text(json.dumps(evidence), encoding="utf-8")
+
+    result = load_and_verify_split_isolation_report(
+        path,
+        expected_digest="sha256:" + evidence["artifactDigest"],
+        calibration_report=verified_metadata(calibration),
+        test_report=verified_metadata(test),
+    )
+
+    assert result["splitIsolationStatus"] == "PASS"
+
+
+def test_runtime_rejects_different_acceptance_contracts(tmp_path: Path) -> None:
+    calibration = report("calibration", ["subject-a"])
+    test = report("test", ["subject-c"])
+    evidence = verify_split_isolation(
+        calibration,
+        test,
+        pseudonym_key=PSEUDONYM_KEY,
+        calibration_subject_inventory=inventory("calibration", ["subject-a"]),
+        test_subject_inventory=inventory("test", ["subject-c"]),
+    )
+    path = tmp_path / "split-isolation.json"
+    path.write_text(json.dumps(evidence), encoding="utf-8")
+    test_metadata = verified_metadata(test)
+    test_metadata["acceptanceContractDigest"] = "sha256:" + "c" * 64
+
+    with pytest.raises(RuntimeError, match="acceptance contracts differ"):
+        load_and_verify_split_isolation_report(
+            path,
+            expected_digest="sha256:" + evidence["artifactDigest"],
+            calibration_report=verified_metadata(calibration),
+            test_report=test_metadata,
+        )
+
+
+def test_runtime_replays_subject_overlap_instead_of_trusting_pass_status(
+    tmp_path: Path,
+) -> None:
+    calibration = report("calibration", ["subject-a"])
+    test = report("test", ["subject-c"])
+    evidence = verify_split_isolation(
+        calibration,
+        test,
+        pseudonym_key=PSEUDONYM_KEY,
+        calibration_subject_inventory=inventory("calibration", ["subject-a"]),
+        test_subject_inventory=inventory("test", ["subject-c"]),
+    )
+    path = tmp_path / "split-isolation.json"
+    path.write_text(json.dumps(evidence), encoding="utf-8")
+    calibration_metadata = verified_metadata(calibration)
+    test_metadata = verified_metadata(test)
+    test_metadata["subjectKeys"] = calibration_metadata["subjectKeys"]
+
+    with pytest.raises(RuntimeError, match="subject partitions overlap"):
+        load_and_verify_split_isolation_report(
+            path,
+            expected_digest="sha256:" + evidence["artifactDigest"],
+            calibration_report=calibration_metadata,
+            test_report=test_metadata,
         )

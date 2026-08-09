@@ -1,5 +1,5 @@
 const MIRAVA_FACE_IDENTITY_GATE_SCHEMA =
-  "mirava-face-identity-gate/v3" as const
+  "mirava-face-identity-gate/v4" as const
 
 const DEFAULT_FACE_IDENTITY_GATE_TIMEOUT_MS =
   30_000
@@ -36,6 +36,15 @@ export type MiravaFaceIdentityGateResult = {
     calibrationVersion: string
     calibrationDigest: string
     calibrationStatus:
+      | "PASS"
+      | "FAIL"
+    testDatasetVersion: string
+    testDigest: string
+    testStatus:
+      | "PASS"
+      | "FAIL"
+    splitIsolationDigest: string
+    splitIsolationStatus:
       | "PASS"
       | "FAIL"
   }
@@ -372,6 +381,7 @@ function parseGateResult(
       evaluator.version,
       evaluator.preprocessingVersion,
       evaluator.calibrationVersion,
+      evaluator.testDatasetVersion,
     ].some(
       (entry) =>
         typeof entry !== "string" ||
@@ -383,12 +393,34 @@ function parseGateResult(
     !validSha256Digest(
       evaluator.calibrationDigest,
     ) ||
+    !validSha256Digest(
+      evaluator.testDigest,
+    ) ||
+    !validSha256Digest(
+      evaluator.splitIsolationDigest,
+    ) ||
     (
       evaluator.calibrationStatus !== "PASS" &&
       evaluator.calibrationStatus !== "FAIL"
     ) ||
     (
       evaluator.calibrationStatus !== "PASS" &&
+      decision === "PASS"
+    ) ||
+    (
+      evaluator.testStatus !== "PASS" &&
+      evaluator.testStatus !== "FAIL"
+    ) ||
+    (
+      evaluator.testStatus !== "PASS" &&
+      decision === "PASS"
+    ) ||
+    (
+      evaluator.splitIsolationStatus !== "PASS" &&
+      evaluator.splitIsolationStatus !== "FAIL"
+    ) ||
+    (
+      evaluator.splitIsolationStatus !== "PASS" &&
       decision === "PASS"
     ) ||
     !candidateFace ||
@@ -411,7 +443,7 @@ function parseGateResult(
   ) {
     throw new MiravaFaceIdentityGateError({
       message:
-        "MIRAVA face identity gate response violates the v3 contract.",
+        "MIRAVA face identity gate response violates the v4 contract.",
       code:
         "FACE_IDENTITY_GATE_INVALID_RESPONSE",
       retryable:

@@ -29,7 +29,7 @@ const image = {
 function validGateResponse() {
   return {
     schemaVersion:
-      "mirava-face-identity-gate/v3",
+      "mirava-face-identity-gate/v4",
     decision:
       "PASS",
     reasonCode:
@@ -58,6 +58,16 @@ function validGateResponse() {
       calibrationDigest:
         `sha256:${"a".repeat(64)}`,
       calibrationStatus:
+        "PASS",
+      testDatasetVersion:
+        "held-out-consented-v1",
+      testDigest:
+        `sha256:${"c".repeat(64)}`,
+      testStatus:
+        "PASS",
+      splitIsolationDigest:
+        `sha256:${"d".repeat(64)}`,
+      splitIsolationStatus:
         "PASS",
     },
     candidateFace: {
@@ -248,6 +258,51 @@ describe(
                 "FACE_IDENTITY_GATE_INVALID_RESPONSE",
             })
         }
+      },
+    )
+
+    it.each([
+      "testStatus",
+      "splitIsolationStatus",
+    ] as const)(
+      "rejects a PASS response when %s is not accepted",
+      async (statusField) => {
+        process.env
+          .MIRAVA_FACE_IDENTITY_GATE_URL =
+          "http://127.0.0.1:9000"
+        process.env
+          .MIRAVA_FACE_IDENTITY_GATE_TOKEN =
+          "private-token"
+        const response =
+          validGateResponse()
+        response.evaluator[statusField] =
+          "FAIL"
+
+        await expect(
+          evaluateMiravaFaceIdentity({
+            candidate: image,
+            references: [
+              image,
+              image,
+              image,
+            ],
+            identityManifestVersion:
+              "manifest-7",
+            requestId:
+              "request-1",
+            fetchImpl:
+              async () =>
+                new Response(
+                  JSON.stringify(
+                    response,
+                  ),
+                  { status: 200 },
+                ),
+          }),
+        ).rejects.toMatchObject({
+          code:
+            "FACE_IDENTITY_GATE_INVALID_RESPONSE",
+        })
       },
     )
   },

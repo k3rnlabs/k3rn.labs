@@ -10,7 +10,7 @@ from typing import Annotated, Any
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 
-from .calibration_report import load_and_verify_calibration_report
+from .calibration_report import load_and_verify_benchmark_report
 from .engine import (
     AuraFaceEngine,
     FaceEngine,
@@ -18,9 +18,10 @@ from .engine import (
     cosine_similarity,
     landmark_shape_residual,
 )
+from .split_isolation import load_and_verify_split_isolation_report
 
 
-SCHEMA_VERSION = "mirava-face-identity-gate/v3"
+SCHEMA_VERSION = "mirava-face-identity-gate/v4"
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 MIN_REFERENCE_COUNT = 3
 MAX_REFERENCE_COUNT = 6
@@ -65,22 +66,55 @@ def _evaluator_manifest(
         "MIRAVA_FACE_PREPROCESSING_VERSION"
     )
     calibration_path = _required_environment("MIRAVA_FACE_CALIBRATION_REPORT")
-    digest = _required_environment("MIRAVA_FACE_CALIBRATION_DIGEST")
+    calibration_digest = _required_environment("MIRAVA_FACE_CALIBRATION_DIGEST")
+    test_path = _required_environment("MIRAVA_FACE_TEST_REPORT")
+    test_digest = _required_environment("MIRAVA_FACE_TEST_DIGEST")
+    split_isolation_path = _required_environment(
+        "MIRAVA_FACE_SPLIT_ISOLATION_REPORT"
+    )
+    split_isolation_digest = _required_environment(
+        "MIRAVA_FACE_SPLIT_ISOLATION_DIGEST"
+    )
+    calibration = load_and_verify_benchmark_report(
+        Path(calibration_path),
+        expected_split="calibration",
+        expected_digest=calibration_digest,
+        expected_model_name=name,
+        expected_model_version=version,
+        expected_model_digest=weights_digest,
+        expected_preprocessing_version=preprocessing_version,
+        expected_threshold=threshold,
+        expected_landmark_threshold=landmark_threshold,
+    )
+    test = load_and_verify_benchmark_report(
+        Path(test_path),
+        expected_split="test",
+        expected_digest=test_digest,
+        expected_model_name=name,
+        expected_model_version=version,
+        expected_model_digest=weights_digest,
+        expected_preprocessing_version=preprocessing_version,
+        expected_threshold=threshold,
+        expected_landmark_threshold=landmark_threshold,
+    )
+    isolation = load_and_verify_split_isolation_report(
+        Path(split_isolation_path),
+        expected_digest=split_isolation_digest,
+        calibration_report=calibration,
+        test_report=test,
+    )
     return {
         "name": name,
         "version": version,
         "weightsDigest": weights_digest,
         "preprocessingVersion": preprocessing_version,
-        **load_and_verify_calibration_report(
-            Path(calibration_path),
-            expected_digest=digest,
-            expected_model_name=name,
-            expected_model_version=version,
-            expected_model_digest=weights_digest,
-            expected_preprocessing_version=preprocessing_version,
-            expected_threshold=threshold,
-            expected_landmark_threshold=landmark_threshold,
-        ),
+        "calibrationVersion": str(calibration["calibrationVersion"]),
+        "calibrationDigest": str(calibration["artifactDigest"]),
+        "calibrationStatus": str(calibration["status"]),
+        "testDatasetVersion": str(test["datasetVersion"]),
+        "testDigest": str(test["artifactDigest"]),
+        "testStatus": str(test["status"]),
+        **isolation,
     }
 
 
@@ -259,10 +293,14 @@ def create_app(engine: FaceEngine | None = None) -> FastAPI:
         aggregate_landmark_residual = float(median(landmark_residuals))
         embedding_pass = aggregate >= threshold
         landmark_pass = aggregate_landmark_residual <= landmark_threshold
-        calibration_accepted = evaluator["calibrationStatus"] == "PASS"
+        benchmark_evidence_accepted = (
+            evaluator["calibrationStatus"] == "PASS"
+            and evaluator["testStatus"] == "PASS"
+            and evaluator["splitIsolationStatus"] == "PASS"
+        )
         decision = (
             "PASS"
-            if calibration_accepted and embedding_pass and landmark_pass
+            if benchmark_evidence_accepted and embedding_pass and landmark_pass
             else "FAIL"
         )
 
@@ -272,8 +310,8 @@ def create_app(engine: FaceEngine | None = None) -> FastAPI:
             "reasonCode": (
                 "CALIBRATED_PASS"
                 if decision == "PASS"
-                else "CALIBRATION_NOT_ACCEPTED"
-                if not calibration_accepted
+                else "BENCHMARK_EVIDENCE_NOT_ACCEPTED"
+                if not benchmark_evidence_accepted
                 else "IDENTITY_DRIFT"
                 if not embedding_pass
                 else "LANDMARK_DRIFT"

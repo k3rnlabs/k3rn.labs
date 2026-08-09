@@ -222,9 +222,10 @@ def _recompute_metrics_and_status(
     return metrics, "PASS" if accepted else "FAIL", recomputed_coverage
 
 
-def load_and_verify_calibration_report(
+def load_and_verify_benchmark_report(
     path: Path,
     *,
+    expected_split: str,
     expected_digest: str,
     expected_model_name: str,
     expected_model_version: str,
@@ -232,15 +233,17 @@ def load_and_verify_calibration_report(
     expected_preprocessing_version: str,
     expected_threshold: float,
     expected_landmark_threshold: float,
-) -> dict[str, str]:
+) -> dict[str, Any]:
+    if expected_split not in ("calibration", "test"):
+        raise RuntimeError("Expected benchmark split is invalid")
     try:
         report = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise RuntimeError("Calibration benchmark report is missing or invalid") from exc
+        raise RuntimeError("Benchmark report is missing or invalid") from exc
     if not isinstance(report, dict) or report.get("schemaVersion") != BENCHMARK_SCHEMA:
-        raise RuntimeError("Calibration benchmark schema is invalid")
-    if report.get("datasetSplit") != "calibration":
-        raise RuntimeError("Calibration report must use the calibration split")
+        raise RuntimeError("Benchmark report schema is invalid")
+    if report.get("datasetSplit") != expected_split:
+        raise RuntimeError(f"Benchmark report must use the {expected_split} split")
     if not isinstance(report.get("subjectKeyScheme"), str) or not report[
         "subjectKeyScheme"
     ].strip():
@@ -340,8 +343,56 @@ def load_and_verify_calibration_report(
     if report.get("acceptanceStatus") != status:
         raise RuntimeError("Calibration acceptance status does not match evidence")
 
+    subject_keys = {
+        row[subject_field]
+        for row in report["rows"]
+        for subject_field in ("candidateSubjectKey", "referenceSubjectKey")
+    }
     return {
+        "datasetSplit": expected_split,
+        "datasetVersion": report["datasetVersion"],
+        "commit": report["commit"],
         "calibrationVersion": calibration_version,
-        "calibrationDigest": expected_digest,
-        "calibrationStatus": status,
+        "artifactDigest": expected_digest,
+        "status": status,
+        "subjectKeyScheme": report["subjectKeyScheme"],
+        "subjectKeyKeyId": report["subjectKeyKeyId"],
+        "subjectPartitionDigest": report["subjectPartitionDigest"],
+        "subjectCount": len(subject_keys),
+        "subjectKeys": frozenset(subject_keys),
+        "acceptanceContractDigest": "sha256:"
+        + hashlib.sha256(canonical_json(report["acceptance"]).encode("utf-8")).hexdigest(),
+        "coverageContractDigest": "sha256:"
+        + hashlib.sha256(
+            canonical_json(report["coverage"]["contract"]).encode("utf-8")
+        ).hexdigest(),
+    }
+
+
+def load_and_verify_calibration_report(
+    path: Path,
+    *,
+    expected_digest: str,
+    expected_model_name: str,
+    expected_model_version: str,
+    expected_model_digest: str,
+    expected_preprocessing_version: str,
+    expected_threshold: float,
+    expected_landmark_threshold: float,
+) -> dict[str, str]:
+    verified = load_and_verify_benchmark_report(
+        path,
+        expected_split="calibration",
+        expected_digest=expected_digest,
+        expected_model_name=expected_model_name,
+        expected_model_version=expected_model_version,
+        expected_model_digest=expected_model_digest,
+        expected_preprocessing_version=expected_preprocessing_version,
+        expected_threshold=expected_threshold,
+        expected_landmark_threshold=expected_landmark_threshold,
+    )
+    return {
+        "calibrationVersion": str(verified["calibrationVersion"]),
+        "calibrationDigest": str(verified["artifactDigest"]),
+        "calibrationStatus": str(verified["status"]),
     }

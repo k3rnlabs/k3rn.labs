@@ -24,18 +24,28 @@ MIRAVA_FACE_GATE_THRESHOLD=<calibrated cohort threshold>
 MIRAVA_FACE_LANDMARK_RESIDUAL_MAX=<calibrated five-landmark residual ceiling>
 MIRAVA_FACE_CALIBRATION_REPORT=/private/calibration/benchmark-report.json
 MIRAVA_FACE_CALIBRATION_DIGEST=sha256:<benchmark artifact digest>
+MIRAVA_FACE_TEST_REPORT=/private/test/benchmark-report.json
+MIRAVA_FACE_TEST_DIGEST=sha256:<held-out benchmark artifact digest>
+MIRAVA_FACE_SPLIT_ISOLATION_REPORT=/private/evidence/split-isolation.json
+MIRAVA_FACE_SPLIT_ISOLATION_DIGEST=sha256:<isolation artifact digest>
 MIRAVA_FACE_SERVICE_TOKEN=<private random token>
 ```
 
 Neither threshold has a default. The service refuses to become ready until both
-calibrated values and their verified benchmark report are supplied. A PASS
-requires both the embedding threshold and the normalized landmark-shape
-residual ceiling. A numeric smoke-test threshold cannot silently masquerade as
-a production calibration because its version and SHA-256 are part of every
-evaluation result. The service recomputes the report artifact digest, matches
-its evaluator and thresholds to the active runtime, and requires non-empty
-genuine/impostor cohorts. A report whose acceptance status is `FAIL` forces
-every otherwise successful comparison to `CALIBRATION_NOT_ACCEPTED`.
+calibrated values, an accepted calibration report, an accepted held-out test
+report and their accepted split-isolation evidence are supplied. Both reports
+must use the same frozen threshold version, evaluator, acceptance contract and
+canonical coverage contract. Their subject partitions and artifact digests must
+match the isolation evidence exactly. A numeric smoke-test threshold cannot
+silently masquerade as production evidence because all three SHA-256 digests
+are pinned in configuration and returned with every evaluation. The service
+fails startup instead of exposing `/health/ready` when any evidence is missing,
+tampered, rejected or mutually inconsistent.
+
+Once ready, a candidate PASS still requires both the embedding threshold and
+the normalized landmark-shape residual ceiling. The Node client accepts the v4
+response only when calibration, held-out test and isolation statuses are all
+`PASS`.
 
 Provision the exact licensed artifacts into the mounted model volume:
 

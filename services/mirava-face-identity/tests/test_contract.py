@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import deque
 import hashlib
 import json
+import os
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -16,6 +17,14 @@ from app.benchmark import (
 )
 from app.engine import FaceObservation
 from app.main import create_app
+from app.split_isolation import (
+    _hmac_key_id,
+    _subject_key,
+    verify_split_isolation,
+)
+
+
+PSEUDONYM_KEY = b"mirava-contract-pseudonym-key-32-bytes-minimum"
 
 
 class FakeEngine:
@@ -50,6 +59,7 @@ def configure(
     tmp_path: Path,
     *,
     acceptance_status: str = "PASS",
+    test_acceptance_status: str = "PASS",
 ) -> None:
     monkeypatch.setenv("MIRAVA_FACE_GATE_THRESHOLD", "0.8")
     monkeypatch.setenv("MIRAVA_FACE_LANDMARK_RESIDUAL_MAX", "0.25")
@@ -65,7 +75,6 @@ def configure(
         "weightsDigest": "sha256:test",
         "preprocessingVersion": "mirava-auraface-align-v1",
     }
-    minimum_genuine = 6 if acceptance_status == "FAIL" else 1
     coverage_contract = {
         "profile": "canonical-v1",
         "minimumGenuineCasesPerValue": 1,
@@ -75,90 +84,139 @@ def configure(
             for axis, values in CANONICAL_SCENARIO_COHORTS.items()
         },
     }
-    rows = []
-    for index in range(5):
-        scenario = {
-            axis: values[index % len(values)]
-            for axis, values in CANONICAL_SCENARIO_COHORTS.items()
-        }
-        for expected in (True, False):
-            score = 0.9 if expected else 0.1
-            rows.append({
-                "caseId": f"{'genuine' if expected else 'impostor'}-{index}",
-                "candidateSubjectKey": "subject-a" if expected else "subject-b",
-                "referenceSubjectKey": "subject-a",
-                "expectedIdentityMatch": expected,
-                "scenario": scenario,
-                "candidateContentSha256": ("a" if expected else "c") * 64,
-                "referenceContentSha256": [("b" if expected else "d") * 64] * 3,
-                "status": "SCORABLE",
-                "reasonCode": "MEASURED",
-                "aggregateSimilarity": score,
-                "perReferenceSimilarity": [score] * 3,
-                "landmarkResidual": 0.1,
-                "perReferenceLandmarkResidual": [0.1] * 3,
-                "decision": "PASS" if expected else "FAIL",
-            })
-    report = {
-        "schemaVersion": "mirava-face-identity-benchmark/v2",
-        "datasetVersion": "private-test-v1",
-        "datasetSplit": "calibration",
-        "subjectKeyScheme": "hmac-sha256/v1",
-        "subjectKeyKeyId": "sha256:test-pseudonym-key-fingerprint",
-        "subjectPartitionDigest": "sha256:" + _partition_digest({"subject-a", "subject-b"}),
-        "commit": "test-commit",
-        "calibrationVersion": "calibration-v1",
-        "configurationDigest": "",
-        "evaluator": evaluator,
-        "threshold": 0.8,
-        "landmarkThreshold": 0.25,
-        "acceptance": {
-            "maxFalseAcceptRate": 0.0,
-            "maxFalseRejectRate": 0.0,
-            "maxUnscorableRate": 0.0,
-            "minimumGenuineCases": minimum_genuine,
-            "minimumImpostorCases": 1,
-        },
-        "acceptanceStatus": acceptance_status,
-        "rows": rows,
-        "metrics": {
-            "caseCount": 10,
-            "scorableCount": 10,
-            "unscorableCount": 0,
-            "genuineCount": 5,
-            "impostorCount": 5,
-            "scorableGenuineCount": 5,
-            "scorableImpostorCount": 5,
-            "falseRejectRate": 0.0,
-            "falseAcceptRate": 0.0,
-            "unscorableRate": 0.0,
-        },
-    }
-    report["coverage"] = _coverage_report(
-        {"coverageContract": coverage_contract}, report["rows"]
-    )
-    report["configurationDigest"] = hashlib.sha256(
-        canonical_json(
-            {
-                "datasetVersion": report["datasetVersion"],
-                "datasetSplit": report["datasetSplit"],
-                "subjectKeyScheme": report["subjectKeyScheme"],
-                "subjectKeyKeyId": report["subjectKeyKeyId"],
-                "subjectPartitionDigest": report["subjectPartitionDigest"],
-                "coverageContract": coverage_contract,
-                "evaluator": evaluator,
-                "threshold": 0.8,
-                "landmarkThreshold": 0.25,
+    def build_report(
+        split: str,
+        subject_ids: list[str],
+        status: str,
+    ) -> dict:
+        reference_key = _subject_key(PSEUDONYM_KEY, subject_ids[0])
+        impostor_key = _subject_key(PSEUDONYM_KEY, subject_ids[1])
+        rows = []
+        for index in range(5):
+            scenario = {
+                axis: values[index % len(values)]
+                for axis, values in CANONICAL_SCENARIO_COHORTS.items()
             }
-        ).encode("utf-8")
-    ).hexdigest()
-    report["artifactDigest"] = benchmark_artifact_digest(report)
-    report_path = tmp_path / "calibration-report.json"
-    report_path.write_text(json.dumps(report), encoding="utf-8")
-    monkeypatch.setenv("MIRAVA_FACE_CALIBRATION_REPORT", str(report_path))
+            for expected in (True, False):
+                score = 0.9 if expected else 0.1
+                rows.append(
+                    {
+                        "caseId": f"{split}-{'genuine' if expected else 'impostor'}-{index}",
+                        "candidateSubjectKey": (
+                            reference_key if expected else impostor_key
+                        ),
+                        "referenceSubjectKey": reference_key,
+                        "expectedIdentityMatch": expected,
+                        "scenario": scenario,
+                        "candidateContentSha256": ("a" if expected else "c") * 64,
+                        "referenceContentSha256": [
+                            ("b" if expected else "d") * 64
+                        ] * 3,
+                        "status": "SCORABLE",
+                        "reasonCode": "MEASURED",
+                        "aggregateSimilarity": score,
+                        "perReferenceSimilarity": [score] * 3,
+                        "landmarkResidual": 0.1,
+                        "perReferenceLandmarkResidual": [0.1] * 3,
+                        "decision": "PASS" if expected else "FAIL",
+                    }
+                )
+        report = {
+            "schemaVersion": "mirava-face-identity-benchmark/v2",
+            "datasetVersion": f"private-{split}-v1",
+            "datasetSplit": split,
+            "subjectKeyScheme": "hmac-sha256/v1",
+            "subjectKeyKeyId": _hmac_key_id(PSEUDONYM_KEY),
+            "subjectPartitionDigest": "sha256:"
+            + _partition_digest({reference_key, impostor_key}),
+            "commit": "test-commit",
+            "calibrationVersion": "calibration-v1",
+            "configurationDigest": "",
+            "evaluator": evaluator,
+            "threshold": 0.8,
+            "landmarkThreshold": 0.25,
+            "acceptance": {
+                "maxFalseAcceptRate": 0.0,
+                "maxFalseRejectRate": 0.0,
+                "maxUnscorableRate": 0.0,
+                "minimumGenuineCases": 6 if status == "FAIL" else 1,
+                "minimumImpostorCases": 1,
+            },
+            "acceptanceStatus": status,
+            "rows": rows,
+            "metrics": {
+                "caseCount": 10,
+                "scorableCount": 10,
+                "unscorableCount": 0,
+                "genuineCount": 5,
+                "impostorCount": 5,
+                "scorableGenuineCount": 5,
+                "scorableImpostorCount": 5,
+                "falseRejectRate": 0.0,
+                "falseAcceptRate": 0.0,
+                "unscorableRate": 0.0,
+            },
+        }
+        report["coverage"] = _coverage_report(
+            {"coverageContract": coverage_contract}, report["rows"]
+        )
+        report["configurationDigest"] = hashlib.sha256(
+            canonical_json(
+                {
+                    "datasetVersion": report["datasetVersion"],
+                    "datasetSplit": report["datasetSplit"],
+                    "subjectKeyScheme": report["subjectKeyScheme"],
+                    "subjectKeyKeyId": report["subjectKeyKeyId"],
+                    "subjectPartitionDigest": report["subjectPartitionDigest"],
+                    "coverageContract": coverage_contract,
+                    "evaluator": evaluator,
+                    "threshold": 0.8,
+                    "landmarkThreshold": 0.25,
+                }
+            ).encode("utf-8")
+        ).hexdigest()
+        report["artifactDigest"] = benchmark_artifact_digest(report)
+        return report
+
+    calibration_subjects = ["calibration-subject-a", "calibration-subject-b"]
+    test_subjects = ["test-subject-a", "test-subject-b"]
+    calibration_report = build_report(
+        "calibration", calibration_subjects, acceptance_status
+    )
+    test_report = build_report("test", test_subjects, test_acceptance_status)
+    calibration_path = tmp_path / "calibration-report.json"
+    test_path = tmp_path / "test-report.json"
+    calibration_path.write_text(json.dumps(calibration_report), encoding="utf-8")
+    test_path.write_text(json.dumps(test_report), encoding="utf-8")
+    isolation = verify_split_isolation(
+        calibration_report,
+        test_report,
+        pseudonym_key=PSEUDONYM_KEY,
+        calibration_subject_inventory={
+            "datasetSplit": "calibration",
+            "subjectIds": calibration_subjects,
+        },
+        test_subject_inventory={
+            "datasetSplit": "test",
+            "subjectIds": test_subjects,
+        },
+    )
+    isolation_path = tmp_path / "split-isolation.json"
+    isolation_path.write_text(json.dumps(isolation), encoding="utf-8")
+    monkeypatch.setenv("MIRAVA_FACE_CALIBRATION_REPORT", str(calibration_path))
     monkeypatch.setenv(
         "MIRAVA_FACE_CALIBRATION_DIGEST",
-        "sha256:" + report["artifactDigest"],
+        "sha256:" + calibration_report["artifactDigest"],
+    )
+    monkeypatch.setenv("MIRAVA_FACE_TEST_REPORT", str(test_path))
+    monkeypatch.setenv(
+        "MIRAVA_FACE_TEST_DIGEST",
+        "sha256:" + test_report["artifactDigest"],
+    )
+    monkeypatch.setenv("MIRAVA_FACE_SPLIT_ISOLATION_REPORT", str(isolation_path))
+    monkeypatch.setenv(
+        "MIRAVA_FACE_SPLIT_ISOLATION_DIGEST",
+        "sha256:" + isolation["artifactDigest"],
     )
 
 
@@ -194,10 +252,13 @@ def test_calibrated_pass_returns_no_embedding(monkeypatch, tmp_path: Path) -> No
 
     assert response.status_code == 200
     body = response.json()
+    assert body["schemaVersion"] == "mirava-face-identity-gate/v4"
     assert body["decision"] == "PASS"
     assert body["candidateFace"]["count"] == 1
     assert body["evaluator"]["calibrationVersion"] == "calibration-v1"
     assert body["evaluator"]["calibrationStatus"] == "PASS"
+    assert body["evaluator"]["testStatus"] == "PASS"
+    assert body["evaluator"]["splitIsolationStatus"] == "PASS"
     assert "embedding" not in str(body).lower()
 
 
@@ -208,6 +269,28 @@ def test_service_refuses_missing_calibration_report(
     monkeypatch.delenv("MIRAVA_FACE_CALIBRATION_REPORT")
 
     with pytest.raises(RuntimeError, match="MIRAVA_FACE_CALIBRATION_REPORT"):
+        with TestClient(create_app(FakeEngine([]))):
+            pass
+
+
+def test_service_refuses_missing_held_out_test_report(
+    monkeypatch, tmp_path: Path
+) -> None:
+    configure(monkeypatch, tmp_path)
+    monkeypatch.delenv("MIRAVA_FACE_TEST_REPORT")
+
+    with pytest.raises(RuntimeError, match="MIRAVA_FACE_TEST_REPORT"):
+        with TestClient(create_app(FakeEngine([]))):
+            pass
+
+
+def test_service_refuses_missing_split_isolation_evidence(
+    monkeypatch, tmp_path: Path
+) -> None:
+    configure(monkeypatch, tmp_path)
+    monkeypatch.delenv("MIRAVA_FACE_SPLIT_ISOLATION_REPORT")
+
+    with pytest.raises(RuntimeError, match="MIRAVA_FACE_SPLIT_ISOLATION_REPORT"):
         with TestClient(create_app(FakeEngine([]))):
             pass
 
@@ -277,21 +360,37 @@ def test_invalid_token_is_rejected_before_inference(
     assert response.status_code == 401
 
 
-def test_failed_calibration_can_never_issue_pass(
+def test_service_refuses_a_failed_calibration_benchmark(
     monkeypatch, tmp_path: Path
 ) -> None:
     configure(monkeypatch, tmp_path, acceptance_status="FAIL")
-    engine = FakeEngine(
-        [
-            [face((1.0, 0.0))],
-            [face((1.0, 0.0))],
-            [face((1.0, 0.0))],
-            [face((1.0, 0.0))],
-        ]
-    )
-    with TestClient(create_app(engine)) as client:
-        response = request(client)
 
-    assert response.status_code == 200
-    assert response.json()["decision"] == "FAIL"
-    assert response.json()["reasonCode"] == "CALIBRATION_NOT_ACCEPTED"
+    with pytest.raises(RuntimeError, match="Calibration benchmark is not accepted"):
+        with TestClient(create_app(FakeEngine([]))):
+            pass
+
+
+def test_service_refuses_a_failed_held_out_test_benchmark(
+    monkeypatch, tmp_path: Path
+) -> None:
+    configure(monkeypatch, tmp_path, test_acceptance_status="FAIL")
+
+    with pytest.raises(RuntimeError, match="Held-out test benchmark is not accepted"):
+        with TestClient(create_app(FakeEngine([]))):
+            pass
+
+
+def test_service_refuses_tampered_split_isolation_evidence(
+    monkeypatch, tmp_path: Path
+) -> None:
+    configure(monkeypatch, tmp_path)
+    isolation_path = Path(
+        str(os.environ["MIRAVA_FACE_SPLIT_ISOLATION_REPORT"])
+    )
+    evidence = json.loads(isolation_path.read_text(encoding="utf-8"))
+    evidence["testPartitionDigest"] = "sha256:" + "0" * 64
+    isolation_path.write_text(json.dumps(evidence), encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="artifact digest does not match"):
+        with TestClient(create_app(FakeEngine([]))):
+            pass

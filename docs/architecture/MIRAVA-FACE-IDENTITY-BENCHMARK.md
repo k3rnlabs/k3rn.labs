@@ -110,6 +110,12 @@ same private HMAC key, whose non-secret SHA-256 key ID is recomputed by the
 trusted verifier rather than accepted from report metadata. The verifier also
 re-derives the complete expected pseudonym set from private per-split subject
 inventories and refuses missing, additional or differently keyed subjects.
+The inference service independently replays both reports and the resulting
+isolation artifact at startup. It refuses readiness unless calibration and
+held-out test both PASS under the same threshold version, evaluator,
+acceptance contract and canonical coverage contract, and unless every report
+and partition digest matches the isolation artifact pinned in runtime
+configuration.
 
 Minimum cohort sizes count only `SCORABLE` genuine and impostor rows. An
 unscorable genuine delivery remains a false reject; an unscorable impostor is
