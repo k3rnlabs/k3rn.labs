@@ -107,6 +107,7 @@ const RELATIONS: Record<
   },
   StudioIdentityProfile: {
     assets: { table: "StudioIdentityAsset", fk: "identityProfileId", type: "hasMany" },
+    manifests: { table: "StudioIdentityManifest", fk: "identityProfileId", type: "hasMany" },
     creations: { table: "StudioCreation", fk: "identityProfileId", type: "hasMany" },
   },
   Mission: {
@@ -435,6 +436,7 @@ class DbClient {
   studioProfile = new DbModel("StudioProfile")
   studioIdentityProfile = new DbModel("StudioIdentityProfile")
   studioIdentityAsset = new DbModel("StudioIdentityAsset")
+  studioIdentityManifest = new DbModel("StudioIdentityManifest")
 
   // Raw text search via Supabase textSearch (uses GIN index)
   async cardFullTextSearch(args: {

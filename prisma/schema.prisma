@@ -260,6 +260,7 @@ model User {
   studioProfiles       StudioProfile[]
   studioIdentityProfile StudioIdentityProfile?
   studioIdentityAssets StudioIdentityAsset[]
+  studioIdentityManifests StudioIdentityManifest[]
   studioConsentEvents StudioConsentEvent[]
   studioSessions       StudioSession[]
 }
@@ -889,7 +890,24 @@ model StudioIdentityProfile {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   assets StudioIdentityAsset[]
+  manifests StudioIdentityManifest[]
   creations StudioCreation[]
+}
+
+model StudioIdentityManifest {
+  id                String   @id @default(cuid())
+  identityProfileId String
+  userId            String
+  schemaVersion     String
+  versionHash       String
+  assetManifest     Json
+  createdAt         DateTime @default(now())
+
+  profile StudioIdentityProfile @relation(fields: [identityProfileId], references: [id], onDelete: Cascade)
+  user    User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([identityProfileId, versionHash])
+  @@index([userId, createdAt])
 }
 
 model StudioIdentityAsset {

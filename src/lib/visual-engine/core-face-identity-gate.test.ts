@@ -75,10 +75,33 @@ describe(
           "selectMiravaKieRequiredIdentityFaceInputs(",
         )
         expect(core).toContain(
-          "miravaIdentityManifestVersion(",
+          "buildMiravaIdentityManifest(",
+        )
+        expect(core).toContain(
+          '"StudioIdentityManifest"',
+        )
+        expect(core).toContain(
+          "identityManifest.versionHash",
         )
         expect(core).toContain(
           "MIRAVA_REQUIRED_IDENTITY_VIEW_KEYS.length",
+        )
+      },
+    )
+
+    it(
+      "invalidates derived manifests whenever identity assets change",
+      () => {
+        expect(
+          core.match(
+            /invalidateMiravaIdentityManifests\(/g,
+          ),
+        ).toHaveLength(5)
+        expect(core).toContain(
+          '.from(\n        "StudioIdentityManifest",',
+        )
+        expect(core).toContain(
+          "IDENTITY_MANIFEST_INVALIDATION_ERROR",
         )
       },
     )

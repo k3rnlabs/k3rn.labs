@@ -33,6 +33,9 @@ import {
   resolveMiravaIdentityFaceCrop,
   resolveMiravaReferenceFaceRestorationCrop,
 } from "@/lib/mirava/identity-face-geometry"
+import {
+  buildMiravaIdentityManifest,
+} from "@/lib/mirava/identity-manifest"
 import { type PhysicalTrait, formatPhysicalTraitsForPrompt, parsePhysicalTraits } from "@/lib/mirava/physical-traits"
 import {
   MIRAVA_IDENTITY_MORPHOLOGY_EXTRACTOR_PROMPT,
@@ -1433,6 +1436,31 @@ export async function getIdentityProfilePublic(
   }
 }
 
+async function invalidateMiravaIdentityManifests(
+  identityProfileId: string,
+  userId: string,
+): Promise<void> {
+  const { error } =
+    await supabaseAdmin
+      .from(
+        "StudioIdentityManifest",
+      )
+      .delete()
+      .eq(
+        "identityProfileId",
+        identityProfileId,
+      )
+      .eq("userId", userId)
+
+  if (error) {
+    throw new StudioError(
+      "Les manifestes dérivés du Profil identité n’ont pas pu être invalidés.",
+      "IDENTITY_MANIFEST_INVALIDATION_ERROR",
+      true,
+    )
+  }
+}
+
 export async function replaceIdentityProfile(args: {
   userId: string
   creationId?: string
@@ -1658,6 +1686,11 @@ export async function replaceIdentityProfile(args: {
         },
       })
   }
+
+  await invalidateMiravaIdentityManifests(
+    profile.id,
+    args.userId,
+  )
 
   await refreshIdentityMorphologyForProfile({
     userId:
@@ -2145,6 +2178,11 @@ export async function replaceIdentityAssetFromStagedUpload(args: {
       .from(STUDIO_BUCKET)
       .remove([asset.storagePath])
 
+    await invalidateMiravaIdentityManifests(
+      profile.id,
+      args.userId,
+    )
+
     await refreshIdentityMorphologyForProfile({
       userId:
         args.userId,
@@ -2263,6 +2301,11 @@ export async function deleteIdentityAsset(args: {
       },
     }),
   ])
+
+  await invalidateMiravaIdentityManifests(
+    profile.id,
+    args.userId,
+  )
 
   await refreshIdentityMorphologyForProfile({
     userId:
@@ -2522,6 +2565,11 @@ export async function appendIdentityProfile(args: {
             .toISOString(),
       },
     })
+
+  await invalidateMiravaIdentityManifests(
+    profile.id,
+    args.userId,
+  )
 
   await refreshIdentityMorphologyForProfile({
     userId:
@@ -6834,39 +6882,6 @@ async function generateStudioImageCandidate(
   }
 }
 
-function miravaIdentityManifestVersion(
-  identityAssets: StudioIdentityAssetRecord[],
-): string {
-  const canonical =
-    [...identityAssets]
-      .sort(
-        (left, right) =>
-          `${left.viewKey ?? ""}:${left.id}`
-            .localeCompare(
-              `${right.viewKey ?? ""}:${right.id}`,
-            ),
-      )
-      .map(
-        (asset) => ({
-          id: asset.id,
-          viewKey:
-            asset.viewKey ?? null,
-          storagePath:
-            asset.storagePath,
-          createdAt:
-            asset.createdAt,
-          faceGeometry:
-            asset.faceGeometry ?? null,
-        }),
-      )
-
-  return createHash("sha256")
-    .update(
-      JSON.stringify(canonical),
-    )
-    .digest("hex")
-}
-
 async function generateStudioImage(
   creation: StudioCreationRecord,
   identityAssets: Array<
@@ -6929,6 +6944,20 @@ async function generateStudioImage(
     return candidate
   }
 
+  const canonicalViewKey = (
+    value: string | null | undefined,
+  ): string => {
+    if (!value) {
+      throw new StudioError(
+        "Une vue canonique du Profil identité ne possède pas de rôle explicite.",
+        "IDENTITY_MANIFEST_INVALID",
+        false,
+      )
+    }
+
+    return value
+  }
+
   const requestId =
     randomUUID()
 
@@ -6949,6 +6978,75 @@ async function generateStudioImage(
         ),
       )
 
+    const identityManifest =
+      buildMiravaIdentityManifest(
+        canonicalInputs.map(
+          (
+            {
+              asset,
+            },
+            index,
+          ) => ({
+            assetId:
+              asset.id,
+            viewKey:
+              canonicalViewKey(
+                asset.viewKey,
+              ),
+            mimeType:
+              asset.mimeType,
+            faceGeometry:
+              asset.faceGeometry,
+            buffer:
+              referenceImages[index]
+                .buffer,
+          }),
+        ),
+      )
+
+    const identityProfileId =
+      canonicalInputs[0]
+        .asset
+        .identityProfileId
+
+    const {
+      error:
+        identityManifestError,
+    } =
+      await supabaseAdmin
+        .from(
+          "StudioIdentityManifest",
+        )
+        .upsert(
+          {
+            id:
+              randomUUID(),
+            identityProfileId,
+            userId:
+              creation.userId,
+            schemaVersion:
+              identityManifest.schemaVersion,
+            versionHash:
+              identityManifest.versionHash,
+            assetManifest:
+              identityManifest.assets,
+          },
+          {
+            onConflict:
+              "identityProfileId,versionHash",
+            ignoreDuplicates:
+              true,
+          },
+        )
+
+    if (identityManifestError) {
+      throw new StudioError(
+        "Le manifeste sécurisé du Profil identité n’a pas pu être enregistré.",
+        "IDENTITY_MANIFEST_STORAGE_ERROR",
+        true,
+      )
+    }
+
     const gateResult =
       await evaluateMiravaFaceIdentity({
         candidate: {
@@ -6966,12 +7064,7 @@ async function generateStudioImage(
             typeof referenceImages[number],
           ],
         identityManifestVersion:
-          miravaIdentityManifestVersion(
-            canonicalInputs.map(
-              ({ asset }) =>
-                asset,
-            ),
-          ),
+          identityManifest.versionHash,
         requestId,
       })
 
