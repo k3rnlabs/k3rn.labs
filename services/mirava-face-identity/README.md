@@ -20,8 +20,8 @@ MIRAVA_FACE_MODEL_NAME=auraface
 MIRAVA_FACE_MODEL_VERSION=1.0
 MIRAVA_FACE_MODEL_DIGEST=sha256:<verified-manifest-digest>
 MIRAVA_FACE_PREPROCESSING_VERSION=mirava-auraface-align-v1
-MIRAVA_FACE_GATE_THRESHOLD=<calibrated cohort threshold>
-MIRAVA_FACE_LANDMARK_RESIDUAL_MAX=<calibrated five-landmark residual ceiling>
+MIRAVA_FACE_GATE_THRESHOLD=<calibrated global similarity floor>
+MIRAVA_FACE_LANDMARK_RESIDUAL_MAX=<calibrated global landmark residual ceiling>
 MIRAVA_FACE_CALIBRATION_REPORT=/private/calibration/benchmark-report.json
 MIRAVA_FACE_CALIBRATION_DIGEST=sha256:<benchmark artifact digest>
 MIRAVA_FACE_TEST_REPORT=/private/test/benchmark-report.json
@@ -36,14 +36,18 @@ calibrated values, an accepted calibration report, an accepted held-out test
 report and their accepted split-isolation evidence are supplied. Both reports
 must use the same frozen threshold version, evaluator, acceptance contract,
 canonical coverage contract and face-measurement contract. Their subject partitions and artifact digests must
-match the isolation evidence exactly. A numeric smoke-test threshold cannot
+match the isolation evidence exactly. Both also bind the complete
+`mirava-face-cohort-thresholds/v1` policy. Runtime chooses the strictest
+applicable values from the global baseline and the measured yaw, pitch, roll
+and face-scale cohorts; provider labels and prompt declarations never choose a
+threshold. A numeric smoke-test threshold cannot
 silently masquerade as production evidence because all three SHA-256 digests
 are pinned in configuration and returned with every evaluation. The service
 fails startup instead of exposing `/health/ready` when any evidence is missing,
 tampered, rejected or mutually inconsistent.
 
 Once ready, a candidate PASS still requires both the embedding threshold and
-the normalized landmark-shape residual ceiling. The Node client accepts the v5
+the normalized landmark-shape residual ceiling. The Node client accepts the v6
 response only when calibration, held-out test and isolation statuses are all
 `PASS`, and only when the versioned candidate pose/scale evidence is structurally
 valid.
@@ -107,7 +111,7 @@ measurement; a thresholded acceptance report must use a separately calibrated,
 versioned threshold and a complete `acceptance` object. Both the input manifest
 and output report are private biometric evidence and must not be committed.
 
-Schema v3 also requires the canonical v1 coverage contract and the immutable
+Schema v4 also requires the canonical v1 coverage contract and the immutable
 `mirava-face-measurement/v1` contract. Candidate yaw, pitch and roll are
 estimated from the detected SCRFD five-point landmarks with the pinned
 `mirava-five-point-sqpnp-v1` convention; face scale is computed from the
@@ -117,6 +121,14 @@ version. A row whose declared yaw, pitch, roll or face-scale cohort contradicts
 those measurements becomes `UNSCORABLE` with
 `SCENARIO_MEASUREMENT_MISMATCH`. The explicit boundary tolerances are part of
 the hashed contract and cannot be loosened by a benchmark manifest.
+
+For thresholded runs, schema v4 requires a complete cohort policy. Every
+scorable row records its measured cohorts and resolved thresholds. The verifier
+replays the strictest-applicable selection, row decision, aggregate metrics and
+acceptance status. Calibration and held-out test must expose the same policy
+digest. Coverage for measured geometry axes is derived from the candidate, not
+its scenario label. Synthetic tests validate the mechanism, not the production
+values.
 
 The five-point pose is an operational measurement, not anthropometric ground
 truth. Lens, facial-proportion and extreme-occlusion bias must be quantified on

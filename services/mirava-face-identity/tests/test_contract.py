@@ -17,6 +17,10 @@ from app.benchmark import (
 )
 from app.engine import FaceObservation
 from app.face_geometry import MEASUREMENT_CONTRACT, geometry_payload, FaceGeometry
+from app.cohort_thresholds import (
+    MEASURED_COHORT_VALUES,
+    resolve_cohort_thresholds,
+)
 from app.main import create_app
 from app.split_isolation import (
     _hmac_key_id,
@@ -26,6 +30,29 @@ from app.split_isolation import (
 
 
 PSEUDONYM_KEY = b"mirava-contract-pseudonym-key-32-bytes-minimum"
+
+
+def cohort_thresholds(similarity: float, residual: float) -> dict:
+    similarity = float(similarity)
+    residual = float(residual)
+    return {
+        "schemaVersion": "mirava-face-cohort-thresholds/v1",
+        "selectionStrategy": "strictest-applicable/v1",
+        "global": {
+            "similarityMin": similarity,
+            "landmarkResidualMax": residual,
+        },
+        "axes": {
+            axis: {
+                cohort: {
+                    "similarityMin": similarity,
+                    "landmarkResidualMax": residual,
+                }
+                for cohort in values
+            }
+            for axis, values in MEASURED_COHORT_VALUES.items()
+        },
+    }
 
 
 def candidate_geometry(scenario: dict[str, str]) -> dict:
@@ -90,6 +117,7 @@ def configure(
     *,
     acceptance_status: str = "PASS",
     test_acceptance_status: str = "PASS",
+    frontal_similarity_min: float = 0.8,
 ) -> None:
     monkeypatch.setenv("MIRAVA_FACE_GATE_THRESHOLD", "0.8")
     monkeypatch.setenv("MIRAVA_FACE_LANDMARK_RESIDUAL_MAX", "0.25")
@@ -114,6 +142,10 @@ def configure(
             for axis, values in CANONICAL_SCENARIO_COHORTS.items()
         },
     }
+    threshold_policy = cohort_thresholds(0.8, 0.25)
+    threshold_policy["axes"]["yaw"]["frontal"]["similarityMin"] = (
+        frontal_similarity_min
+    )
     def build_report(
         split: str,
         subject_ids: list[str],
@@ -129,6 +161,7 @@ def configure(
             }
             for expected in (True, False):
                 score = 0.9 if expected else 0.1
+                geometry = candidate_geometry(scenario)
                 rows.append(
                     {
                         "caseId": f"{split}-{'genuine' if expected else 'impostor'}-{index}",
@@ -149,11 +182,15 @@ def configure(
                         "landmarkResidual": 0.1,
                         "perReferenceLandmarkResidual": [0.1] * 3,
                         "decision": "PASS" if expected else "FAIL",
-                        "candidateGeometry": candidate_geometry(scenario),
+                        "candidateGeometry": geometry,
+                        "appliedThresholds": resolve_cohort_thresholds(
+                            threshold_policy,
+                            geometry["measuredCohorts"],
+                        ),
                     }
                 )
         report = {
-            "schemaVersion": "mirava-face-identity-benchmark/v3",
+            "schemaVersion": "mirava-face-identity-benchmark/v4",
             "datasetVersion": f"private-{split}-v1",
             "datasetSplit": split,
             "subjectKeyScheme": "hmac-sha256/v1",
@@ -167,6 +204,7 @@ def configure(
             "evaluator": evaluator,
             "threshold": 0.8,
             "landmarkThreshold": 0.25,
+            "cohortThresholds": threshold_policy,
             "acceptance": {
                 "maxFalseAcceptRate": 0.0,
                 "maxFalseRejectRate": 0.0,
@@ -205,6 +243,7 @@ def configure(
                     "evaluator": evaluator,
                     "threshold": 0.8,
                     "landmarkThreshold": 0.25,
+                    "cohortThresholds": threshold_policy,
                 }
             ).encode("utf-8")
         ).hexdigest()
@@ -285,7 +324,7 @@ def test_calibrated_pass_returns_no_embedding(monkeypatch, tmp_path: Path) -> No
 
     assert response.status_code == 200
     body = response.json()
-    assert body["schemaVersion"] == "mirava-face-identity-gate/v5"
+    assert body["schemaVersion"] == "mirava-face-identity-gate/v6"
     assert body["decision"] == "PASS"
     assert body["candidateFace"]["count"] == 1
     assert body["candidateFace"]["poseEstimatorVersion"] == "mirava-five-point-sqpnp-v1"
@@ -294,7 +333,29 @@ def test_calibrated_pass_returns_no_embedding(monkeypatch, tmp_path: Path) -> No
     assert body["evaluator"]["calibrationStatus"] == "PASS"
     assert body["evaluator"]["testStatus"] == "PASS"
     assert body["evaluator"]["splitIsolationStatus"] == "PASS"
+    assert body["evaluator"]["cohortThresholdsDigest"].startswith("sha256:")
     assert "embedding" not in str(body).lower()
+
+
+def test_runtime_applies_the_strictest_measured_cohort_threshold(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    configure(monkeypatch, tmp_path, frontal_similarity_min=0.85)
+    engine = FakeEngine(
+        [
+            [face((1.0, 0.0))],
+            [face((1.0, 0.0))],
+            [face((0.9, 0.1))],
+            [face((0.8, 0.2))],
+        ]
+    )
+    with TestClient(create_app(engine)) as client:
+        response = request(client)
+
+    assert response.status_code == 200
+    assert response.json()["threshold"] == 0.85
+    assert response.json()["decision"] == "PASS"
 
 
 def test_service_refuses_missing_calibration_report(

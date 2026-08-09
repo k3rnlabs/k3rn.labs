@@ -1,5 +1,5 @@
 const MIRAVA_FACE_IDENTITY_GATE_SCHEMA =
-  "mirava-face-identity-gate/v5" as const
+  "mirava-face-identity-gate/v6" as const
 
 const MIRAVA_FACE_POSE_ESTIMATOR_VERSION =
   "mirava-five-point-sqpnp-v1" as const
@@ -55,6 +55,7 @@ export type MiravaFaceIdentityGateResult = {
       | "FAIL"
     poseEstimatorVersion: string
     measurementContractDigest: string
+    cohortThresholdsDigest: string
   }
   candidateFace: {
     count: number
@@ -486,6 +487,9 @@ function parseGateResult(
     !validSha256Digest(
       evaluator.measurementContractDigest,
     ) ||
+    !validSha256Digest(
+      evaluator.cohortThresholdsDigest,
+    ) ||
     evaluator.measurementContractDigest !==
       MIRAVA_FACE_MEASUREMENT_CONTRACT_DIGEST ||
     evaluator.poseEstimatorVersion !==
@@ -600,7 +604,7 @@ function parseGateResult(
   ) {
     throw new MiravaFaceIdentityGateError({
       message:
-        "MIRAVA face identity gate response violates the v5 contract.",
+        "MIRAVA face identity gate response violates the v6 contract.",
       code:
         "FACE_IDENTITY_GATE_INVALID_RESPONSE",
       retryable:

@@ -102,7 +102,7 @@ genuine and impostor cohort sizes. The runner computes `acceptanceStatus`; the
 private gate re-verifies this report and cannot emit `PASS` when that status is
 `FAIL`.
 
-Schema v3 encodes the table above as the immutable `canonical-v1` coverage
+Schema v4 encodes the table above as the immutable `canonical-v1` coverage
 profile. Omitting a cohort or using an undeclared value invalidates calibration;
 a custom diagnostic profile can never receive an accepted PASS. Candidate and
 reference subjects use separate HMAC-derived pseudonyms so impostor pairs do
@@ -118,7 +118,7 @@ acceptance contract and canonical coverage contract, and unless every report
 and partition digest matches the isolation artifact pinned in runtime
 configuration.
 
-Schema v3 also pins `mirava-face-measurement/v1`. Its pose convention is
+Schema v4 also pins `mirava-face-measurement/v1`. Its pose convention is
 `Rz(roll) @ Ry(yaw) @ Rx(pitch)`: negative yaw/roll mean left in the image and
 positive pitch means up in the image. The candidate geometry is computed from
 the five detector landmarks and image dimensions by
@@ -133,6 +133,16 @@ instrument. It is sensitive to lens and facial-proportion bias, especially at
 extreme pose. Its boundaries require population calibration and held-out
 validation; synthetic projection recovery proves the convention, not real-world
 accuracy.
+
+Schema v4 additionally binds `mirava-face-cohort-thresholds/v1` to calibration
+and held-out test artifacts. It covers every measured yaw, pitch, roll and
+face-scale value. Runtime applies `strictest-applicable/v1`: the effective
+similarity floor is the maximum and the landmark-residual ceiling is the
+minimum among the global baseline and four measured cohorts. Every row stores
+the resolved values and the verifier recomputes them. The values remain inputs
+from population calibration, never defaults inferred from synthetic tests.
+Coverage for these four axes is counted from measured candidate cohorts, not
+from scenario labels, including inside boundary-tolerance bands.
 
 Minimum cohort sizes count only `SCORABLE` genuine and impostor rows. An
 unscorable genuine delivery remains a false reject; an unscorable impostor is

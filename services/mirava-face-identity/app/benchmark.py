@@ -19,10 +19,15 @@ from .face_geometry import (
     declared_geometry_matches,
     estimate_face_geometry,
     geometry_payload,
+    measured_cohorts,
+)
+from .cohort_thresholds import (
+    resolve_cohort_thresholds,
+    validate_cohort_thresholds,
 )
 
 
-BENCHMARK_SCHEMA = "mirava-face-identity-benchmark/v3"
+BENCHMARK_SCHEMA = "mirava-face-identity-benchmark/v4"
 REQUIRED_SCENARIO_AXES = (
     "yaw",
     "pitch",
@@ -148,6 +153,11 @@ def _validate_spec(spec: dict[str, Any]) -> None:
     if (threshold is None) != (landmark_threshold is None):
         raise ValueError("both thresholds must be null or both must be set")
     if thresholded:
+        validate_cohort_thresholds(
+            spec.get("cohortThresholds"),
+            global_similarity=float(threshold),
+            global_landmark_residual=float(landmark_threshold),
+        )
         if not isinstance(spec.get("calibrationVersion"), str) or not spec[
             "calibrationVersion"
         ].strip():
@@ -173,6 +183,8 @@ def _validate_spec(spec: dict[str, Any]) -> None:
             value = acceptance.get(key)
             if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
                 raise ValueError(f"acceptance.{key} must be a positive integer")
+    elif spec.get("cohortThresholds") is not None:
+        raise ValueError("cohortThresholds must be null for unthresholded runs")
     cases = spec.get("cases")
     if not isinstance(cases, list) or not cases:
         raise ValueError("at least one benchmark case is required")
@@ -240,7 +252,16 @@ def _coverage_report(spec: dict[str, Any], rows: list[dict[str, Any]]) -> dict[s
     for axis in REQUIRED_SCENARIO_AXES:
         axis_report: dict[str, dict[str, int | str]] = {}
         for value in contract["axes"][axis]:
-            matching = [row for row in rows if row["scenario"][axis] == value]
+            matching = [
+                row
+                for row in rows
+                if (
+                    row.get("candidateGeometry", {})
+                    .get("measuredCohorts", {})
+                    .get(axis, row["scenario"][axis])
+                    == value
+                )
+            ]
             genuine = [row for row in matching if row["expectedIdentityMatch"]]
             impostor = [row for row in matching if not row["expectedIdentityMatch"]]
             counts: dict[str, int | str] = {
@@ -282,6 +303,15 @@ def run_benchmark(
         else None
     )
     thresholded = threshold is not None and landmark_threshold is not None
+    cohort_thresholds = (
+        validate_cohort_thresholds(
+            spec.get("cohortThresholds"),
+            global_similarity=float(threshold),
+            global_landmark_residual=float(landmark_threshold),
+        )
+        if thresholded
+        else None
+    )
     rows: list[dict[str, Any]] = []
 
     for case in spec["cases"]:
@@ -364,6 +394,7 @@ def run_benchmark(
                     "aggregateSimilarity": None,
                     "perReferenceSimilarity": [],
                     "decision": "UNSCORABLE",
+                    "candidateGeometry": candidate_geometry_payload,
                 }
             )
             continue
@@ -378,12 +409,21 @@ def run_benchmark(
             for reference in reference_faces
         ]
         aggregate_landmark_residual = float(median(landmark_residuals))
+        applied_thresholds = (
+            resolve_cohort_thresholds(
+                cohort_thresholds,
+                measured_cohorts(candidate_geometry),
+            )
+            if cohort_thresholds is not None
+            else None
+        )
         decision = (
             "UNTHRESHOLDED"
             if not thresholded
             else "PASS"
-            if aggregate >= threshold
-            and aggregate_landmark_residual <= landmark_threshold
+            if aggregate >= applied_thresholds["similarityMin"]
+            and aggregate_landmark_residual
+            <= applied_thresholds["landmarkResidualMax"]
             else "FAIL"
         )
         rows.append(
@@ -402,6 +442,7 @@ def run_benchmark(
                     "box": list(candidate_faces[0].box),
                 },
                 "candidateGeometry": candidate_geometry_payload,
+                "appliedThresholds": applied_thresholds,
             }
         )
 
@@ -485,12 +526,14 @@ def run_benchmark(
                     "evaluator": spec["evaluator"],
                     "threshold": threshold,
                     "landmarkThreshold": landmark_threshold,
+                    "cohortThresholds": cohort_thresholds,
                 }
             )
         ),
         "evaluator": spec["evaluator"],
         "threshold": threshold,
         "landmarkThreshold": landmark_threshold,
+        "cohortThresholds": cohort_thresholds,
         "acceptance": acceptance,
         "acceptanceStatus": acceptance_status,
         "rows": rows,

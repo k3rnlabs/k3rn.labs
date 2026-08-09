@@ -21,6 +21,11 @@ from .face_geometry import (
     declared_geometry_matches,
     measured_cohorts,
 )
+from .cohort_thresholds import (
+    cohort_thresholds_digest,
+    resolve_cohort_thresholds,
+    validate_cohort_thresholds,
+)
 
 
 def canonical_json(value: object) -> str:
@@ -95,6 +100,14 @@ def _recompute_metrics_and_status(
 ) -> tuple[dict[str, int | float | None], str, dict[str, Any]]:
     threshold = report["threshold"]
     landmark_threshold = report["landmarkThreshold"]
+    try:
+        cohort_thresholds = validate_cohort_thresholds(
+            report.get("cohortThresholds"),
+            global_similarity=float(threshold),
+            global_landmark_residual=float(landmark_threshold),
+        )
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError("Calibration cohort thresholds are invalid") from exc
     rows = report.get("rows")
     if not isinstance(rows, list) or not rows:
         raise RuntimeError("Calibration benchmark rows are missing")
@@ -137,6 +150,8 @@ def _recompute_metrics_and_status(
         if status == "UNSCORABLE":
             if decision != "UNSCORABLE":
                 raise RuntimeError("Calibration unscorable decision is invalid")
+            if row.get("appliedThresholds") is not None:
+                raise RuntimeError("Calibration unscorable thresholds are invalid")
             if row.get("reasonCode") == "SCENARIO_MEASUREMENT_MISMATCH":
                 geometry = _verified_candidate_geometry(row)
                 if declared_geometry_matches(scenario, geometry):
@@ -147,6 +162,14 @@ def _recompute_metrics_and_status(
         geometry = _verified_candidate_geometry(row)
         if not declared_geometry_matches(scenario, geometry):
             raise RuntimeError("Calibration scenario does not match measurements")
+        expected_applied_thresholds = resolve_cohort_thresholds(
+            cohort_thresholds,
+            measured_cohorts(geometry),
+        )
+        if canonical_json(row.get("appliedThresholds")) != canonical_json(
+            expected_applied_thresholds
+        ):
+            raise RuntimeError("Calibration applied cohort thresholds are invalid")
 
         references = row.get("referenceContentSha256")
         similarities = row.get("perReferenceSimilarity")
@@ -200,7 +223,9 @@ def _recompute_metrics_and_status(
             raise RuntimeError("Calibration aggregates do not match score evidence")
         expected_decision = (
             "PASS"
-            if aggregate >= threshold and landmark_residual <= landmark_threshold
+            if aggregate >= expected_applied_thresholds["similarityMin"]
+            and landmark_residual
+            <= expected_applied_thresholds["landmarkResidualMax"]
             else "FAIL"
         )
         if decision != expected_decision:
@@ -340,6 +365,14 @@ def load_and_verify_benchmark_report(
         "landmarkThreshold"
     ) != expected_landmark_threshold:
         raise RuntimeError("Calibration thresholds do not match runtime")
+    try:
+        cohort_thresholds = validate_cohort_thresholds(
+            report.get("cohortThresholds"),
+            global_similarity=expected_threshold,
+            global_landmark_residual=expected_landmark_threshold,
+        )
+    except ValueError as exc:
+        raise RuntimeError("Calibration cohort thresholds do not match runtime") from exc
 
     coverage = report.get("coverage")
     if not isinstance(coverage, dict):
@@ -356,6 +389,7 @@ def load_and_verify_benchmark_report(
         "evaluator": evaluator,
         "threshold": expected_threshold,
         "landmarkThreshold": expected_landmark_threshold,
+        "cohortThresholds": cohort_thresholds,
     }
     expected_configuration_digest = hashlib.sha256(
         canonical_json(configuration).encode("utf-8")
@@ -426,6 +460,8 @@ def load_and_verify_benchmark_report(
         ).hexdigest(),
         "measurementContractDigest": "sha256:"
         + hashlib.sha256(canonical_json(MEASUREMENT_CONTRACT).encode("utf-8")).hexdigest(),
+        "cohortThresholds": cohort_thresholds,
+        "cohortThresholdsDigest": cohort_thresholds_digest(cohort_thresholds),
     }
 
 

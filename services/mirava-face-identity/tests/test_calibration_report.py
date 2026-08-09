@@ -18,6 +18,33 @@ from app.benchmark import (
     _partition_digest,
 )
 from app.face_geometry import MEASUREMENT_CONTRACT, FaceGeometry, geometry_payload
+from app.cohort_thresholds import (
+    MEASURED_COHORT_VALUES,
+    resolve_cohort_thresholds,
+)
+
+
+def cohort_thresholds(similarity: float, residual: float) -> dict:
+    similarity = float(similarity)
+    residual = float(residual)
+    return {
+        "schemaVersion": "mirava-face-cohort-thresholds/v1",
+        "selectionStrategy": "strictest-applicable/v1",
+        "global": {
+            "similarityMin": similarity,
+            "landmarkResidualMax": residual,
+        },
+        "axes": {
+            axis: {
+                cohort: {
+                    "similarityMin": similarity,
+                    "landmarkResidualMax": residual,
+                }
+                for cohort in values
+            }
+            for axis, values in MEASURED_COHORT_VALUES.items()
+        },
+    }
 
 
 def candidate_geometry(scenario: dict[str, str]) -> dict:
@@ -62,6 +89,7 @@ def _report() -> dict:
             for axis, values in CANONICAL_SCENARIO_COHORTS.items()
         },
     }
+    threshold_policy = cohort_thresholds(0.8, 0.2)
     rows = []
     for index in range(5):
         scenario = {
@@ -70,6 +98,7 @@ def _report() -> dict:
         }
         for expected in (True, False):
             score = 0.9 if expected else 0.1
+            geometry = candidate_geometry(scenario)
             rows.append({
                 "caseId": f"{'genuine' if expected else 'impostor'}-{index}",
                 "candidateSubjectKey": "subject-a" if expected else "subject-b",
@@ -85,10 +114,14 @@ def _report() -> dict:
                 "landmarkResidual": 0.1,
                 "perReferenceLandmarkResidual": [0.1] * 3,
                 "decision": "PASS" if expected else "FAIL",
-                "candidateGeometry": candidate_geometry(scenario),
+                "candidateGeometry": geometry,
+                "appliedThresholds": resolve_cohort_thresholds(
+                    threshold_policy,
+                    geometry["measuredCohorts"],
+                ),
             })
     value = {
-        "schemaVersion": "mirava-face-identity-benchmark/v3",
+        "schemaVersion": "mirava-face-identity-benchmark/v4",
         "datasetVersion": "private-v1",
         "datasetSplit": "calibration",
         "subjectKeyScheme": "hmac-sha256/v1",
@@ -101,6 +134,7 @@ def _report() -> dict:
         "evaluator": evaluator,
         "threshold": 0.8,
         "landmarkThreshold": 0.2,
+        "cohortThresholds": threshold_policy,
         "acceptance": {
             "maxFalseAcceptRate": 0.0,
             "maxFalseRejectRate": 0.0,
@@ -139,6 +173,7 @@ def _report() -> dict:
                 "evaluator": evaluator,
                 "threshold": 0.8,
                 "landmarkThreshold": 0.2,
+                "cohortThresholds": threshold_policy,
             }
         ).encode("utf-8")
     ).hexdigest()
@@ -195,6 +230,7 @@ def test_verifies_a_held_out_test_report_with_the_same_runtime_contract(
                 "evaluator": report["evaluator"],
                 "threshold": 0.8,
                 "landmarkThreshold": 0.2,
+                "cohortThresholds": report["cohortThresholds"],
             }
         ).encode("utf-8")
     ).hexdigest()
@@ -252,6 +288,12 @@ def test_replays_integer_json_thresholds_as_runtime_floats(tmp_path: Path) -> No
     report = _report()
     report["threshold"] = 1
     report["landmarkThreshold"] = 1
+    report["cohortThresholds"] = cohort_thresholds(1, 1)
+    for row in report["rows"]:
+        row["appliedThresholds"] = resolve_cohort_thresholds(
+            report["cohortThresholds"],
+            row["candidateGeometry"]["measuredCohorts"],
+        )
     for row in report["rows"]:
         if row["expectedIdentityMatch"]:
             row["aggregateSimilarity"] = 1.0
@@ -269,6 +311,7 @@ def test_replays_integer_json_thresholds_as_runtime_floats(tmp_path: Path) -> No
                 "evaluator": report["evaluator"],
                 "threshold": 1.0,
                 "landmarkThreshold": 1.0,
+                "cohortThresholds": report["cohortThresholds"],
             }
         ).encode("utf-8")
     ).hexdigest()
@@ -294,6 +337,15 @@ def test_rejects_forged_row_aggregates(tmp_path: Path) -> None:
     report["artifactDigest"] = benchmark_artifact_digest(report)
 
     with pytest.raises(RuntimeError, match="aggregates do not match"):
+        _verify(_write(tmp_path, report), report["artifactDigest"])
+
+
+def test_rejects_forged_applied_cohort_thresholds(tmp_path: Path) -> None:
+    report = _report()
+    report["rows"][0]["appliedThresholds"]["similarityMin"] = 0.1
+    report["artifactDigest"] = benchmark_artifact_digest(report)
+
+    with pytest.raises(RuntimeError, match="applied cohort thresholds are invalid"):
         _verify(_write(tmp_path, report), report["artifactDigest"])
 
 

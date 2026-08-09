@@ -19,14 +19,17 @@ from .engine import (
     landmark_shape_residual,
 )
 from .face_geometry import (
+    FaceGeometry,
     POSE_ESTIMATOR_VERSION,
     estimate_face_geometry,
     geometry_payload,
+    measured_cohorts,
 )
+from .cohort_thresholds import resolve_cohort_thresholds
 from .split_isolation import load_and_verify_split_isolation_report
 
 
-SCHEMA_VERSION = "mirava-face-identity-gate/v5"
+SCHEMA_VERSION = "mirava-face-identity-gate/v6"
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 MIN_REFERENCE_COUNT = 3
 MAX_REFERENCE_COUNT = 6
@@ -63,7 +66,7 @@ def _landmark_threshold() -> float:
 
 def _evaluator_manifest(
     threshold: float, landmark_threshold: float
-) -> dict[str, str]:
+) -> tuple[dict[str, str], dict[str, Any]]:
     name = os.environ.get("MIRAVA_FACE_MODEL_NAME", "auraface").strip()
     version = _required_environment("MIRAVA_FACE_MODEL_VERSION")
     weights_digest = _required_environment("MIRAVA_FACE_MODEL_DIGEST")
@@ -121,8 +124,9 @@ def _evaluator_manifest(
         "testStatus": str(test["status"]),
         "poseEstimatorVersion": POSE_ESTIMATOR_VERSION,
         "measurementContractDigest": str(calibration["measurementContractDigest"]),
+        "cohortThresholdsDigest": str(calibration["cohortThresholdsDigest"]),
         **isolation,
-    }
+    }, calibration["cohortThresholds"]
 
 
 def _authorize(authorization: str | None) -> None:
@@ -145,6 +149,7 @@ async def _read_image(upload: UploadFile) -> bytes:
 
 def _candidate_face_payload(
     faces: list[FaceObservation],
+    geometry: FaceGeometry | None = None,
 ) -> dict[str, Any]:
     if len(faces) != 1:
         return {
@@ -173,7 +178,7 @@ def _candidate_face_payload(
         },
     }
     try:
-        payload.update(geometry_payload(estimate_face_geometry(face)))
+        payload.update(geometry_payload(geometry or estimate_face_geometry(face)))
     except ValueError:
         payload.update(
             {
@@ -219,11 +224,15 @@ def create_app(engine: FaceEngine | None = None) -> FastAPI:
     async def lifespan(_: FastAPI):
         threshold = _threshold()
         landmark_threshold = _landmark_threshold()
+        evaluator, cohort_thresholds = _evaluator_manifest(
+            threshold, landmark_threshold
+        )
         configuration_holder.update(
             {
                 "threshold": threshold,
                 "landmarkThreshold": landmark_threshold,
-                "evaluator": _evaluator_manifest(threshold, landmark_threshold),
+                "cohortThresholds": cohort_thresholds,
+                "evaluator": evaluator,
             }
         )
         _required_environment("MIRAVA_FACE_SERVICE_TOKEN")
@@ -287,7 +296,7 @@ def create_app(engine: FaceEngine | None = None) -> FastAPI:
             )
 
         try:
-            estimate_face_geometry(candidate_faces[0])
+            candidate_geometry = estimate_face_geometry(candidate_faces[0])
         except ValueError:
             return _unscorable(
                 reason_code="CANDIDATE_GEOMETRY_INVALID",
@@ -296,6 +305,13 @@ def create_app(engine: FaceEngine | None = None) -> FastAPI:
                 landmark_threshold=landmark_threshold,
                 evaluator=evaluator,
             )
+
+        applied_thresholds = resolve_cohort_thresholds(
+            configuration_holder["cohortThresholds"],
+            measured_cohorts(candidate_geometry),
+        )
+        threshold = applied_thresholds["similarityMin"]
+        landmark_threshold = applied_thresholds["landmarkResidualMax"]
 
         reference_faces: list[FaceObservation] = []
         for reference in references:
@@ -356,7 +372,10 @@ def create_app(engine: FaceEngine | None = None) -> FastAPI:
             "landmarkThreshold": landmark_threshold,
             "perReferenceSimilarity": scores,
             "evaluator": evaluator,
-            "candidateFace": _candidate_face_payload(candidate_faces),
+            "candidateFace": _candidate_face_payload(
+                candidate_faces,
+                candidate_geometry,
+            ),
         }
 
     return application

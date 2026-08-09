@@ -8,11 +8,13 @@ from app.benchmark import (
     BENCHMARK_SCHEMA,
     CANONICAL_SCENARIO_COHORTS,
     _canonical_json,
+    _coverage_report,
     _partition_digest,
     run_benchmark,
 )
 from app.engine import FaceObservation
 from app.face_geometry import MEASUREMENT_CONTRACT
+from app.cohort_thresholds import MEASURED_COHORT_VALUES
 
 
 class FakeEngine:
@@ -31,6 +33,29 @@ def canonical_report_json(report: dict) -> str:
             "landmarkThreshold": report["landmarkThreshold"],
         }
     )
+
+
+def cohort_thresholds(similarity: float, residual: float) -> dict:
+    similarity = float(similarity)
+    residual = float(residual)
+    return {
+        "schemaVersion": "mirava-face-cohort-thresholds/v1",
+        "selectionStrategy": "strictest-applicable/v1",
+        "global": {
+            "similarityMin": similarity,
+            "landmarkResidualMax": residual,
+        },
+        "axes": {
+            axis: {
+                cohort: {
+                    "similarityMin": similarity,
+                    "landmarkResidualMax": residual,
+                }
+                for cohort in values
+            }
+            for axis, values in MEASURED_COHORT_VALUES.items()
+        },
+    }
 
 
 def face(embedding: tuple[float, ...]) -> FaceObservation:
@@ -105,6 +130,7 @@ def spec() -> dict:
         "measurementContract": MEASUREMENT_CONTRACT,
         "threshold": 0.8,
         "landmarkThreshold": 0.25,
+        "cohortThresholds": cohort_thresholds(0.8, 0.25),
         "calibrationVersion": "calibration-v1",
         "acceptance": {
             "maxFalseAcceptRate": 0.0,
@@ -161,10 +187,86 @@ def test_benchmark_reports_genuine_and_impostor_metrics_without_embeddings() -> 
     assert "candidatePath" not in str(report)
 
 
+def test_benchmark_applies_the_strictest_measured_cohort_threshold() -> None:
+    value = spec()
+    value["cohortThresholds"]["axes"]["yaw"]["frontal"][
+        "similarityMin"
+    ] = 1.0
+    report = run_benchmark(
+        value,
+        FakeEngine(
+            [
+                [face((1.0, 0.0))],
+                [face((1.0, 0.0))],
+                [face((0.9, 0.1))],
+                [face((0.8, 0.2))],
+                [face((0.0, 1.0))],
+                [face((1.0, 0.0))],
+                [face((0.9, 0.1))],
+                [face((0.8, 0.2))],
+            ]
+        ),
+        read_bytes=lambda path: path.encode("utf-8"),
+    )
+
+    assert report["rows"][0]["decision"] == "FAIL"
+    assert report["rows"][0]["appliedThresholds"]["similarityMin"] == 1.0
+    assert report["metrics"]["falseRejectRate"] == 1.0
+
+
+def test_coverage_uses_measured_geometry_instead_of_declared_boundary_labels() -> None:
+    value = spec()
+    value["coverageContract"]["axes"]["yaw"] = [
+        "profile-left",
+        "three-quarter-left",
+    ]
+    row = {
+        "expectedIdentityMatch": True,
+        "status": "UNSCORABLE",
+        "reasonCode": "REFERENCE_FACE_INVALID",
+        "scenario": case("boundary", True)["scenario"],
+        "candidateGeometry": {
+            "measuredCohorts": {
+                "yaw": "three-quarter-left",
+                "pitch": "neutral",
+                "roll": "neutral",
+                "faceScale": "close-portrait",
+            }
+        },
+    }
+    row["scenario"]["yaw"] = "profile-left"
+    coverage = _coverage_report(value, [row])
+
+    assert coverage["axes"]["yaw"]["profile-left"]["scorableGenuineCount"] == 0
+    assert coverage["axes"]["yaw"]["profile-left"]["genuineCount"] == 0
+    assert coverage["axes"]["yaw"]["three-quarter-left"]["genuineCount"] == 1
+
+
+def test_invalid_reference_row_preserves_measured_candidate_geometry() -> None:
+    value = spec()
+    value["cases"] = [case("invalid-reference", True)]
+    refresh_partition(value)
+    report = run_benchmark(
+        value,
+        FakeEngine(
+            [
+                [face((1.0, 0.0))],
+                [],
+            ]
+        ),
+        read_bytes=lambda path: path.encode("utf-8"),
+    )
+
+    row = report["rows"][0]
+    assert row["reasonCode"] == "REFERENCE_FACE_INVALID"
+    assert row["candidateGeometry"]["measuredCohorts"]["yaw"] == "frontal"
+
+
 def test_benchmark_normalizes_integer_thresholds_for_runtime_replay() -> None:
     value = spec()
     value["threshold"] = 1
     value["landmarkThreshold"] = 1
+    value["cohortThresholds"] = cohort_thresholds(1, 1)
     report = run_benchmark(
         value,
         FakeEngine(

@@ -112,6 +112,12 @@ weights, preprocessing and both thresholds against that report. Non-empty
 genuine and impostor cohorts are mandatory. An acceptance status of `FAIL`
 prevents the service from becoming ready.
 
+The two global thresholds are conservative baselines. A versioned cohort
+policy supplies calibrated floors and ceilings for measured yaw, pitch, roll
+and face scale. The gate applies the strictest applicable values and returns the
+policy digest with every evaluation. Calibration and held-out test must replay
+the same policy before readiness.
+
 ### 4. State machine
 
 `PASS_A_READY -> FACE_DETECTED -> SCORED -> RESTORING -> RESCORED -> ACCEPTED`

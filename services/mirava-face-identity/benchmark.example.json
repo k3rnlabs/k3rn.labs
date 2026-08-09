@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "mirava-face-identity-benchmark/v3",
+  "schemaVersion": "mirava-face-identity-benchmark/v4",
   "datasetVersion": "private-consented-dataset-v1",
   "datasetSplit": "calibration",
   "subjectKeyScheme": "hmac-sha256/v1",
@@ -8,6 +8,7 @@
   "commit": "replace-with-git-commit",
   "threshold": null,
   "landmarkThreshold": null,
+  "cohortThresholds": null,
   "calibrationVersion": null,
   "acceptance": null,
   "evaluator": {
