@@ -204,11 +204,11 @@ def run_benchmark(
         )
 
     scorable = [row for row in rows if row["status"] == "SCORABLE"]
-    genuine = [row for row in scorable if row["expectedIdentityMatch"]]
-    impostor = [row for row in scorable if not row["expectedIdentityMatch"]]
+    genuine = [row for row in rows if row["expectedIdentityMatch"]]
+    impostor = [row for row in rows if not row["expectedIdentityMatch"]]
 
     false_rejects = (
-        sum(row["decision"] == "FAIL" for row in genuine)
+        sum(row["decision"] != "PASS" for row in genuine)
         if thresholded
         else None
     )

@@ -26,6 +26,50 @@ const image = {
     "face.png",
 }
 
+function validGateResponse() {
+  return {
+    schemaVersion:
+      "mirava-face-identity-gate/v2",
+    decision:
+      "PASS",
+    reasonCode:
+      "CALIBRATED_PASS",
+    aggregateSimilarity:
+      0.84,
+    threshold:
+      0.8,
+    landmarkResidual:
+      0.08,
+    landmarkThreshold:
+      0.12,
+    perReferenceSimilarity:
+      [0.82, 0.84, 0.86],
+    evaluator: {
+      name:
+        "auraface",
+      version:
+        "1.0",
+      weightsDigest:
+        "sha256:test",
+      preprocessingVersion:
+        "mirava-align-v1",
+    },
+    candidateFace: {
+      count: 1,
+      confidence: 0.99,
+      box: {
+        left: 100,
+        top: 120,
+        width: 200,
+        height: 240,
+      },
+      yaw: 4,
+      pitch: -2,
+      roll: 1,
+    },
+  }
+}
+
 afterEach(() => {
   process.env
     .MIRAVA_FACE_IDENTITY_GATE_URL =
@@ -78,47 +122,9 @@ describe(
             ).toBe("manifest-7")
 
             return new Response(
-              JSON.stringify({
-                schemaVersion:
-                  "mirava-face-identity-gate/v2",
-                decision:
-                  "PASS",
-                reasonCode:
-                  "CALIBRATED_PASS",
-                aggregateSimilarity:
-                  0.84,
-                threshold:
-                  0.8,
-                landmarkResidual:
-                  0.08,
-                landmarkThreshold:
-                  0.12,
-                perReferenceSimilarity:
-                  [0.82, 0.84, 0.86],
-                evaluator: {
-                  name:
-                    "auraface",
-                  version:
-                    "1.0",
-                  weightsDigest:
-                    "sha256:test",
-                  preprocessingVersion:
-                    "mirava-align-v1",
-                },
-                candidateFace: {
-                  count: 1,
-                  confidence: 0.99,
-                  box: {
-                    left: 100,
-                    top: 120,
-                    width: 200,
-                    height: 240,
-                  },
-                  yaw: 4,
-                  pitch: -2,
-                  roll: 1,
-                },
-              }),
+              JSON.stringify(
+                validGateResponse(),
+              ),
               {
                 status: 200,
                 headers: {
@@ -194,10 +200,13 @@ describe(
           async () =>
             new Response(
               JSON.stringify({
-                decision:
-                  "PASS",
-                embedding:
-                  [0.1, 0.2],
+                ...validGateResponse(),
+                candidateFace: {
+                  ...validGateResponse()
+                    .candidateFace,
+                  embedding:
+                    [0.1, 0.2],
+                },
               }),
               {
                 status: 200,

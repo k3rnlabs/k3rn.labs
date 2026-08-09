@@ -111,7 +111,35 @@ def test_benchmark_keeps_unscorable_rows_in_the_denominator() -> None:
 
     assert report["metrics"]["caseCount"] == 1
     assert report["metrics"]["unscorableCount"] == 1
+    assert report["metrics"]["genuineCount"] == 1
+    assert report["metrics"]["falseRejectRate"] == 1
     assert report["rows"][0]["decision"] == "UNSCORABLE"
+
+
+def test_benchmark_counts_unscorable_genuine_delivery_as_a_rejection() -> None:
+    value = spec()
+    value["cases"] = [
+        case("genuine-pass", True),
+        case("genuine-unscorable", True),
+    ]
+    report = run_benchmark(
+        value,
+        FakeEngine(
+            [
+                [face((1.0, 0.0))],
+                [face((1.0, 0.0))],
+                [face((0.9, 0.1))],
+                [face((0.8, 0.2))],
+                [],
+            ]
+        ),
+        read_bytes=lambda path: path.encode("utf-8"),
+    )
+
+    assert report["metrics"]["genuineCount"] == 2
+    assert report["metrics"]["scorableCount"] == 1
+    assert report["metrics"]["unscorableCount"] == 1
+    assert report["metrics"]["falseRejectRate"] == 0.5
 
 
 def test_benchmark_requires_every_scenario_axis() -> None:

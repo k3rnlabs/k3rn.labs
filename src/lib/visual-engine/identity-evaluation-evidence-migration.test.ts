@@ -17,6 +17,16 @@ const supabaseMigration =
     "supabase/migrations/20260809123000_mirava_identity_evaluation_evidence.sql",
     "utf8",
   )
+const prismaSecurityHardening =
+  readFileSync(
+    "prisma/migrations/20260809133000_mirava_identity_evaluation_security_hardening/migration.sql",
+    "utf8",
+  )
+const supabaseSecurityHardening =
+  readFileSync(
+    "supabase/migrations/20260809133000_mirava_identity_evaluation_security_hardening.sql",
+    "utf8",
+  )
 const core =
   readFileSync(
     "src/lib/visual-engine/core.ts",
@@ -41,18 +51,23 @@ describe(
     it(
       "is private to service_role with RLS enabled",
       () => {
-        expect(supabaseMigration).toContain(
-          'ENABLE ROW LEVEL SECURITY',
-        )
-        expect(supabaseMigration).toContain(
-          'REVOKE ALL ON TABLE public."StudioIdentityEvaluation" FROM PUBLIC, anon, authenticated',
-        )
-        expect(supabaseMigration).toContain(
-          'GRANT ALL ON TABLE public."StudioIdentityEvaluation" TO service_role',
-        )
-        expect(supabaseMigration).not.toMatch(
-          /CREATE POLICY/i,
-        )
+        for (const migration of [
+          prismaSecurityHardening,
+          supabaseSecurityHardening,
+        ]) {
+          expect(migration).toContain(
+            'ENABLE ROW LEVEL SECURITY',
+          )
+          expect(migration).toMatch(
+            /REVOKE ALL ON TABLE public\."StudioIdentityEvaluation"\s+FROM PUBLIC, anon, authenticated/,
+          )
+          expect(migration).toMatch(
+            /GRANT ALL ON TABLE public\."StudioIdentityEvaluation"\s+TO service_role/,
+          )
+          expect(migration).not.toMatch(
+            /CREATE POLICY/i,
+          )
+        }
       },
     )
 
@@ -89,6 +104,18 @@ describe(
           prismaMigration,
         ).not.toMatch(
           /embedding|imageBuffer|storagePath/i,
+        )
+      },
+    )
+
+    it(
+      "keeps candidate face geometry out of operational logs",
+      () => {
+        expect(core).not.toContain(
+          "candidateFaceBox:",
+        )
+        expect(core).toContain(
+          "candidateFaceCount:",
         )
       },
     )

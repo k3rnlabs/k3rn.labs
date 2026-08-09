@@ -7020,8 +7020,6 @@ async function generateStudioImage(
               result.evaluator,
             candidateFaceCount:
               result.candidateFace.count,
-            candidateFaceBox:
-              result.candidateFace.box,
           }),
         )
 

@@ -219,6 +219,56 @@ function finiteNullableNumber(
   )
 }
 
+function finiteUnitNullableNumber(
+  value: unknown,
+): value is number | null {
+  return (
+    value === null ||
+    finiteUnitNumber(value)
+  )
+}
+
+function finiteNonNegativeNullableNumber(
+  value: unknown,
+): value is number | null {
+  return (
+    value === null ||
+    (
+      typeof value === "number" &&
+      Number.isFinite(value) &&
+      value >= 0
+    )
+  )
+}
+
+function containsEmbeddingField(
+  value: unknown,
+): boolean {
+  if (
+    !value ||
+    typeof value !== "object"
+  ) {
+    return false
+  }
+
+  if (Array.isArray(value)) {
+    return value.some(
+      containsEmbeddingField,
+    )
+  }
+
+  return Object.entries(
+    value as Record<string, unknown>,
+  ).some(
+    ([key, nestedValue]) =>
+      key.toLowerCase()
+        .includes("embedding") ||
+      containsEmbeddingField(
+        nestedValue,
+      ),
+  )
+}
+
 function parseGateResult(
   value: unknown,
 ): MiravaFaceIdentityGateResult {
@@ -279,20 +329,21 @@ function parseGateResult(
     )
 
   if (
+    containsEmbeddingField(result) ||
     result.schemaVersion !==
       MIRAVA_FACE_IDENTITY_GATE_SCHEMA ||
     !validDecision ||
     typeof result.reasonCode !== "string" ||
-    !finiteNullableNumber(
+    !finiteUnitNullableNumber(
       result.aggregateSimilarity,
     ) ||
-    !finiteNullableNumber(
+    !finiteUnitNullableNumber(
       result.threshold,
     ) ||
-    !finiteNullableNumber(
+    !finiteNonNegativeNullableNumber(
       result.landmarkResidual,
     ) ||
-    !finiteNullableNumber(
+    !finiteNonNegativeNullableNumber(
       result.landmarkThreshold,
     ) ||
     !Array.isArray(similarities) ||
