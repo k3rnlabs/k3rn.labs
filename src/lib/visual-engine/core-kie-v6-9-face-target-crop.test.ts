@@ -12,85 +12,65 @@ const core = readFileSync(
   "utf8",
 )
 
-function faceCropHelper(): string {
-  const start =
-    core.indexOf(
-      "async function createMiravaKieRestorationFaceCrop(",
-    )
-
-  const end =
-    core.indexOf(
-      "async function purgeMiravaKieRestorationFaceCrop(",
-      start,
-    )
-
-  if (
-    start < 0 ||
-    end < 0
-  ) {
-    throw new Error(
-      "Face target helper not found",
-    )
-  }
-
-  return core.slice(
-    start,
-    end,
-  )
-}
-
 describe(
-  "MIRAVA V6.9 local restoration target",
+  "MIRAVA localized identity restoration wiring",
   () => {
     it(
-      "derives the exact crop from referenceFaceGeometry",
+      "uses the face box detected in the generated candidate",
       () => {
-        const helper =
-          faceCropHelper()
-
-        expect(helper).toContain(
-          "parseMiravaIdentityFaceGeometry(",
+        expect(core).toContain(
+          "gateResult.candidateFace.box",
         )
-        expect(helper).toContain(
-          "resolveMiravaReferenceFaceRestorationCrop(",
-        )
-        expect(helper).toContain(
-          ".extract({",
+        expect(core).toContain(
+          "resolveMiravaDetectedFaceRestorationCrop({",
         )
       },
     )
 
     it(
-      "does not resize the Pass-A face target before storage",
+      "submits only the extracted square target and canonical identity views",
       () => {
-        expect(
-          faceCropHelper(),
-        ).not.toContain(
-          ".resize(",
+        expect(core).toContain(
+          ".extract(crop)",
+        )
+        expect(core).toContain(
+          'aspectRatio:\n                "1:1"',
+        )
+        expect(core).toContain(
+          "buildMiravaKieIdentityRestorationPrompt({",
+        )
+        expect(core).toContain(
+          "resolveMiravaIdentityFaceCrop({",
         )
       },
     )
 
     it(
-      "prepares the target only inside the initial reference-anchor route",
+      "composites locally and re-runs the identity gate before acceptance",
       () => {
-        expect(core).toMatch(
-          /useKieCampaignProvider\s*&&\s*kieArtisticReference\s*&&\s*isReferenceAnchor/,
+        expect(core).toContain(
+          "compositeMiravaIdentityRestoration({",
+        )
+        expect(core).toContain(
+          'await evaluateCandidate(\n            restoredCandidate,\n            "pass-b"',
+        )
+        expect(core).toContain(
+          "MIRAVA_FACE_RESTORATION_READY_STATE",
         )
       },
     )
 
     it(
-      "uses centralized terminal and frame cleanup",
+      "keeps temporary candidate state resumable and centrally cleaned",
       () => {
+        expect(core).toContain(
+          "MIRAVA_FACE_RESTORATION_SUBMITTED_STATE",
+        )
         expect(core).toContain(
           "purgeMiravaKieTemporaryAssetsForFrame(",
         )
         expect(core).toContain(
           "purgeMiravaKieTemporaryAssetsForCreation(",
-        )
-        expect(core).toContain(
-          "purgeMiravaKieRestorationFaceCrop(",
         )
       },
     )

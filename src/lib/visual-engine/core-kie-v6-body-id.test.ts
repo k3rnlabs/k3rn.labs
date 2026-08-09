@@ -40,7 +40,7 @@ describe(
     )
 
     it(
-      "has exactly one active Kie BODY_ID provider contract",
+      "passes BODY_ID to both full-frame and local identity contracts",
       () => {
         const matches =
           core.match(
@@ -48,19 +48,19 @@ describe(
           ) ?? []
 
         expect(matches).toHaveLength(
-          1,
+          2,
         )
       },
     )
 
     it(
-      "contains no retained provider restoration contract",
+      "keeps BODY_ID explicit in the localized restoration contract",
       () => {
-        expect(core).not.toContain(
+        expect(core).toContain(
           "buildMiravaKieIdentityRestorationPrompt",
         )
-        expect(core).not.toContain(
-          '"identity-restoration"',
+        expect(core).toContain(
+          "compositeMiravaIdentityRestoration({",
         )
       },
     )

@@ -87,34 +87,30 @@ describe(
     )
 
     it(
-      "prepares only the local face target",
+      "does not derive the restoration target from the artistic reference",
       () => {
         const branch =
           artisticReferenceBranch()
 
-        expect(branch).toContain(
-          "createMiravaKieRestorationFaceCrop(",
-        )
-
-        expect(branch).toContain(
+        expect(branch).not.toContain(
           "referenceFaceGeometry",
         )
       },
     )
 
     it(
-      "has no legacy provider restoration pass",
+      "has no legacy full-frame restoration pass",
       () => {
         expect(core).not.toContain(
           "MIRAVA_KIE_V5_",
         )
 
-        expect(core).not.toContain(
+        expect(core).toContain(
           "buildMiravaKieIdentityRestorationPrompt",
         )
 
-        expect(core).not.toContain(
-          '"identity-restoration"',
+        expect(core).toContain(
+          "resolveMiravaDetectedFaceRestorationCrop({",
         )
       },
     )

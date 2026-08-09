@@ -104,6 +104,28 @@ describe(
     )
 
     it(
+      "allows a square localized restoration payload without changing the full-frame default",
+      () => {
+        const input =
+          buildKieImageTaskInput({
+            model:
+              "seedream/4.5-edit",
+            prompt:
+              "Restore facial identity locally.",
+            inputUrls: [
+              "https://example.com/face-crop.png",
+            ],
+            aspectRatio:
+              "1:1",
+          })
+
+        expect(
+          input.aspect_ratio,
+        ).toBe("1:1")
+      },
+    )
+
+    it(
       "keeps provider safety checking enabled for every supported image model",
       () => {
         const seedream =

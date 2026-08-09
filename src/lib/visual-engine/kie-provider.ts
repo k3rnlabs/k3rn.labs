@@ -36,6 +36,10 @@ export type MiravaKieReferenceImage = {
   fileName?: string
 }
 
+export type MiravaKieAspectRatio =
+  | "1:1"
+  | "2:3"
+
 export type KieProviderFailureKind =
   | "configuration"
   | "billing"
@@ -1378,6 +1382,8 @@ export function buildKieImageTaskInput(args: {
   model: string
   prompt: string
   inputUrls: string[]
+  aspectRatio?:
+    MiravaKieAspectRatio
 }) {
   if (
     args.model ===
@@ -1392,6 +1398,7 @@ export function buildKieImageTaskInput(args: {
       image_urls:
         args.inputUrls,
       aspect_ratio:
+        args.aspectRatio ??
         "2:3",
 
       /*
@@ -1421,6 +1428,7 @@ export function buildKieImageTaskInput(args: {
       prompt:
         args.prompt,
       aspect_ratio:
+        args.aspectRatio ??
         "2:3",
       resolution:
         "1K",
@@ -1510,6 +1518,8 @@ export function parseKieCreateTaskId(
 async function createTask(args: {
   prompt: string
   inputUrls: string[]
+  aspectRatio?:
+    MiravaKieAspectRatio
 }): Promise<string> {
   const response =
     await kieFetch(
@@ -1534,6 +1544,8 @@ async function createTask(args: {
                   args.prompt,
                 inputUrls:
                   args.inputUrls,
+                aspectRatio:
+                  args.aspectRatio,
               }),
           }),
       },
@@ -1678,6 +1690,8 @@ async function downloadResult(
 export async function runKieImageGeneration(args: {
   prompt: string
   images: MiravaKieReferenceImage[]
+  aspectRatio?:
+    MiravaKieAspectRatio
   resumeTaskId?: string | null
   onTaskCreated?: (
     taskId: string,
@@ -1777,6 +1791,8 @@ export async function runKieImageGeneration(args: {
       await createTask({
         prompt: args.prompt,
         inputUrls,
+        aspectRatio:
+          args.aspectRatio,
       })
 
     await args.onTaskCreated?.(

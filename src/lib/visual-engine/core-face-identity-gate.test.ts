@@ -57,7 +57,7 @@ describe(
           'gateMode === "required"',
         )
         expect(core).toContain(
-          'gateResult.decision !== "PASS"',
+          'gateResult.decision === "PASS"',
         )
         expect(core).toContain(
           '"IDENTITY_FIDELITY_REJECTED"',
