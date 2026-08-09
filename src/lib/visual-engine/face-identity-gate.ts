@@ -1,5 +1,5 @@
 const MIRAVA_FACE_IDENTITY_GATE_SCHEMA =
-  "mirava-face-identity-gate/v1" as const
+  "mirava-face-identity-gate/v2" as const
 
 const DEFAULT_FACE_IDENTITY_GATE_TIMEOUT_MS =
   30_000
@@ -21,6 +21,10 @@ export type MiravaFaceIdentityGateResult = {
   aggregateSimilarity:
     number | null
   threshold:
+    number | null
+  landmarkResidual:
+    number | null
+  landmarkThreshold:
     number | null
   perReferenceSimilarity:
     number[]
@@ -285,6 +289,12 @@ function parseGateResult(
     !finiteNullableNumber(
       result.threshold,
     ) ||
+    !finiteNullableNumber(
+      result.landmarkResidual,
+    ) ||
+    !finiteNullableNumber(
+      result.landmarkThreshold,
+    ) ||
     !Array.isArray(similarities) ||
     !similarities.every(
       finiteUnitNumber,
@@ -320,7 +330,7 @@ function parseGateResult(
   ) {
     throw new MiravaFaceIdentityGateError({
       message:
-        "MIRAVA face identity gate response violates the v1 contract.",
+        "MIRAVA face identity gate response violates the v2 contract.",
       code:
         "FACE_IDENTITY_GATE_INVALID_RESPONSE",
       retryable:

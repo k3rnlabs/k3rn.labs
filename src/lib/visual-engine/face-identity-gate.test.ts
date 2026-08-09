@@ -80,7 +80,7 @@ describe(
             return new Response(
               JSON.stringify({
                 schemaVersion:
-                  "mirava-face-identity-gate/v1",
+                  "mirava-face-identity-gate/v2",
                 decision:
                   "PASS",
                 reasonCode:
@@ -89,6 +89,10 @@ describe(
                   0.84,
                 threshold:
                   0.8,
+                landmarkResidual:
+                  0.08,
+                landmarkThreshold:
+                  0.12,
                 perReferenceSimilarity:
                   [0.82, 0.84, 0.86],
                 evaluator: {

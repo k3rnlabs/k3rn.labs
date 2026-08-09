@@ -8,10 +8,16 @@ from typing import Annotated, Any
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 
-from .engine import AuraFaceEngine, FaceEngine, FaceObservation, cosine_similarity
+from .engine import (
+    AuraFaceEngine,
+    FaceEngine,
+    FaceObservation,
+    cosine_similarity,
+    landmark_shape_residual,
+)
 
 
-SCHEMA_VERSION = "mirava-face-identity-gate/v1"
+SCHEMA_VERSION = "mirava-face-identity-gate/v2"
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 MIN_REFERENCE_COUNT = 3
 MAX_REFERENCE_COUNT = 6
@@ -32,6 +38,17 @@ def _threshold() -> float:
         raise RuntimeError("MIRAVA_FACE_GATE_THRESHOLD is invalid") from exc
     if value < -1 or value > 1:
         raise RuntimeError("MIRAVA_FACE_GATE_THRESHOLD is out of range")
+    return value
+
+
+def _landmark_threshold() -> float:
+    raw = _required_environment("MIRAVA_FACE_LANDMARK_RESIDUAL_MAX")
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise RuntimeError("MIRAVA_FACE_LANDMARK_RESIDUAL_MAX is invalid") from exc
+    if value <= 0 or value > 2:
+        raise RuntimeError("MIRAVA_FACE_LANDMARK_RESIDUAL_MAX is out of range")
     return value
 
 
@@ -105,6 +122,8 @@ def _unscorable(
         "reasonCode": reason_code,
         "aggregateSimilarity": None,
         "threshold": _threshold(),
+        "landmarkResidual": None,
+        "landmarkThreshold": _landmark_threshold(),
         "perReferenceSimilarity": [],
         "evaluator": _evaluator_manifest(),
         "candidateFace": _candidate_face_payload(faces),
@@ -117,6 +136,7 @@ def create_app(engine: FaceEngine | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         _threshold()
+        _landmark_threshold()
         _evaluator_manifest()
         _required_environment("MIRAVA_FACE_SERVICE_TOKEN")
         engine_holder["engine"] = engine or AuraFaceEngine()
@@ -188,17 +208,31 @@ def create_app(engine: FaceEngine | None = None) -> FastAPI:
             for reference in reference_faces
         ]
         aggregate = float(median(scores))
+        landmark_residuals = [
+            landmark_shape_residual(candidate_faces[0], reference)
+            for reference in reference_faces
+        ]
+        aggregate_landmark_residual = float(median(landmark_residuals))
         threshold = _threshold()
-        decision = "PASS" if aggregate >= threshold else "FAIL"
+        landmark_threshold = _landmark_threshold()
+        embedding_pass = aggregate >= threshold
+        landmark_pass = aggregate_landmark_residual <= landmark_threshold
+        decision = "PASS" if embedding_pass and landmark_pass else "FAIL"
 
         return {
             "schemaVersion": SCHEMA_VERSION,
             "decision": decision,
             "reasonCode": (
-                "CALIBRATED_PASS" if decision == "PASS" else "IDENTITY_DRIFT"
+                "CALIBRATED_PASS"
+                if decision == "PASS"
+                else "IDENTITY_DRIFT"
+                if not embedding_pass
+                else "LANDMARK_DRIFT"
             ),
             "aggregateSimilarity": aggregate,
             "threshold": threshold,
+            "landmarkResidual": aggregate_landmark_residual,
+            "landmarkThreshold": landmark_threshold,
             "perReferenceSimilarity": scores,
             "evaluator": _evaluator_manifest(),
             "candidateFace": _candidate_face_payload(candidate_faces),

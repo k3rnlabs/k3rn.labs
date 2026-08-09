@@ -17,16 +17,27 @@ class FakeEngine:
         return self._observations.popleft()
 
 
-def face(embedding: tuple[float, ...]) -> FaceObservation:
+def face(
+    embedding: tuple[float, ...],
+    mouth_scale: float = 1.0,
+) -> FaceObservation:
     return FaceObservation(
         confidence=0.99,
         box=(10.0, 20.0, 110.0, 140.0),
         embedding=embedding,
+        landmarks=(
+            (30.0, 40.0),
+            (70.0, 40.0),
+            (50.0, 62.0),
+            (38.0 / mouth_scale, 82.0),
+            (62.0 * mouth_scale, 82.0),
+        ),
     )
 
 
 def configure(monkeypatch) -> None:
     monkeypatch.setenv("MIRAVA_FACE_GATE_THRESHOLD", "0.8")
+    monkeypatch.setenv("MIRAVA_FACE_LANDMARK_RESIDUAL_MAX", "0.25")
     monkeypatch.setenv("MIRAVA_FACE_SERVICE_TOKEN", "secret")
     monkeypatch.setenv("MIRAVA_FACE_MODEL_VERSION", "1.0")
     monkeypatch.setenv("MIRAVA_FACE_MODEL_DIGEST", "sha256:test")
@@ -70,6 +81,25 @@ def test_calibrated_pass_returns_no_embedding(monkeypatch) -> None:
     assert body["decision"] == "PASS"
     assert body["candidateFace"]["count"] == 1
     assert "embedding" not in str(body).lower()
+
+
+def test_landmark_drift_fails_even_when_embedding_passes(monkeypatch) -> None:
+    configure(monkeypatch)
+    engine = FakeEngine(
+        [
+            [face((1.0, 0.0), mouth_scale=2.0)],
+            [face((1.0, 0.0))],
+            [face((1.0, 0.0))],
+            [face((1.0, 0.0))],
+        ]
+    )
+    with TestClient(create_app(engine)) as client:
+        response = request(client)
+
+    assert response.status_code == 200
+    assert response.json()["decision"] == "FAIL"
+    assert response.json()["reasonCode"] == "LANDMARK_DRIFT"
+    assert response.json()["aggregateSimilarity"] == 1.0
 
 
 def test_multiple_candidate_faces_are_unscorable(monkeypatch) -> None:

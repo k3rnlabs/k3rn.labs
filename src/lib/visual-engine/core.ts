@@ -6960,6 +6960,10 @@ async function generateStudioImage(
                 result.aggregateSimilarity,
               threshold:
                 result.threshold,
+              landmarkResidual:
+                result.landmarkResidual,
+              landmarkThreshold:
+                result.landmarkThreshold,
               perReferenceSimilarity:
                 result.perReferenceSimilarity,
               evaluator:
@@ -7008,6 +7012,10 @@ async function generateStudioImage(
               result.aggregateSimilarity,
             threshold:
               result.threshold,
+            landmarkResidual:
+              result.landmarkResidual,
+            landmarkThreshold:
+              result.landmarkThreshold,
             evaluator:
               result.evaluator,
             candidateFaceCount:

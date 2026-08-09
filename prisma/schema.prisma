@@ -924,6 +924,8 @@ model StudioIdentityEvaluation {
   reasonCode              String
   aggregateSimilarity     Float?
   threshold               Float?
+  landmarkResidual        Float?
+  landmarkThreshold       Float?
   perReferenceSimilarity  Json
   evaluator               Json
   candidateFace           Json
