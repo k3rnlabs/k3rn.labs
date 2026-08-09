@@ -22,12 +22,38 @@ MIRAVA_FACE_MODEL_DIGEST=sha256:<verified-manifest-digest>
 MIRAVA_FACE_PREPROCESSING_VERSION=mirava-auraface-align-v1
 MIRAVA_FACE_GATE_THRESHOLD=<calibrated cohort threshold>
 MIRAVA_FACE_LANDMARK_RESIDUAL_MAX=<calibrated five-landmark residual ceiling>
+MIRAVA_FACE_CALIBRATION_REPORT=/private/calibration/benchmark-report.json
+MIRAVA_FACE_CALIBRATION_DIGEST=sha256:<benchmark artifact digest>
 MIRAVA_FACE_SERVICE_TOKEN=<private random token>
 ```
 
 Neither threshold has a default. The service refuses to become ready until both
-calibrated values are supplied. A PASS requires both the embedding threshold
-and the normalized landmark-shape residual ceiling.
+calibrated values and their verified benchmark report are supplied. A PASS
+requires both the embedding threshold and the normalized landmark-shape
+residual ceiling. A numeric smoke-test threshold cannot silently masquerade as
+a production calibration because its version and SHA-256 are part of every
+evaluation result. The service recomputes the report artifact digest, matches
+its evaluator and thresholds to the active runtime, and requires non-empty
+genuine/impostor cohorts. A report whose acceptance status is `FAIL` forces
+every otherwise successful comparison to `CALIBRATION_NOT_ACCEPTED`.
+
+Provision the exact licensed artifacts into the mounted model volume:
+
+```bash
+.venv/bin/python provision_model.py \
+  --destination /models/models/auraface
+```
+
+The command reads the committed `model-source-manifest.json`, downloads the
+fixed repository revision, verifies every byte count and SHA-256, includes the
+Apache-2.0 license, and prints the canonical digest to use as
+`MIRAVA_FACE_MODEL_DIGEST`. The destination must initially be absent; the
+provisioner stores immutable verified versions beside it and exposes the active
+version through a provisioner-managed symbolic link. Reprovisioning changes
+that link with one atomic filesystem operation, so interruption cannot remove
+the previously active model. Service startup recomputes the manifest digest and
+every artifact digest before initializing ONNX Runtime. Floating revisions and
+implicit InsightFace downloads are not accepted.
 
 ## API
 
@@ -67,5 +93,5 @@ engine while keeping image paths and embeddings out of its report:
 Start from `benchmark.example.json`. Every row must declare all scenario axes,
 including rows expected to be unscorable. `threshold` may be `null` for raw
 measurement; a thresholded acceptance report must use a separately calibrated,
-versioned threshold. Both the input manifest and output report are private
-biometric evidence and must not be committed.
+versioned threshold and a complete `acceptance` object. Both the input manifest
+and output report are private biometric evidence and must not be committed.

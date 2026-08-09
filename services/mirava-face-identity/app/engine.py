@@ -5,6 +5,8 @@ import os
 from pathlib import Path
 from typing import Protocol
 
+from .model_manifest import load_and_verify_model_manifest
+
 
 @dataclass(frozen=True)
 class FaceObservation:
@@ -38,6 +40,17 @@ class AuraFaceEngine:
             raise RuntimeError(
                 f"Pinned face model directory is missing: {model_dir}"
             )
+
+        expected_digest = os.environ.get(
+            "MIRAVA_FACE_MODEL_DIGEST", ""
+        ).strip()
+        if not expected_digest:
+            raise RuntimeError("MIRAVA_FACE_MODEL_DIGEST is required")
+        load_and_verify_model_manifest(
+            model_dir,
+            expected_model_name=model_name,
+            expected_digest=expected_digest,
+        )
 
         provider = os.environ.get(
             "MIRAVA_FACE_ONNX_PROVIDER", "CPUExecutionProvider"

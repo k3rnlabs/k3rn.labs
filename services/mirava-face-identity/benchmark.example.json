@@ -4,6 +4,8 @@
   "commit": "replace-with-git-commit",
   "threshold": null,
   "landmarkThreshold": null,
+  "calibrationVersion": null,
+  "acceptance": null,
   "evaluator": {
     "name": "auraface",
     "version": "replace-with-model-version",

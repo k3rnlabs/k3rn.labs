@@ -39,3 +39,20 @@ sufficient. Production adoption requires:
 4. training-data statement and privacy review;
 5. reproducible MIRAVA benchmark results;
 6. deletion, security, latency and cost evidence.
+
+## Pinned evaluator candidate
+
+The current executable candidate is `fal/AuraFace-v1` at commit
+`af6d057c9b0ec4071d4c49c80e3539258798b609`. The source repository declares
+Apache-2.0. MIRAVA provisions only the SCRFD detector, AuraFace recognition
+model and license listed in
+`services/mirava-face-identity/model-source-manifest.json`; each artifact is
+size-checked and SHA-256-checked before atomic installation. The service then
+re-verifies the canonical manifest digest and all files at every startup. Model
+versions are immutable directories; one atomic symbolic-link replacement
+selects the active version without removing the previous target on interruption.
+
+This pin resolves floating-weight and implicit-download risk. It does not by
+itself resolve training-data provenance, demographic performance, Belgian/EU
+biometric compliance or MIRAVA threshold calibration; those remain production
+gates.

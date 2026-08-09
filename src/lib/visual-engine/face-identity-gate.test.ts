@@ -29,7 +29,7 @@ const image = {
 function validGateResponse() {
   return {
     schemaVersion:
-      "mirava-face-identity-gate/v2",
+      "mirava-face-identity-gate/v3",
     decision:
       "PASS",
     reasonCode:
@@ -50,9 +50,15 @@ function validGateResponse() {
       version:
         "1.0",
       weightsDigest:
-        "sha256:test",
+        `sha256:${"b".repeat(64)}`,
       preprocessingVersion:
         "mirava-align-v1",
+      calibrationVersion:
+        "consented-cohorts-v1",
+      calibrationDigest:
+        `sha256:${"a".repeat(64)}`,
+      calibrationStatus:
+        "PASS",
     },
     candidateFace: {
       count: 1,

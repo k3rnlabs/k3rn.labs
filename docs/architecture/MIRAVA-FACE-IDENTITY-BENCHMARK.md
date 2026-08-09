@@ -95,6 +95,18 @@ Each benchmark run produces an immutable manifest containing command, commit,
 configuration hashes, evaluator digests, dataset version, scenario rows,
 aggregate metrics and failures. A PASS without that artifact is invalid.
 
+A thresholded run must additionally declare a calibration version and explicit
+ceilings for false accepts, false rejects and unscorable delivery, plus minimum
+genuine and impostor cohort sizes. The runner computes `acceptanceStatus`; the
+private gate re-verifies this report and cannot emit `PASS` when that status is
+`FAIL`.
+
+Minimum cohort sizes count only `SCORABLE` genuine and impostor rows. An
+unscorable genuine delivery remains a false reject; an unscorable impostor is
+excluded from the false-accept denominator and cannot satisfy the minimum
+impostor cohort. All unscorable rows remain covered by the separate unscorable
+rate ceiling.
+
 ## Executable runner
 
 The private service exposes a deterministic runner:
@@ -134,3 +146,29 @@ MIRAVA's fine-grained identity promise. Production calibration must add
 independent facial-geometry/landmark residuals and blinded human review, and
 must contain genuine and impostor pairs across pose cohorts. These values must
 not be converted into an invented identity percentage or production threshold.
+
+## 2026-08-09 pinned AuraFace execution smoke — not a benchmark PASS
+
+The private service was provisioned and executed locally with the committed
+AuraFace source manifest. Replayable technical facts:
+
+- repository revision:
+  `af6d057c9b0ec4071d4c49c80e3539258798b609`;
+- verified canonical model manifest digest:
+  `sha256:3b1c57976178fabcb3a3b156587cb1a98dc1ebfd2d6fd64afd1c41128accbef4`;
+- the pinned SCRFD detector, AuraFace recognizer and Apache-2.0 license all
+  matched their committed byte counts and SHA-256 values;
+- the CPU service reached `/health/ready`, rejected an unauthenticated
+  evaluation request, detected exactly one candidate face and returned no
+  embedding field;
+- the generated Amy candidate produced an aggregate AuraFace similarity of
+  `0.7704018090488813` and a five-landmark residual of
+  `0.10318363629412187` in that smoke request.
+
+This is deliberately **not** acceptance evidence. Only two genuine enrollment
+views were available, so `id1` was duplicated solely to exercise the three-file
+HTTP contract. The smoke used an explicitly labelled
+`non-production-smoke-only-v1` threshold configuration. Its `PASS` decision is
+therefore invalid for delivery, calibration or product claims. The useful proof
+is limited to pinned artifact loading, authenticated transport, real ONNX
+inference and trace metadata propagation.

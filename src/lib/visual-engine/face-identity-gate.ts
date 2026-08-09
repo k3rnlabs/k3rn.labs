@@ -1,5 +1,5 @@
 const MIRAVA_FACE_IDENTITY_GATE_SCHEMA =
-  "mirava-face-identity-gate/v2" as const
+  "mirava-face-identity-gate/v3" as const
 
 const DEFAULT_FACE_IDENTITY_GATE_TIMEOUT_MS =
   30_000
@@ -33,6 +33,11 @@ export type MiravaFaceIdentityGateResult = {
     version: string
     weightsDigest: string
     preprocessingVersion: string
+    calibrationVersion: string
+    calibrationDigest: string
+    calibrationStatus:
+      | "PASS"
+      | "FAIL"
   }
   candidateFace: {
     count: number
@@ -241,6 +246,17 @@ function finiteNonNegativeNullableNumber(
   )
 }
 
+function validSha256Digest(
+  value: unknown,
+): value is string {
+  return (
+    typeof value === "string" &&
+    /^sha256:[0-9a-f]{64}$/.test(
+      value,
+    )
+  )
+}
+
 function containsEmbeddingField(
   value: unknown,
 ): boolean {
@@ -354,12 +370,26 @@ function parseGateResult(
     [
       evaluator.name,
       evaluator.version,
-      evaluator.weightsDigest,
       evaluator.preprocessingVersion,
+      evaluator.calibrationVersion,
     ].some(
       (entry) =>
         typeof entry !== "string" ||
         entry.length === 0,
+    ) ||
+    !validSha256Digest(
+      evaluator.weightsDigest,
+    ) ||
+    !validSha256Digest(
+      evaluator.calibrationDigest,
+    ) ||
+    (
+      evaluator.calibrationStatus !== "PASS" &&
+      evaluator.calibrationStatus !== "FAIL"
+    ) ||
+    (
+      evaluator.calibrationStatus !== "PASS" &&
+      decision === "PASS"
     ) ||
     !candidateFace ||
     typeof candidateFace.count !== "number" ||
@@ -381,7 +411,7 @@ function parseGateResult(
   ) {
     throw new MiravaFaceIdentityGateError({
       message:
-        "MIRAVA face identity gate response violates the v2 contract.",
+        "MIRAVA face identity gate response violates the v3 contract.",
       code:
         "FACE_IDENTITY_GATE_INVALID_RESPONSE",
       retryable:

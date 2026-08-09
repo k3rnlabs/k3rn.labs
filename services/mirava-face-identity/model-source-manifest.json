@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "mirava-face-model-source/v1",
+  "modelName": "auraface",
+  "repository": "fal/AuraFace-v1",
+  "revision": "af6d057c9b0ec4071d4c49c80e3539258798b609",
+  "license": "Apache-2.0",
+  "artifacts": [
+    {
+      "role": "detection",
+      "name": "scrfd_10g_bnkps.onnx",
+      "sha256": "5838f7fe053675b1c7a08b633df49e7af5495cee0493c7dcf6697200b85b5b91",
+      "bytes": 16923827
+    },
+    {
+      "role": "recognition",
+      "name": "glintr100.onnx",
+      "sha256": "a7933ea5330113b01c9b60351d8f4c33003f145d8470ac5f0e52ee2effe25c60",
+      "bytes": 260694151
+    },
+    {
+      "role": "license",
+      "name": "LICENSE.md",
+      "sha256": "609e2cb599f84aaa41d8ef29d8fdb04d164fab22e8d9292ca34a599d0f56a338",
+      "bytes": 12624
+    }
+  ]
+}

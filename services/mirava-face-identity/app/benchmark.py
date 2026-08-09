@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from hashlib import sha256
 import json
+import math
 from pathlib import Path
 from statistics import median
 from typing import Any, Callable
@@ -47,31 +48,67 @@ def _digest(value: bytes | str) -> str:
 def _validate_spec(spec: dict[str, Any]) -> None:
     if spec.get("schemaVersion") != BENCHMARK_SCHEMA:
         raise ValueError("Unsupported MIRAVA benchmark schema")
-    if not str(spec.get("datasetVersion", "")).strip():
+    if not isinstance(spec.get("datasetVersion"), str) or not spec[
+        "datasetVersion"
+    ].strip():
         raise ValueError("datasetVersion is required")
-    if not str(spec.get("commit", "")).strip():
+    if not isinstance(spec.get("commit"), str) or not spec["commit"].strip():
         raise ValueError("commit is required")
 
     evaluator = spec.get("evaluator")
     if not isinstance(evaluator, dict):
         raise ValueError("evaluator manifest is required")
     for key in ("name", "version", "weightsDigest", "preprocessingVersion"):
-        if not str(evaluator.get(key, "")).strip():
+        if not isinstance(evaluator.get(key), str) or not evaluator[key].strip():
             raise ValueError(f"evaluator.{key} is required")
 
     threshold = spec.get("threshold")
     if threshold is not None and (
-        not isinstance(threshold, (int, float)) or threshold < -1 or threshold > 1
+        not isinstance(threshold, (int, float))
+        or isinstance(threshold, bool)
+        or not math.isfinite(threshold)
+        or threshold < -1
+        or threshold > 1
     ):
         raise ValueError("threshold must be null or between -1 and 1")
     landmark_threshold = spec.get("landmarkThreshold")
     if landmark_threshold is not None and (
         not isinstance(landmark_threshold, (int, float))
+        or isinstance(landmark_threshold, bool)
+        or not math.isfinite(landmark_threshold)
         or landmark_threshold <= 0
         or landmark_threshold > 2
     ):
         raise ValueError("landmarkThreshold must be null or between 0 and 2")
-
+    thresholded = threshold is not None and landmark_threshold is not None
+    if (threshold is None) != (landmark_threshold is None):
+        raise ValueError("both thresholds must be null or both must be set")
+    if thresholded:
+        if not isinstance(spec.get("calibrationVersion"), str) or not spec[
+            "calibrationVersion"
+        ].strip():
+            raise ValueError("calibrationVersion is required for thresholded runs")
+        acceptance = spec.get("acceptance")
+        if not isinstance(acceptance, dict):
+            raise ValueError("acceptance is required for thresholded runs")
+        for key in (
+            "maxFalseAcceptRate",
+            "maxFalseRejectRate",
+            "maxUnscorableRate",
+        ):
+            value = acceptance.get(key)
+            if (
+                not isinstance(value, (int, float))
+                or isinstance(value, bool)
+                or not math.isfinite(value)
+                or value < 0
+                or value > 1
+            ):
+                raise ValueError(f"acceptance.{key} must be between 0 and 1")
+        for key in ("minimumGenuineCases", "minimumImpostorCases"):
+            value = acceptance.get(key)
+            if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+                raise ValueError(f"acceptance.{key} must be a positive integer")
     cases = spec.get("cases")
     if not isinstance(cases, list) or not cases:
         raise ValueError("at least one benchmark case is required")
@@ -80,22 +117,31 @@ def _validate_spec(spec: dict[str, Any]) -> None:
     for case in cases:
         if not isinstance(case, dict):
             raise ValueError("benchmark cases must be objects")
-        case_id = str(case.get("caseId", "")).strip()
+        raw_case_id = case.get("caseId")
+        case_id = raw_case_id.strip() if isinstance(raw_case_id, str) else ""
         if not case_id or case_id in seen:
             raise ValueError("caseId must be present and unique")
         seen.add(case_id)
-        if not str(case.get("subjectKey", "")).strip():
+        if not isinstance(case.get("subjectKey"), str) or not case[
+            "subjectKey"
+        ].strip():
             raise ValueError(f"{case_id}: subjectKey is required")
         if not isinstance(case.get("expectedIdentityMatch"), bool):
             raise ValueError(f"{case_id}: expectedIdentityMatch is required")
-        if not str(case.get("candidatePath", "")).strip():
+        if not isinstance(case.get("candidatePath"), str) or not case[
+            "candidatePath"
+        ].strip():
             raise ValueError(f"{case_id}: candidatePath is required")
         references = case.get("referencePaths")
-        if not isinstance(references, list) or not 3 <= len(references) <= 6:
+        if (
+            not isinstance(references, list)
+            or not 3 <= len(references) <= 6
+            or not all(isinstance(value, str) and value.strip() for value in references)
+        ):
             raise ValueError(f"{case_id}: three to six references are required")
         scenario = case.get("scenario")
         if not isinstance(scenario, dict) or any(
-            not str(scenario.get(axis, "")).strip()
+            not isinstance(scenario.get(axis), str) or not scenario[axis].strip()
             for axis in REQUIRED_SCENARIO_AXES
         ):
             raise ValueError(f"{case_id}: every scenario axis is required")
@@ -108,8 +154,14 @@ def run_benchmark(
 ) -> dict[str, Any]:
     _validate_spec(spec)
     reader = read_bytes or (lambda value: Path(value).read_bytes())
-    threshold = spec.get("threshold")
-    landmark_threshold = spec.get("landmarkThreshold")
+    raw_threshold = spec.get("threshold")
+    raw_landmark_threshold = spec.get("landmarkThreshold")
+    threshold = float(raw_threshold) if raw_threshold is not None else None
+    landmark_threshold = (
+        float(raw_landmark_threshold)
+        if raw_landmark_threshold is not None
+        else None
+    )
     thresholded = threshold is not None and landmark_threshold is not None
     rows: list[dict[str, Any]] = []
 
@@ -206,6 +258,10 @@ def run_benchmark(
     scorable = [row for row in rows if row["status"] == "SCORABLE"]
     genuine = [row for row in rows if row["expectedIdentityMatch"]]
     impostor = [row for row in rows if not row["expectedIdentityMatch"]]
+    scorable_genuine = [row for row in scorable if row["expectedIdentityMatch"]]
+    scorable_impostor = [
+        row for row in scorable if not row["expectedIdentityMatch"]
+    ]
 
     false_rejects = (
         sum(row["decision"] != "PASS" for row in genuine)
@@ -213,7 +269,7 @@ def run_benchmark(
         else None
     )
     false_accepts = (
-        sum(row["decision"] == "PASS" for row in impostor)
+        sum(row["decision"] == "PASS" for row in scorable_impostor)
         if thresholded
         else None
     )
@@ -223,21 +279,41 @@ def run_benchmark(
         "unscorableCount": len(rows) - len(scorable),
         "genuineCount": len(genuine),
         "impostorCount": len(impostor),
+        "scorableGenuineCount": len(scorable_genuine),
+        "scorableImpostorCount": len(scorable_impostor),
         "falseRejectRate": (
             false_rejects / len(genuine)
             if false_rejects is not None and genuine
             else None
         ),
         "falseAcceptRate": (
-            false_accepts / len(impostor)
-            if false_accepts is not None and impostor
+            false_accepts / len(scorable_impostor)
+            if false_accepts is not None and scorable_impostor
             else None
         ),
     }
+    unscorable_rate = (
+        metrics["unscorableCount"] / metrics["caseCount"]
+        if metrics["caseCount"]
+        else 1.0
+    )
+    metrics["unscorableRate"] = unscorable_rate
+    acceptance = spec.get("acceptance")
+    acceptance_status = (
+        "PASS"
+        if thresholded
+        and len(scorable_genuine) >= acceptance["minimumGenuineCases"]
+        and len(scorable_impostor) >= acceptance["minimumImpostorCases"]
+        and metrics["falseAcceptRate"] <= acceptance["maxFalseAcceptRate"]
+        and metrics["falseRejectRate"] <= acceptance["maxFalseRejectRate"]
+        and unscorable_rate <= acceptance["maxUnscorableRate"]
+        else "FAIL"
+    )
     report = {
         "schemaVersion": BENCHMARK_SCHEMA,
         "datasetVersion": spec["datasetVersion"],
         "commit": spec["commit"],
+        "calibrationVersion": spec.get("calibrationVersion"),
         "configurationDigest": _digest(
             _canonical_json(
                 {
@@ -251,6 +327,8 @@ def run_benchmark(
         "evaluator": spec["evaluator"],
         "threshold": threshold,
         "landmarkThreshold": landmark_threshold,
+        "acceptance": acceptance,
+        "acceptanceStatus": acceptance_status,
         "rows": rows,
         "metrics": metrics,
     }

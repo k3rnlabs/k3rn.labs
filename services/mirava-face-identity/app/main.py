@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 import hmac
+import math
 import os
+from pathlib import Path
 from statistics import median
 from typing import Annotated, Any
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 
+from .calibration_report import load_and_verify_calibration_report
 from .engine import (
     AuraFaceEngine,
     FaceEngine,
@@ -17,7 +20,7 @@ from .engine import (
 )
 
 
-SCHEMA_VERSION = "mirava-face-identity-gate/v2"
+SCHEMA_VERSION = "mirava-face-identity-gate/v3"
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 MIN_REFERENCE_COUNT = 3
 MAX_REFERENCE_COUNT = 6
@@ -36,7 +39,7 @@ def _threshold() -> float:
         value = float(raw)
     except ValueError as exc:
         raise RuntimeError("MIRAVA_FACE_GATE_THRESHOLD is invalid") from exc
-    if value < -1 or value > 1:
+    if not math.isfinite(value) or value < -1 or value > 1:
         raise RuntimeError("MIRAVA_FACE_GATE_THRESHOLD is out of range")
     return value
 
@@ -47,20 +50,36 @@ def _landmark_threshold() -> float:
         value = float(raw)
     except ValueError as exc:
         raise RuntimeError("MIRAVA_FACE_LANDMARK_RESIDUAL_MAX is invalid") from exc
-    if value <= 0 or value > 2:
+    if not math.isfinite(value) or value <= 0 or value > 2:
         raise RuntimeError("MIRAVA_FACE_LANDMARK_RESIDUAL_MAX is out of range")
     return value
 
 
-def _evaluator_manifest() -> dict[str, str]:
+def _evaluator_manifest(
+    threshold: float, landmark_threshold: float
+) -> dict[str, str]:
+    name = os.environ.get("MIRAVA_FACE_MODEL_NAME", "auraface").strip()
+    version = _required_environment("MIRAVA_FACE_MODEL_VERSION")
+    weights_digest = _required_environment("MIRAVA_FACE_MODEL_DIGEST")
+    preprocessing_version = _required_environment(
+        "MIRAVA_FACE_PREPROCESSING_VERSION"
+    )
+    calibration_path = _required_environment("MIRAVA_FACE_CALIBRATION_REPORT")
+    digest = _required_environment("MIRAVA_FACE_CALIBRATION_DIGEST")
     return {
-        "name": os.environ.get(
-            "MIRAVA_FACE_MODEL_NAME", "auraface"
-        ).strip(),
-        "version": _required_environment("MIRAVA_FACE_MODEL_VERSION"),
-        "weightsDigest": _required_environment("MIRAVA_FACE_MODEL_DIGEST"),
-        "preprocessingVersion": _required_environment(
-            "MIRAVA_FACE_PREPROCESSING_VERSION"
+        "name": name,
+        "version": version,
+        "weightsDigest": weights_digest,
+        "preprocessingVersion": preprocessing_version,
+        **load_and_verify_calibration_report(
+            Path(calibration_path),
+            expected_digest=digest,
+            expected_model_name=name,
+            expected_model_version=version,
+            expected_model_digest=weights_digest,
+            expected_preprocessing_version=preprocessing_version,
+            expected_threshold=threshold,
+            expected_landmark_threshold=landmark_threshold,
         ),
     }
 
@@ -114,34 +133,47 @@ def _candidate_face_payload(
 
 
 def _unscorable(
-    *, reason_code: str, faces: list[FaceObservation]
+    *,
+    reason_code: str,
+    faces: list[FaceObservation],
+    threshold: float,
+    landmark_threshold: float,
+    evaluator: dict[str, str],
 ) -> dict[str, Any]:
     return {
         "schemaVersion": SCHEMA_VERSION,
         "decision": "UNSCORABLE",
         "reasonCode": reason_code,
         "aggregateSimilarity": None,
-        "threshold": _threshold(),
+        "threshold": threshold,
         "landmarkResidual": None,
-        "landmarkThreshold": _landmark_threshold(),
+        "landmarkThreshold": landmark_threshold,
         "perReferenceSimilarity": [],
-        "evaluator": _evaluator_manifest(),
+        "evaluator": evaluator,
         "candidateFace": _candidate_face_payload(faces),
     }
 
 
 def create_app(engine: FaceEngine | None = None) -> FastAPI:
     engine_holder: dict[str, FaceEngine] = {}
+    configuration_holder: dict[str, Any] = {}
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
-        _threshold()
-        _landmark_threshold()
-        _evaluator_manifest()
+        threshold = _threshold()
+        landmark_threshold = _landmark_threshold()
+        configuration_holder.update(
+            {
+                "threshold": threshold,
+                "landmarkThreshold": landmark_threshold,
+                "evaluator": _evaluator_manifest(threshold, landmark_threshold),
+            }
+        )
         _required_environment("MIRAVA_FACE_SERVICE_TOKEN")
         engine_holder["engine"] = engine or AuraFaceEngine()
         yield
         engine_holder.clear()
+        configuration_holder.clear()
 
     application = FastAPI(
         title="MIRAVA Face Identity Gate",
@@ -175,6 +207,9 @@ def create_app(engine: FaceEngine | None = None) -> FastAPI:
             raise HTTPException(status_code=422, detail="Invalid reference count")
 
         face_engine = engine_holder["engine"]
+        threshold = configuration_holder["threshold"]
+        landmark_threshold = configuration_holder["landmarkThreshold"]
+        evaluator = configuration_holder["evaluator"]
         try:
             candidate_faces = face_engine.observe(await _read_image(candidate))
         except ValueError as exc:
@@ -186,7 +221,13 @@ def create_app(engine: FaceEngine | None = None) -> FastAPI:
                 if not candidate_faces
                 else "CANDIDATE_MULTIPLE_FACES"
             )
-            return _unscorable(reason_code=reason, faces=candidate_faces)
+            return _unscorable(
+                reason_code=reason,
+                faces=candidate_faces,
+                threshold=threshold,
+                landmark_threshold=landmark_threshold,
+                evaluator=evaluator,
+            )
 
         reference_faces: list[FaceObservation] = []
         for reference in references:
@@ -200,6 +241,9 @@ def create_app(engine: FaceEngine | None = None) -> FastAPI:
                 return _unscorable(
                     reason_code="REFERENCE_FACE_INVALID",
                     faces=candidate_faces,
+                    threshold=threshold,
+                    landmark_threshold=landmark_threshold,
+                    evaluator=evaluator,
                 )
             reference_faces.append(observed[0])
 
@@ -213,11 +257,14 @@ def create_app(engine: FaceEngine | None = None) -> FastAPI:
             for reference in reference_faces
         ]
         aggregate_landmark_residual = float(median(landmark_residuals))
-        threshold = _threshold()
-        landmark_threshold = _landmark_threshold()
         embedding_pass = aggregate >= threshold
         landmark_pass = aggregate_landmark_residual <= landmark_threshold
-        decision = "PASS" if embedding_pass and landmark_pass else "FAIL"
+        calibration_accepted = evaluator["calibrationStatus"] == "PASS"
+        decision = (
+            "PASS"
+            if calibration_accepted and embedding_pass and landmark_pass
+            else "FAIL"
+        )
 
         return {
             "schemaVersion": SCHEMA_VERSION,
@@ -225,6 +272,8 @@ def create_app(engine: FaceEngine | None = None) -> FastAPI:
             "reasonCode": (
                 "CALIBRATED_PASS"
                 if decision == "PASS"
+                else "CALIBRATION_NOT_ACCEPTED"
+                if not calibration_accepted
                 else "IDENTITY_DRIFT"
                 if not embedding_pass
                 else "LANDMARK_DRIFT"
@@ -234,7 +283,7 @@ def create_app(engine: FaceEngine | None = None) -> FastAPI:
             "landmarkResidual": aggregate_landmark_residual,
             "landmarkThreshold": landmark_threshold,
             "perReferenceSimilarity": scores,
-            "evaluator": _evaluator_manifest(),
+            "evaluator": evaluator,
             "candidateFace": _candidate_face_payload(candidate_faces),
         }
 

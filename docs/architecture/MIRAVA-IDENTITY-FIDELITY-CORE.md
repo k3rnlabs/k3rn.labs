@@ -100,8 +100,15 @@ The gate uses an ensemble rather than one opaque score:
 - optional reviewer decision for benchmark calibration.
 
 Thresholds are learned from a consented validation set. They are versioned by
-evaluator and cohort; they are not invented as a universal percentage. Failures
-are fail-closed when the gate is required.
+evaluator and cohort, and every decision carries the immutable calibration
+artifact version and SHA-256; they are not invented as a universal percentage.
+Failures are fail-closed when the gate is required.
+
+The calibration artifact is the private benchmark report itself. At service
+startup MIRAVA recomputes its artifact digest and verifies the active model,
+weights, preprocessing and both thresholds against that report. Non-empty
+genuine and impostor cohorts are mandatory. An acceptance status of `FAIL`
+keeps inference available for diagnosis but makes `PASS` impossible.
 
 ### 4. State machine
 
