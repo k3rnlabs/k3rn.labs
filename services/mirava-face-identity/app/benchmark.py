@@ -14,9 +14,15 @@ from .engine import (
     cosine_similarity,
     landmark_shape_residual,
 )
+from .face_geometry import (
+    MEASUREMENT_CONTRACT,
+    declared_geometry_matches,
+    estimate_face_geometry,
+    geometry_payload,
+)
 
 
-BENCHMARK_SCHEMA = "mirava-face-identity-benchmark/v2"
+BENCHMARK_SCHEMA = "mirava-face-identity-benchmark/v3"
 REQUIRED_SCENARIO_AXES = (
     "yaw",
     "pitch",
@@ -110,6 +116,8 @@ def _validate_spec(spec: dict[str, Any]) -> None:
     ].strip():
         raise ValueError("subjectKeyKeyId is required")
     _validate_coverage_contract(spec.get("coverageContract"))
+    if spec.get("measurementContract") != MEASUREMENT_CONTRACT:
+        raise ValueError("measurementContract must equal the canonical contract")
 
     evaluator = spec.get("evaluator")
     if not isinstance(evaluator, dict):
@@ -305,6 +313,35 @@ def run_benchmark(
             )
             continue
 
+        try:
+            candidate_geometry = estimate_face_geometry(candidate_faces[0])
+        except ValueError:
+            rows.append(
+                {
+                    **base,
+                    "status": "UNSCORABLE",
+                    "reasonCode": "CANDIDATE_GEOMETRY_INVALID",
+                    "aggregateSimilarity": None,
+                    "perReferenceSimilarity": [],
+                    "decision": "UNSCORABLE",
+                }
+            )
+            continue
+        candidate_geometry_payload = geometry_payload(candidate_geometry)
+        if not declared_geometry_matches(case["scenario"], candidate_geometry):
+            rows.append(
+                {
+                    **base,
+                    "status": "UNSCORABLE",
+                    "reasonCode": "SCENARIO_MEASUREMENT_MISMATCH",
+                    "aggregateSimilarity": None,
+                    "perReferenceSimilarity": [],
+                    "decision": "UNSCORABLE",
+                    "candidateGeometry": candidate_geometry_payload,
+                }
+            )
+            continue
+
         reference_faces = []
         reference_hashes = []
         invalid_reference = False
@@ -364,6 +401,7 @@ def run_benchmark(
                     "confidence": candidate_faces[0].confidence,
                     "box": list(candidate_faces[0].box),
                 },
+                "candidateGeometry": candidate_geometry_payload,
             }
         )
 
@@ -433,6 +471,7 @@ def run_benchmark(
         "subjectPartitionDigest": spec["subjectPartitionDigest"],
         "commit": spec["commit"],
         "calibrationVersion": spec.get("calibrationVersion"),
+        "measurementContract": MEASUREMENT_CONTRACT,
         "configurationDigest": _digest(
             _canonical_json(
                 {
@@ -442,6 +481,7 @@ def run_benchmark(
                     "subjectKeyKeyId": spec["subjectKeyKeyId"],
                     "subjectPartitionDigest": spec["subjectPartitionDigest"],
                     "coverageContract": spec["coverageContract"],
+                    "measurementContract": MEASUREMENT_CONTRACT,
                     "evaluator": spec["evaluator"],
                     "threshold": threshold,
                     "landmarkThreshold": landmark_threshold,

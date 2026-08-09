@@ -15,6 +15,12 @@ from .benchmark import (
     _partition_digest,
     _validate_coverage_contract,
 )
+from .face_geometry import (
+    MEASUREMENT_CONTRACT,
+    FaceGeometry,
+    declared_geometry_matches,
+    measured_cohorts,
+)
 
 
 def canonical_json(value: object) -> str:
@@ -45,6 +51,43 @@ def _valid_rate(value: object) -> bool:
         and math.isfinite(value)
         and 0 <= value <= 1
     )
+
+
+def _verified_candidate_geometry(row: dict[str, Any]) -> FaceGeometry:
+    value = row.get("candidateGeometry")
+    if not isinstance(value, dict):
+        raise RuntimeError("Calibration candidate geometry is missing")
+    numeric_keys = (
+        "yaw",
+        "pitch",
+        "roll",
+        "faceAreaRatio",
+        "normalizedReprojectionError",
+    )
+    if any(
+        not isinstance(value.get(key), (int, float))
+        or isinstance(value.get(key), bool)
+        or not math.isfinite(value[key])
+        for key in numeric_keys
+    ):
+        raise RuntimeError("Calibration candidate geometry is invalid")
+    geometry = FaceGeometry(
+        yaw=float(value["yaw"]),
+        pitch=float(value["pitch"]),
+        roll=float(value["roll"]),
+        face_area_ratio=float(value["faceAreaRatio"]),
+        normalized_reprojection_error=float(value["normalizedReprojectionError"]),
+        estimator_version=str(value.get("poseEstimatorVersion", "")),
+    )
+    if (
+        geometry.estimator_version != MEASUREMENT_CONTRACT["poseEstimatorVersion"]
+        or not 0 <= geometry.face_area_ratio <= 1
+        or not 0 <= geometry.normalized_reprojection_error
+        <= MEASUREMENT_CONTRACT["maxNormalizedReprojectionError"]
+        or value.get("measuredCohorts") != measured_cohorts(geometry)
+    ):
+        raise RuntimeError("Calibration candidate geometry contract is invalid")
+    return geometry
 
 
 def _recompute_metrics_and_status(
@@ -83,15 +126,27 @@ def _recompute_metrics_and_status(
             for axis in REQUIRED_SCENARIO_AXES
         ):
             raise RuntimeError("Calibration scenario evidence is incomplete")
+        if any(
+            scenario[axis] not in CANONICAL_SCENARIO_COHORTS[axis]
+            for axis in REQUIRED_SCENARIO_AXES
+        ):
+            raise RuntimeError("Calibration scenario value is outside canonical cohorts")
 
         status = row.get("status")
         decision = row.get("decision")
         if status == "UNSCORABLE":
             if decision != "UNSCORABLE":
                 raise RuntimeError("Calibration unscorable decision is invalid")
+            if row.get("reasonCode") == "SCENARIO_MEASUREMENT_MISMATCH":
+                geometry = _verified_candidate_geometry(row)
+                if declared_geometry_matches(scenario, geometry):
+                    raise RuntimeError("Calibration scenario mismatch evidence is forged")
             continue
         if status != "SCORABLE":
             raise RuntimeError("Calibration benchmark status is invalid")
+        geometry = _verified_candidate_geometry(row)
+        if not declared_geometry_matches(scenario, geometry):
+            raise RuntimeError("Calibration scenario does not match measurements")
 
         references = row.get("referenceContentSha256")
         similarities = row.get("perReferenceSimilarity")
@@ -242,6 +297,8 @@ def load_and_verify_benchmark_report(
         raise RuntimeError("Benchmark report is missing or invalid") from exc
     if not isinstance(report, dict) or report.get("schemaVersion") != BENCHMARK_SCHEMA:
         raise RuntimeError("Benchmark report schema is invalid")
+    if report.get("measurementContract") != MEASUREMENT_CONTRACT:
+        raise RuntimeError("Calibration measurement contract is invalid")
     if report.get("datasetSplit") != expected_split:
         raise RuntimeError(f"Benchmark report must use the {expected_split} split")
     if not isinstance(report.get("subjectKeyScheme"), str) or not report[
@@ -295,6 +352,7 @@ def load_and_verify_benchmark_report(
         "subjectKeyKeyId": report["subjectKeyKeyId"],
         "subjectPartitionDigest": report.get("subjectPartitionDigest"),
         "coverageContract": coverage.get("contract"),
+        "measurementContract": MEASUREMENT_CONTRACT,
         "evaluator": evaluator,
         "threshold": expected_threshold,
         "landmarkThreshold": expected_landmark_threshold,
@@ -366,6 +424,8 @@ def load_and_verify_benchmark_report(
         + hashlib.sha256(
             canonical_json(report["coverage"]["contract"]).encode("utf-8")
         ).hexdigest(),
+        "measurementContractDigest": "sha256:"
+        + hashlib.sha256(canonical_json(MEASUREMENT_CONTRACT).encode("utf-8")).hexdigest(),
     }
 
 

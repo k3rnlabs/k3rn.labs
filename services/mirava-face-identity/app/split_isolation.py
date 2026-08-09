@@ -226,6 +226,10 @@ def load_and_verify_split_isolation_report(
         "coverageContractDigest"
     ):
         raise RuntimeError("Calibration and test coverage contracts differ")
+    if calibration_report.get("measurementContractDigest") != test_report.get(
+        "measurementContractDigest"
+    ):
+        raise RuntimeError("Calibration and test measurement contracts differ")
 
     expected_fields = {
         "subjectKeyScheme": calibration_report.get("subjectKeyScheme"),

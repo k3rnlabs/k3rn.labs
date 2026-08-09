@@ -16,6 +16,7 @@ from app.benchmark import (
     _partition_digest,
 )
 from app.engine import FaceObservation
+from app.face_geometry import MEASUREMENT_CONTRACT, geometry_payload, FaceGeometry
 from app.main import create_app
 from app.split_isolation import (
     _hmac_key_id,
@@ -25,6 +26,34 @@ from app.split_isolation import (
 
 
 PSEUDONYM_KEY = b"mirava-contract-pseudonym-key-32-bytes-minimum"
+
+
+def candidate_geometry(scenario: dict[str, str]) -> dict:
+    return geometry_payload(
+        FaceGeometry(
+            yaw={
+                "frontal": 0.0,
+                "three-quarter-left": -25.0,
+                "three-quarter-right": 25.0,
+                "profile-left": -60.0,
+                "profile-right": 60.0,
+            }[scenario["yaw"]],
+            pitch={"down": -20.0, "neutral": 0.0, "up": 20.0}[
+                scenario["pitch"]
+            ],
+            roll={
+                "neutral": 0.0,
+                "tilted-left": -15.0,
+                "tilted-right": 15.0,
+            }[scenario["roll"]],
+            face_area_ratio={
+                "close-portrait": 0.1,
+                "half-body": 0.04,
+                "full-body": 0.01,
+            }[scenario["faceScale"]],
+            normalized_reprojection_error=0.01,
+        )
+    )
 
 
 class FakeEngine:
@@ -45,12 +74,13 @@ def face(
         box=(10.0, 20.0, 110.0, 140.0),
         embedding=embedding,
         landmarks=(
-            (30.0, 40.0),
-            (70.0, 40.0),
-            (50.0, 62.0),
-            (38.0 / mouth_scale, 82.0),
-            (62.0 * mouth_scale, 82.0),
+            (87.2340425532, 87.2340425532),
+            (112.7659574468, 87.2340425532),
+            (100.0, 100.0),
+            (89.5833333333 / mouth_scale, 112.5),
+            (110.4166666667 * mouth_scale, 112.5),
         ),
+        image_size=(200, 200),
     )
 
 
@@ -119,10 +149,11 @@ def configure(
                         "landmarkResidual": 0.1,
                         "perReferenceLandmarkResidual": [0.1] * 3,
                         "decision": "PASS" if expected else "FAIL",
+                        "candidateGeometry": candidate_geometry(scenario),
                     }
                 )
         report = {
-            "schemaVersion": "mirava-face-identity-benchmark/v2",
+            "schemaVersion": "mirava-face-identity-benchmark/v3",
             "datasetVersion": f"private-{split}-v1",
             "datasetSplit": split,
             "subjectKeyScheme": "hmac-sha256/v1",
@@ -131,6 +162,7 @@ def configure(
             + _partition_digest({reference_key, impostor_key}),
             "commit": "test-commit",
             "calibrationVersion": "calibration-v1",
+            "measurementContract": MEASUREMENT_CONTRACT,
             "configurationDigest": "",
             "evaluator": evaluator,
             "threshold": 0.8,
@@ -169,6 +201,7 @@ def configure(
                     "subjectKeyKeyId": report["subjectKeyKeyId"],
                     "subjectPartitionDigest": report["subjectPartitionDigest"],
                     "coverageContract": coverage_contract,
+                    "measurementContract": MEASUREMENT_CONTRACT,
                     "evaluator": evaluator,
                     "threshold": 0.8,
                     "landmarkThreshold": 0.25,
@@ -252,9 +285,11 @@ def test_calibrated_pass_returns_no_embedding(monkeypatch, tmp_path: Path) -> No
 
     assert response.status_code == 200
     body = response.json()
-    assert body["schemaVersion"] == "mirava-face-identity-gate/v4"
+    assert body["schemaVersion"] == "mirava-face-identity-gate/v5"
     assert body["decision"] == "PASS"
     assert body["candidateFace"]["count"] == 1
+    assert body["candidateFace"]["poseEstimatorVersion"] == "mirava-five-point-sqpnp-v1"
+    assert body["candidateFace"]["measuredCohorts"]["yaw"] == "frontal"
     assert body["evaluator"]["calibrationVersion"] == "calibration-v1"
     assert body["evaluator"]["calibrationStatus"] == "PASS"
     assert body["evaluator"]["testStatus"] == "PASS"
@@ -321,7 +356,7 @@ def test_landmark_drift_fails_even_when_embedding_passes(
     configure(monkeypatch, tmp_path)
     engine = FakeEngine(
         [
-            [face((1.0, 0.0), mouth_scale=2.0)],
+            [face((1.0, 0.0), mouth_scale=1.2)],
             [face((1.0, 0.0))],
             [face((1.0, 0.0))],
             [face((1.0, 0.0))],

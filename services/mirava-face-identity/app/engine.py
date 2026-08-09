@@ -14,6 +14,7 @@ class FaceObservation:
     box: tuple[float, float, float, float]
     embedding: tuple[float, ...]
     landmarks: tuple[tuple[float, float], ...]
+    image_size: tuple[int, int] | None = None
 
 
 class FaceEngine(Protocol):
@@ -82,6 +83,7 @@ class AuraFaceEngine:
             raise ValueError("Image cannot be decoded")
 
         observations: list[FaceObservation] = []
+        image_height, image_width = image.shape[:2]
         for face in self._analysis.get(image):
             if face.kps is None:
                 continue
@@ -100,6 +102,7 @@ class AuraFaceEngine:
                     box=(bbox[0], bbox[1], bbox[2], bbox[3]),
                     embedding=embedding,
                     landmarks=landmarks,
+                    image_size=(int(image_width), int(image_height)),
                 )
             )
         return observations

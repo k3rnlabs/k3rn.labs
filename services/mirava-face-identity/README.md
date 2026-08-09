@@ -34,8 +34,8 @@ MIRAVA_FACE_SERVICE_TOKEN=<private random token>
 Neither threshold has a default. The service refuses to become ready until both
 calibrated values, an accepted calibration report, an accepted held-out test
 report and their accepted split-isolation evidence are supplied. Both reports
-must use the same frozen threshold version, evaluator, acceptance contract and
-canonical coverage contract. Their subject partitions and artifact digests must
+must use the same frozen threshold version, evaluator, acceptance contract,
+canonical coverage contract and face-measurement contract. Their subject partitions and artifact digests must
 match the isolation evidence exactly. A numeric smoke-test threshold cannot
 silently masquerade as production evidence because all three SHA-256 digests
 are pinned in configuration and returned with every evaluation. The service
@@ -43,9 +43,10 @@ fails startup instead of exposing `/health/ready` when any evidence is missing,
 tampered, rejected or mutually inconsistent.
 
 Once ready, a candidate PASS still requires both the embedding threshold and
-the normalized landmark-shape residual ceiling. The Node client accepts the v4
+the normalized landmark-shape residual ceiling. The Node client accepts the v5
 response only when calibration, held-out test and isolation statuses are all
-`PASS`.
+`PASS`, and only when the versioned candidate pose/scale evidence is structurally
+valid.
 
 Provision the exact licensed artifacts into the mounted model volume:
 
@@ -106,7 +107,22 @@ measurement; a thresholded acceptance report must use a separately calibrated,
 versioned threshold and a complete `acceptance` object. Both the input manifest
 and output report are private biometric evidence and must not be committed.
 
-Schema v2 also requires the canonical v1 coverage contract. A thresholded run
+Schema v3 also requires the canonical v1 coverage contract and the immutable
+`mirava-face-measurement/v1` contract. Candidate yaw, pitch and roll are
+estimated from the detected SCRFD five-point landmarks with the pinned
+`mirava-five-point-sqpnp-v1` convention; face scale is computed from the
+clamped face-box area divided by image area. The report records raw angles,
+face-area ratio, normalized reprojection error, measured cohorts and estimator
+version. A row whose declared yaw, pitch, roll or face-scale cohort contradicts
+those measurements becomes `UNSCORABLE` with
+`SCENARIO_MEASUREMENT_MISMATCH`. The explicit boundary tolerances are part of
+the hashed contract and cannot be loosened by a benchmark manifest.
+
+The five-point pose is an operational measurement, not anthropometric ground
+truth. Lens, facial-proportion and extreme-occlusion bias must be quantified on
+the consented calibration and held-out populations before activation.
+
+A thresholded run
 cannot PASS unless every cohort documented in the architecture matrix has the
 configured minimum number of scorable genuine and impostor cases. Custom
 diagnostic matrices always produce a non-accepted report.

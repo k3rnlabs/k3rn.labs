@@ -102,13 +102,15 @@ The gate uses an ensemble rather than one opaque score:
 Thresholds are learned from a consented validation set. They are versioned by
 evaluator and cohort, and every decision carries the immutable calibration
 artifact version and SHA-256; they are not invented as a universal percentage.
-Failures are fail-closed when the gate is required.
+Failures are fail-closed when the gate is required. Pose and face scale are
+measured on the generated candidate itself under a versioned five-point SQPnP
+contract; scenario declarations are not accepted as measurement evidence.
 
 The calibration artifact is the private benchmark report itself. At service
 startup MIRAVA recomputes its artifact digest and verifies the active model,
 weights, preprocessing and both thresholds against that report. Non-empty
 genuine and impostor cohorts are mandatory. An acceptance status of `FAIL`
-keeps inference available for diagnosis but makes `PASS` impossible.
+prevents the service from becoming ready.
 
 ### 4. State machine
 

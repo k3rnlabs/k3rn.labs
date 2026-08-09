@@ -17,6 +17,33 @@ from app.benchmark import (
     _coverage_report,
     _partition_digest,
 )
+from app.face_geometry import MEASUREMENT_CONTRACT, FaceGeometry, geometry_payload
+
+
+def candidate_geometry(scenario: dict[str, str]) -> dict:
+    return geometry_payload(
+        FaceGeometry(
+            yaw={
+                "frontal": 0.0,
+                "three-quarter-left": -25.0,
+                "three-quarter-right": 25.0,
+                "profile-left": -60.0,
+                "profile-right": 60.0,
+            }[scenario["yaw"]],
+            pitch={"down": -20.0, "neutral": 0.0, "up": 20.0}[
+                scenario["pitch"]
+            ],
+            roll={"neutral": 0.0, "tilted-left": -15.0, "tilted-right": 15.0}[
+                scenario["roll"]
+            ],
+            face_area_ratio={
+                "close-portrait": 0.1,
+                "half-body": 0.04,
+                "full-body": 0.01,
+            }[scenario["faceScale"]],
+            normalized_reprojection_error=0.01,
+        )
+    )
 
 
 def _report() -> dict:
@@ -58,9 +85,10 @@ def _report() -> dict:
                 "landmarkResidual": 0.1,
                 "perReferenceLandmarkResidual": [0.1] * 3,
                 "decision": "PASS" if expected else "FAIL",
+                "candidateGeometry": candidate_geometry(scenario),
             })
     value = {
-        "schemaVersion": "mirava-face-identity-benchmark/v2",
+        "schemaVersion": "mirava-face-identity-benchmark/v3",
         "datasetVersion": "private-v1",
         "datasetSplit": "calibration",
         "subjectKeyScheme": "hmac-sha256/v1",
@@ -68,6 +96,7 @@ def _report() -> dict:
         "subjectPartitionDigest": "sha256:" + _partition_digest({"subject-a", "subject-b"}),
         "commit": "deadbeef",
         "calibrationVersion": "calibration-v1",
+        "measurementContract": MEASUREMENT_CONTRACT,
         "configurationDigest": "",
         "evaluator": evaluator,
         "threshold": 0.8,
@@ -106,6 +135,7 @@ def _report() -> dict:
                 "subjectKeyKeyId": value["subjectKeyKeyId"],
                 "subjectPartitionDigest": value["subjectPartitionDigest"],
                 "coverageContract": coverage_contract,
+                "measurementContract": MEASUREMENT_CONTRACT,
                 "evaluator": evaluator,
                 "threshold": 0.8,
                 "landmarkThreshold": 0.2,
@@ -161,6 +191,7 @@ def test_verifies_a_held_out_test_report_with_the_same_runtime_contract(
                 "subjectKeyKeyId": report["subjectKeyKeyId"],
                 "subjectPartitionDigest": report["subjectPartitionDigest"],
                 "coverageContract": report["coverage"]["contract"],
+                "measurementContract": MEASUREMENT_CONTRACT,
                 "evaluator": report["evaluator"],
                 "threshold": 0.8,
                 "landmarkThreshold": 0.2,
@@ -234,6 +265,7 @@ def test_replays_integer_json_thresholds_as_runtime_floats(tmp_path: Path) -> No
                 "subjectKeyKeyId": report["subjectKeyKeyId"],
                 "subjectPartitionDigest": report["subjectPartitionDigest"],
                 "coverageContract": report["coverage"]["contract"],
+                "measurementContract": MEASUREMENT_CONTRACT,
                 "evaluator": report["evaluator"],
                 "threshold": 1.0,
                 "landmarkThreshold": 1.0,
@@ -262,6 +294,22 @@ def test_rejects_forged_row_aggregates(tmp_path: Path) -> None:
     report["artifactDigest"] = benchmark_artifact_digest(report)
 
     with pytest.raises(RuntimeError, match="aggregates do not match"):
+        _verify(_write(tmp_path, report), report["artifactDigest"])
+
+
+def test_rejects_forged_geometry_that_does_not_match_the_declared_scenario(
+    tmp_path: Path,
+) -> None:
+    report = _report()
+    report["rows"][0]["candidateGeometry"] = candidate_geometry(
+        {
+            **report["rows"][0]["scenario"],
+            "yaw": "profile-right",
+        }
+    )
+    report["artifactDigest"] = benchmark_artifact_digest(report)
+
+    with pytest.raises(RuntimeError, match="does not match measurements"):
         _verify(_write(tmp_path, report), report["artifactDigest"])
 
 

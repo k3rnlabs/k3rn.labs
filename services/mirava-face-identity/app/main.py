@@ -18,10 +18,15 @@ from .engine import (
     cosine_similarity,
     landmark_shape_residual,
 )
+from .face_geometry import (
+    POSE_ESTIMATOR_VERSION,
+    estimate_face_geometry,
+    geometry_payload,
+)
 from .split_isolation import load_and_verify_split_isolation_report
 
 
-SCHEMA_VERSION = "mirava-face-identity-gate/v4"
+SCHEMA_VERSION = "mirava-face-identity-gate/v5"
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 MIN_REFERENCE_COUNT = 3
 MAX_REFERENCE_COUNT = 6
@@ -114,6 +119,8 @@ def _evaluator_manifest(
         "testDatasetVersion": str(test["datasetVersion"]),
         "testDigest": str(test["artifactDigest"]),
         "testStatus": str(test["status"]),
+        "poseEstimatorVersion": POSE_ESTIMATOR_VERSION,
+        "measurementContractDigest": str(calibration["measurementContractDigest"]),
         **isolation,
     }
 
@@ -147,11 +154,15 @@ def _candidate_face_payload(
             "yaw": None,
             "pitch": None,
             "roll": None,
+            "faceAreaRatio": None,
+            "normalizedReprojectionError": None,
+            "poseEstimatorVersion": None,
+            "measuredCohorts": None,
         }
 
     face = faces[0]
     left, top, right, bottom = face.box
-    return {
+    payload: dict[str, Any] = {
         "count": 1,
         "confidence": face.confidence,
         "box": {
@@ -160,10 +171,22 @@ def _candidate_face_payload(
             "width": max(0.0, right - left),
             "height": max(0.0, bottom - top),
         },
-        "yaw": None,
-        "pitch": None,
-        "roll": None,
     }
+    try:
+        payload.update(geometry_payload(estimate_face_geometry(face)))
+    except ValueError:
+        payload.update(
+            {
+                "yaw": None,
+                "pitch": None,
+                "roll": None,
+                "faceAreaRatio": None,
+                "normalizedReprojectionError": None,
+                "poseEstimatorVersion": None,
+                "measuredCohorts": None,
+            }
+        )
+    return payload
 
 
 def _unscorable(
@@ -257,6 +280,17 @@ def create_app(engine: FaceEngine | None = None) -> FastAPI:
             )
             return _unscorable(
                 reason_code=reason,
+                faces=candidate_faces,
+                threshold=threshold,
+                landmark_threshold=landmark_threshold,
+                evaluator=evaluator,
+            )
+
+        try:
+            estimate_face_geometry(candidate_faces[0])
+        except ValueError:
+            return _unscorable(
+                reason_code="CANDIDATE_GEOMETRY_INVALID",
                 faces=candidate_faces,
                 threshold=threshold,
                 landmark_threshold=landmark_threshold,

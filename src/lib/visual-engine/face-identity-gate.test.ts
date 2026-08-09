@@ -29,7 +29,7 @@ const image = {
 function validGateResponse() {
   return {
     schemaVersion:
-      "mirava-face-identity-gate/v4",
+      "mirava-face-identity-gate/v5",
     decision:
       "PASS",
     reasonCode:
@@ -69,6 +69,10 @@ function validGateResponse() {
         `sha256:${"d".repeat(64)}`,
       splitIsolationStatus:
         "PASS",
+      poseEstimatorVersion:
+        "mirava-five-point-sqpnp-v1",
+      measurementContractDigest:
+        "sha256:f4749d3adf7af528627a0a54f18100f7f331c06aee7cd05841180d7db32bb9d4",
     },
     candidateFace: {
       count: 1,
@@ -82,6 +86,16 @@ function validGateResponse() {
       yaw: 4,
       pitch: -2,
       roll: 1,
+      faceAreaRatio: 0.12,
+      normalizedReprojectionError: 0.01,
+      poseEstimatorVersion:
+        "mirava-five-point-sqpnp-v1",
+      measuredCohorts: {
+        yaw: "frontal",
+        pitch: "neutral",
+        roll: "neutral",
+        faceScale: "close-portrait",
+      },
     },
   }
 }
@@ -277,6 +291,92 @@ describe(
           validGateResponse()
         response.evaluator[statusField] =
           "FAIL"
+
+        await expect(
+          evaluateMiravaFaceIdentity({
+            candidate: image,
+            references: [
+              image,
+              image,
+              image,
+            ],
+            identityManifestVersion:
+              "manifest-7",
+            requestId:
+              "request-1",
+            fetchImpl:
+              async () =>
+                new Response(
+                  JSON.stringify(
+                    response,
+                  ),
+                  { status: 200 },
+                ),
+          }),
+        ).rejects.toMatchObject({
+          code:
+            "FACE_IDENTITY_GATE_INVALID_RESPONSE",
+        })
+      },
+    )
+
+    it(
+      "rejects a scorable response without versioned geometry evidence",
+      async () => {
+        process.env
+          .MIRAVA_FACE_IDENTITY_GATE_URL =
+          "http://127.0.0.1:9000"
+        process.env
+          .MIRAVA_FACE_IDENTITY_GATE_TOKEN =
+          "private-token"
+        const response =
+          validGateResponse()
+        response.candidateFace
+          .poseEstimatorVersion =
+          null as unknown as string
+
+        await expect(
+          evaluateMiravaFaceIdentity({
+            candidate: image,
+            references: [
+              image,
+              image,
+              image,
+            ],
+            identityManifestVersion:
+              "manifest-7",
+            requestId:
+              "request-1",
+            fetchImpl:
+              async () =>
+                new Response(
+                  JSON.stringify(
+                    response,
+                  ),
+                  { status: 200 },
+                ),
+          }),
+        ).rejects.toMatchObject({
+          code:
+            "FACE_IDENTITY_GATE_INVALID_RESPONSE",
+        })
+      },
+    )
+
+    it(
+      "rejects measured cohorts that contradict the raw geometry",
+      async () => {
+        process.env
+          .MIRAVA_FACE_IDENTITY_GATE_URL =
+          "http://127.0.0.1:9000"
+        process.env
+          .MIRAVA_FACE_IDENTITY_GATE_TOKEN =
+          "private-token"
+        const response =
+          validGateResponse()
+        response.candidateFace
+          .measuredCohorts.yaw =
+          "profile-right"
 
         await expect(
           evaluateMiravaFaceIdentity({

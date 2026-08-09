@@ -1,5 +1,11 @@
 const MIRAVA_FACE_IDENTITY_GATE_SCHEMA =
-  "mirava-face-identity-gate/v4" as const
+  "mirava-face-identity-gate/v5" as const
+
+const MIRAVA_FACE_POSE_ESTIMATOR_VERSION =
+  "mirava-five-point-sqpnp-v1" as const
+
+const MIRAVA_FACE_MEASUREMENT_CONTRACT_DIGEST =
+  "sha256:f4749d3adf7af528627a0a54f18100f7f331c06aee7cd05841180d7db32bb9d4" as const
 
 const DEFAULT_FACE_IDENTITY_GATE_TIMEOUT_MS =
   30_000
@@ -47,6 +53,8 @@ export type MiravaFaceIdentityGateResult = {
     splitIsolationStatus:
       | "PASS"
       | "FAIL"
+    poseEstimatorVersion: string
+    measurementContractDigest: string
   }
   candidateFace: {
     count: number
@@ -60,6 +68,15 @@ export type MiravaFaceIdentityGateResult = {
     yaw: number | null
     pitch: number | null
     roll: number | null
+    faceAreaRatio: number | null
+    normalizedReprojectionError: number | null
+    poseEstimatorVersion: string | null
+    measuredCohorts: {
+      yaw: string
+      pitch: string
+      roll: string
+      faceScale: string
+    } | null
   }
 }
 
@@ -326,6 +343,11 @@ function parseGateResult(
       | Record<string, unknown>
       | null
       | undefined
+  const measuredCohorts =
+    candidateFace?.measuredCohorts as
+      | Record<string, unknown>
+      | null
+      | undefined
 
   const decision =
     result.decision
@@ -351,6 +373,67 @@ function parseGateResult(
           Number.isFinite(entry) &&
           entry >= 0,
       )
+    )
+  const geometryNumbers = [
+    candidateFace?.yaw,
+    candidateFace?.pitch,
+    candidateFace?.roll,
+    candidateFace?.faceAreaRatio,
+    candidateFace?.normalizedReprojectionError,
+  ]
+  const hasCompleteGeometry =
+    geometryNumbers.every(
+      (entry) =>
+        typeof entry === "number" &&
+        Number.isFinite(entry),
+    )
+  const hasEmptyGeometry =
+    geometryNumbers.every(
+      (entry) => entry === null,
+    )
+  const measuredYaw =
+    typeof candidateFace?.yaw === "number"
+      ? Math.abs(candidateFace.yaw) <= 12
+        ? "frontal"
+        : Math.abs(candidateFace.yaw) >= 50
+          ? candidateFace.yaw < 0
+            ? "profile-left"
+            : "profile-right"
+          : candidateFace.yaw < 0
+            ? "three-quarter-left"
+            : "three-quarter-right"
+      : null
+  const measuredPitch =
+    typeof candidateFace?.pitch === "number"
+      ? Math.abs(candidateFace.pitch) <= 10
+        ? "neutral"
+        : candidateFace.pitch < 0
+          ? "down"
+          : "up"
+      : null
+  const measuredRoll =
+    typeof candidateFace?.roll === "number"
+      ? Math.abs(candidateFace.roll) <= 8
+        ? "neutral"
+        : candidateFace.roll < 0
+          ? "tilted-left"
+          : "tilted-right"
+      : null
+  const measuredFaceScale =
+    typeof candidateFace?.faceAreaRatio === "number"
+      ? candidateFace.faceAreaRatio >= 0.08
+        ? "close-portrait"
+        : candidateFace.faceAreaRatio >= 0.02
+          ? "half-body"
+          : "full-body"
+      : null
+  const geometryCohortsMatch =
+    !hasCompleteGeometry ||
+    (
+      measuredCohorts?.yaw === measuredYaw &&
+      measuredCohorts?.pitch === measuredPitch &&
+      measuredCohorts?.roll === measuredRoll &&
+      measuredCohorts?.faceScale === measuredFaceScale
     )
 
   if (
@@ -382,6 +465,7 @@ function parseGateResult(
       evaluator.preprocessingVersion,
       evaluator.calibrationVersion,
       evaluator.testDatasetVersion,
+      evaluator.poseEstimatorVersion,
     ].some(
       (entry) =>
         typeof entry !== "string" ||
@@ -399,6 +483,13 @@ function parseGateResult(
     !validSha256Digest(
       evaluator.splitIsolationDigest,
     ) ||
+    !validSha256Digest(
+      evaluator.measurementContractDigest,
+    ) ||
+    evaluator.measurementContractDigest !==
+      MIRAVA_FACE_MEASUREMENT_CONTRACT_DIGEST ||
+    evaluator.poseEstimatorVersion !==
+      MIRAVA_FACE_POSE_ESTIMATOR_VERSION ||
     (
       evaluator.calibrationStatus !== "PASS" &&
       evaluator.calibrationStatus !== "FAIL"
@@ -439,11 +530,77 @@ function parseGateResult(
     ) ||
     !finiteNullableNumber(
       candidateFace.roll,
+    ) ||
+    !finiteNonNegativeNullableNumber(
+      candidateFace.faceAreaRatio,
+    ) ||
+    (
+      typeof candidateFace.faceAreaRatio === "number" &&
+      candidateFace.faceAreaRatio > 1
+    ) ||
+    !finiteNonNegativeNullableNumber(
+      candidateFace.normalizedReprojectionError,
+    ) ||
+    (
+      typeof candidateFace.normalizedReprojectionError === "number" &&
+      candidateFace.normalizedReprojectionError > 0.12
+    ) ||
+    !(
+      candidateFace.poseEstimatorVersion === null ||
+      (
+        candidateFace.poseEstimatorVersion ===
+          MIRAVA_FACE_POSE_ESTIMATOR_VERSION
+      )
+    ) ||
+    !(
+      measuredCohorts === null ||
+      (
+        measuredCohorts !== undefined &&
+        [
+          "frontal",
+          "three-quarter-left",
+          "three-quarter-right",
+          "profile-left",
+          "profile-right",
+        ].includes(measuredCohorts.yaw as string) &&
+        ["down", "neutral", "up"]
+          .includes(measuredCohorts.pitch as string) &&
+        ["neutral", "tilted-left", "tilted-right"]
+          .includes(measuredCohorts.roll as string) &&
+        ["close-portrait", "half-body", "full-body"]
+          .includes(measuredCohorts.faceScale as string)
+      )
+    ) ||
+    !geometryCohortsMatch ||
+    !(
+      (
+        hasCompleteGeometry &&
+        candidateFace.poseEstimatorVersion ===
+          MIRAVA_FACE_POSE_ESTIMATOR_VERSION &&
+        measuredCohorts !== null
+      ) ||
+      (
+        hasEmptyGeometry &&
+        candidateFace.poseEstimatorVersion === null &&
+        measuredCohorts === null
+      )
+    ) ||
+    (
+      decision !== "UNSCORABLE" &&
+      (
+        candidateFace.yaw === null ||
+        candidateFace.pitch === null ||
+        candidateFace.roll === null ||
+        candidateFace.faceAreaRatio === null ||
+        candidateFace.normalizedReprojectionError === null ||
+        candidateFace.poseEstimatorVersion === null ||
+        measuredCohorts === null
+      )
     )
   ) {
     throw new MiravaFaceIdentityGateError({
       message:
-        "MIRAVA face identity gate response violates the v4 contract.",
+        "MIRAVA face identity gate response violates the v5 contract.",
       code:
         "FACE_IDENTITY_GATE_INVALID_RESPONSE",
       retryable:

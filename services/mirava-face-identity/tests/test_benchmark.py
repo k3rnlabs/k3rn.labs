@@ -12,6 +12,7 @@ from app.benchmark import (
     run_benchmark,
 )
 from app.engine import FaceObservation
+from app.face_geometry import MEASUREMENT_CONTRACT
 
 
 class FakeEngine:
@@ -38,12 +39,13 @@ def face(embedding: tuple[float, ...]) -> FaceObservation:
         box=(10.0, 20.0, 110.0, 140.0),
         embedding=embedding,
         landmarks=(
-            (30.0, 40.0),
-            (70.0, 40.0),
-            (50.0, 62.0),
-            (38.0, 82.0),
-            (62.0, 82.0),
+            (87.2340425532, 87.2340425532),
+            (112.7659574468, 87.2340425532),
+            (100.0, 100.0),
+            (89.5833333333, 112.5),
+            (110.4166666667, 112.5),
         ),
+        image_size=(200, 200),
     )
 
 
@@ -63,7 +65,7 @@ def case(case_id: str, expected: bool) -> dict:
             "roll": "neutral",
             "expression": "neutral",
             "gaze": "camera",
-            "faceScale": "portrait",
+            "faceScale": "close-portrait",
             "light": "soft-frontal",
             "occlusion": "none",
             "styling": "natural",
@@ -100,6 +102,7 @@ def spec() -> dict:
             "minimumImpostorCasesPerValue": 1,
             "axes": coverage_axes,
         },
+        "measurementContract": MEASUREMENT_CONTRACT,
         "threshold": 0.8,
         "landmarkThreshold": 0.25,
         "calibrationVersion": "calibration-v1",
@@ -258,6 +261,31 @@ def test_benchmark_requires_every_scenario_axis() -> None:
     del value["cases"][0]["scenario"]["light"]
 
     with pytest.raises(ValueError, match="every scenario axis"):
+        run_benchmark(value, FakeEngine([]))
+
+
+def test_benchmark_marks_declared_pose_that_contradicts_measurement_unscorable() -> None:
+    value = spec()
+    value["cases"] = [case("wrong-pose", True)]
+    value["cases"][0]["scenario"]["yaw"] = "profile-right"
+    refresh_partition(value)
+    report = run_benchmark(
+        value,
+        FakeEngine([[face((1.0, 0.0))]]),
+        read_bytes=lambda path: path.encode("utf-8"),
+    )
+
+    assert report["rows"][0]["status"] == "UNSCORABLE"
+    assert report["rows"][0]["reasonCode"] == "SCENARIO_MEASUREMENT_MISMATCH"
+    assert report["rows"][0]["candidateGeometry"]["measuredCohorts"]["yaw"] == "frontal"
+
+
+def test_benchmark_rejects_a_mutable_measurement_contract() -> None:
+    value = spec()
+    value["measurementContract"] = dict(MEASUREMENT_CONTRACT)
+    value["measurementContract"]["maxNormalizedReprojectionError"] = 1.0
+
+    with pytest.raises(ValueError, match="canonical contract"):
         run_benchmark(value, FakeEngine([]))
 
 

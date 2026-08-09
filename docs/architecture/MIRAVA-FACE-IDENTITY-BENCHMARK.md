@@ -51,7 +51,8 @@ For each candidate and each restoration attempt, store:
 - seed or provider task ID when available;
 - enrollment manifest version;
 - detected face count, face box and usable face pixels;
-- yaw/pitch/roll cohort and image-quality flags;
+- measured yaw/pitch/roll angles, face-area ratio, normalized five-point
+  reprojection error, estimator version and derived cohorts;
 - per-reference and aggregate evaluator scores;
 - stable landmark-ratio residuals;
 - gate decision and reason code;
@@ -101,7 +102,7 @@ genuine and impostor cohort sizes. The runner computes `acceptanceStatus`; the
 private gate re-verifies this report and cannot emit `PASS` when that status is
 `FAIL`.
 
-Schema v2 encodes the table above as the immutable `canonical-v1` coverage
+Schema v3 encodes the table above as the immutable `canonical-v1` coverage
 profile. Omitting a cohort or using an undeclared value invalidates calibration;
 a custom diagnostic profile can never receive an accepted PASS. Candidate and
 reference subjects use separate HMAC-derived pseudonyms so impostor pairs do
@@ -116,6 +117,22 @@ held-out test both PASS under the same threshold version, evaluator,
 acceptance contract and canonical coverage contract, and unless every report
 and partition digest matches the isolation artifact pinned in runtime
 configuration.
+
+Schema v3 also pins `mirava-face-measurement/v1`. Its pose convention is
+`Rz(roll) @ Ry(yaw) @ Rx(pitch)`: negative yaw/roll mean left in the image and
+positive pitch means up in the image. The candidate geometry is computed from
+the five detector landmarks and image dimensions by
+`mirava-five-point-sqpnp-v1`. Face scale is the clamped face-box area divided by
+image area. Fixed angle and area tolerances handle boundary noise; both the
+boundaries and tolerances are covered by the configuration and artifact
+digests. A declared pose or scale that contradicts the measurements is
+`UNSCORABLE`, so scenario labels cannot manufacture coverage.
+
+This five-point weak-camera estimate is only a reproducible operational
+instrument. It is sensitive to lens and facial-proportion bias, especially at
+extreme pose. Its boundaries require population calibration and held-out
+validation; synthetic projection recovery proves the convention, not real-world
+accuracy.
 
 Minimum cohort sizes count only `SCORABLE` genuine and impostor rows. An
 unscorable genuine delivery remains a false reject; an unscorable impostor is
