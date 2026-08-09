@@ -5,17 +5,48 @@ export type MiravaBacklightMetrics = {
   backlightDifference: number
 }
 
+export const MIRAVA_BACKLIGHT_MIN_BACKGROUND_HIGHLIGHT_RATIO =
+  0.12
+
+export const MIRAVA_BACKLIGHT_MIN_DIFFERENCE =
+  85
+
+export const MIRAVA_BACKLIGHT_MAX_FACE_LUMINANCE =
+  108
+
+export const MIRAVA_BACKLIGHT_MAX_FACE_MEDIAN =
+  105
+
 export function isMiravaBacklit(
   metrics: MiravaBacklightMetrics,
 ): boolean {
-  const faceClearlyUnderexposed =
-    metrics.luminance < 118 &&
-    metrics.faceMedianLuminance < 115
+  /*
+   * A bright wall, white cyclorama or window area is not
+   * sufficient to classify an identity photo as backlit.
+   *
+   * Backlight becomes destructive only when the background
+   * strongly dominates AND the measured face itself is
+   * genuinely underexposed.
+   *
+   * Requiring both face measurements avoids penalising
+   * readable faces simply because their background P90 is
+   * high.
+   */
+  const faceActuallyUnderexposed =
+    metrics.luminance <
+      MIRAVA_BACKLIGHT_MAX_FACE_LUMINANCE &&
+    metrics.faceMedianLuminance <
+      MIRAVA_BACKLIGHT_MAX_FACE_MEDIAN
+
+  const backgroundStronglyDominates =
+    metrics.backgroundHighlightRatio >
+      MIRAVA_BACKLIGHT_MIN_BACKGROUND_HIGHLIGHT_RATIO &&
+    metrics.backlightDifference >
+      MIRAVA_BACKLIGHT_MIN_DIFFERENCE
 
   return (
-    metrics.backgroundHighlightRatio > 0.12 &&
-    metrics.backlightDifference > 55 &&
-    faceClearlyUnderexposed
+    faceActuallyUnderexposed &&
+    backgroundStronglyDominates
   )
 }
 

@@ -66,6 +66,28 @@ describe("MIRAVA identity UX contracts", () => {
     )
   })
 
+  it("validates facial readability instead of requiring natural light", () => {
+    expect(capture).toContain(
+      "visage centré et clairement éclairé",
+    )
+
+    expect(capture).toContain(
+      "Visage clairement et uniformément éclairé",
+    )
+
+    expect(capture).toContain(
+      "Rostro claramente iluminado, sin sombras fuertes",
+    )
+
+    expect(capture).not.toContain(
+      "Éclairage naturel et homogène",
+    )
+
+    expect(capture).not.toContain(
+      "iluminación natural sin accesorios",
+    )
+  })
+
   it("keeps technical vision metrics outside production", () => {
     expect(capture).toContain(
       'process.env.NODE_ENV !== "production"',

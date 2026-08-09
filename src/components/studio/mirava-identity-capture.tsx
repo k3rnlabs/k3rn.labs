@@ -92,8 +92,8 @@ export const PHOTO_SLOTS: PhotoSlotDefinition[] = [
     number: 1,
     title: { fr: "Visage face neutre", es: "Rostro frontal neutro" },
     instruction: {
-      fr: "Regardez droit l’objectif, visage centré, éclairage naturel sans masque ni lunettes.",
-      es: "Mira de frente a la cámara, rostro centrado, iluminación natural sin accesorios.",
+      fr: "Regardez droit l’objectif, visage centré et clairement éclairé, sans masque ni lunettes.",
+      es: "Mira de frente a la cámara, rostro centrado y claramente iluminado, sin mascarilla ni gafas.",
     },
     level: "required",
     required: true,
@@ -101,13 +101,13 @@ export const PHOTO_SLOTS: PhotoSlotDefinition[] = [
     criteria: {
       fr: [
         "Visage net et centré dans le cadre",
-        "Éclairage naturel et homogène",
+        "Visage clairement et uniformément éclairé",
         "Expression neutre (sans lunettes ni masque)",
         "Yeux ouverts et parfaitement visibles",
       ],
       es: [
         "Rostro nítido y centrado en el encuadre",
-        "Iluminación natural y uniforme",
+        "Rostro claramente iluminado, sin sombras fuertes",
         "Expresión neutra (sin accesorios)",
         "Ojos abiertos y perfectamente visibles",
       ],

@@ -37,6 +37,17 @@ describe("MIRAVA backlight classification", () => {
       }),
     ).toBe(false)
   })
+  it("accepts a readable identity face in front of a bright white wall", () => {
+    expect(
+      isMiravaBacklit({
+        luminance: 105,
+        faceMedianLuminance: 110,
+        backgroundHighlightRatio: 0.25,
+        backlightDifference: 96,
+      }),
+    ).toBe(false)
+  })
+
 })
 
 
