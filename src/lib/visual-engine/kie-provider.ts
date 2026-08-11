@@ -431,13 +431,77 @@ export function buildMiravaKieReferencePrompt(args: {
     },
   )
 
+  /*
+   * Certified textual Visual DNA does not need the
+   * verbose image-art-direction wrapper.
+   *
+   * Keep this mode deliberately compact so the complete
+   * certified Visual DNA reaches Seedream without the
+   * provider's 3000-character compaction pass.
+   */
+  const textualDirectionOnly =
+    art.length === 0 &&
+    continuity.length === 0
+
+  const userReferenceRuntime =
+    /^USER REFERENCE VISUAL DNA v1\.1\.0 —/i
+      .test(
+        args.prompt.trim(),
+      )
+
+  if (
+    userReferenceRuntime &&
+    art.length > 0 &&
+    wardrobe.length === 0 &&
+    continuity.length === 0
+  ) {
+    return [
+      "REFERENCE ROLES — Follow exactly.",
+
+      ...(
+        identity.length > 0
+          ? [
+              `${formatKieIndexes(identity)}: FACE IDENTITY AUTHORITY — face identity only: anatomy, skin, hairline, age. Never copy pose, expression, makeup, hair styling, wardrobe, wall/room/background, scene, camera or light.`,
+            ]
+          : []
+      ),
+
+      `${formatKieIndexes(art)}: ART DIRECTION ONLY — sole authority for all non-identity dimensions: background/environment, camera/crop/perspective, pose/expression/gaze, wardrobe/accessories/materials, hair styling, lighting/shadows/contrast, exposure/palette and finish. Never use it for face/body identity.`,
+
+      ...(
+        args.bodyIdentity?.trim()
+          ? [
+              "BODY MORPHOLOGY LOCK — BODY_ID below alone controls intrinsic body morphology; never derive body shape from FACE_ID or ART_DIRECTION.",
+              args.bodyIdentity.trim(),
+            ]
+          : [
+              "BODY MORPHOLOGY LOCK — No BODY_ID; never infer body shape from FACE_ID or ART_DIRECTION.",
+            ]
+      ),
+
+      "FIDELITY PRIORITY — Transfer ART_DIRECTION completely for every non-identity dimension; preserve FACE_ID facial identity.",
+
+      "Realistic adult fashion photograph; private anatomy covered; no explicit sexual activity.",
+
+      "VISUAL DIRECTION —",
+
+      args.prompt,
+    ]
+      .filter(Boolean)
+      .join(
+        "\n\n",
+      )
+  }
+
   return [
     "REFERENCE ROLES — Follow these roles exactly.",
 
     ...(
       identity.length > 0
         ? [
-            `${formatKieIndexes(identity)}: FACE IDENTITY AUTHORITY — sole authority for the generated person's identity at the face level: recognizable face, facial anatomy, skin identity, hairline and natural age. Preserve shared stable FACE_ID traits only. Never infer body morphology or copy pose, wardrobe, background or lighting.`,
+            textualDirectionOnly
+              ? `${formatKieIndexes(identity)}: FACE IDENTITY AUTHORITY — face identity only: facial anatomy, skin identity, natural hairline and age. Never copy pose, head orientation, expression, gaze, eyelid state, mouth pose, hairstyle arrangement, makeup, wardrobe, scene, camera or lighting.`
+              : `${formatKieIndexes(identity)}: FACE IDENTITY AUTHORITY — sole authority for the generated person's identity at the face level: recognizable facial anatomy, skin identity, natural hairline and natural age. Preserve shared stable FACE_ID traits only. Never infer body morphology or copy pose, head orientation, expression, gaze, eyelid state, mouth pose, hairstyle arrangement, makeup, wardrobe, background, camera or lighting.`,
           ]
         : []
     ),
@@ -466,7 +530,9 @@ export function buildMiravaKieReferencePrompt(args: {
         : []
     ),
 
-    "IDENTITY CONSENSUS LOCK — Same FACE_ID person; no averaging or lookalike substitution. Preserve face width, jaw/chin, cheeks, eye shape/spacing, nose, lips, ears, skin, hairline and natural age.",
+    textualDirectionOnly
+      ? "IDENTITY CONSENSUS LOCK — Same person; preserve stable face shape, eyes, nose, lips, ears, skin, hairline and age; no lookalike averaging."
+      : "IDENTITY CONSENSUS LOCK — Same FACE_ID person; no averaging or lookalike substitution. Preserve face width, jaw/chin, cheeks, eye shape/spacing, nose, lips, ears, skin, hairline and natural age.",
 
     ...(
       args.bodyIdentity?.trim()
@@ -475,18 +541,28 @@ export function buildMiravaKieReferencePrompt(args: {
             args.bodyIdentity.trim(),
           ]
         : [
-            "BODY MORPHOLOGY LOCK — No structured BODY_ID is available. Do not infer body morphology or natural proportions from FACE_ID, ART_DIRECTION or WARDROBE images. Do not intentionally redesign the model's body.",
+            textualDirectionOnly
+              ? "BODY MORPHOLOGY LOCK — No BODY_ID. Do not infer body shape from FACE_ID and do not intentionally redesign the body."
+              : "BODY MORPHOLOGY LOCK — No structured BODY_ID is available. Do not infer body morphology or natural proportions from FACE_ID, ART_DIRECTION or WARDROBE images. Do not intentionally redesign the model's body.",
           ]
     ),
 
-    "EXPRESSION STATE ONLY — Transfer ART_DIRECTION head rotation, tilt, eyelid state, gaze and mouth pose onto FACE_ID anatomy.",
+    art.length > 0
+      ? "EXPRESSION STATE ONLY — Transfer ART_DIRECTION head rotation, tilt, eyelid state, gaze and mouth pose onto FACE_ID anatomy."
+      : continuity.length > 0
+        ? "EXPRESSION STATE ONLY — Preserve CONTINUITY expression unless an explicit continuation delta changes it. FACE_ID supplies facial anatomy only and must not donate expression, gaze, eyelid state or mouth pose."
+        : "EXPRESSION STATE ONLY — The textual VISUAL DIRECTION below controls head angle, gaze, eyelid state and mouth pose; FACE_ID supplies anatomy only.",
 
-    "NO BEAUTIFICATION DRIFT — Preserve natural face geometry, natural age and asymmetry. Render photorealistic real skin with visible pores, fine microtexture and natural tonal variation. No painted skin, plastic skin, waxy skin, poreless airbrushing, beauty-filter smoothing or doll-like eyes; do not redesign eyes, nose or lips.",
+    textualDirectionOnly
+      ? "NO BEAUTIFICATION DRIFT — Preserve natural facial geometry, age, asymmetry and real skin texture; no smoothing, doll-like eyes or feature redesign."
+      : "NO BEAUTIFICATION DRIFT — Preserve natural face geometry, natural age and asymmetry. Render photorealistic real skin with visible pores, fine microtexture and natural tonal variation. No painted skin, plastic skin, waxy skin, poreless airbrushing, beauty-filter smoothing or doll-like eyes; do not redesign eyes, nose or lips.",
 
     continuity.length > 0 &&
     art.length === 0
       ? "FIDELITY PRIORITY — CONTINUATION: FACE_ID remains authoritative for facial identity and BODY_ID for intrinsic morphology. Execute explicitly authorized continuation deltas before continuity preservation. CONTINUITY controls only dimensions that were not explicitly unlocked; never let the previous pose, framing or hairstyle cancel a requested change."
-      : "FIDELITY PRIORITY — PASS A: first preserve ART_DIRECTION camera, crop, perspective, pose skeleton and garment topology exactly; second preserve FACE_ID face and BODY_ID morphology; third preserve remaining styling, environment and lighting. Never simplify or normalize the pose to improve identity.",
+      : art.length > 0
+        ? "FIDELITY PRIORITY — IMAGE ART DIRECTION: first preserve ART_DIRECTION camera, crop, perspective, pose skeleton, expression, hairstyle arrangement and garment topology exactly; second preserve FACE_ID facial anatomy and BODY_ID morphology; third preserve remaining environment, lighting and finish."
+        : "FIDELITY PRIORITY — TEXTUAL VISUAL DIRECTION: preserve its camera, crop, pose, expression, hair, wardrobe, scene, lighting, makeup and finish; FACE_ID supplies facial anatomy only.",
 
     "Create a realistic commercial adult fashion photograph. Keep private anatomy covered and do not introduce explicit sexual activity.",
 

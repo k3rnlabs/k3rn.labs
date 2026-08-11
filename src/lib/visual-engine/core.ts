@@ -19,6 +19,15 @@ import {
   renderMiravaOfficialUniverseMasterPrompt,
 } from "@/lib/mirava/official-universe-blueprints"
 import {
+  MIRAVA_OFFICIAL_VISUAL_DNA_RUNTIME_VERSION,
+  getMiravaOfficialVisualDna,
+  resolveMiravaOfficialUniverseRuntimePrompt,
+} from "@/lib/mirava/official-universe-runtime"
+import {
+  MIRAVA_USER_REFERENCE_RUNTIME_VERSION,
+  resolveMiravaUserReferenceRuntimePrompt,
+} from "@/lib/mirava/user-reference-runtime"
+import {
   MIRAVA_MAX_IDENTITY_PHOTOS,
   MIRAVA_MIN_IDENTITY_PHOTOS,
   MIRAVA_RECOMMENDED_IDENTITY_PHOTOS,
@@ -104,8 +113,6 @@ export const MAX_STUDIO_IMAGE_BYTES = 10 * 1024 * 1024
 export const MIRAVA_IMAGE_PROVIDER_TIMEOUT_MS = 120_000
 export const MIRAVA_CONTINUITY_IMAGE_PROVIDER_TIMEOUT_MS = 240_000
 export const MIRAVA_GENERATION_TIMEOUT_MAX_ATTEMPTS = 2
-
-const MIRAVA_KIE_REFERENCE_LIMIT = 8
 export const MIN_IDENTITY_ASSETS = MIRAVA_MIN_IDENTITY_PHOTOS
 export const RECOMMENDED_IDENTITY_ASSETS = MIRAVA_RECOMMENDED_IDENTITY_PHOTOS
 export const MAX_IDENTITY_ASSETS = MIRAVA_MAX_IDENTITY_PHOTOS
@@ -5270,6 +5277,31 @@ export function buildMiravaResolvedPrimaryGenerationPrompt(
     | "creativeOptions"
   >,
 ): string {
+  /*
+   * Certified official universes use their precompiled,
+   * reviewed textual Visual DNA.
+   *
+   * No universe thumbnail is loaded, analysed or sent to
+   * an image provider at generation time.
+   */
+  const certifiedRuntimePrompt =
+    creation.presetId
+      ? resolveMiravaOfficialUniverseRuntimePrompt({
+          universeId:
+            creation.presetId,
+          creativeOptions:
+            creation.creativeOptions,
+        })
+      : null
+
+  if (certifiedRuntimePrompt) {
+    return certifiedRuntimePrompt
+  }
+
+  /*
+   * Universes not yet compiled/certified retain the
+   * existing canonical blueprint path unchanged.
+   */
   const officialBlueprint =
     getMiravaOfficialUniverseBlueprint(
       creation.presetId,
@@ -5586,6 +5618,8 @@ function buildMiravaSessionProviderInputPrompt(
   ].join("\n\n")
 }
 
+const MIRAVA_KIE_REFERENCE_LIMIT = 8
+
 async function generateStudioImage(
   creation: StudioCreationRecord,
   identityAssets: Array<
@@ -5651,7 +5685,7 @@ async function generateStudioImage(
 
   const anchorPrompt =
     isReferenceAnchor
-      ? buildMiravaPrimaryGenerationPrompt(
+      ? buildMiravaResolvedPrimaryGenerationPrompt(
           creation,
         )
       : buildMiravaGenerationPrompt(
@@ -5680,11 +5714,44 @@ async function generateStudioImage(
         }).positivePrompt
       : anchorPrompt
 
-  const primaryPrompt =
-    applyMiravaMakeupDirection(
-      scenePrimaryPrompt,
-      creation.creativeOptions,
+  const usesCertifiedOfficialRuntimePrompt =
+    isReferenceAnchor &&
+    Boolean(
+      getMiravaOfficialVisualDna(
+        creation.presetId,
+      ),
     )
+
+  const primaryPrompt =
+    usesCertifiedOfficialRuntimePrompt
+      ? scenePrimaryPrompt
+      : applyMiravaMakeupDirection(
+          scenePrimaryPrompt,
+          creation.creativeOptions,
+        )
+
+  if (
+    usesCertifiedOfficialRuntimePrompt
+  ) {
+    console.info(
+      "[mirava-official-universe-runtime]",
+      JSON.stringify({
+        creationId:
+          creation.id,
+        presetId:
+          creation.presetId,
+        frameIndex,
+        runtimeVersion:
+          MIRAVA_OFFICIAL_VISUAL_DNA_RUNTIME_VERSION,
+        promptLength:
+          primaryPrompt.length,
+        source:
+          "certified-textual-visual-dna",
+        officialThumbnailRuntimeInput:
+          false,
+      }),
+    )
+  }
 
   const campaignRisk =
     detectMiravaCampaignRisk(
@@ -5772,6 +5839,71 @@ async function generateStudioImage(
           )
         )[0] ?? null
       : null
+
+  /*
+   * USER REFERENCE RUNTIME
+   *
+   * Keep the complete extractor master prompt durable
+   * and use it for campaign-risk analysis.
+   *
+   * For a normal first-frame generation with a real
+   * ART_DIRECTION image, send Seedream the concise
+   * extracted creative summary instead of duplicating
+   * the complete master description.
+   */
+  const userReferenceRuntimeBase =
+    isReferenceAnchor &&
+    kieArtisticReference &&
+    !creation.presetId &&
+    !campaignRisk
+      .requiresCampaignSafeTransfer
+      ? resolveMiravaUserReferenceRuntimePrompt(
+          creation
+            .creativeDirectionSummary,
+        )
+      : null
+
+  const userReferenceRuntimePrompt =
+    userReferenceRuntimeBase
+      ? applyMiravaMakeupDirection(
+          userReferenceRuntimeBase,
+          creation.creativeOptions,
+        )
+      : null
+
+  const resolvedKiePrimaryPrompt =
+    userReferenceRuntimePrompt ??
+    resolvedPrimaryPrompt
+
+  if (userReferenceRuntimePrompt) {
+    console.info(
+      "[mirava-user-reference-runtime]",
+      JSON.stringify({
+        creationId:
+          creation.id,
+        frameIndex,
+        runtimeVersion:
+          MIRAVA_USER_REFERENCE_RUNTIME_VERSION,
+        masterPromptLength:
+          creation.masterPrompt
+            ?.length ?? 0,
+        summaryLength:
+          creation
+            .creativeDirectionSummary
+            ?.length ?? 0,
+        runtimePromptLength:
+          userReferenceRuntimePrompt
+            .length,
+        fullResolvedPromptLength:
+          resolvedPrimaryPrompt
+            .length,
+        artisticReferencePresent:
+          true,
+        campaignSafeTransfer:
+          false,
+      }),
+    )
+  }
 
   /*
    * All identity assets remain available to the KIE
@@ -6600,7 +6732,7 @@ async function generateStudioImage(
      try {
        passAImage =
          await executeKieCall(
-           resolvedPrimaryPrompt,
+           resolvedKiePrimaryPrompt,
            "campaign-safe-kie-primary",
            true,
          )
@@ -6707,7 +6839,7 @@ async function generateStudioImage(
    if (useKieCampaignProvider) {
      try {
        return await executeKieCall(
-         resolvedPrimaryPrompt,
+         resolvedKiePrimaryPrompt,
          "campaign-safe-kie-primary",
          true,
        )
