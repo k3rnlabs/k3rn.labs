@@ -104,6 +104,8 @@ export const MAX_STUDIO_IMAGE_BYTES = 10 * 1024 * 1024
 export const MIRAVA_IMAGE_PROVIDER_TIMEOUT_MS = 120_000
 export const MIRAVA_CONTINUITY_IMAGE_PROVIDER_TIMEOUT_MS = 240_000
 export const MIRAVA_GENERATION_TIMEOUT_MAX_ATTEMPTS = 2
+
+const MIRAVA_KIE_REFERENCE_LIMIT = 8
 export const MIN_IDENTITY_ASSETS = MIRAVA_MIN_IDENTITY_PHOTOS
 export const RECOMMENDED_IDENTITY_ASSETS = MIRAVA_RECOMMENDED_IDENTITY_PHOTOS
 export const MAX_IDENTITY_ASSETS = MIRAVA_MAX_IDENTITY_PHOTOS
@@ -5596,15 +5598,16 @@ async function generateStudioImage(
   jobAttempt = 1,
   studioJob: StudioJobRecord | null = null,
 ): Promise<Buffer> {
+  /*
+   * Legacy direct-OpenAI executor is retained temporarily
+   * for source cleanup only.
+   *
+   * It is no longer an active provider route and its key
+   * must never gate MIRAVA generation.
+   */
   const apiKey =
-    process.env.OPENAI_API_KEY
-
-  if (!apiKey) {
-    throw new StudioError(
-      "Le moteur Studio n’est pas configuré.",
-      "PROVIDER_CONFIGURATION",
-    )
-  }
+    process.env.OPENAI_API_KEY ??
+    ""
 
   assertAtLeastOneValidatedIdentityImage(
     identityAssets,
@@ -5718,38 +5721,49 @@ async function generateStudioImage(
         )
       : identityAssets
 
-  const kieProviderEnabled =
-    isMiravaKieImageProviderEnabled() &&
+  /*
+   * KIE is now mandatory for every active MIRAVA image.
+   */
+  if (
+    !isMiravaKieImageProviderEnabled()
+  ) {
+    throw new StudioError(
+      "Le moteur Studio n’est pas configuré.",
+      "PROVIDER_CONFIGURATION",
+      false,
+    )
+  }
+
+  const externalGenerationConsent =
     await hasMiravaExternalImageGenerationConsent(
       creation.userId,
     )
 
-  const useKieCampaignProvider =
-    kieProviderEnabled &&
-    (
-      campaignRisk
-        .requiresCampaignSafeTransfer ||
-      shouldRouteMiravaPromptToKie(
-        primaryPrompt,
-      )
+  if (!externalGenerationConsent) {
+    throw new StudioError(
+      "L’autorisation de génération externe est requise.",
+      "CONSENT_REQUIRED",
+      false,
     )
+  }
 
   /*
-   * Les erreurs OpenAI 429/5xx et réponses incomplètes sont déjà marquées
-   * retryable par executeCall/failJob. Au lieu de répéter trois fois le même
-   * fournisseur, la tentative suivante bascule vers Kie lorsqu'il est
-   * explicitement activé et autorisé par la configuration de confidentialité.
+   * Transitional hard route.
    *
-   * Les refus de sécurité OpenAI ne sont pas retryable : ils n'entrent donc
-   * jamais dans ce chemin de récupération.
+   * Every active generation enters executeKieCall before
+   * the legacy direct-OpenAI source block can be reached.
    */
-  const useKieProviderRecovery =
-    kieProviderEnabled &&
-    !useKieCampaignProvider &&
-    jobAttempt > 1
+  const useKieCampaignProvider =
+    true
 
+  const useKieProviderRecovery =
+    false
+
+  /*
+   * Any initial non-continuation generation may use its
+   * artistic reference through KIE, not only risky prompts.
+   */
   const kieArtisticReference =
-    useKieCampaignProvider &&
     !isContinuation
       ? (
           await getStudioAssets(
@@ -5759,13 +5773,13 @@ async function generateStudioImage(
         )[0] ?? null
       : null
 
+  /*
+   * All identity assets remain available to the KIE
+   * reference-budget logic. FACE_ID itself is still
+   * restricted to the three canonical validated crops.
+   */
   const kieIdentityAssets =
-    (
-      useKieCampaignProvider ||
-      useKieProviderRecovery
-    )
-      ? identityAssets
-      : []
+    identityAssets
 
   const clearKieTaskState =
     async (): Promise<void> => {
@@ -5911,6 +5925,35 @@ async function generateStudioImage(
         throw error
       }
 
+      /*
+       * Provider reference budget.
+       *
+       * FACE_ID is mandatory identity authority and must
+       * never be lost because Session Builder supplied
+       * additional non-identity references.
+       *
+       * Reserve FACE_ID first, then CONTINUITY and the
+       * explicit ART_DIRECTION image. Session Builder
+       * references consume only the remaining capacity.
+       */
+      const kieNonIdentityReferenceBudget =
+        Math.max(
+          0,
+          MIRAVA_KIE_REFERENCE_LIMIT -
+            identityReferences.length,
+        )
+
+      const kieReservedNonSessionReferenceCount =
+        (continuityAsset ? 1 : 0) +
+        (kieArtisticReference ? 1 : 0)
+
+      const kieSessionProviderInputBudget =
+        Math.max(
+          0,
+          kieNonIdentityReferenceBudget -
+            kieReservedNonSessionReferenceCount,
+        )
+
       const references:
         MiravaKieReferenceImage[] =
         []
@@ -5942,7 +5985,10 @@ async function generateStudioImage(
 
       for (
         const reference of
-        sessionProviderInputs
+        sessionProviderInputs.slice(
+          0,
+          kieSessionProviderInputBudget,
+        )
       ) {
         references.push({
           role:
@@ -5977,12 +6023,6 @@ async function generateStudioImage(
       references.push(
         ...identityReferences,
       )
-
-      if (
-        references.length > 8
-      ) {
-        references.splice(8)
-      }
 
       /*
        * BODY_ID remains server-owned textual morphology.
@@ -7136,22 +7176,10 @@ async function processStudioJob(job: StudioJobRecord): Promise<void> {
         })
       }
 
-      const extractedCampaignRisk =
-        detectMiravaCampaignRisk(
-          extracted.masterPrompt,
-        )
-
       const retainReferenceForKieGeneration =
         isMiravaKieImageProviderEnabled() &&
         await hasMiravaExternalImageGenerationConsent(
           creation.userId,
-        ) &&
-        (
-          extractedCampaignRisk
-            .requiresCampaignSafeTransfer ||
-          shouldRouteMiravaPromptToKie(
-            extracted.masterPrompt,
-          )
         )
 
       if (
