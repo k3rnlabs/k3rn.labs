@@ -187,19 +187,28 @@ function renderUserOverrides(
   ] as const
 
   const active =
-    candidates.filter(
+    candidates.flatMap(
       (
-        entry,
-      ): entry is readonly [
-        string,
-        string
-      ] =>
-        typeof entry[1] ===
-          "string" &&
-        entry[1]
-          .trim()
-          .length >
-          0,
+        [key, value],
+      ) => {
+        if (
+          typeof value !==
+            "string" ||
+          value
+            .trim()
+            .length ===
+            0
+        ) {
+          return []
+        }
+
+        return [
+          [
+            key,
+            value,
+          ] as const,
+        ]
+      },
     )
 
   if (
