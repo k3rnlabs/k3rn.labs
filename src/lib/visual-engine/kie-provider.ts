@@ -1415,6 +1415,64 @@ export function buildKieImageTaskInput(args: {
   }
 
   if (
+    args.model ===
+      "seedream/5-lite-image-to-image"
+  ) {
+    return {
+      prompt:
+        fitMiravaKiePromptForModel(
+          args.model,
+          args.prompt,
+        ),
+      image_urls:
+        args.inputUrls,
+      aspect_ratio:
+        args.aspectRatio ??
+        "2:3",
+
+      /*
+       * Kie Seedream 5.0 Lite image-to-image
+       * currently exposes the same basic quality
+       * contract used by the existing Seedream route.
+       */
+      quality:
+        "basic",
+
+      // Provider safety remains enabled.
+      nsfw_checker:
+        true,
+    }
+  }
+
+  if (
+    args.model ===
+      "gpt-image-2-image-to-image"
+  ) {
+    return {
+      prompt:
+        args.prompt,
+
+      /*
+       * GPT Image 2 uses input_urls rather than
+       * Seedream's image_urls contract.
+       */
+      input_urls:
+        args.inputUrls,
+
+      aspect_ratio:
+        args.aspectRatio ??
+        "2:3",
+
+      /*
+       * Keep the first controlled benchmark at 1K
+       * so G/H differ primarily by generation model.
+       */
+      resolution:
+        "1K",
+    }
+  }
+
+  if (
     args.model.startsWith(
       "flux-2/",
     ) &&
