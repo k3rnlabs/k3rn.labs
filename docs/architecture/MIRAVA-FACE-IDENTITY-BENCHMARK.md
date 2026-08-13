@@ -8,7 +8,9 @@ Date: 2026-08-09
 
 This benchmark measures whether MIRAVA preserves a consented person's identity
 while changing expression, view, pose, scene and lighting. It must distinguish
-generator quality, restoration gain and verifier reliability.
+generator quality and verifier reliability. When an identity-restoration
+stage is explicitly enabled, its incremental gain is measured separately rather
+than being assumed as part of the baseline generation path.
 
 ## Dataset contract
 
@@ -45,7 +47,8 @@ removed from the denominator silently.
 
 ## Measurements
 
-For each candidate and each restoration attempt, store:
+For each candidate, and for any identity-restoration attempt when such a
+stage is explicitly enabled, store:
 
 - generator/provider/model/version and prompt hash;
 - seed or provider task ID when available;
@@ -57,7 +60,7 @@ For each candidate and each restoration attempt, store:
 - stable landmark-ratio residuals;
 - gate decision and reason code;
 - latency and provider cost class;
-- restoration region and attempt number;
+- restoration region and attempt number when a restoration stage is enabled;
 - blinded human identity rating and reviewer disagreement.
 
 ## Calibration
@@ -80,9 +83,11 @@ The system can be called end-to-end only when replayable evidence proves:
 1. every provider route passes through the same gate;
 2. a known lookalike/impostor candidate is rejected;
 3. an unscorable or multi-face candidate is withheld;
-4. Pass B improves the calibrated identity measurement without changing the
-   protected scene outside its restoration region;
-5. retry/resume does not regenerate durable Pass A;
+4. if an identity-restoration stage is enabled, it improves the calibrated
+   identity measurement without changing protected content outside its declared
+   restoration region;
+5. retry/resume does not regenerate an already durable generation result unless
+   the requested workflow explicitly requires regeneration;
 6. budget exhaustion withholds the result instead of bypassing the gate;
 7. profile deletion removes manifests, embeddings and temporary crops;
 8. score distributions and false rejects are reviewed across demographic and
@@ -146,6 +151,23 @@ the resolved values and the verifier recomputes them. The values remain inputs
 from population calibration, never defaults inferred from synthetic tests.
 Coverage for these four axes is counted from measured candidate cohorts, not
 from scenario labels, including inside boundary-tolerance bands.
+
+Schema v6 additionally binds the immutable
+`mirava-face-identity-scoring/v1` contract. The contract pins the
+pose-compatible reference-selection strategy, median aggregation over selected
+references, pose-estimator version and the policy that face scale does not
+participate in reference selection.
+
+Candidate similarity and normalized five-landmark residual are still computed
+for every enrollment reference. The aggregate values used by the gate are the
+medians over the references selected by the canonical pose-compatible strategy.
+
+The complete identity-scoring contract is included in benchmark configuration
+evidence and re-verified during calibration and held-out report replay. Verified
+report metadata exposes its SHA-256 digest, and split isolation requires the
+calibration and held-out test populations to bind the same scoring contract.
+A schema-v6 report with a missing, altered or non-canonical identity-scoring
+contract is invalid.
 
 Minimum cohort sizes count only `SCORABLE` genuine and impostor rows. An
 unscorable genuine delivery remains a false reject; an unscorable impostor is

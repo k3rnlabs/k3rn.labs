@@ -78,6 +78,7 @@ def _verify_source_report_binding(
         ("subjectPartitionDigest", "subjectPartitionDigest"),
         ("commit", "commit"),
         ("measurementContract", "measurementContract"),
+        ("identityScoringContract", "identityScoringContract"),
         ("evaluator", "evaluator"),
     )
     if any(

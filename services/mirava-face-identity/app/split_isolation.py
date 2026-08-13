@@ -10,6 +10,7 @@ from typing import Any
 
 from .benchmark import BENCHMARK_SCHEMA, _canonical_json, _partition_digest
 from .calibration_report import benchmark_artifact_digest
+from .identity_scoring import identity_scoring_contract
 
 
 SUBJECT_KEY_SCHEME = "hmac-sha256/v1"
@@ -54,6 +55,10 @@ def _verified_report(value: object, expected_split: str) -> dict[str, Any]:
         raise ValueError("Benchmark report schema is invalid")
     if value.get("datasetSplit") != expected_split:
         raise ValueError(f"Expected the {expected_split} dataset split")
+    if value.get("identityScoringContract") != identity_scoring_contract():
+        raise ValueError(
+            "Benchmark identity scoring contract is invalid"
+        )
     artifact_digest = value.get("artifactDigest")
     if artifact_digest != benchmark_artifact_digest(value):
         raise ValueError("Benchmark artifact digest does not match")
@@ -157,6 +162,14 @@ def verify_split_isolation(
         "testPartitionDigest": test_report["subjectPartitionDigest"],
         "calibrationSubjectCount": len(calibration_subjects),
         "testSubjectCount": len(test_subjects),
+        "identityScoringContractDigest": (
+            "sha256:"
+            + hashlib.sha256(
+                _canonical_json(
+                    identity_scoring_contract()
+                ).encode("utf-8")
+            ).hexdigest()
+        ),
         "status": "PASS",
     }
     evidence["artifactDigest"] = split_isolation_artifact_digest(evidence)
@@ -230,6 +243,12 @@ def load_and_verify_split_isolation_report(
         "measurementContractDigest"
     ):
         raise RuntimeError("Calibration and test measurement contracts differ")
+    if calibration_report.get("identityScoringContractDigest") != test_report.get(
+        "identityScoringContractDigest"
+    ):
+        raise RuntimeError(
+            "Calibration and test identity scoring contracts differ"
+        )
     if calibration_report.get("cohortThresholdsDigest") != test_report.get(
         "cohortThresholdsDigest"
     ):
@@ -250,6 +269,9 @@ def load_and_verify_split_isolation_report(
         "testPartitionDigest": test_report.get("subjectPartitionDigest"),
         "calibrationSubjectCount": calibration_report.get("subjectCount"),
         "testSubjectCount": test_report.get("subjectCount"),
+        "identityScoringContractDigest": calibration_report.get(
+            "identityScoringContractDigest"
+        ),
     }
     if any(evidence.get(key) != value for key, value in expected_fields.items()):
         raise RuntimeError("Split isolation evidence does not match benchmark reports")

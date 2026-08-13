@@ -13,11 +13,13 @@ from app.calibration_report import (
 )
 import hashlib
 from app.benchmark import (
+    BENCHMARK_SCHEMA,
     CANONICAL_SCENARIO_COHORTS,
     _coverage_report,
     _partition_digest,
 )
 from app.face_geometry import MEASUREMENT_CONTRACT, FaceGeometry, geometry_payload
+from app.identity_scoring import identity_scoring_contract
 from app.cohort_thresholds import (
     MEASURED_COHORT_VALUES,
     resolve_cohort_thresholds,
@@ -123,13 +125,23 @@ def _report() -> dict:
                 "perReferenceLandmarkResidual": [0.1] * 3,
                 "decision": "PASS" if expected else "FAIL",
                 "candidateGeometry": geometry,
+                "referenceGeometries": [
+                    geometry,
+                    geometry,
+                    geometry,
+                ],
+                "selectedReferenceIndices": [
+                    0,
+                    1,
+                    2,
+                ],
                 "appliedThresholds": resolve_cohort_thresholds(
                     threshold_policy,
                     geometry["measuredCohorts"],
                 ),
             })
     value = {
-        "schemaVersion": "mirava-face-identity-benchmark/v5",
+        "schemaVersion": BENCHMARK_SCHEMA,
         "datasetVersion": "private-v1",
         "datasetSplit": "calibration",
         "subjectKeyScheme": "hmac-sha256/v1",
@@ -138,6 +150,7 @@ def _report() -> dict:
         "commit": "deadbeef",
         "calibrationVersion": "calibration-v1",
         "measurementContract": MEASUREMENT_CONTRACT,
+        "identityScoringContract": identity_scoring_contract(),
         "configurationDigest": "",
         "evaluator": evaluator,
         "threshold": 0.8,
@@ -179,6 +192,7 @@ def _report() -> dict:
                 "subjectPartitionDigest": value["subjectPartitionDigest"],
                 "coverageContract": coverage_contract,
                 "measurementContract": MEASUREMENT_CONTRACT,
+                "identityScoringContract": identity_scoring_contract(),
                 "evaluator": evaluator,
                 "threshold": 0.8,
                 "landmarkThreshold": 0.2,
@@ -237,6 +251,7 @@ def test_verifies_a_held_out_test_report_with_the_same_runtime_contract(
                 "subjectPartitionDigest": report["subjectPartitionDigest"],
                 "coverageContract": report["coverage"]["contract"],
                 "measurementContract": MEASUREMENT_CONTRACT,
+                "identityScoringContract": identity_scoring_contract(),
                 "evaluator": report["evaluator"],
                 "threshold": 0.8,
                 "landmarkThreshold": 0.2,
@@ -319,6 +334,7 @@ def test_replays_integer_json_thresholds_as_runtime_floats(tmp_path: Path) -> No
                 "subjectPartitionDigest": report["subjectPartitionDigest"],
                 "coverageContract": report["coverage"]["contract"],
                 "measurementContract": MEASUREMENT_CONTRACT,
+                "identityScoringContract": identity_scoring_contract(),
                 "evaluator": report["evaluator"],
                 "threshold": 1.0,
                 "landmarkThreshold": 1.0,
@@ -400,3 +416,304 @@ def test_rejects_an_extra_row_outside_canonical_scenarios(tmp_path: Path) -> Non
 
     with pytest.raises(RuntimeError, match="outside canonical cohorts"):
         _verify(_write(tmp_path, report), report["artifactDigest"])
+
+
+
+def test_v6_rejects_missing_identity_scoring_contract(
+    tmp_path: Path,
+) -> None:
+    report = _report()
+
+    assert report["schemaVersion"] == BENCHMARK_SCHEMA
+
+    del report["identityScoringContract"]
+
+    report["artifactDigest"] = (
+        benchmark_artifact_digest(report)
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="identity scoring contract",
+    ):
+        _verify(
+            _write(tmp_path, report),
+            report["artifactDigest"],
+        )
+
+
+def test_v6_rejects_tampered_identity_scoring_contract(
+    tmp_path: Path,
+) -> None:
+    report = _report()
+
+    assert report["schemaVersion"] == BENCHMARK_SCHEMA
+
+    report["identityScoringContract"] = {
+        **identity_scoring_contract(),
+        "aggregationStrategy": "tampered",
+    }
+
+    report["artifactDigest"] = (
+        benchmark_artifact_digest(report)
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="identity scoring contract",
+    ):
+        _verify(
+            _write(tmp_path, report),
+            report["artifactDigest"],
+        )
+
+
+def test_v6_configuration_digest_binds_identity_scoring_contract(
+    tmp_path: Path,
+) -> None:
+    report = _report()
+
+    assert report["schemaVersion"] == BENCHMARK_SCHEMA
+    assert report["identityScoringContract"] == (
+        identity_scoring_contract()
+    )
+
+    # Deliberately reconstruct the old V5-style configuration digest,
+    # omitting identityScoringContract while leaving the V6 report
+    # itself otherwise canonical.
+    report["configurationDigest"] = hashlib.sha256(
+        canonical_json(
+            {
+                "datasetVersion": report["datasetVersion"],
+                "datasetSplit": report["datasetSplit"],
+                "subjectKeyScheme": report["subjectKeyScheme"],
+                "subjectKeyKeyId": report["subjectKeyKeyId"],
+                "subjectPartitionDigest": report["subjectPartitionDigest"],
+                "coverageContract": report["coverage"]["contract"],
+                "measurementContract": MEASUREMENT_CONTRACT,
+                "evaluator": report["evaluator"],
+                "threshold": report["threshold"],
+                "landmarkThreshold": report["landmarkThreshold"],
+                "cohortThresholds": report["cohortThresholds"],
+                "thresholdProvenance": report["thresholdProvenance"],
+            }
+        ).encode("utf-8")
+    ).hexdigest()
+
+    report["artifactDigest"] = (
+        benchmark_artifact_digest(report)
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="configuration digest does not match",
+    ):
+        _verify(
+            _write(tmp_path, report),
+            report["artifactDigest"],
+        )
+
+
+
+def _add_pose_aware_reference_evidence(
+    report: dict,
+) -> None:
+    for row in report["rows"]:
+        if row["status"] != "SCORABLE":
+            continue
+
+        geometry = candidate_geometry(
+            row["scenario"]
+        )
+
+        row["referenceGeometries"] = [
+            geometry,
+            geometry,
+            geometry,
+        ]
+
+        row["selectedReferenceIndices"] = [
+            0,
+            1,
+            2,
+        ]
+
+
+def _set_first_row_distinct_pose_authorities(
+    report: dict,
+) -> dict:
+    row = report["rows"][0]
+    scenario = row["scenario"]
+
+    row["referenceGeometries"] = [
+        candidate_geometry(
+            scenario
+        ),
+        candidate_geometry(
+            {
+                **scenario,
+                "yaw": "three-quarter-right",
+            }
+        ),
+        candidate_geometry(
+            {
+                **scenario,
+                "yaw": "profile-left",
+            }
+        ),
+    ]
+
+    row["selectedReferenceIndices"] = [
+        0,
+    ]
+
+    return row
+
+
+def test_v6_rejects_missing_reference_geometry_evidence(
+    tmp_path: Path,
+) -> None:
+    report = _report()
+    _add_pose_aware_reference_evidence(report)
+
+    del report["rows"][0]["referenceGeometries"]
+
+    report["artifactDigest"] = (
+        benchmark_artifact_digest(report)
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="reference geometry evidence is invalid",
+    ):
+        _verify(
+            _write(tmp_path, report),
+            report["artifactDigest"],
+        )
+
+
+def test_v6_rejects_missing_selected_reference_indices(
+    tmp_path: Path,
+) -> None:
+    report = _report()
+    _add_pose_aware_reference_evidence(report)
+
+    del report["rows"][0]["selectedReferenceIndices"]
+
+    report["artifactDigest"] = (
+        benchmark_artifact_digest(report)
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="selected reference indices are invalid",
+    ):
+        _verify(
+            _write(tmp_path, report),
+            report["artifactDigest"],
+        )
+
+
+def test_v6_rejects_forged_pose_aware_reference_selection(
+    tmp_path: Path,
+) -> None:
+    report = _report()
+    _add_pose_aware_reference_evidence(report)
+
+    row = _set_first_row_distinct_pose_authorities(
+        report
+    )
+
+    # Candidate and reference 0 have matching geometry.
+    # Claiming reference 1 was selected must be rejected.
+    row["selectedReferenceIndices"] = [
+        1,
+    ]
+
+    report["artifactDigest"] = (
+        benchmark_artifact_digest(report)
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="selected reference indices do not match",
+    ):
+        _verify(
+            _write(tmp_path, report),
+            report["artifactDigest"],
+        )
+
+
+def test_v6_replays_aggregates_over_selected_references_only(
+    tmp_path: Path,
+) -> None:
+    report = _report()
+    _add_pose_aware_reference_evidence(report)
+
+    row = _set_first_row_distinct_pose_authorities(
+        report
+    )
+
+    row["perReferenceSimilarity"] = [
+        0.9,
+        0.1,
+        0.1,
+    ]
+
+    row["perReferenceLandmarkResidual"] = [
+        0.1,
+        0.3,
+        0.3,
+    ]
+
+    # Reference 0 is the only geometrically compatible
+    # authority, so V6 must aggregate only index 0.
+    row["aggregateSimilarity"] = 0.9
+    row["landmarkResidual"] = 0.1
+    row["decision"] = "PASS"
+
+    report["artifactDigest"] = (
+        benchmark_artifact_digest(report)
+    )
+
+    result = _verify(
+        _write(tmp_path, report),
+        report["artifactDigest"],
+    )
+
+    assert result["calibrationStatus"] == "PASS"
+
+
+
+def test_v6_verified_metadata_exposes_identity_scoring_contract_digest(
+    tmp_path: Path,
+) -> None:
+    report = _report()
+
+    verified = load_and_verify_benchmark_report(
+        _write(tmp_path, report),
+        expected_split="calibration",
+        expected_digest=(
+            "sha256:" + report["artifactDigest"]
+        ),
+        expected_model_name="auraface",
+        expected_model_version="model-v1",
+        expected_model_digest="sha256:model",
+        expected_preprocessing_version="align-v1",
+        expected_threshold=0.8,
+        expected_landmark_threshold=0.2,
+    )
+
+    expected = (
+        "sha256:"
+        + hashlib.sha256(
+            canonical_json(
+                identity_scoring_contract()
+            ).encode("utf-8")
+        ).hexdigest()
+    )
+
+    assert (
+        verified["identityScoringContractDigest"]
+        == expected
+    )

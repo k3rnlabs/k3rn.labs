@@ -21,6 +21,7 @@ from .face_geometry import (
     POSE_ESTIMATOR_VERSION,
     measured_cohorts,
 )
+from .identity_scoring import identity_scoring_contract
 
 
 CALIBRATION_PROPOSAL_SCHEMA = "mirava-face-threshold-calibration/v1"
@@ -71,6 +72,10 @@ def _source_rows(report: dict[str, Any]) -> list[dict[str, Any]]:
         raise ValueError("Threshold calibration requires the calibration split")
     if report.get("measurementContract") != MEASUREMENT_CONTRACT:
         raise ValueError("Calibration source measurement contract is invalid")
+    if report.get("identityScoringContract") != identity_scoring_contract():
+        raise ValueError(
+            "Calibration source identity scoring contract is invalid"
+        )
     if (
         report.get("threshold") is not None
         or report.get("landmarkThreshold") is not None

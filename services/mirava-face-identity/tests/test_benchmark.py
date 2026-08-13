@@ -10,9 +10,11 @@ from app.benchmark import (
     _canonical_json,
     _coverage_report,
     _partition_digest,
+    _validate_spec,
     run_benchmark,
 )
 from app.engine import FaceObservation
+from app.identity_scoring import identity_scoring_contract
 from app.face_geometry import MEASUREMENT_CONTRACT
 from app.cohort_thresholds import MEASURED_COHORT_VALUES
 
@@ -136,6 +138,7 @@ def spec() -> dict:
             "axes": coverage_axes,
         },
         "measurementContract": MEASUREMENT_CONTRACT,
+        "identityScoringContract": identity_scoring_contract(),
         "threshold": 0.8,
         "landmarkThreshold": 0.25,
         "cohortThresholds": cohort_thresholds(0.8, 0.25),
@@ -539,3 +542,355 @@ def test_benchmark_rejects_invalid_runtime_thresholds(
 
     with pytest.raises(ValueError, match=message):
         run_benchmark(benchmark, FakeEngine([]))
+
+
+def _posed_face(
+    embedding: tuple[float, ...],
+    *,
+    pitch: float,
+    yaw: float,
+    roll: float,
+) -> FaceObservation:
+    import cv2
+    import numpy as np
+
+    width = height = 400
+
+    model_points = np.asarray(
+        [
+            (-30.0, -30.0, -30.0),
+            (30.0, -30.0, -30.0),
+            (0.0, 0.0, 0.0),
+            (-25.0, 30.0, -20.0),
+            (25.0, 30.0, -20.0),
+        ],
+        dtype=np.float64,
+    )
+
+    pitch_radians, yaw_radians, roll_radians = np.radians(
+        [pitch, yaw, roll]
+    )
+
+    rx = np.asarray(
+        [
+            [1, 0, 0],
+            [
+                0,
+                np.cos(pitch_radians),
+                -np.sin(pitch_radians),
+            ],
+            [
+                0,
+                np.sin(pitch_radians),
+                np.cos(pitch_radians),
+            ],
+        ]
+    )
+
+    ry = np.asarray(
+        [
+            [
+                np.cos(yaw_radians),
+                0,
+                np.sin(yaw_radians),
+            ],
+            [0, 1, 0],
+            [
+                -np.sin(yaw_radians),
+                0,
+                np.cos(yaw_radians),
+            ],
+        ]
+    )
+
+    rz = np.asarray(
+        [
+            [
+                np.cos(roll_radians),
+                -np.sin(roll_radians),
+                0,
+            ],
+            [
+                np.sin(roll_radians),
+                np.cos(roll_radians),
+                0,
+            ],
+            [0, 0, 1],
+        ]
+    )
+
+    rotation_vector, _ = cv2.Rodrigues(
+        rz @ ry @ rx
+    )
+
+    camera = np.asarray(
+        [
+            [width, 0, width / 2],
+            [0, width, height / 2],
+            [0, 0, 1],
+        ],
+        dtype=np.float64,
+    )
+
+    projected, _ = cv2.projectPoints(
+        model_points,
+        rotation_vector,
+        np.asarray(
+            [[0.0], [0.0], [700.0]]
+        ),
+        camera,
+        np.zeros(
+            (4, 1),
+            dtype=np.float64,
+        ),
+    )
+
+    return FaceObservation(
+        confidence=0.99,
+        box=(100.0, 80.0, 300.0, 320.0),
+        embedding=embedding,
+        landmarks=tuple(
+            tuple(
+                map(float, point)
+            )
+            for point in projected.reshape(5, 2)
+        ),
+        image_size=(width, height),
+    )
+
+
+def test_pose_aware_reference_selection_prefers_matching_pose() -> None:
+    value = spec()
+
+    value["cases"] = [
+        case(
+            "pose-aware-reference-selection",
+            True,
+        )
+    ]
+
+    refresh_partition(value)
+
+    candidate = _posed_face(
+        (1.0, 0.0),
+        pitch=0.0,
+        yaw=0.0,
+        roll=0.0,
+    )
+
+    frontal_reference = _posed_face(
+        (1.0, 0.0),
+        pitch=0.0,
+        yaw=0.0,
+        roll=0.0,
+    )
+
+    three_quarter_reference = _posed_face(
+        (0.6, 0.8),
+        pitch=0.0,
+        yaw=35.0,
+        roll=0.0,
+    )
+
+    profile_reference = _posed_face(
+        (0.2, 0.9797958971),
+        pitch=0.0,
+        yaw=-70.0,
+        roll=0.0,
+    )
+
+    report = run_benchmark(
+        value,
+        FakeEngine(
+            [
+                [candidate],
+                [frontal_reference],
+                [three_quarter_reference],
+                [profile_reference],
+            ]
+        ),
+        read_bytes=lambda path: path.encode(
+            "utf-8"
+        ),
+    )
+
+    row = report["rows"][0]
+
+    assert row["status"] == "SCORABLE"
+
+    # A frontal candidate must be evaluated against the
+    # geometrically compatible frontal identity authority,
+    # not the median of frontal + 3/4 + profile references.
+    assert row["aggregateSimilarity"] == pytest.approx(
+        1.0,
+        abs=1e-9,
+    )
+
+    assert row["landmarkResidual"] == pytest.approx(
+        0.0,
+        abs=1e-9,
+    )
+
+    assert row["decision"] == "PASS"
+
+
+
+def test_benchmark_schema_v6_binds_identity_scoring_contract() -> None:
+    assert BENCHMARK_SCHEMA == (
+        "mirava-face-identity-benchmark/v6"
+    )
+
+
+def test_benchmark_v6_requires_identity_scoring_contract() -> None:
+    value = spec()
+    del value["identityScoringContract"]
+
+    with pytest.raises(
+        ValueError,
+        match="identityScoringContract",
+    ):
+        _validate_spec(value)
+
+
+def test_benchmark_v6_rejects_noncanonical_identity_scoring_contract() -> None:
+    value = spec()
+
+    value["identityScoringContract"] = {
+        **identity_scoring_contract(),
+        "aggregationStrategy": "tampered",
+    }
+
+    with pytest.raises(
+        ValueError,
+        match="identityScoringContract",
+    ):
+        _validate_spec(value)
+
+
+def test_benchmark_v6_report_preserves_identity_scoring_contract() -> None:
+    value = spec()
+
+    value["cases"] = [
+        case(
+            "identity-scoring-contract-binding",
+            True,
+        )
+    ]
+
+    refresh_partition(value)
+
+    report = run_benchmark(
+        value,
+        FakeEngine(
+            [
+                [face((1.0, 0.0))],
+                [face((1.0, 0.0))],
+                [face((0.9, 0.1))],
+                [face((0.8, 0.2))],
+            ]
+        ),
+        read_bytes=lambda path: path.encode(
+            "utf-8"
+        ),
+    )
+
+    assert report.get(
+        "identityScoringContract"
+    ) == identity_scoring_contract()
+
+
+
+def test_benchmark_v6_records_replayable_pose_aware_reference_evidence() -> None:
+    value = spec()
+
+    value["cases"] = [
+        case(
+            "pose-aware-reference-evidence",
+            True,
+        )
+    ]
+
+    refresh_partition(value)
+
+    candidate = _posed_face(
+        (1.0, 0.0),
+        pitch=0.0,
+        yaw=0.0,
+        roll=0.0,
+    )
+
+    frontal_reference = _posed_face(
+        (1.0, 0.0),
+        pitch=0.0,
+        yaw=0.0,
+        roll=0.0,
+    )
+
+    three_quarter_reference = _posed_face(
+        (0.6, 0.8),
+        pitch=0.0,
+        yaw=35.0,
+        roll=0.0,
+    )
+
+    profile_reference = _posed_face(
+        (0.2, 0.9797958971),
+        pitch=0.0,
+        yaw=-70.0,
+        roll=0.0,
+    )
+
+    report = run_benchmark(
+        value,
+        FakeEngine(
+            [
+                [candidate],
+                [frontal_reference],
+                [three_quarter_reference],
+                [profile_reference],
+            ]
+        ),
+        read_bytes=lambda path: path.encode(
+            "utf-8"
+        ),
+    )
+
+    row = report["rows"][0]
+
+    assert row["status"] == "SCORABLE"
+
+    reference_geometries = row[
+        "referenceGeometries"
+    ]
+
+    assert len(reference_geometries) == 3
+
+    assert (
+        reference_geometries[0]
+        ["measuredCohorts"]["yaw"]
+        == "frontal"
+    )
+
+    assert (
+        reference_geometries[1]
+        ["measuredCohorts"]["yaw"]
+        == "three-quarter-right"
+    )
+
+    assert (
+        reference_geometries[2]
+        ["measuredCohorts"]["yaw"]
+        == "profile-left"
+    )
+
+    assert row["selectedReferenceIndices"] == [
+        0,
+    ]
+
+    assert len(
+        row["perReferenceSimilarity"]
+    ) == len(reference_geometries)
+
+    assert len(
+        row["perReferenceLandmarkResidual"]
+    ) == len(reference_geometries)

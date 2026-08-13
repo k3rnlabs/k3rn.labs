@@ -11,12 +11,14 @@ import pytest
 
 from app.calibration_report import benchmark_artifact_digest, canonical_json
 from app.benchmark import (
+    BENCHMARK_SCHEMA,
     CANONICAL_SCENARIO_COHORTS,
     _coverage_report,
     _partition_digest,
 )
 from app.engine import FaceObservation
 from app.face_geometry import MEASUREMENT_CONTRACT, geometry_payload, FaceGeometry
+from app.identity_scoring import identity_scoring_contract
 from app.cohort_thresholds import (
     MEASURED_COHORT_VALUES,
     resolve_cohort_thresholds,
@@ -183,6 +185,16 @@ def configure(
                         "perReferenceLandmarkResidual": [0.1] * 3,
                         "decision": "PASS" if expected else "FAIL",
                         "candidateGeometry": geometry,
+                        "referenceGeometries": [
+                            geometry,
+                            geometry,
+                            geometry,
+                        ],
+                        "selectedReferenceIndices": [
+                            0,
+                            1,
+                            2,
+                        ],
                         "appliedThresholds": resolve_cohort_thresholds(
                             threshold_policy,
                             geometry["measuredCohorts"],
@@ -190,7 +202,7 @@ def configure(
                     }
                 )
         report = {
-            "schemaVersion": "mirava-face-identity-benchmark/v5",
+            "schemaVersion": BENCHMARK_SCHEMA,
             "datasetVersion": f"private-{split}-v1",
             "datasetSplit": split,
             "subjectKeyScheme": "hmac-sha256/v1",
@@ -200,6 +212,7 @@ def configure(
             "commit": "test-commit",
             "calibrationVersion": "calibration-v1",
             "measurementContract": MEASUREMENT_CONTRACT,
+            "identityScoringContract": identity_scoring_contract(),
             "configurationDigest": "",
             "evaluator": evaluator,
             "threshold": 0.8,
@@ -245,6 +258,7 @@ def configure(
                     "subjectPartitionDigest": report["subjectPartitionDigest"],
                     "coverageContract": coverage_contract,
                     "measurementContract": MEASUREMENT_CONTRACT,
+                    "identityScoringContract": identity_scoring_contract(),
                     "evaluator": evaluator,
                     "threshold": 0.8,
                     "landmarkThreshold": 0.25,
@@ -497,3 +511,184 @@ def test_service_refuses_tampered_split_isolation_evidence(
     with pytest.raises(RuntimeError, match="artifact digest does not match"):
         with TestClient(create_app(FakeEngine([]))):
             pass
+
+
+def _runtime_posed_face(
+    embedding: tuple[float, ...],
+    *,
+    pitch: float,
+    yaw: float,
+    roll: float,
+):
+    import cv2
+    import numpy as np
+
+    from app.engine import FaceObservation
+
+    width = height = 400
+
+    model_points = np.asarray(
+        [
+            (-30.0, -30.0, -30.0),
+            (30.0, -30.0, -30.0),
+            (0.0, 0.0, 0.0),
+            (-25.0, 30.0, -20.0),
+            (25.0, 30.0, -20.0),
+        ],
+        dtype=np.float64,
+    )
+
+    pitch_radians, yaw_radians, roll_radians = np.radians(
+        [pitch, yaw, roll]
+    )
+
+    rx = np.asarray(
+        [
+            [1, 0, 0],
+            [
+                0,
+                np.cos(pitch_radians),
+                -np.sin(pitch_radians),
+            ],
+            [
+                0,
+                np.sin(pitch_radians),
+                np.cos(pitch_radians),
+            ],
+        ]
+    )
+
+    ry = np.asarray(
+        [
+            [
+                np.cos(yaw_radians),
+                0,
+                np.sin(yaw_radians),
+            ],
+            [0, 1, 0],
+            [
+                -np.sin(yaw_radians),
+                0,
+                np.cos(yaw_radians),
+            ],
+        ]
+    )
+
+    rz = np.asarray(
+        [
+            [
+                np.cos(roll_radians),
+                -np.sin(roll_radians),
+                0,
+            ],
+            [
+                np.sin(roll_radians),
+                np.cos(roll_radians),
+                0,
+            ],
+            [0, 0, 1],
+        ]
+    )
+
+    rotation_vector, _ = cv2.Rodrigues(
+        rz @ ry @ rx
+    )
+
+    camera = np.asarray(
+        [
+            [width, 0, width / 2],
+            [0, width, height / 2],
+            [0, 0, 1],
+        ],
+        dtype=np.float64,
+    )
+
+    projected, _ = cv2.projectPoints(
+        model_points,
+        rotation_vector,
+        np.asarray(
+            [[0.0], [0.0], [700.0]]
+        ),
+        camera,
+        np.zeros(
+            (4, 1),
+            dtype=np.float64,
+        ),
+    )
+
+    return FaceObservation(
+        confidence=0.99,
+        box=(100.0, 80.0, 300.0, 320.0),
+        embedding=embedding,
+        landmarks=tuple(
+            tuple(map(float, point))
+            for point in projected.reshape(5, 2)
+        ),
+        image_size=(width, height),
+    )
+
+
+def test_runtime_pose_aware_reference_selection_prefers_matching_pose(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    configure(monkeypatch, tmp_path)
+
+    candidate = _runtime_posed_face(
+        (1.0, 0.0),
+        pitch=0.0,
+        yaw=0.0,
+        roll=0.0,
+    )
+
+    frontal_reference = _runtime_posed_face(
+        (1.0, 0.0),
+        pitch=0.0,
+        yaw=0.0,
+        roll=0.0,
+    )
+
+    three_quarter_reference = _runtime_posed_face(
+        (0.6, 0.8),
+        pitch=0.0,
+        yaw=35.0,
+        roll=0.0,
+    )
+
+    profile_reference = _runtime_posed_face(
+        (0.2, 0.9797958971),
+        pitch=0.0,
+        yaw=-70.0,
+        roll=0.0,
+    )
+
+    engine = FakeEngine(
+        [
+            [candidate],
+            [frontal_reference],
+            [three_quarter_reference],
+            [profile_reference],
+        ]
+    )
+
+    with TestClient(
+        create_app(engine)
+    ) as client:
+        response = request(client)
+
+    assert response.status_code == 200
+
+    payload = response.json()
+
+    assert payload["aggregateSimilarity"] == pytest.approx(
+        1.0,
+        abs=1e-9,
+    )
+
+    assert payload["landmarkResidual"] == pytest.approx(
+        0.0,
+        abs=1e-9,
+    )
+
+    assert payload["decision"] == "PASS"
+    assert payload["reasonCode"] == "CALIBRATED_PASS"

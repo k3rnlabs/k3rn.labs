@@ -5,7 +5,6 @@ import hmac
 import math
 import os
 from pathlib import Path
-from statistics import median
 from typing import Annotated, Any
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
@@ -15,8 +14,6 @@ from .engine import (
     AuraFaceEngine,
     FaceEngine,
     FaceObservation,
-    cosine_similarity,
-    landmark_shape_residual,
 )
 from .face_geometry import (
     FaceGeometry,
@@ -26,6 +23,7 @@ from .face_geometry import (
     measured_cohorts,
 )
 from .cohort_thresholds import resolve_cohort_thresholds
+from .identity_scoring import score_identity_pose_aware
 from .split_isolation import load_and_verify_split_isolation_report
 
 
@@ -337,16 +335,27 @@ def create_app(engine: FaceEngine | None = None) -> FastAPI:
                 )
             reference_faces.append(observed[0])
 
-        scores = [
-            cosine_similarity(candidate_faces[0].embedding, reference.embedding)
-            for reference in reference_faces
-        ]
-        aggregate = float(median(scores))
-        landmark_residuals = [
-            landmark_shape_residual(candidate_faces[0], reference)
-            for reference in reference_faces
-        ]
-        aggregate_landmark_residual = float(median(landmark_residuals))
+        try:
+            identity_score = score_identity_pose_aware(
+                candidate_faces[0],
+                reference_faces,
+            )
+        except ValueError:
+            return _unscorable(
+                reason_code="REFERENCE_GEOMETRY_INVALID",
+                faces=candidate_faces,
+                threshold=threshold,
+                landmark_threshold=landmark_threshold,
+                evaluator=evaluator,
+            )
+
+        scores = list(
+            identity_score.per_reference_similarity
+        )
+        aggregate = identity_score.aggregate_similarity
+        aggregate_landmark_residual = (
+            identity_score.aggregate_landmark_residual
+        )
         embedding_pass = aggregate >= threshold
         landmark_pass = aggregate_landmark_residual <= landmark_threshold
         benchmark_evidence_accepted = (

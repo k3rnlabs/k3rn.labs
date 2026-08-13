@@ -1,13 +1,19 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import hashlib
 import json
 from pathlib import Path
 
 import pytest
 
-from app.benchmark import _canonical_json, _partition_digest
+from app.benchmark import (
+    BENCHMARK_SCHEMA,
+    _canonical_json,
+    _partition_digest,
+)
 from app.calibration_report import benchmark_artifact_digest
+from app.identity_scoring import identity_scoring_contract
 from app.split_isolation import (
     _hmac_key_id,
     _subject_key,
@@ -26,7 +32,8 @@ def inventory(split: str, subjects: list[str]) -> dict:
 def report(split: str, subject_ids: list[str]) -> dict:
     subjects = [_subject_key(PSEUDONYM_KEY, subject_id) for subject_id in subject_ids]
     value = {
-        "schemaVersion": "mirava-face-identity-benchmark/v5",
+        "schemaVersion": BENCHMARK_SCHEMA,
+        "identityScoringContract": identity_scoring_contract(),
         "datasetSplit": split,
         "subjectKeyScheme": "hmac-sha256/v1",
         "subjectKeyKeyId": _hmac_key_id(PSEUDONYM_KEY),
@@ -64,6 +71,14 @@ def verified_metadata(value: dict) -> dict:
         "acceptanceContractDigest": "sha256:" + "a" * 64,
         "coverageContractDigest": "sha256:" + "b" * 64,
         "measurementContractDigest": "sha256:" + "c" * 64,
+        "identityScoringContractDigest": (
+            "sha256:"
+            + hashlib.sha256(
+                _canonical_json(
+                    value["identityScoringContract"]
+                ).encode("utf-8")
+            ).hexdigest()
+        ),
         "cohortThresholdsDigest": "sha256:" + "d" * 64,
         "thresholdProvenance": {
             "schemaVersion": "mirava-face-threshold-provenance/v1",
@@ -337,6 +352,99 @@ def test_runtime_replays_subject_overlap_instead_of_trusting_pass_status(
         load_and_verify_split_isolation_report(
             path,
             expected_digest="sha256:" + evidence["artifactDigest"],
+            calibration_report=calibration_metadata,
+            test_report=test_metadata,
+        )
+
+
+
+def test_rejects_noncanonical_identity_scoring_contract_in_raw_report() -> None:
+    calibration = report(
+        "calibration",
+        ["subject-a"],
+    )
+
+    calibration["identityScoringContract"] = {
+        **identity_scoring_contract(),
+        "aggregationStrategy": "tampered",
+    }
+
+    calibration["artifactDigest"] = (
+        benchmark_artifact_digest(calibration)
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="identity scoring contract",
+    ):
+        verify_split_isolation(
+            calibration,
+            report("test", ["subject-c"]),
+            pseudonym_key=PSEUDONYM_KEY,
+            calibration_subject_inventory=inventory(
+                "calibration",
+                ["subject-a"],
+            ),
+            test_subject_inventory=inventory(
+                "test",
+                ["subject-c"],
+            ),
+        )
+
+
+def test_runtime_rejects_different_identity_scoring_contracts(
+    tmp_path: Path,
+) -> None:
+    calibration = report(
+        "calibration",
+        ["subject-a"],
+    )
+    test = report(
+        "test",
+        ["subject-c"],
+    )
+
+    evidence = verify_split_isolation(
+        calibration,
+        test,
+        pseudonym_key=PSEUDONYM_KEY,
+        calibration_subject_inventory=inventory(
+            "calibration",
+            ["subject-a"],
+        ),
+        test_subject_inventory=inventory(
+            "test",
+            ["subject-c"],
+        ),
+    )
+
+    path = tmp_path / "split-isolation.json"
+    path.write_text(
+        json.dumps(evidence),
+        encoding="utf-8",
+    )
+
+    calibration_metadata = verified_metadata(
+        calibration
+    )
+    test_metadata = verified_metadata(
+        test
+    )
+
+    test_metadata[
+        "identityScoringContractDigest"
+    ] = "sha256:" + "0" * 64
+
+    with pytest.raises(
+        RuntimeError,
+        match="identity scoring contracts differ",
+    ):
+        load_and_verify_split_isolation_report(
+            path,
+            expected_digest=(
+                "sha256:"
+                + evidence["artifactDigest"]
+            ),
             calibration_report=calibration_metadata,
             test_report=test_metadata,
         )

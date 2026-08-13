@@ -4,8 +4,10 @@ from copy import deepcopy
 
 import pytest
 
+from app.benchmark import BENCHMARK_SCHEMA
 from app.calibration_report import benchmark_artifact_digest
 from app.face_geometry import MEASUREMENT_CONTRACT, FaceGeometry, geometry_payload
+from app.identity_scoring import identity_scoring_contract
 from app.threshold_calibration import (
     CALIBRATION_PROPOSAL_SCHEMA,
     calibration_proposal_digest,
@@ -39,10 +41,11 @@ def source_report() -> dict:
                 }
             )
     report = {
-        "schemaVersion": "mirava-face-identity-benchmark/v5",
+        "schemaVersion": BENCHMARK_SCHEMA,
         "datasetVersion": "private-consented-calibration-v1",
         "datasetSplit": "calibration",
         "measurementContract": MEASUREMENT_CONTRACT,
+        "identityScoringContract": identity_scoring_contract(),
         "threshold": None,
         "landmarkThreshold": None,
         "cohortThresholds": None,
@@ -82,6 +85,21 @@ def test_derives_a_replayable_policy_from_an_unthresholded_calibration_report() 
     assert proposal["effectiveMetrics"]["yaw:profile-right"]["falseRejectRate"] == 0.0
     assert "candidateSubjectKey" not in str(proposal)
     assert len(calibration_proposal_digest(proposal)) == 64
+
+
+def test_refuses_noncanonical_identity_scoring_contract() -> None:
+    report = source_report()
+    report["identityScoringContract"] = {
+        **identity_scoring_contract(),
+        "aggregationStrategy": "tampered",
+    }
+    report["artifactDigest"] = benchmark_artifact_digest(report)
+
+    with pytest.raises(
+        ValueError,
+        match="identity scoring contract",
+    ):
+        derive(report)
 
 
 def test_refuses_a_thresholded_source_report() -> None:

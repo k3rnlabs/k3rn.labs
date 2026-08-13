@@ -9,6 +9,7 @@ from app.benchmark import BENCHMARK_SCHEMA, _partition_digest
 from app.calibration_report import benchmark_artifact_digest
 from app.cohort_thresholds import MEASURED_COHORT_VALUES
 from app.face_geometry import MEASUREMENT_CONTRACT
+from app.identity_scoring import identity_scoring_contract
 from app.threshold_calibration import calibration_proposal_digest
 from app.threshold_manifest import build_thresholded_manifest
 
@@ -85,6 +86,7 @@ def raw_manifest() -> dict:
             "axes": {key: [value] for key, value in scenario.items()},
         },
         "measurementContract": MEASUREMENT_CONTRACT,
+        "identityScoringContract": identity_scoring_contract(),
         "threshold": None,
         "landmarkThreshold": None,
         "cohortThresholds": None,
@@ -154,6 +156,7 @@ def source_report(manifest: dict) -> dict:
         "subjectPartitionDigest": manifest["subjectPartitionDigest"],
         "commit": manifest["commit"],
         "measurementContract": manifest["measurementContract"],
+        "identityScoringContract": manifest["identityScoringContract"],
         "evaluator": manifest["evaluator"],
         "threshold": None,
         "landmarkThreshold": None,

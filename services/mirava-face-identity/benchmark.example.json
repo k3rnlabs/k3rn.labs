@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "mirava-face-identity-benchmark/v5",
+  "schemaVersion": "mirava-face-identity-benchmark/v6",
   "datasetVersion": "private-consented-dataset-v1",
   "datasetSplit": "calibration",
   "subjectKeyScheme": "hmac-sha256/v1",
@@ -43,6 +43,13 @@
       "faceAreaRatio": 0.005
     },
     "maxNormalizedReprojectionError": 0.12
+  },
+  "identityScoringContract": {
+    "schemaVersion": "mirava-face-identity-scoring/v1",
+    "referenceSelectionStrategy": "pose-compatible-cohort/v1",
+    "aggregationStrategy": "median-selected-references/v1",
+    "poseEstimatorVersion": "mirava-five-point-sqpnp-v1",
+    "referenceScalePolicy": "ignore-face-scale-for-selection/v1"
   },
   "coverageContract": {
     "profile": "canonical-v1",

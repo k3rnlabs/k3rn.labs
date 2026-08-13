@@ -35,7 +35,8 @@ Neither threshold has a default. The service refuses to become ready until both
 calibrated values, an accepted calibration report, an accepted held-out test
 report and their accepted split-isolation evidence are supplied. Both reports
 must use the same frozen threshold version, evaluator, acceptance contract,
-canonical coverage contract and face-measurement contract. Their subject partitions and artifact digests must
+canonical coverage contract, face-measurement contract and
+`mirava-face-identity-scoring/v1` contract. Their subject partitions and artifact digests must
 match the isolation evidence exactly. Both also bind the complete
 `mirava-face-cohort-thresholds/v1` policy. Runtime chooses the strictest
 applicable values from the global baseline and the measured yaw, pitch, roll
@@ -159,7 +160,7 @@ test manifest, run the split-isolation verifier, and only then pin the
 resulting artifact digests at service startup. The proposal itself is not
 calibration evidence and can never activate the gate.
 
-Schema v5 also requires the canonical v1 coverage contract and the immutable
+Schema v5 retains the canonical v1 coverage contract and the immutable
 `mirava-face-measurement/v1` contract. Candidate yaw, pitch and roll are
 estimated from the detected SCRFD five-point landmarks with the pinned
 `mirava-five-point-sqpnp-v1` convention; face scale is computed from the
@@ -179,6 +180,18 @@ acceptance status. Calibration and held-out test must expose the same policy
 digest. Coverage for measured geometry axes is derived from the candidate, not
 its scenario label. Synthetic tests validate the mechanism, not the production
 values.
+
+Schema v6 additionally requires the canonical
+`mirava-face-identity-scoring/v1` contract. Reference selection is
+pose-compatible; aggregate similarity and landmark residual are medians over
+the selected references; and face scale is deliberately excluded from
+reference selection.
+
+The scoring contract participates in benchmark configuration evidence, is
+re-verified during calibration and held-out replay, and is exposed through a
+verified SHA-256 contract digest. Split isolation requires calibration and
+held-out test to use the same identity-scoring contract. A v6 report with a
+missing or modified scoring contract is rejected.
 
 The five-point pose is an operational measurement, not anthropometric ground
 truth. Lens, facial-proportion and extreme-occlusion bias must be quantified on

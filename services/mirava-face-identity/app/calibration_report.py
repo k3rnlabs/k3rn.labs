@@ -27,6 +27,8 @@ from .cohort_thresholds import (
     validate_cohort_thresholds,
 )
 from .threshold_provenance import validate_threshold_provenance
+from .identity_scoring import identity_scoring_contract
+from .reference_selection import select_pose_compatible_references
 
 
 def canonical_json(value: object) -> str:
@@ -94,6 +96,80 @@ def _verified_candidate_geometry(row: dict[str, Any]) -> FaceGeometry:
     ):
         raise RuntimeError("Calibration candidate geometry contract is invalid")
     return geometry
+
+
+def _verified_reference_geometries(
+    row: dict[str, Any],
+    expected_count: int,
+) -> tuple[FaceGeometry, ...]:
+    values = row.get("referenceGeometries")
+
+    if (
+        not isinstance(values, list)
+        or len(values) != expected_count
+    ):
+        raise RuntimeError(
+            "Calibration reference geometry evidence is invalid"
+        )
+
+    numeric_keys = (
+        "yaw",
+        "pitch",
+        "roll",
+        "faceAreaRatio",
+        "normalizedReprojectionError",
+    )
+
+    geometries: list[FaceGeometry] = []
+
+    for value in values:
+        if (
+            not isinstance(value, dict)
+            or any(
+                not isinstance(value.get(key), (int, float))
+                or isinstance(value.get(key), bool)
+                or not math.isfinite(value[key])
+                for key in numeric_keys
+            )
+        ):
+            raise RuntimeError(
+                "Calibration reference geometry evidence is invalid"
+            )
+
+        geometry = FaceGeometry(
+            yaw=float(value["yaw"]),
+            pitch=float(value["pitch"]),
+            roll=float(value["roll"]),
+            face_area_ratio=float(
+                value["faceAreaRatio"]
+            ),
+            normalized_reprojection_error=float(
+                value["normalizedReprojectionError"]
+            ),
+            estimator_version=str(
+                value.get("poseEstimatorVersion", "")
+            ),
+        )
+
+        if (
+            geometry.estimator_version
+            != MEASUREMENT_CONTRACT["poseEstimatorVersion"]
+            or not 0 <= geometry.face_area_ratio <= 1
+            or not 0
+            <= geometry.normalized_reprojection_error
+            <= MEASUREMENT_CONTRACT[
+                "maxNormalizedReprojectionError"
+            ]
+            or value.get("measuredCohorts")
+            != measured_cohorts(geometry)
+        ):
+            raise RuntimeError(
+                "Calibration reference geometry evidence is invalid"
+            )
+
+        geometries.append(geometry)
+
+    return tuple(geometries)
 
 
 def _recompute_metrics_and_status(
@@ -179,15 +255,77 @@ def _recompute_metrics_and_status(
             raise RuntimeError("Calibration applied cohort thresholds are invalid")
 
         references = row.get("referenceContentSha256")
-        similarities = row.get("perReferenceSimilarity")
-        landmark_residuals = row.get("perReferenceLandmarkResidual")
-        aggregate = row.get("aggregateSimilarity")
-        landmark_residual = row.get("landmarkResidual")
+
         if (
             not isinstance(references, list)
             or not 3 <= len(references) <= 6
-            or not all(_valid_sha256(value) for value in references)
-            or not isinstance(similarities, list)
+            or not all(
+                _valid_sha256(value)
+                for value in references
+            )
+        ):
+            raise RuntimeError(
+                "Calibration score evidence is invalid"
+            )
+
+        reference_geometries = (
+            _verified_reference_geometries(
+                row,
+                len(references),
+            )
+        )
+
+        selected_indices = row.get(
+            "selectedReferenceIndices"
+        )
+
+        if (
+            not isinstance(selected_indices, list)
+            or not selected_indices
+            or any(
+                not isinstance(index, int)
+                or isinstance(index, bool)
+                or index < 0
+                or index >= len(references)
+                for index in selected_indices
+            )
+            or len(set(selected_indices))
+            != len(selected_indices)
+        ):
+            raise RuntimeError(
+                "Calibration selected reference indices are invalid"
+            )
+
+        expected_selection = (
+            select_pose_compatible_references(
+                geometry,
+                reference_geometries,
+            )
+        )
+
+        if selected_indices != list(
+            expected_selection.selected_indices
+        ):
+            raise RuntimeError(
+                "Calibration selected reference indices "
+                "do not match pose evidence"
+            )
+
+        similarities = row.get(
+            "perReferenceSimilarity"
+        )
+        landmark_residuals = row.get(
+            "perReferenceLandmarkResidual"
+        )
+        aggregate = row.get(
+            "aggregateSimilarity"
+        )
+        landmark_residual = row.get(
+            "landmarkResidual"
+        )
+
+        if (
+            not isinstance(similarities, list)
             or len(similarities) != len(references)
             or not all(
                 isinstance(value, (int, float))
@@ -197,7 +335,8 @@ def _recompute_metrics_and_status(
                 for value in similarities
             )
             or not isinstance(landmark_residuals, list)
-            or len(landmark_residuals) != len(references)
+            or len(landmark_residuals)
+            != len(references)
             or not all(
                 isinstance(value, (int, float))
                 and not isinstance(value, bool)
@@ -205,29 +344,59 @@ def _recompute_metrics_and_status(
                 and value >= 0
                 for value in landmark_residuals
             )
-            or not isinstance(aggregate, (int, float))
+            or not isinstance(
+                aggregate,
+                (int, float),
+            )
             or isinstance(aggregate, bool)
             or not math.isfinite(aggregate)
             or aggregate < -1
             or aggregate > 1
-            or not isinstance(landmark_residual, (int, float))
-            or isinstance(landmark_residual, bool)
-            or not math.isfinite(landmark_residual)
+            or not isinstance(
+                landmark_residual,
+                (int, float),
+            )
+            or isinstance(
+                landmark_residual,
+                bool,
+            )
+            or not math.isfinite(
+                landmark_residual
+            )
             or landmark_residual < 0
         ):
-            raise RuntimeError("Calibration score evidence is invalid")
+            raise RuntimeError(
+                "Calibration score evidence is invalid"
+            )
+
+        selected_similarities = [
+            similarities[index]
+            for index in selected_indices
+        ]
+
+        selected_landmark_residuals = [
+            landmark_residuals[index]
+            for index in selected_indices
+        ]
+
         if not math.isclose(
             float(aggregate),
-            float(median(similarities)),
+            float(median(selected_similarities)),
             rel_tol=0,
             abs_tol=1e-12,
         ) or not math.isclose(
             float(landmark_residual),
-            float(median(landmark_residuals)),
+            float(
+                median(
+                    selected_landmark_residuals
+                )
+            ),
             rel_tol=0,
             abs_tol=1e-12,
         ):
-            raise RuntimeError("Calibration aggregates do not match score evidence")
+            raise RuntimeError(
+                "Calibration aggregates do not match score evidence"
+            )
         expected_decision = (
             "PASS"
             if aggregate >= expected_applied_thresholds["similarityMin"]
@@ -331,6 +500,10 @@ def load_and_verify_benchmark_report(
         raise RuntimeError("Benchmark report schema is invalid")
     if report.get("measurementContract") != MEASUREMENT_CONTRACT:
         raise RuntimeError("Calibration measurement contract is invalid")
+    if report.get("identityScoringContract") != identity_scoring_contract():
+        raise RuntimeError(
+            "Calibration identity scoring contract is invalid"
+        )
     if report.get("datasetSplit") != expected_split:
         raise RuntimeError(f"Benchmark report must use the {expected_split} split")
     if not isinstance(report.get("subjectKeyScheme"), str) or not report[
@@ -399,6 +572,7 @@ def load_and_verify_benchmark_report(
         "subjectPartitionDigest": report.get("subjectPartitionDigest"),
         "coverageContract": coverage.get("contract"),
         "measurementContract": MEASUREMENT_CONTRACT,
+        "identityScoringContract": identity_scoring_contract(),
         "evaluator": evaluator,
         "threshold": expected_threshold,
         "landmarkThreshold": expected_landmark_threshold,
@@ -474,6 +648,10 @@ def load_and_verify_benchmark_report(
         ).hexdigest(),
         "measurementContractDigest": "sha256:"
         + hashlib.sha256(canonical_json(MEASUREMENT_CONTRACT).encode("utf-8")).hexdigest(),
+        "identityScoringContractDigest": "sha256:"
+        + hashlib.sha256(
+            canonical_json(identity_scoring_contract()).encode("utf-8")
+        ).hexdigest(),
         "cohortThresholds": cohort_thresholds,
         "cohortThresholdsDigest": cohort_thresholds_digest(cohort_thresholds),
         "thresholdProvenance": threshold_provenance,

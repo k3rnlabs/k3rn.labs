@@ -26,9 +26,13 @@ from .cohort_thresholds import (
     validate_cohort_thresholds,
 )
 from .threshold_provenance import validate_threshold_provenance
+from .identity_scoring import (
+    identity_scoring_contract,
+    score_identity_pose_aware,
+)
 
 
-BENCHMARK_SCHEMA = "mirava-face-identity-benchmark/v5"
+BENCHMARK_SCHEMA = "mirava-face-identity-benchmark/v6"
 REQUIRED_SCENARIO_AXES = (
     "yaw",
     "pitch",
@@ -124,6 +128,10 @@ def _validate_spec(spec: dict[str, Any]) -> None:
     _validate_coverage_contract(spec.get("coverageContract"))
     if spec.get("measurementContract") != MEASUREMENT_CONTRACT:
         raise ValueError("measurementContract must equal the canonical contract")
+    if spec.get("identityScoringContract") != identity_scoring_contract():
+        raise ValueError(
+            "identityScoringContract must equal the canonical contract"
+        )
 
     evaluator = spec.get("evaluator")
     if not isinstance(evaluator, dict):
@@ -411,16 +419,43 @@ def run_benchmark(
             )
             continue
 
-        scores = [
-            cosine_similarity(candidate_faces[0].embedding, reference.embedding)
-            for reference in reference_faces
+        try:
+            identity_score = score_identity_pose_aware(
+                candidate_faces[0],
+                reference_faces,
+            )
+        except ValueError:
+            rows.append(
+                {
+                    **base,
+                    "referenceContentSha256": reference_hashes,
+                    "status": "UNSCORABLE",
+                    "reasonCode": "REFERENCE_GEOMETRY_INVALID",
+                    "aggregateSimilarity": None,
+                    "perReferenceSimilarity": [],
+                    "decision": "UNSCORABLE",
+                    "candidateGeometry": candidate_geometry_payload,
+                }
+            )
+            continue
+
+        scores = list(
+            identity_score.per_reference_similarity
+        )
+        landmark_residuals = list(
+            identity_score.per_reference_landmark_residual
+        )
+        aggregate = identity_score.aggregate_similarity
+        aggregate_landmark_residual = (
+            identity_score.aggregate_landmark_residual
+        )
+        reference_geometry_payloads = [
+            geometry_payload(geometry)
+            for geometry in identity_score.reference_geometries
         ]
-        aggregate = float(median(scores))
-        landmark_residuals = [
-            landmark_shape_residual(candidate_faces[0], reference)
-            for reference in reference_faces
-        ]
-        aggregate_landmark_residual = float(median(landmark_residuals))
+        selected_reference_indices = list(
+            identity_score.selected_reference_indices
+        )
         applied_thresholds = (
             resolve_cohort_thresholds(
                 cohort_thresholds,
@@ -454,6 +489,8 @@ def run_benchmark(
                     "box": list(candidate_faces[0].box),
                 },
                 "candidateGeometry": candidate_geometry_payload,
+                "referenceGeometries": reference_geometry_payloads,
+                "selectedReferenceIndices": selected_reference_indices,
                 "appliedThresholds": applied_thresholds,
             }
         )
@@ -525,6 +562,7 @@ def run_benchmark(
         "commit": spec["commit"],
         "calibrationVersion": spec.get("calibrationVersion"),
         "measurementContract": MEASUREMENT_CONTRACT,
+        "identityScoringContract": identity_scoring_contract(),
         "configurationDigest": _digest(
             _canonical_json(
                 {
@@ -535,6 +573,7 @@ def run_benchmark(
                     "subjectPartitionDigest": spec["subjectPartitionDigest"],
                     "coverageContract": spec["coverageContract"],
                     "measurementContract": MEASUREMENT_CONTRACT,
+                    "identityScoringContract": identity_scoring_contract(),
                     "evaluator": spec["evaluator"],
                     "threshold": threshold,
                     "landmarkThreshold": landmark_threshold,
