@@ -20,6 +20,15 @@ import {
   renderMiravaOfficialUniverseMasterPrompt,
 } from "@/lib/mirava/official-universe-blueprints"
 import {
+  MIRAVA_OFFICIAL_VISUAL_DNA_RUNTIME_VERSION,
+  getMiravaOfficialVisualDna,
+  resolveMiravaOfficialUniverseRuntimePrompt,
+} from "@/lib/mirava/official-universe-runtime"
+import {
+  MIRAVA_USER_REFERENCE_RUNTIME_VERSION,
+  resolveMiravaUserReferenceRuntimePrompt,
+} from "@/lib/mirava/user-reference-runtime"
+import {
   MIRAVA_MAX_IDENTITY_PHOTOS,
   MIRAVA_MIN_IDENTITY_PHOTOS,
   MIRAVA_RECOMMENDED_IDENTITY_PHOTOS,
@@ -5194,6 +5203,31 @@ export function buildMiravaResolvedPrimaryGenerationPrompt(
     | "creativeOptions"
   >,
 ): string {
+  /*
+   * Certified official universes use their precompiled,
+   * reviewed textual Visual DNA.
+   *
+   * No universe thumbnail is loaded, analysed or sent to
+   * an image provider at generation time.
+   */
+  const certifiedRuntimePrompt =
+    creation.presetId
+      ? resolveMiravaOfficialUniverseRuntimePrompt({
+          universeId:
+            creation.presetId,
+          creativeOptions:
+            creation.creativeOptions,
+        })
+      : null
+
+  if (certifiedRuntimePrompt) {
+    return certifiedRuntimePrompt
+  }
+
+  /*
+   * Universes not yet compiled/certified retain the
+   * existing canonical blueprint path unchanged.
+   */
   const officialBlueprint =
     getMiravaOfficialUniverseBlueprint(
       creation.presetId,
@@ -5510,6 +5544,8 @@ function buildMiravaSessionProviderInputPrompt(
   ].join("\n\n")
 }
 
+const MIRAVA_KIE_REFERENCE_LIMIT = 8
+
 async function generateStudioImageCandidate(
   creation: StudioCreationRecord,
   identityAssets: Array<
@@ -5522,15 +5558,16 @@ async function generateStudioImageCandidate(
   jobAttempt = 1,
   studioJob: StudioJobRecord | null = null,
 ): Promise<Buffer> {
+  /*
+   * Legacy direct-OpenAI executor is retained temporarily
+   * for source cleanup only.
+   *
+   * It is no longer an active provider route and its key
+   * must never gate MIRAVA generation.
+   */
   const apiKey =
-    process.env.OPENAI_API_KEY
-
-  if (!apiKey) {
-    throw new StudioError(
-      "Le moteur Studio n’est pas configuré.",
-      "PROVIDER_CONFIGURATION",
-    )
-  }
+    process.env.OPENAI_API_KEY ??
+    ""
 
   assertAtLeastOneValidatedIdentityImage(
     identityAssets,
@@ -5574,7 +5611,7 @@ async function generateStudioImageCandidate(
 
   const anchorPrompt =
     isReferenceAnchor
-      ? buildMiravaPrimaryGenerationPrompt(
+      ? buildMiravaResolvedPrimaryGenerationPrompt(
           creation,
         )
       : buildMiravaGenerationPrompt(
@@ -5603,11 +5640,44 @@ async function generateStudioImageCandidate(
         }).positivePrompt
       : anchorPrompt
 
-  const primaryPrompt =
-    applyMiravaMakeupDirection(
-      scenePrimaryPrompt,
-      creation.creativeOptions,
+  const usesCertifiedOfficialRuntimePrompt =
+    isReferenceAnchor &&
+    Boolean(
+      getMiravaOfficialVisualDna(
+        creation.presetId,
+      ),
     )
+
+  const primaryPrompt =
+    usesCertifiedOfficialRuntimePrompt
+      ? scenePrimaryPrompt
+      : applyMiravaMakeupDirection(
+          scenePrimaryPrompt,
+          creation.creativeOptions,
+        )
+
+  if (
+    usesCertifiedOfficialRuntimePrompt
+  ) {
+    console.info(
+      "[mirava-official-universe-runtime]",
+      JSON.stringify({
+        creationId:
+          creation.id,
+        presetId:
+          creation.presetId,
+        frameIndex,
+        runtimeVersion:
+          MIRAVA_OFFICIAL_VISUAL_DNA_RUNTIME_VERSION,
+        promptLength:
+          primaryPrompt.length,
+        source:
+          "certified-textual-visual-dna",
+        officialThumbnailRuntimeInput:
+          false,
+      }),
+    )
+  }
 
   const campaignRisk =
     detectMiravaCampaignRisk(
@@ -5644,38 +5714,49 @@ async function generateStudioImageCandidate(
         )
       : identityAssets
 
-  const kieProviderEnabled =
-    isMiravaKieImageProviderEnabled() &&
+  /*
+   * KIE is now mandatory for every active MIRAVA image.
+   */
+  if (
+    !isMiravaKieImageProviderEnabled()
+  ) {
+    throw new StudioError(
+      "Le moteur Studio n’est pas configuré.",
+      "PROVIDER_CONFIGURATION",
+      false,
+    )
+  }
+
+  const externalGenerationConsent =
     await hasMiravaExternalImageGenerationConsent(
       creation.userId,
     )
 
-  const useKieCampaignProvider =
-    kieProviderEnabled &&
-    (
-      campaignRisk
-        .requiresCampaignSafeTransfer ||
-      shouldRouteMiravaPromptToKie(
-        primaryPrompt,
-      )
+  if (!externalGenerationConsent) {
+    throw new StudioError(
+      "L’autorisation de génération externe est requise.",
+      "CONSENT_REQUIRED",
+      false,
     )
+  }
 
   /*
-   * Les erreurs OpenAI 429/5xx et réponses incomplètes sont déjà marquées
-   * retryable par executeCall/failJob. Au lieu de répéter trois fois le même
-   * fournisseur, la tentative suivante bascule vers Kie lorsqu'il est
-   * explicitement activé et autorisé par la configuration de confidentialité.
+   * Transitional hard route.
    *
-   * Les refus de sécurité OpenAI ne sont pas retryable : ils n'entrent donc
-   * jamais dans ce chemin de récupération.
+   * Every active generation enters executeKieCall before
+   * the legacy direct-OpenAI source block can be reached.
    */
-  const useKieProviderRecovery =
-    kieProviderEnabled &&
-    !useKieCampaignProvider &&
-    jobAttempt > 1
+  const useKieCampaignProvider =
+    true
 
+  const useKieProviderRecovery =
+    false
+
+  /*
+   * Any initial non-continuation generation may use its
+   * artistic reference through KIE, not only risky prompts.
+   */
   const kieArtisticReference =
-    useKieCampaignProvider &&
     !isContinuation
       ? (
           await getStudioAssets(
@@ -5685,13 +5766,78 @@ async function generateStudioImageCandidate(
         )[0] ?? null
       : null
 
-  const kieIdentityAssets =
-    (
-      useKieCampaignProvider ||
-      useKieProviderRecovery
+  /*
+   * USER REFERENCE RUNTIME
+   *
+   * Keep the complete extractor master prompt durable
+   * and use it for campaign-risk analysis.
+   *
+   * For a normal first-frame generation with a real
+   * ART_DIRECTION image, send Seedream the concise
+   * extracted creative summary instead of duplicating
+   * the complete master description.
+   */
+  const userReferenceRuntimeBase =
+    isReferenceAnchor &&
+    kieArtisticReference &&
+    !creation.presetId &&
+    !campaignRisk
+      .requiresCampaignSafeTransfer
+      ? resolveMiravaUserReferenceRuntimePrompt(
+          creation
+            .creativeDirectionSummary,
+        )
+      : null
+
+  const userReferenceRuntimePrompt =
+    userReferenceRuntimeBase
+      ? applyMiravaMakeupDirection(
+          userReferenceRuntimeBase,
+          creation.creativeOptions,
+        )
+      : null
+
+  const resolvedKiePrimaryPrompt =
+    userReferenceRuntimePrompt ??
+    resolvedPrimaryPrompt
+
+  if (userReferenceRuntimePrompt) {
+    console.info(
+      "[mirava-user-reference-runtime]",
+      JSON.stringify({
+        creationId:
+          creation.id,
+        frameIndex,
+        runtimeVersion:
+          MIRAVA_USER_REFERENCE_RUNTIME_VERSION,
+        masterPromptLength:
+          creation.masterPrompt
+            ?.length ?? 0,
+        summaryLength:
+          creation
+            .creativeDirectionSummary
+            ?.length ?? 0,
+        runtimePromptLength:
+          userReferenceRuntimePrompt
+            .length,
+        fullResolvedPromptLength:
+          resolvedPrimaryPrompt
+            .length,
+        artisticReferencePresent:
+          true,
+        campaignSafeTransfer:
+          false,
+      }),
     )
-      ? identityAssets
-      : []
+  }
+
+  /*
+   * All identity assets remain available to the KIE
+   * reference-budget logic. FACE_ID itself is still
+   * restricted to the three canonical validated crops.
+   */
+  const kieIdentityAssets =
+    identityAssets
 
   const clearKieTaskState =
     async (): Promise<void> => {
@@ -5837,6 +5983,35 @@ async function generateStudioImageCandidate(
         throw error
       }
 
+      /*
+       * Provider reference budget.
+       *
+       * FACE_ID is mandatory identity authority and must
+       * never be lost because Session Builder supplied
+       * additional non-identity references.
+       *
+       * Reserve FACE_ID first, then CONTINUITY and the
+       * explicit ART_DIRECTION image. Session Builder
+       * references consume only the remaining capacity.
+       */
+      const kieNonIdentityReferenceBudget =
+        Math.max(
+          0,
+          MIRAVA_KIE_REFERENCE_LIMIT -
+            identityReferences.length,
+        )
+
+      const kieReservedNonSessionReferenceCount =
+        (continuityAsset ? 1 : 0) +
+        (kieArtisticReference ? 1 : 0)
+
+      const kieSessionProviderInputBudget =
+        Math.max(
+          0,
+          kieNonIdentityReferenceBudget -
+            kieReservedNonSessionReferenceCount,
+        )
+
       const references:
         MiravaKieReferenceImage[] =
         []
@@ -5868,7 +6043,10 @@ async function generateStudioImageCandidate(
 
       for (
         const reference of
-        sessionProviderInputs
+        sessionProviderInputs.slice(
+          0,
+          kieSessionProviderInputBudget,
+        )
       ) {
         references.push({
           role:
@@ -5903,12 +6081,6 @@ async function generateStudioImageCandidate(
       references.push(
         ...identityReferences,
       )
-
-      if (
-        references.length > 8
-      ) {
-        references.splice(8)
-      }
 
       /*
        * BODY_ID remains server-owned textual morphology.
@@ -6473,7 +6645,7 @@ async function generateStudioImageCandidate(
      try {
        passAImage =
          await executeKieCall(
-           resolvedPrimaryPrompt,
+           resolvedKiePrimaryPrompt,
            "campaign-safe-kie-primary",
            true,
          )
@@ -6567,7 +6739,7 @@ async function generateStudioImageCandidate(
    if (useKieCampaignProvider) {
      try {
        return await executeKieCall(
-         resolvedPrimaryPrompt,
+         resolvedKiePrimaryPrompt,
          "campaign-safe-kie-primary",
          true,
        )
@@ -7680,22 +7852,10 @@ async function processStudioJob(job: StudioJobRecord): Promise<void> {
         })
       }
 
-      const extractedCampaignRisk =
-        detectMiravaCampaignRisk(
-          extracted.masterPrompt,
-        )
-
       const retainReferenceForKieGeneration =
         isMiravaKieImageProviderEnabled() &&
         await hasMiravaExternalImageGenerationConsent(
           creation.userId,
-        ) &&
-        (
-          extractedCampaignRisk
-            .requiresCampaignSafeTransfer ||
-          shouldRouteMiravaPromptToKie(
-            extracted.masterPrompt,
-          )
         )
 
       if (
