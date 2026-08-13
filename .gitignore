@@ -42,6 +42,23 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# Python inference services
+__pycache__/
+*.py[cod]
+.venv
+benchmark.private.json
+benchmark-report.private.json
+benchmark-calibration.private.json
+benchmark-test.private.json
+benchmark-calibration-report.private.json
+benchmark-test-report.private.json
+subjects-calibration.private.json
+subjects-test.private.json
+split-isolation.private.json
+
+# MIRAVA local benchmark / diagnostic artifacts
+/.mirava-bench/
+
 /src/generated/prisma
 
 # AI/agent artifacts (do not commit)

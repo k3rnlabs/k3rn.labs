@@ -208,6 +208,21 @@ describe("MIRAVA identity profile route", () => {
       userId: "user-1",
       source: "identity-profile-delete",
     })
+    expect(mocks.withdrawMiravaIdentityConsent.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.deleteIdentityProfile.mock.invocationCallOrder[0],
+    )
     expect(mocks.recordMiravaAudit).toHaveBeenCalledWith("user-1", "IDENTITY_PROFILE_DELETED", "identity-profile")
+  })
+
+  it("keeps consent withdrawn when private storage deletion fails", async () => {
+    mocks.deleteIdentityProfile.mockRejectedValueOnce(
+      new Error("IDENTITY_DELETION_STORAGE_ERROR"),
+    )
+
+    const response = await DELETE()
+
+    expect(response.status).toBe(500)
+    expect(mocks.withdrawMiravaIdentityConsent).toHaveBeenCalledOnce()
+    expect(mocks.recordMiravaAudit).not.toHaveBeenCalled()
   })
 })

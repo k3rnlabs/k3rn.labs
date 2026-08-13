@@ -104,6 +104,104 @@ describe(
     )
 
     it(
+      "allows a square localized restoration payload without changing the full-frame default",
+      () => {
+        const input =
+          buildKieImageTaskInput({
+            model:
+              "seedream/4.5-edit",
+            prompt:
+              "Restore facial identity locally.",
+            inputUrls: [
+              "https://example.com/face-crop.png",
+            ],
+            aspectRatio:
+              "1:1",
+          })
+
+        expect(
+          input.aspect_ratio,
+        ).toBe("1:1")
+      },
+    )
+
+    it(
+      "builds the Seedream 5 Lite image-to-image payload with the Seedream field contract",
+      () => {
+        const input =
+          buildKieImageTaskInput({
+            model:
+              "seedream/5-lite-image-to-image",
+            prompt:
+              "Commercial fashion image.",
+            inputUrls: [
+              "https://example.com/reference.webp",
+              "https://example.com/identity.webp",
+            ],
+          })
+
+        expect(input).toMatchObject({
+          prompt:
+            "Commercial fashion image.",
+          image_urls: [
+            "https://example.com/reference.webp",
+            "https://example.com/identity.webp",
+          ],
+          aspect_ratio:
+            "2:3",
+          quality:
+            "basic",
+          nsfw_checker:
+            true,
+        })
+
+        expect(
+          "input_urls" in input,
+        ).toBe(false)
+      },
+    )
+
+    it(
+      "builds the GPT Image 2 image-to-image payload with its distinct input field contract",
+      () => {
+        const input =
+          buildKieImageTaskInput({
+            model:
+              "gpt-image-2-image-to-image",
+            prompt:
+              "Commercial fashion image.",
+            inputUrls: [
+              "https://example.com/reference.webp",
+              "https://example.com/identity.webp",
+            ],
+            aspectRatio:
+              "1:1",
+          })
+
+        expect(input).toMatchObject({
+          prompt:
+            "Commercial fashion image.",
+          input_urls: [
+            "https://example.com/reference.webp",
+            "https://example.com/identity.webp",
+          ],
+          aspect_ratio:
+            "1:1",
+          resolution:
+            "1K",
+        })
+
+        expect(
+          "image_urls" in input,
+        ).toBe(false)
+
+        expect(
+          "quality" in input,
+        ).toBe(false)
+      },
+    )
+
+    it(
       "keeps provider safety checking enabled for every supported image model",
       () => {
         const seedream =

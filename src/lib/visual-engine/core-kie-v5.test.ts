@@ -16,7 +16,7 @@ describe(
   "MIRAVA recovered V6 Kie architecture",
   () => {
     it(
-      "contains no legacy V5 provider state or full-frame restoration pass",
+      "contains no legacy V5 provider state or full-frame restoration state",
       () => {
         expect(core).not.toContain(
           "MIRAVA_KIE_V5_",
@@ -25,7 +25,7 @@ describe(
           '"identity-restoration"',
         )
         expect(core).not.toContain(
-          "buildMiravaKieIdentityRestorationPrompt",
+          "MIRAVA_KIE_V5_PASS_B",
         )
       },
     )

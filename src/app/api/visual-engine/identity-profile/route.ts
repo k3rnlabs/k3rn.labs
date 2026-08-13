@@ -156,11 +156,11 @@ export async function DELETE() {
   const session = await verifySession()
   if (!session) return apiError("Unauthorized", 401)
   try {
-    await deleteIdentityProfile(session.userId)
     await withdrawMiravaIdentityConsent({
       userId: session.userId,
       source: "identity-profile-delete",
     })
+    await deleteIdentityProfile(session.userId)
     await recordMiravaAudit(session.userId, "IDENTITY_PROFILE_DELETED", "identity-profile")
     return apiSuccess({ deleted: true, consentWithdrawn: true })
   } catch (error) {

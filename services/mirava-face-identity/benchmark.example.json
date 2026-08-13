@@ -1,0 +1,97 @@
+{
+  "schemaVersion": "mirava-face-identity-benchmark/v6",
+  "datasetVersion": "private-consented-dataset-v1",
+  "datasetSplit": "calibration",
+  "subjectKeyScheme": "hmac-sha256/v1",
+  "subjectKeyKeyId": "sha256:replace-with-non-secret-hmac-key-fingerprint",
+  "subjectPartitionDigest": "sha256:69b534f51cb64d4c7a969ab826312539f662643673aad17c4c191192e5926eba",
+  "commit": "replace-with-git-commit",
+  "threshold": null,
+  "landmarkThreshold": null,
+  "cohortThresholds": null,
+  "thresholdProvenance": null,
+  "calibrationVersion": null,
+  "acceptance": null,
+  "evaluator": {
+    "name": "auraface",
+    "version": "replace-with-model-version",
+    "weightsDigest": "sha256:replace-with-pinned-weight-digest",
+    "preprocessingVersion": "mirava-auraface-align-v1"
+  },
+  "measurementContract": {
+    "schemaVersion": "mirava-face-measurement/v1",
+    "poseEstimatorVersion": "mirava-five-point-sqpnp-v1",
+    "angleConvention": {
+      "rotationOrder": "Rz(roll)@Ry(yaw)@Rx(pitch)",
+      "yawNegative": "left-in-image",
+      "yawPositive": "right-in-image",
+      "pitchNegative": "down-in-image",
+      "pitchPositive": "up-in-image",
+      "rollNegative": "tilted-left-in-image",
+      "rollPositive": "tilted-right-in-image"
+    },
+    "cohortBoundaries": {
+      "yawFrontalMaxAbsDegrees": 12.0,
+      "yawProfileMinAbsDegrees": 50.0,
+      "pitchNeutralMaxAbsDegrees": 10.0,
+      "rollNeutralMaxAbsDegrees": 8.0,
+      "closePortraitMinFaceAreaRatio": 0.08,
+      "halfBodyMinFaceAreaRatio": 0.02
+    },
+    "declaredCohortTolerance": {
+      "angleDegrees": 3.0,
+      "faceAreaRatio": 0.005
+    },
+    "maxNormalizedReprojectionError": 0.12
+  },
+  "identityScoringContract": {
+    "schemaVersion": "mirava-face-identity-scoring/v1",
+    "referenceSelectionStrategy": "pose-compatible-cohort/v1",
+    "aggregationStrategy": "median-selected-references/v1",
+    "poseEstimatorVersion": "mirava-five-point-sqpnp-v1",
+    "referenceScalePolicy": "ignore-face-scale-for-selection/v1"
+  },
+  "coverageContract": {
+    "profile": "canonical-v1",
+    "minimumGenuineCasesPerValue": 1,
+    "minimumImpostorCasesPerValue": 1,
+    "axes": {
+      "yaw": ["frontal", "three-quarter-left", "three-quarter-right", "profile-left", "profile-right"],
+      "pitch": ["down", "neutral", "up"],
+      "roll": ["neutral", "tilted-left", "tilted-right"],
+      "expression": ["neutral", "closed-mouth-smile", "open-smile", "serious", "surprised"],
+      "gaze": ["camera", "left", "right", "up", "down"],
+      "faceScale": ["close-portrait", "half-body", "full-body"],
+      "light": ["soft-frontal", "side-light", "hard-light", "low-light", "warm-cool-mixed"],
+      "occlusion": ["none", "hair-partial", "glasses", "hand-near-face"],
+      "styling": ["natural", "makeup", "wet-look", "hairstyle-change"],
+      "context": ["studio", "interior", "exterior", "night", "campaign-reference-transfer"]
+    }
+  },
+  "cases": [
+    {
+      "caseId": "pseudonymous-case-id",
+      "candidateSubjectKey": "pseudonymous-subject-key",
+      "referenceSubjectKey": "pseudonymous-subject-key",
+      "expectedIdentityMatch": true,
+      "candidatePath": "/private/path/candidate.png",
+      "referencePaths": [
+        "/private/path/front.jpg",
+        "/private/path/angle.jpg",
+        "/private/path/profile.jpg"
+      ],
+      "scenario": {
+        "yaw": "frontal",
+        "pitch": "neutral",
+        "roll": "neutral",
+        "expression": "neutral",
+        "gaze": "camera",
+        "faceScale": "close-portrait",
+        "light": "soft-frontal",
+        "occlusion": "none",
+        "styling": "natural",
+        "context": "studio"
+      }
+    }
+  ]
+}

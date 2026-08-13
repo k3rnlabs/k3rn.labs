@@ -75,19 +75,19 @@ describe(
     )
 
     it(
-      "prepares the local face target without provider Pass B",
+      "keeps provider restoration outside the immutable full-frame route",
       () => {
         const route =
           artisticReferenceRoute()
 
-        expect(route).toContain(
-          "createMiravaKieRestorationFaceCrop(",
-        )
-        expect(route).not.toContain(
-          '"identity-restoration"',
-        )
         expect(route).not.toContain(
           "buildMiravaKieIdentityRestorationPrompt",
+        )
+        expect(core).toContain(
+          "resolveMiravaDetectedFaceRestorationCrop({",
+        )
+        expect(core).toContain(
+          "compositeMiravaIdentityRestoration({",
         )
       },
     )

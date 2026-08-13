@@ -17,12 +17,12 @@ const core =
 
 const start =
   core.indexOf(
-    "async function generateStudioImage(",
+    "async function generateStudioImageCandidate(",
   )
 
 const end =
   core.indexOf(
-    "\nexport async function cropMiravaResult",
+    "\nasync function generateStudioImage(",
     start,
   )
 
@@ -31,7 +31,7 @@ if (
   end < 0
 ) {
   throw new Error(
-    "generateStudioImage source block not found",
+    "generateStudioImageCandidate source block not found",
   )
 }
 
