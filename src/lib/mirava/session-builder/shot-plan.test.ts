@@ -23,6 +23,14 @@ const direction =
       "clean-v1",
     shotCount: 6,
     lookMode: "CUSTOM",
+    framing: "FREE",
+    pose: "FREE",
+    expression: "FREE",
+    gaze: "FREE",
+    makeup: "NATURAL",
+    skinFinish: "NATURAL",
+    hair: "PROFILE",
+    userInstruction: "",
   })
 
 describe("MIRAVA Session Builder shot plan", () => {
@@ -45,7 +53,7 @@ describe("MIRAVA Session Builder shot plan", () => {
         (shot) => shot.shotIntent,
       ),
     ).toEqual(
-      MIRAVA_SESSION_SHOT_INTENTS,
+      MIRAVA_SESSION_SHOT_INTENTS.slice(0, 6),
     )
   })
 
@@ -110,4 +118,26 @@ describe("MIRAVA Session Builder shot plan", () => {
       second[0].continuityLocks,
     )
   })
+  it(
+    "keeps pose, expression and camera semantics separated",
+    () => {
+      const shots =
+        createMiravaSessionShotPlan(
+          direction,
+        )
+
+      expect(
+        shots[3].posePrompt,
+      ).not.toContain(
+        "expression",
+      )
+
+      expect(
+        shots[4].cameraPrompt,
+      ).not.toContain(
+        "motion",
+      )
+    },
+  )
+
 })

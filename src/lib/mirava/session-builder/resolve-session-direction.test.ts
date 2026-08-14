@@ -18,6 +18,14 @@ const readyConfig = {
     "direct-flash-v1",
   shotCount: 6,
   lookMode: "REFERENCE",
+  framing: "FREE",
+  pose: "FREE",
+  expression: "FREE",
+  gaze: "FREE",
+  makeup: "NATURAL",
+  skinFinish: "NATURAL",
+  hair: "PROFILE",
+  userInstruction: "",
 } as const
 
 describe("MIRAVA session direction resolver", () => {
@@ -78,6 +86,14 @@ describe("MIRAVA session direction resolver", () => {
       resolveMiravaSessionDirection({
         ...readyConfig,
         lookMode: "CUSTOM",
+        framing: "FREE",
+        pose: "FREE",
+        expression: "FREE",
+        gaze: "FREE",
+        makeup: "NATURAL",
+        skinFinish: "NATURAL",
+        hair: "PROFILE",
+        userInstruction: "",
       })
 
     expect(
@@ -129,4 +145,76 @@ describe("MIRAVA session direction resolver", () => {
       second.lighting.constraints,
     )
   })
+  it(
+    "makes explicit Builder controls first-class session authorities",
+    () => {
+      const resolved =
+        resolveMiravaSessionDirection({
+          version: 1,
+          mode: "CUSTOM_SHOOT",
+          setPresetId:
+            "grey-cyclorama-v1",
+          lightingPresetId:
+            "clean-v1",
+          shotCount: 6,
+          lookMode: "CUSTOM",
+          framing:
+            "FULL_BODY",
+          pose:
+            "STANDING",
+          expression:
+            "CONFIDENT",
+          gaze:
+            "CAMERA",
+          makeup:
+            "NONE",
+          skinFinish:
+            "NATURAL",
+          hair:
+            "LOOSE",
+          userInstruction:
+            "Regard caméra.",
+        })
+
+      expect(
+        resolved.options,
+      ).toEqual({
+        framing:
+          "FULL_BODY",
+        pose:
+          "STANDING",
+        expression:
+          "CONFIDENT",
+        gaze:
+          "CAMERA",
+        makeup:
+          "NONE",
+        skinFinish:
+          "NATURAL",
+        hair:
+          "LOOSE",
+        userInstruction:
+          "Regard caméra.",
+      })
+
+      expect(
+        resolved.authority.framing,
+      ).toBe(
+        "SESSION_OPTIONS",
+      )
+
+      expect(
+        resolved.authority.pose,
+      ).toBe(
+        "SESSION_OPTIONS",
+      )
+
+      expect(
+        resolved.authority.identity,
+      ).toBe(
+        "IDENTITY_PROFILE",
+      )
+    },
+  )
+
 })

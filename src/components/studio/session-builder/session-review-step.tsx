@@ -38,6 +38,11 @@ import {
   cn,
 } from "@/lib/utils"
 
+import {
+  SESSION_DIRECTION_COPY,
+  SESSION_DIRECTION_OPTIONS,
+} from "./session-direction-step"
+
 type Locale =
   | "fr"
   | "es"
@@ -55,6 +60,20 @@ type SessionReviewStepProps = {
     | number
     | null
   launchEnabled?: boolean
+  setPreviewImages?:
+    Partial<
+      Record<
+        string,
+        string
+      >
+    >
+  lightingPreviewImages?:
+    Partial<
+      Record<
+        string,
+        string
+      >
+    >
   onBack: () => void
   onStart: () => void
   startBusy?: boolean
@@ -63,13 +82,15 @@ type SessionReviewStepProps = {
 export const SESSION_REVIEW_COPY = {
   fr: {
     eyebrow:
-      "Étape 4 · Review",
+      "Étape 5 · Récapitulatif",
     title:
       "Votre séance est prête.",
     intro:
-      "Vérifiez votre plateau, votre lumière, votre look et les six prises de vue préparées par MIRAVA avant de lancer la séance.",
+      "Vérifiez votre plateau, votre lumière, votre direction, votre look et le plan préparé par MIRAVA avant de lancer la séance.",
     callSheet:
-      "Call sheet",
+      "Votre séance",
+    direction:
+      "Direction",
     studio:
       "Studio",
     lighting:
@@ -87,7 +108,7 @@ export const SESSION_REVIEW_COPY = {
     shots:
       "Plan de séance",
     continuity:
-      "Identité, studio, lumière et look restent verrouillés entre les six photos.",
+      "Identité, studio, lumière, direction et look restent cohérents pendant toute la séance.",
     credits:
       "Crédits",
     sessionCost:
@@ -99,7 +120,7 @@ export const SESSION_REVIEW_COPY = {
     incomplete:
       "La configuration doit être complète avant le lancement.",
     unavailable:
-      "Votre séance est configurée. Le lancement des 6 prises de vue sera activé avec le moteur de séance.",
+      "Votre séance est configurée. Le lancement sera activé avec le moteur de séance.",
     ready:
       "Prêt à photographier",
     back:
@@ -108,18 +129,30 @@ export const SESSION_REVIEW_COPY = {
       "Démarrer la séance",
     starting:
       "Ouverture de la chambre noire…",
-    photos:
-      "6 photos",
+    photoSingular:
+      "photo",
+    photoPlural:
+      "photos",
+    noInstruction:
+      "Aucune précision",
+    visualPreview:
+      "Aperçu de la séance",
+    lightingPreview:
+      "Éclairage choisi",
+    lookPreview:
+      "Look de la séance",
   },
   es: {
     eyebrow:
-      "Paso 4 · Review",
+      "Paso 5 · Resumen",
     title:
       "Tu sesión está lista.",
     intro:
-      "Revisa el plató, la luz, el look y las seis tomas preparadas por MIRAVA antes de iniciar la sesión.",
+      "Revisa el plató, la luz, la dirección, el look y el plan preparado por MIRAVA antes de iniciar la sesión.",
     callSheet:
-      "Call sheet",
+      "Tu sesión",
+    direction:
+      "Dirección",
     studio:
       "Estudio",
     lighting:
@@ -137,7 +170,7 @@ export const SESSION_REVIEW_COPY = {
     shots:
       "Plan de sesión",
     continuity:
-      "Identidad, estudio, luz y look permanecen bloqueados entre las seis fotos.",
+      "Identidad, estudio, luz, dirección y look permanecen coherentes durante toda la sesión.",
     credits:
       "Créditos",
     sessionCost:
@@ -149,7 +182,7 @@ export const SESSION_REVIEW_COPY = {
     incomplete:
       "La configuración debe estar completa antes de iniciar.",
     unavailable:
-      "Tu sesión está configurada. El lanzamiento de las 6 tomas se activará con el motor de sesión.",
+      "Tu sesión está configurada. El lanzamiento se activará con el motor de sesión.",
     ready:
       "Listo para fotografiar",
     back:
@@ -158,10 +191,169 @@ export const SESSION_REVIEW_COPY = {
       "Iniciar la sesión",
     starting:
       "Abriendo el cuarto oscuro…",
-    photos:
-      "6 fotos",
+    photoSingular:
+      "foto",
+    photoPlural:
+      "fotos",
+    noInstruction:
+      "Sin precisión",
+    visualPreview:
+      "Vista previa de la sesión",
+    lightingPreview:
+      "Iluminación elegida",
+    lookPreview:
+      "Look de la sesión",
   },
 } as const
+
+function reviewOptionLabel(
+  options:
+    readonly {
+      value: string
+      label: string
+    }[],
+  value: string,
+): string {
+  return (
+    options.find(
+      (
+        option,
+      ) =>
+        option.value ===
+        value,
+    )?.label ??
+    value
+  )
+}
+
+export function formatMiravaSessionReviewPhotoCount(
+  locale:
+    Locale,
+  shotCount: number,
+): string {
+  const copy =
+    SESSION_REVIEW_COPY[
+      locale
+    ]
+
+  return `${shotCount} ${
+    shotCount === 1
+      ? copy.photoSingular
+      : copy.photoPlural
+  }`
+}
+
+export function createMiravaSessionReviewDirectionSummary(
+  config:
+    MiravaSessionBuilderReady,
+  locale:
+    Locale,
+) {
+  const labels =
+    SESSION_DIRECTION_COPY[
+      locale
+    ]
+
+  const options =
+    SESSION_DIRECTION_OPTIONS[
+      locale
+    ]
+
+  const instruction =
+    config.userInstruction
+      .trim()
+
+  return [
+    {
+      key:
+        "framing",
+      label:
+        labels.framing,
+      value:
+        reviewOptionLabel(
+          options.framing,
+          config.framing,
+        ),
+    },
+    {
+      key:
+        "pose",
+      label:
+        labels.pose,
+      value:
+        reviewOptionLabel(
+          options.pose,
+          config.pose,
+        ),
+    },
+    {
+      key:
+        "expression",
+      label:
+        labels.expression,
+      value:
+        reviewOptionLabel(
+          options.expression,
+          config.expression,
+        ),
+    },
+    {
+      key:
+        "gaze",
+      label:
+        labels.gaze,
+      value:
+        reviewOptionLabel(
+          options.gaze,
+          config.gaze,
+        ),
+    },
+    {
+      key:
+        "makeup",
+      label:
+        labels.makeup,
+      value:
+        reviewOptionLabel(
+          options.makeup,
+          config.makeup,
+        ),
+    },
+    {
+      key:
+        "skinFinish",
+      label:
+        labels.skin,
+      value:
+        reviewOptionLabel(
+          options.skinFinish,
+          config.skinFinish,
+        ),
+    },
+    {
+      key:
+        "hair",
+      label:
+        labels.hair,
+      value:
+        reviewOptionLabel(
+          options.hair,
+          config.hair,
+        ),
+    },
+    {
+      key:
+        "instruction",
+      label:
+        labels.instruction,
+      value:
+        instruction ||
+        SESSION_REVIEW_COPY[
+          locale
+        ].noInstruction,
+    },
+  ] as const
+}
 
 export function createMiravaSessionReviewCallSheet(
   config:
@@ -227,6 +419,11 @@ export function createMiravaSessionReviewCallSheet(
     },
     lookMode:
       direction.lookMode,
+    direction:
+      createMiravaSessionReviewDirectionSummary(
+        config,
+        locale,
+      ),
     shots:
       shots.map(
         (shot) => ({
@@ -304,23 +501,23 @@ function SummaryCard({
   body?: string
 }) {
   return (
-    <div className="rounded-[22px] border border-white/10 bg-white/[0.035] p-4 sm:p-5">
-      <div className="flex items-start gap-3.5">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-[#c9b7a3]">
+    <div className="rounded-[18px] border border-white/10 bg-white/[0.03] p-3.5 sm:p-4">
+      <div className="flex items-start gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-black/20 text-[#c9b7a3]">
           {icon}
         </div>
 
         <div className="min-w-0">
-          <span className="font-jakarta text-[9px] font-bold uppercase tracking-[0.14em] text-white/35">
+          <span className="font-jakarta text-[8px] font-bold uppercase tracking-[0.14em] text-white/35">
             {label}
           </span>
 
-          <strong className="mt-1 block font-jakarta text-sm font-semibold text-white">
+          <strong className="mt-1 block font-jakarta text-[13px] font-semibold leading-5 text-white">
             {title}
           </strong>
 
           {body ? (
-            <p className="mt-1.5 font-jakarta text-[11px] leading-5 text-white/45">
+            <p className="mt-1 font-jakarta text-[10px] leading-4 text-white/42">
               {body}
             </p>
           ) : null}
@@ -339,6 +536,8 @@ export function SessionReviewStep({
   creditCost,
   availableCredits = null,
   launchEnabled = true,
+  setPreviewImages,
+  lightingPreviewImages,
   onBack,
   onStart,
   startBusy = false,
@@ -355,6 +554,12 @@ export function SessionReviewStep({
     createMiravaSessionReviewCallSheet(
       config,
       locale,
+    )
+
+  const photoCountLabel =
+    formatMiravaSessionReviewPhotoCount(
+      locale,
+      config.shotCount,
     )
 
   const insufficientCredits =
@@ -398,6 +603,45 @@ export function SessionReviewStep({
             : copy.customItems
         }`
       : undefined
+
+  const setPreviewImage =
+    setPreviewImages?.[
+      callSheet.set.id
+    ] ??
+    null
+
+  const lightingPreviewImage =
+    lightingPreviewImages?.[
+      callSheet.lighting.id
+    ] ??
+    null
+
+  const lookPreviewAssets =
+    lookItems.flatMap(
+      (
+        item,
+      ) =>
+        item.assets.flatMap(
+          (
+            asset,
+            index,
+          ) =>
+            asset.url
+              ? [
+                  {
+                    key:
+                      asset.id ??
+                      `${item.id}-${index}-${asset.viewKey}`,
+                    url:
+                      asset.url,
+                    label:
+                      item.label ??
+                      item.category,
+                  },
+                ]
+              : [],
+        ),
+    )
 
   return (
     <section
@@ -504,7 +748,56 @@ export function SessionReviewStep({
             </div>
           </div>
 
-          <div className="mt-8">
+          <div className="mt-6">
+            <span className="font-jakarta text-[9px] font-bold uppercase tracking-[0.16em] text-white/35">
+              {
+                copy.direction
+              }
+            </span>
+
+            <div className="mt-3 overflow-hidden rounded-[18px] border border-white/10 bg-white/[0.022]">
+              <div className="grid grid-cols-1 sm:grid-cols-2">
+                {
+                  callSheet
+                    .direction
+                    .map(
+                      (
+                        item,
+                      ) => (
+                        <div
+                          key={
+                            item.key
+                          }
+                          className={cn(
+                            "flex min-h-11 items-center justify-between gap-4 border-b border-white/[0.07] px-4 py-2.5",
+                            item.key !==
+                              "instruction" &&
+                              "sm:odd:border-r",
+                            item.key ===
+                              "instruction" &&
+                              "sm:col-span-2",
+                          )}
+                        >
+                          <span className="shrink-0 font-jakarta text-[8px] font-bold uppercase tracking-[0.12em] text-white/30">
+                            {
+                              item.label
+                            }
+                          </span>
+
+                          <strong className="min-w-0 break-words text-right font-jakarta text-[12px] font-semibold leading-5 text-white/78">
+                            {
+                              item.value
+                            }
+                          </strong>
+                        </div>
+                      ),
+                    )
+                }
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6">
             <div className="flex items-end justify-between gap-4">
               <div>
                 <span className="font-jakarta text-[9px] font-bold uppercase tracking-[0.16em] text-white/35">
@@ -522,12 +815,12 @@ export function SessionReviewStep({
 
               <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.035] px-3 py-1.5 font-jakarta text-[9px] font-semibold text-white/55">
                 {
-                  copy.photos
+                  photoCountLabel
                 }
               </span>
             </div>
 
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
               {callSheet.shots.map(
                 (
                   shot,
@@ -536,10 +829,10 @@ export function SessionReviewStep({
                     key={
                       shot.shotIntent
                     }
-                    className="group rounded-[20px] border border-white/10 bg-white/[0.025] p-4 transition hover:border-white/18 hover:bg-white/[0.04]"
+                    className="group rounded-[16px] border border-white/10 bg-white/[0.025] px-3.5 py-3 transition hover:border-white/18 hover:bg-white/[0.04]"
                   >
                     <div className="flex items-center gap-3">
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-black/20 font-jakarta text-[10px] font-semibold tabular-nums text-[#c9b7a3]">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/10 bg-black/20 font-jakarta text-[9px] font-semibold tabular-nums text-[#c9b7a3]">
                         {
                           shot.shotIndex +
                           1
@@ -547,7 +840,7 @@ export function SessionReviewStep({
                       </span>
 
                       <div className="min-w-0">
-                        <strong className="block font-jakarta text-sm font-semibold text-white">
+                        <strong className="block font-jakarta text-[13px] font-semibold text-white">
                           {
                             shot.label
                           }
@@ -570,17 +863,35 @@ export function SessionReviewStep({
         <div className="min-w-0">
           <div className="lg:sticky lg:top-8">
             <div className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.03] shadow-[0_24px_75px_rgba(0,0,0,0.28)]">
-              <div className="relative min-h-[260px] border-b border-white/10 bg-[radial-gradient(circle_at_40%_20%,rgba(219,201,179,0.18),transparent_38%),linear-gradient(145deg,#272625,#111212_60%,#090a0a)] p-6 sm:p-8">
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_25%,rgba(0,0,0,0.55)_100%)]" />
+              <div
+                data-mirava-review-visual-preview
+                className="relative min-h-[300px] overflow-hidden border-b border-white/10 bg-[#111212]"
+              >
+                {setPreviewImage ? (
+                  <img
+                    src={
+                      setPreviewImage
+                    }
+                    alt={
+                      callSheet
+                        .set.name
+                    }
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_40%_20%,rgba(219,201,179,0.18),transparent_38%),linear-gradient(145deg,#272625,#111212_60%,#090a0a)]" />
+                )}
 
-                <div className="relative z-10 flex h-full min-h-[210px] flex-col justify-between">
+                <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-black/15 to-black/80" />
+
+                <div className="relative z-10 flex min-h-[300px] flex-col justify-between p-6 sm:p-8">
                   <div className="flex items-start justify-between gap-4">
-                    <span className="rounded-full border border-white/12 bg-black/25 px-3 py-1.5 font-jakarta text-[9px] font-bold uppercase tracking-[0.15em] text-white/65 backdrop-blur-xl">
+                    <span className="rounded-full border border-white/15 bg-black/35 px-3 py-1.5 font-jakarta text-[9px] font-bold uppercase tracking-[0.15em] text-white/75 backdrop-blur-xl">
                       MIRAVA SESSION
                     </span>
 
                     {configurationReady ? (
-                      <span className="flex items-center gap-1.5 rounded-full border border-[#d7cab7]/20 bg-[#d7cab7]/10 px-3 py-1.5 font-jakarta text-[9px] font-semibold text-[#e5ddd2]">
+                      <span className="flex items-center gap-1.5 rounded-full border border-[#d7cab7]/25 bg-black/30 px-3 py-1.5 font-jakarta text-[9px] font-semibold text-[#eee5da] backdrop-blur-xl">
                         <Check className="h-3 w-3" />
                         {
                           copy.ready
@@ -590,25 +901,120 @@ export function SessionReviewStep({
                   </div>
 
                   <div>
-                    <Images className="h-6 w-6 text-[#c9b7a3]" />
+                    <span className="font-jakarta text-[10px] font-semibold uppercase tracking-[0.14em] text-white/60">
+                      {
+                        callSheet
+                          .set.name
+                      }
+                    </span>
 
-                    <div className="mt-4 flex items-end justify-between gap-4">
-                      <div>
-                        <span className="font-jakarta text-[10px] uppercase tracking-[0.14em] text-white/35">
-                          {
+                    <h2 className="mt-1.5 font-jakarta text-3xl font-semibold tracking-[-0.035em] text-white">
+                      {
+                        photoCountLabel
+                      }
+                    </h2>
+                  </div>
+                </div>
+              </div>
+
+              <div
+                data-mirava-review-moodboard
+                className="border-b border-white/10 p-4 sm:p-5"
+              >
+                <span className="font-jakarta text-[9px] font-bold uppercase tracking-[0.15em] text-white/40">
+                  {
+                    copy.visualPreview
+                  }
+                </span>
+
+                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <div className="overflow-hidden rounded-[16px] border border-white/10 bg-black/20">
+                    <div className="relative aspect-[16/10] overflow-hidden bg-[#111212]">
+                      {lightingPreviewImage ? (
+                        <img
+                          src={
+                            lightingPreviewImage
+                          }
+                          alt={
                             callSheet
-                              .set.name
+                              .lighting.name
+                          }
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center">
+                          <Lightbulb className="h-5 w-5 text-white/20" />
+                        </div>
+                      )}
+
+                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 to-transparent px-3 pb-2.5 pt-8">
+                        <span className="font-jakarta text-[8px] font-bold uppercase tracking-[0.13em] text-white/45">
+                          {
+                            copy.lightingPreview
                           }
                         </span>
 
-                        <h2 className="mt-1.5 font-jakarta text-3xl font-semibold tracking-[-0.035em] text-white">
+                        <strong className="mt-0.5 block truncate font-jakarta text-[11px] font-semibold text-white/85">
                           {
-                            copy.photos
+                            callSheet
+                              .lighting.name
                           }
-                        </h2>
+                        </strong>
                       </div>
+                    </div>
+                  </div>
 
-                      <Sparkles className="h-5 w-5 text-white/30" />
+                  <div className="overflow-hidden rounded-[16px] border border-white/10 bg-black/20">
+                    <div className="min-h-full p-2.5">
+                      <span className="font-jakarta text-[8px] font-bold uppercase tracking-[0.13em] text-white/40">
+                        {
+                          copy.lookPreview
+                        }
+                      </span>
+
+                      {callSheet.lookMode ===
+                        "CUSTOM" &&
+                      lookPreviewAssets.length >
+                        0 ? (
+                        <div
+                          data-mirava-review-look-thumbnails
+                          className="mt-2 grid grid-cols-3 gap-1.5"
+                        >
+                          {lookPreviewAssets.map(
+                            (
+                              asset,
+                            ) => (
+                              <div
+                                key={
+                                  asset.key
+                                }
+                                className="relative aspect-square overflow-hidden rounded-[10px] bg-[#111212]"
+                              >
+                                <img
+                                  src={
+                                    asset.url
+                                  }
+                                  alt={
+                                    asset.label
+                                  }
+                                  loading="lazy"
+                                  decoding="async"
+                                  referrerPolicy="no-referrer"
+                                  className="h-full w-full object-cover"
+                                />
+                              </div>
+                            ),
+                          )}
+                        </div>
+                      ) : (
+                        <div className="mt-2 flex min-h-[92px] items-center justify-center rounded-[12px] border border-white/8 bg-white/[0.02] px-3 text-center">
+                          <span className="font-jakarta text-[10px] leading-4 text-white/45">
+                            {
+                              lookTitle
+                            }
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

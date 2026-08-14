@@ -7,10 +7,39 @@ import {
   it,
 } from "vitest"
 
-const core = readFileSync(
-  "src/lib/visual-engine/core.ts",
-  "utf-8",
-)
+const core =
+  readFileSync(
+    "src/lib/visual-engine/core.ts",
+    "utf8",
+  )
+
+function generationFunction():
+  string {
+  const start =
+    core.indexOf(
+      "async function generateStudioImageCandidate(",
+    )
+
+  const end =
+    core.indexOf(
+      "\nasync function generateStudioImage(",
+      start,
+    )
+
+  if (
+    start < 0 ||
+    end < 0
+  ) {
+    throw new Error(
+      "generateStudioImageCandidate boundary not found",
+    )
+  }
+
+  return core.slice(
+    start,
+    end,
+  )
+}
 
 describe(
   "MIRAVA primary generation parity",
@@ -18,6 +47,9 @@ describe(
     it(
       "uses the extracted master prompt unchanged for the reference anchor",
       () => {
+        const generation =
+          generationFunction()
+
         expect(core).toContain(
           "buildMiravaPrimaryGenerationPrompt",
         )
@@ -26,60 +58,63 @@ describe(
           'return creation.masterPrompt?.trim() ?? ""',
         )
 
-        expect(core).toContain(
-          "buildMiravaResolvedPrimaryGenerationPrompt",
-        )
-
-        expect(core).toContain(
-          "return buildMiravaPrimaryGenerationPrompt(",
-        )
-
-        expect(core).toContain(
-          '"parity-primary"',
+        expect(generation).toMatch(
+          /const anchorPrompt[\s\S]*?isReferenceAnchor[\s\S]*?buildMiravaPrimaryGenerationPrompt\(/,
         )
       },
     )
 
     it(
-      "uses three deterministic identity references for the reference anchor",
+      "uses the three canonical geometry-backed FACE_ID views",
       () => {
-        expect(core).toContain(
-          "MIRAVA_PRIMARY_IDENTITY_ASSET_COUNT = 3",
+        const generation =
+          generationFunction()
+
+        expect(generation).toContain(
+          "selectMiravaKieRequiredIdentityFaceInputs(",
         )
 
-        expect(core).toContain(
-          "selectMiravaPrimaryIdentityAssets",
+        expect(generation).toContain(
+          "MIRAVA_REQUIRED_IDENTITY_VIEW_KEYS",
         )
 
-        expect(core).toContain(
-          "assets.slice(",
+        expect(generation).toContain(
+          "createMiravaKieIdentityCrop(",
+        )
+
+        expect(generation).not.toContain(
+          "selectMiravaPrimaryIdentityAssets(",
         )
       },
     )
 
     it(
-      "does not adapt coverage before the primary provider call",
+      "does not adapt coverage before the active KIE provider call",
       () => {
+        const generation =
+          generationFunction()
+
         const primaryStart =
-          core.indexOf(
+          generation.indexOf(
             "const primaryPrompt",
           )
 
         const providerStart =
-          core.indexOf(
-            "const executeCall",
+          generation.indexOf(
+            "const executeKieCall",
             primaryStart,
           )
 
         expect(primaryStart).toBeGreaterThan(
           -1,
         )
+
         expect(providerStart).toBeGreaterThan(
           primaryStart,
         )
 
         const primarySection =
-          core.slice(
+          generation.slice(
             primaryStart,
             providerStart,
           )
@@ -91,61 +126,82 @@ describe(
     )
 
     it(
-      "keeps one semantic fallback after a provider safety refusal",
+      "keeps one conservative KIE fallback after a provider safety refusal",
       () => {
-        expect(core).toContain(
-          "complianceNeutralRewrite({",
+        const generation =
+          generationFunction()
+
+        expect(generation).toContain(
+          '"campaign-safe-kie-primary"',
         )
 
-        expect(core).toContain(
-          '"semantic-fallback"',
+        expect(generation).toContain(
+          '"campaign-safe-kie-fallback"',
         )
 
-        expect(core).toContain(
+        expect(generation).toContain(
           'error.code !==\n        "SAFETY_REFUSAL"',
+        )
+
+        expect(generation).toContain(
+          "await clearKieTaskState()",
+        )
+
+        expect(generation).toMatch(
+          /buildMiravaCampaignSafeTransferPrompt\([\s\S]*?primaryPrompt,[\s\S]*?"conservative"/,
         )
       },
     )
 
     it(
-      "logs diagnostics without logging the prompt body",
+      "logs KIE diagnostics without logging the prompt body",
       () => {
+        const generation =
+          generationFunction()
+
         const logStart =
-          core.indexOf(
-            '"[mirava-image-attempt]"',
+          generation.indexOf(
+            '"[mirava-kie-image-attempt]"',
           )
 
-        const formStart =
-          core.indexOf(
-            "const form = new FormData()",
+        const providerCallStart =
+          generation.indexOf(
+            "try {",
             logStart,
           )
 
         expect(logStart).toBeGreaterThan(
           -1,
         )
-        expect(formStart).toBeGreaterThan(
+
+        expect(providerCallStart).toBeGreaterThan(
           logStart,
         )
 
         const logSection =
-          core.slice(
+          generation.slice(
             logStart,
-            formStart,
+            providerCallStart,
           )
 
         expect(logSection).toContain(
           "promptHash",
         )
+
         expect(logSection).toContain(
           "promptLength",
+        )
+
+        expect(logSection).toContain(
+          "referenceRoles",
         )
 
         expect(logSection).not.toContain(
           "prompt: promptText",
         )
+
         expect(logSection).not.toContain(
-          "promptText,",
+          "prompt: providerPrompt",
         )
       },
     )

@@ -2,20 +2,17 @@ import { createHash, randomUUID } from "crypto"
 import sharp from "sharp"
 import { db } from "@/lib/db"
 import {
-  requireMiravaOpenAiIdentityAnalysisConsent,
+  requireMiravaExternalIdentityAnalysisConsent,
 } from "@/lib/visual-engine/privacy"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 import {
-  MIRAVA_ANALYSIS_FALLBACK_MODEL,
   MIRAVA_ANALYSIS_MODEL,
-  MIRAVA_IMAGE_MODEL,
   getMiravaFaceIdentityGateMode,
 } from "@/lib/mirava/server-config"
 import { MIRAVA_STRIPE_PRODUCT, getMiravaStudioPreset, type MiravaStudioPresetId } from "@/lib/mirava/brand"
 import { formatMiravaCreativeOptions, miravaCreativeOptionsSchema, type MiravaCreativeOptions } from "@/lib/mirava/creative-options"
 import {
   buildMiravaOfficialUniversePrimaryPrompt,
-  buildMiravaOfficialUniverseSafetyFallbackPrompt,
   getMiravaOfficialUniverseBlueprint,
   renderMiravaOfficialUniverseMasterPrompt,
 } from "@/lib/mirava/official-universe-blueprints"
@@ -84,7 +81,6 @@ import {
 } from "@/lib/mirava/pipeline/classify-scene-context"
 import { compileGenerationPrompt } from "@/lib/mirava/pipeline/compile-generation-prompt"
 import { applyMiravaMakeupDirection } from "@/lib/mirava/makeup"
-import { complianceNeutralRewrite } from "@/lib/mirava/pipeline/compliance-neutral-rewrite"
 import {
   buildMiravaCampaignSafeTransferPrompt,
   detectMiravaCampaignRisk,
@@ -95,14 +91,21 @@ import {
   buildMiravaKieIdentityRestorationPrompt,
   buildMiravaKieReferencePrompt,
   runKieImageGeneration,
-  shouldRouteMiravaPromptToKie,
+  runKieMultimodalAnalysis,
   type MiravaKieReferenceImage,
 } from "@/lib/visual-engine/kie-provider"
 import {
   isMiravaKieImageProviderEnabled,
 } from "@/lib/mirava/server-config"
 import type { VisualDirectionBlueprint } from "@/lib/mirava/schemas/visual-direction-blueprint.schema"
-import { MIRAVA_SESSION_BUILDER_VERSION, MIRAVA_SESSION_SHOT_COUNT, miravaSessionBuilderReadySchema } from "@/lib/mirava/session-builder/schema"
+import {
+  MIRAVA_SESSION_BUILDER_VERSION,
+  miravaSessionBuilderReadySchema,
+} from "@/lib/mirava/session-builder/schema"
+import {
+  MIRAVA_SESSION_LEGACY_SHOT_COUNT,
+  miravaSessionPersistedShotCountSchema,
+} from "@/lib/mirava/session-builder/session-options"
 import { buildMiravaSessionShotGenerationContext } from "@/lib/mirava/session-builder/shot-generation-context"
 import {
   selectMiravaCustomLookProviderReferences,
@@ -126,6 +129,7 @@ export const MAX_STUDIO_IMAGE_BYTES = 10 * 1024 * 1024
 export const MIRAVA_IMAGE_PROVIDER_TIMEOUT_MS = 120_000
 export const MIRAVA_CONTINUITY_IMAGE_PROVIDER_TIMEOUT_MS = 240_000
 export const MIRAVA_GENERATION_TIMEOUT_MAX_ATTEMPTS = 2
+
 export const MIN_IDENTITY_ASSETS = MIRAVA_MIN_IDENTITY_PHOTOS
 export const RECOMMENDED_IDENTITY_ASSETS = MIRAVA_RECOMMENDED_IDENTITY_PHOTOS
 export const MAX_IDENTITY_ASSETS = MIRAVA_MAX_IDENTITY_PHOTOS
@@ -1298,10 +1302,24 @@ function normalizeMiravaIdentityFaceGeometryForView(
     MiravaIdentityViewKey |
     null,
 ) {
+  const faceGeometryRequired =
+    Boolean(
+      viewKey &&
+      MIRAVA_FACE_GEOMETRY_VIEW_KEYS
+        .has(viewKey),
+    )
+
   if (
     value === undefined ||
     value === null
   ) {
+    if (faceGeometryRequired) {
+      throw new StudioError(
+        "La géométrie faciale est requise pour cette vue du Profil identité.",
+        "IDENTITY_REQUIRED",
+      )
+    }
+
     return null
   }
 
@@ -1312,11 +1330,7 @@ function normalizeMiravaIdentityFaceGeometryForView(
    * never be persisted as facial geometry, even if
    * the payload itself has valid normalized numbers.
    */
-  if (
-    !viewKey ||
-    !MIRAVA_FACE_GEOMETRY_VIEW_KEYS
-      .has(viewKey)
-  ) {
+  if (!faceGeometryRequired) {
     throw new StudioError(
       "Cette vue du Profil identité ne peut pas contenir de géométrie faciale.",
       "INVALID_FILE",
@@ -3031,6 +3045,34 @@ export async function continueMiravaSessionShot(args: {
   return { creation, alreadyQueued: false }
 }
 
+function miravaPersistedSessionShotCount(
+  builderConfig: unknown,
+): number {
+  const metadata =
+    builderConfig &&
+    typeof builderConfig ===
+      "object" &&
+    !Array.isArray(
+      builderConfig,
+    )
+      ? builderConfig as
+          Record<
+            string,
+            unknown
+          >
+      : {}
+
+  const parsed =
+    miravaSessionPersistedShotCountSchema
+      .safeParse(
+        metadata.shotCount,
+      )
+
+  return parsed.success
+    ? parsed.data
+    : MIRAVA_SESSION_LEGACY_SHOT_COUNT
+}
+
 export async function getMiravaSessionShootStatus(args: { userId: string; sessionId: string }): Promise<MiravaSessionShootStatus> {
   const [session, user] = await Promise.all([
     db.studioSession.findFirst({
@@ -3040,13 +3082,19 @@ export async function getMiravaSessionShootStatus(args: { userId: string; sessio
     db.user.findUnique({ where: { id: args.userId }, select: { studioCredits: true } }),
   ])
   if (!session) throw new StudioError("Séance MIRAVA introuvable.", "NOT_FOUND")
-  // Continuation creations share the session for lineage, but are never extra
-  // Builder slots. The primary gallery is strictly the canonical 0..5 plan.
+
+  const shotCount =
+    miravaPersistedSessionShotCount(
+      session.builderConfig,
+    )
+
+  // Continuation creations share the session for lineage,
+  // but are never extra Builder slots.
   const creations = (session.creations as unknown[]).map(asCreation)
   const canonicalShots = creations.filter((creation): creation is StudioCreationRecord & { shotIndex: number } => (
     typeof creation.shotIndex === "number"
     && creation.shotIndex >= 0
-    && creation.shotIndex < MIRAVA_SESSION_SHOT_COUNT
+    && creation.shotIndex < shotCount
     && !creation.parentCreationId
   ))
   const shots = await Promise.all(canonicalShots.map(async (creation) => {
@@ -3077,12 +3125,12 @@ export async function getMiravaSessionShootStatus(args: { userId: string; sessio
   const completedCount = shots.filter((shot) => shot.status === "COMPLETED").length
   const failedCount = shots.filter((shot) => shot.status === "FAILED" || shot.status === "CANCELLED").length
   const activeCount = shots.filter((shot) => shot.status === "GENERATION_QUEUED" || shot.status === "GENERATING").length
-  const status = completedCount === MIRAVA_SESSION_SHOT_COUNT ? "COMPLETED"
+  const status = completedCount === shotCount ? "COMPLETED"
     : activeCount > 0 && completedCount > 0 ? "PARTIAL"
     : activeCount > 0 ? "GENERATING"
-    : failedCount === MIRAVA_SESSION_SHOT_COUNT ? "FAILED"
+    : failedCount === shotCount ? "FAILED"
     : "QUEUED"
-  return { sessionId: session.id, shotCount: MIRAVA_SESSION_SHOT_COUNT, completedCount, failedCount, activeCount, status, studioCredits: user?.studioCredits ?? 0, shots }
+  return { sessionId: session.id, shotCount, completedCount, failedCount, activeCount, status, studioCredits: user?.studioCredits ?? 0, shots }
 }
 
 /**
@@ -3485,19 +3533,11 @@ function selectMiravaKieIdentityCropAssets(
   )
 }
 
-async function createMiravaKieIdentityCrop(
-  creation: Pick<
-    StudioCreationRecord,
-    "id" | "userId"
-  >,
-  frameIndex: number,
+async function createMiravaIdentityFaceCropBuffer(
   asset:
     StudioIdentityAssetRecord,
   faceGeometry: unknown,
-): Promise<{
-  storagePath: string
-  mimeType: "image/jpeg"
-}> {
+): Promise<Buffer> {
   /*
    * The geometry has already been validated before
    * any temporary crop is created. Parse again here
@@ -3572,6 +3612,28 @@ async function createMiravaKieIdentityCrop(
           "4:4:4",
       })
       .toBuffer()
+
+  return crop
+}
+
+async function createMiravaKieIdentityCrop(
+  creation: Pick<
+    StudioCreationRecord,
+    "id" | "userId"
+  >,
+  frameIndex: number,
+  asset:
+    StudioIdentityAssetRecord,
+  faceGeometry: unknown,
+): Promise<{
+  storagePath: string
+  mimeType: "image/jpeg"
+}> {
+  const crop =
+    await createMiravaIdentityFaceCropBuffer(
+      asset,
+      faceGeometry,
+    )
 
   const storagePath =
     miravaKieIdentityCropStoragePath(
@@ -3836,6 +3898,48 @@ async function purgeMiravaKieTemporaryAssetsForCreation(
   ])
 }
 
+export type MiravaSessionLaunchCreationRef =
+  Readonly<{
+    id: string
+    shotIndex: number | null
+    parentCreationId: string | null
+  }>
+
+export function resolveMiravaCanonicalSessionLaunchCreations(
+  creations:
+    readonly MiravaSessionLaunchCreationRef[],
+): readonly (
+  MiravaSessionLaunchCreationRef & {
+    shotIndex: number
+  }
+)[] {
+  return creations
+    .filter(
+      (
+        creation,
+      ): creation is
+        MiravaSessionLaunchCreationRef & {
+          shotIndex: number
+        } =>
+        creation.parentCreationId ===
+          null &&
+        typeof creation.shotIndex ===
+          "number" &&
+        Number.isInteger(
+          creation.shotIndex,
+        ) &&
+        creation.shotIndex >= 0,
+    )
+    .sort(
+      (
+        left,
+        right,
+      ) =>
+        left.shotIndex -
+        right.shotIndex,
+    )
+}
+
 export async function launchMiravaSessionShoot(args: {
   userId: string
   sessionId: string
@@ -3847,7 +3951,16 @@ export async function launchMiravaSessionShoot(args: {
     include: {
       referenceCreation: { include: { assets: { where: { kind: "REFERENCE", deletedAt: null } } } },
       lookItems: { include: { assets: { select: { viewKey: true } } }, orderBy: { position: "asc" } },
-      creations: { select: { id: true, shotIndex: true }, orderBy: { shotIndex: "asc" } },
+      creations: {
+        select: {
+          id: true,
+          shotIndex: true,
+          parentCreationId: true,
+        },
+        orderBy: {
+          shotIndex: "asc",
+        },
+      },
     },
   }) as {
     id: string
@@ -3869,7 +3982,8 @@ export async function launchMiravaSessionShoot(args: {
       description: string | null
       assets: Array<{ viewKey: string | null }>
     }>
-    creations: Array<{ id: string; shotIndex: number | null }>
+    creations:
+      MiravaSessionLaunchCreationRef[]
   } | null
 
   if (!session) throw new StudioError("Séance MIRAVA introuvable.", "NOT_FOUND")
@@ -3887,6 +4001,15 @@ export async function launchMiravaSessionShoot(args: {
     lightingPresetId: session.lightingPresetId,
     shotCount: metadata.shotCount,
     lookMode: metadata.lookMode,
+    framing: metadata.framing,
+    pose: metadata.pose,
+    expression: metadata.expression,
+    gaze: metadata.gaze,
+    makeup: metadata.makeup,
+    skinFinish: metadata.skinFinish,
+    hair: metadata.hair,
+    userInstruction:
+      metadata.userInstruction,
   })
   if (!config.success) throw new StudioError("La configuration de cette séance est incomplète ou invalide.", "INVALID_STATE")
   const currentIdentityProfile =
@@ -3940,6 +4063,7 @@ export async function launchMiravaSessionShoot(args: {
   }
 
   if (
+    session.creations.length === 0 &&
     session.identityProfileId !==
       currentIdentityProfile.id
   ) {
@@ -3966,11 +4090,44 @@ export async function launchMiravaSessionShoot(args: {
     throw new StudioError("Une référence artistique enregistrée est requise pour ce look.", "REFERENCE_REQUIRED")
   }
 
+  const canonicalCreations =
+    resolveMiravaCanonicalSessionLaunchCreations(
+      session.creations,
+    )
+
   if (session.creations.length > 0) {
-    if (session.creations.length !== MIRAVA_SESSION_SHOT_COUNT) {
-      throw new StudioError("Cette séance possède un lancement incomplet et ne peut pas être relancée automatiquement.", "INVALID_STATE")
+    const hasExactCanonicalSequence =
+      canonicalCreations.length ===
+        config.data.shotCount &&
+      canonicalCreations.every(
+        (
+          creation,
+          shotIndex,
+        ) =>
+          creation.shotIndex ===
+          shotIndex,
+      )
+
+    if (!hasExactCanonicalSequence) {
+      throw new StudioError(
+        "Cette séance possède un lancement incomplet et ne peut pas être relancée automatiquement.",
+        "INVALID_STATE",
+      )
     }
-    return { sessionId: session.id, creationIds: session.creations.map((creation) => creation.id), alreadyLaunched: true }
+
+    return {
+      sessionId:
+        session.id,
+      creationIds:
+        canonicalCreations.map(
+          (
+            creation,
+          ) =>
+            creation.id,
+        ),
+      alreadyLaunched:
+        true,
+    }
   }
 
   const lookItems = session.lookItems.map((item) => ({
@@ -3980,7 +4137,7 @@ export async function launchMiravaSessionShoot(args: {
     description: item.description,
     viewKeys: item.assets.map((asset) => asset.viewKey ?? "UNKNOWN"),
   }))
-  const shots = Array.from({ length: MIRAVA_SESSION_SHOT_COUNT }, (_, shotIndex) => {
+  const shots = Array.from({ length: config.data.shotCount }, (_, shotIndex) => {
     const context = buildMiravaSessionShotGenerationContext({
       config: config.data,
       shotIndex,
@@ -4001,7 +4158,7 @@ export async function launchMiravaSessionShoot(args: {
     p_shots: shots,
   })
   if (error) {
-    if (error.message.includes("INSUFFICIENT_STUDIO_CREDITS")) throw new StudioError("Vous n’avez pas assez de crédits pour cette séance de six photos.", "INSUFFICIENT_CREDITS")
+    if (error.message.includes("INSUFFICIENT_STUDIO_CREDITS")) throw new StudioError(`Vous n’avez pas assez de crédits pour cette séance de ${config.data.shotCount} photo${config.data.shotCount > 1 ? "s" : ""}.`, "INSUFFICIENT_CREDITS")
     if (error.message.includes("MIRAVA_SESSION_PARTIAL_RUN")) throw new StudioError("Cette séance possède un lancement incomplet et ne peut pas être relancée automatiquement.", "INVALID_STATE")
     throw new StudioError("Impossible de lancer cette séance MIRAVA.", "CREDIT_ERROR")
   }
@@ -4010,7 +4167,7 @@ export async function launchMiravaSessionShoot(args: {
     .filter((row) => typeof row.creationId === "string" && Number.isInteger(row.shotIndex))
     .sort((a, b) => Number(a.shotIndex) - Number(b.shotIndex))
     .map((row) => row.creationId as string)
-  if (creationIds.length !== MIRAVA_SESSION_SHOT_COUNT) throw new StudioError("Le lancement de la séance n’a pas produit les six prises attendues.", "CREDIT_ERROR")
+  if (creationIds.length !== config.data.shotCount) throw new StudioError(`Le lancement de la séance n’a pas produit les ${config.data.shotCount} prises attendues.`, "CREDIT_ERROR")
 
   return { sessionId: session.id, creationIds, alreadyLaunched: false }
 }
@@ -4289,16 +4446,14 @@ async function refreshIdentityMorphologyForProfile(
   })
 
   /*
-   * External identity analysis is optional and
+   * External identity analysis stays optional and
    * fail-closed.
    *
-   * The identity profile itself remains durable even
-   * when no current OpenAI disclosure evidence exists.
-   * In that case morphology stays null and no identity
-   * derivative is prepared or transmitted externally.
+   * No identity derivative is prepared before the
+   * durable consent gate succeeds.
    */
   try {
-    await requireMiravaOpenAiIdentityAnalysisConsent(
+    await requireMiravaExternalIdentityAnalysisConsent(
       args.userId,
     )
   } catch (error) {
@@ -4373,57 +4528,31 @@ async function refreshIdentityMorphologyForProfile(
     return
   }
 
-  const apiKey =
-    process.env.OPENAI_API_KEY
-
-  if (!apiKey) {
-    console.info(
-      "[mirava-identity-morphology-skipped]",
-      JSON.stringify({
-        profileId:
-          args.profileId,
-        reason:
-          "provider_not_configured",
-      }),
-    )
-
-    return
-  }
-
   const startedAt =
     Date.now()
 
   try {
-    const userContent:
-      Array<Record<string, unknown>> =
-      [
-        {
-          type:
-            "text",
-          text:
-            [
-              "Analyze these identity views together.",
-              "Every image depicts the same consenting adult.",
-              "Use each VIEW label as context only.",
-              "Extract intrinsic morphology according to the system contract.",
-            ].join(" "),
-        },
-      ]
+    const images:
+      Array<{
+        buffer: Buffer
+        mimeType: string
+        fileName: string
+        label: string
+      }> =
+      []
 
-    for (
-      const asset of
-        assets
-    ) {
+    for (const asset of assets) {
       const source =
         await downloadAsset(
           asset,
         )
 
       /*
-       * Vision analysis receives a temporary,
-       * metadata-free derivative only.
-       * The durable high-resolution identity
-       * master is left unchanged.
+       * KIE receives only a temporary metadata-free
+       * analysis derivative.
+       *
+       * The durable high-resolution identity master
+       * remains unchanged.
        */
       const preview =
         await sharp(source)
@@ -4446,27 +4575,16 @@ async function refreshIdentityMorphologyForProfile(
           })
           .toBuffer()
 
-      userContent.push(
-        {
-          type:
-            "text",
-          text:
-            `VIEW: ${asset.viewKey}`,
-        },
-        {
-          type:
-            "image_url",
-          image_url: {
-            url:
-              toDataUrl(
-                preview,
-                "image/jpeg",
-              ),
-            detail:
-              "high",
-          },
-        },
-      )
+      images.push({
+        buffer:
+          preview,
+        mimeType:
+          "image/jpeg",
+        fileName:
+          `identity-morphology-${asset.viewKey}-${asset.id}.jpg`,
+        label:
+          `VIEW: ${asset.viewKey}`,
+      })
     }
 
     console.info(
@@ -4474,6 +4592,8 @@ async function refreshIdentityMorphologyForProfile(
       JSON.stringify({
         profileId:
           args.profileId,
+        provider:
+          "kie",
         model:
           MIRAVA_ANALYSIS_MODEL,
         imageCount:
@@ -4488,93 +4608,54 @@ async function refreshIdentityMorphologyForProfile(
       }),
     )
 
-    const response =
-      await fetch(
-        "https://api.openai.com/v1/chat/completions",
-        {
-          method:
-            "POST",
-          headers: {
-            "Content-Type":
-              "application/json",
-            Authorization:
-              `Bearer ${apiKey}`,
-          },
-          body:
-            JSON.stringify({
-              model:
-                MIRAVA_ANALYSIS_MODEL,
-              store:
-                false,
-              reasoning_effort:
-                "low",
-              max_completion_tokens:
-                1800,
-              response_format: {
-                type:
-                  "json_object",
-              },
-              messages: [
-                {
-                  role:
-                    "system",
-                  content:
-                    MIRAVA_IDENTITY_MORPHOLOGY_EXTRACTOR_PROMPT,
-                },
-                {
-                  role:
-                    "user",
-                  content:
-                    userContent,
-                },
-              ],
-            }),
-          signal:
-            AbortSignal.timeout(
-              MIRAVA_IDENTITY_MORPHOLOGY_TIMEOUT_MS,
-            ),
-        },
-      )
+    const result =
+      await runKieMultimodalAnalysis({
+        systemPrompt:
+          MIRAVA_IDENTITY_MORPHOLOGY_EXTRACTOR_PROMPT,
+        userPrompt:
+          [
+            "Analyze these identity views together.",
+            "Every image depicts the same consenting adult.",
+            "Use each VIEW label as context only.",
+            "Extract intrinsic morphology according to the system contract.",
+            "Return only valid JSON.",
+            "Do not wrap the JSON in Markdown or code fences.",
+          ].join(" "),
+        images,
+        timeoutMs:
+          MIRAVA_IDENTITY_MORPHOLOGY_TIMEOUT_MS,
+      })
 
-    const responseText =
-      await response.text()
+    console.info(
+      "[mirava-identity-morphology-provider-usage]",
+      JSON.stringify({
+        profileId:
+          args.profileId,
+        provider:
+          "kie",
+        model:
+          result.model,
+        creditsConsumed:
+          result.creditsConsumed,
+        inputTokens:
+          result.inputTokens,
+        outputTokens:
+          result.outputTokens,
+      }),
+    )
 
-    if (!response.ok) {
-      throw new Error(
-        `IDENTITY_MORPHOLOGY_HTTP_${response.status}: ` +
-        responseText.slice(
-          0,
-          500,
-        ),
-      )
-    }
-
-    const body =
-      JSON.parse(
-        responseText,
-      ) as {
-        choices?: Array<{
-          message?: {
-            content?:
-              | string
-              | null
-          }
-        }>
-      }
-
-    const content =
-      body.choices?.[0]
-        ?.message?.content
-
-    if (
-      typeof content !==
-        "string" ||
-      !content.trim()
-    ) {
-      throw new Error(
-        "IDENTITY_MORPHOLOGY_EMPTY_RESPONSE",
-      )
-    }
+    const normalizedContent =
+      result.text
+        .trim()
+        .replace(
+          /^```(?:json)?\s*/i,
+          "",
+        )
+        .replace(
+          /\s*```$/,
+          "",
+        )
+        .trim()
 
     let rawMorphology:
       unknown
@@ -4582,7 +4663,7 @@ async function refreshIdentityMorphologyForProfile(
     try {
       rawMorphology =
         JSON.parse(
-          content,
+          normalizedContent,
         )
     } catch {
       throw new Error(
@@ -4632,6 +4713,10 @@ async function refreshIdentityMorphologyForProfile(
       JSON.stringify({
         profileId:
           args.profileId,
+        provider:
+          "kie",
+        model:
+          result.model,
         durationMs:
           Date.now() -
           startedAt,
@@ -4665,6 +4750,8 @@ async function refreshIdentityMorphologyForProfile(
       JSON.stringify({
         profileId:
           args.profileId,
+        provider:
+          "kie",
         durationMs:
           Date.now() -
           startedAt,
@@ -4676,6 +4763,16 @@ async function refreshIdentityMorphologyForProfile(
           providerExceptionMessage(
             error,
           ),
+        providerCode:
+          error instanceof
+            KieProviderError
+            ? error.code
+            : null,
+        providerKind:
+          error instanceof
+            KieProviderError
+            ? error.kind
+            : null,
       }),
     )
   }
@@ -4720,28 +4817,6 @@ async function extractMasterPrompt(
   masterPrompt: string
   negativePrompt: string
 }> {
-  const apiKey =
-    process.env.OPENAI_API_KEY
-
-  if (!apiKey) {
-    throw new StudioError(
-      "Le moteur Studio n’est pas configuré.",
-      "PROVIDER_CONFIGURATION",
-    )
-  }
-
-  const analysisModel =
-    jobAttempt > 1
-      ? MIRAVA_ANALYSIS_FALLBACK_MODEL
-      : MIRAVA_ANALYSIS_MODEL
-
-  const analysisTokenBudget =
-    jobAttempt >= 3
-      ? 9000
-      : jobAttempt === 2
-        ? 7000
-        : 6000
-
   const referenceBuffer =
     await downloadAsset(reference)
 
@@ -4755,11 +4830,11 @@ async function extractMasterPrompt(
         reference.creationId,
       referenceAssetId:
         reference.id,
+      provider:
+        "kie",
       model:
-        analysisModel,
+        MIRAVA_ANALYSIS_MODEL,
       jobAttempt,
-      maxCompletionTokens:
-        analysisTokenBudget,
       reasoningEffort:
         "low",
       timeoutMs:
@@ -4769,65 +4844,62 @@ async function extractMasterPrompt(
     }),
   )
 
-  let response: Response
+  let content:
+    string
 
   try {
-    response = await fetch(
-      "https://api.openai.com/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type":
-            "application/json",
-          Authorization:
-            `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          model:
-            analysisModel,
-          store: false,
-          max_completion_tokens:
-            analysisTokenBudget,
-          reasoning_effort:
-            "low",
-          messages: [
-            {
-              role: "system",
-              content:
-                MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_PROMPT,
-            },
-            {
-              role: "user",
-              content: [
-                {
-                  type: "text",
-                  text:
-                    "Create the MIRAVA internal art direction from this single reference. Compose for a final 4:5 portrait-safe image.",
-                },
-                {
-                  type:
-                    "image_url",
-                  image_url: {
-                    url: toDataUrl(
-                      referenceBuffer,
-                      reference.mimeType,
-                    ),
-                    detail: "high",
-                  },
-                },
-              ],
-            },
-          ],
-        }),
-        signal:
-          AbortSignal.timeout(
-            MIRAVA_ANALYSIS_TIMEOUT_MS,
-          ),
-      },
+    const result =
+      await runKieMultimodalAnalysis({
+        systemPrompt:
+          MIRAVA_VISUAL_DIRECTION_EXTRACTOR_V2_PROMPT,
+        userPrompt:
+          [
+            "Create the MIRAVA internal art direction from this single reference.",
+            "Compose for a final 4:5 portrait-safe image.",
+            "Return only the machine-readable extraction required by the system contract.",
+          ].join(" "),
+        images: [
+          {
+            buffer:
+              referenceBuffer,
+            mimeType:
+              reference.mimeType,
+            fileName:
+              `mirava-reference-${reference.id}.${extensionForMime(reference.mimeType)}`,
+            label:
+              "ART DIRECTION REFERENCE",
+          },
+        ],
+        timeoutMs:
+          MIRAVA_ANALYSIS_TIMEOUT_MS,
+      })
+
+    content =
+      result.text.trim()
+
+    console.info(
+      "[mirava-analysis-provider-usage]",
+      JSON.stringify({
+        creationId:
+          reference.creationId,
+        referenceAssetId:
+          reference.id,
+        provider:
+          "kie",
+        model:
+          result.model,
+        creditsConsumed:
+          result.creditsConsumed,
+        inputTokens:
+          result.inputTokens,
+        outputTokens:
+          result.outputTokens,
+      }),
     )
   } catch (error) {
     const durationMs =
-      Date.now() - startedAt
+      Date.now() -
+      startedAt
 
     console.error(
       "[mirava-analysis-exception]",
@@ -4836,22 +4908,90 @@ async function extractMasterPrompt(
           reference.creationId,
         referenceAssetId:
           reference.id,
+        provider:
+          "kie",
         model:
-          analysisModel,
+          MIRAVA_ANALYSIS_MODEL,
+        jobAttempt,
         durationMs,
         name:
-          providerExceptionName(error),
+          providerExceptionName(
+            error,
+          ),
         message:
-          providerExceptionMessage(error),
+          providerExceptionMessage(
+            error,
+          ),
+        providerCode:
+          error instanceof
+            KieProviderError
+            ? error.code
+            : null,
+        providerKind:
+          error instanceof
+            KieProviderError
+            ? error.kind
+            : null,
       }),
     )
 
-    if (isProviderTimeout(error)) {
-      /*
-       * Ne pas répéter automatiquement un appel qui vient déjà de
-       * monopoliser 150 secondes. L’utilisatrice reçoit immédiatement
-       * une cause compréhensible et son crédit est libéré.
-       */
+    if (
+      error instanceof
+        KieProviderError
+    ) {
+      if (
+        error.kind ===
+          "billing"
+      ) {
+        throw new StudioError(
+          "Le service d’analyse est temporairement indisponible.",
+          "PROVIDER_UNAVAILABLE",
+          false,
+        )
+      }
+
+      if (
+        error.kind ===
+          "safety"
+      ) {
+        throw new StudioError(
+          "La référence n’a pas été autorisée pour l’analyse.",
+          "SAFETY_REFUSAL",
+        )
+      }
+
+      if (
+        error.kind ===
+          "timeout"
+      ) {
+        throw new StudioError(
+          "L’analyse de la référence a dépassé le temps disponible.",
+          "ANALYSIS_TIMEOUT",
+        )
+      }
+
+      if (
+        error.kind ===
+          "configuration"
+      ) {
+        throw new StudioError(
+          "Le moteur Studio n’est pas configuré.",
+          "PROVIDER_CONFIGURATION",
+        )
+      }
+
+      throw new StudioError(
+        "L’analyse artistique est temporairement indisponible.",
+        error.code,
+        error.retryable,
+      )
+    }
+
+    if (
+      isProviderTimeout(
+        error,
+      )
+    ) {
       throw new StudioError(
         "L’analyse de la référence a dépassé le temps disponible.",
         "ANALYSIS_TIMEOUT",
@@ -4866,194 +5006,29 @@ async function extractMasterPrompt(
   }
 
   const durationMs =
-    Date.now() - startedAt
+    Date.now() -
+    startedAt
 
-  if (!response.ok) {
-    const providerBody =
-      await response.text()
-
-    let providerCode = ""
-
-    try {
-      const parsed =
-        JSON.parse(
-          providerBody,
-        ) as {
-          error?: {
-            code?: string
-            type?: string
-          }
-        }
-
-      providerCode =
-        parsed.error?.code ??
-        parsed.error?.type ??
-        ""
-    } catch {
-      providerCode = ""
-    }
-
+  if (!content) {
     console.error(
-      "[mirava-analysis-provider-error]",
+      "[mirava-analysis-empty-response]",
       JSON.stringify({
         creationId:
           reference.creationId,
         referenceAssetId:
           reference.id,
+        provider:
+          "kie",
         model:
-          analysisModel,
-        status:
-          response.status,
-        providerCode,
+          MIRAVA_ANALYSIS_MODEL,
+        jobAttempt,
         durationMs,
-        body:
-          providerBody.slice(
-            0,
-            2000,
-          ),
       }),
     )
 
-    const safetyRefusal =
-      providerCode ===
-        "content_policy_violation" ||
-      providerCode ===
-        "safety_violations" ||
-      providerCode ===
-        "moderation_blocked"
-
-    if (safetyRefusal) {
-      throw new StudioError(
-        "La référence n’a pas été autorisée pour l’analyse.",
-        "SAFETY_REFUSAL",
-      )
-    }
-
-    const retryable =
-      response.status === 429 ||
-      response.status >= 500
-
     throw new StudioError(
-      "L’analyse artistique est temporairement indisponible.",
-      `OPENAI_ANALYSIS_${response.status}${providerCode ? `_${providerCode}` : ""}`,
-      retryable,
-    )
-  }
-
-  const data =
-    await response.json() as {
-      id?: string
-      model?: string
-      choices?: Array<{
-        finish_reason?: string | null
-        message?: {
-          content?:
-            | string
-            | Array<{
-                type?: string
-                text?: string
-              }>
-            | null
-          refusal?: string | null
-        }
-      }>
-      usage?: {
-        completion_tokens?: number
-        completion_tokens_details?: {
-          reasoning_tokens?: number
-        }
-      }
-    }
-
-  const choice =
-    data.choices?.[0]
-
-  const rawContent =
-    choice?.message?.content
-
-  const content =
-    typeof rawContent === "string"
-      ? rawContent.trim()
-      : Array.isArray(rawContent)
-        ? rawContent
-            .map(
-              (part) =>
-                typeof part?.text ===
-                  "string"
-                  ? part.text
-                  : "",
-            )
-            .join("")
-            .trim()
-        : ""
-
-  const refusal =
-    choice?.message?.refusal?.trim() ??
-    ""
-
-  const finishReason =
-    choice?.finish_reason ?? null
-
-  const responseDiagnostics = {
-    creationId:
-      reference.creationId,
-    referenceAssetId:
-      reference.id,
-    requestId:
-      response.headers.get(
-        "x-request-id",
-      ),
-    responseId:
-      data.id ?? null,
-    requestedModel:
-      analysisModel,
-    responseModel:
-      data.model ?? null,
-    jobAttempt,
-    finishReason,
-    completionTokens:
-      data.usage
-        ?.completion_tokens ?? null,
-    reasoningTokens:
-      data.usage
-        ?.completion_tokens_details
-        ?.reasoning_tokens ?? null,
-    refusalPresent:
-      Boolean(refusal),
-    contentLength:
-      content.length,
-    durationMs,
-  }
-
-  if (refusal) {
-    console.error(
-      "[mirava-analysis-refusal]",
-      JSON.stringify(
-        responseDiagnostics,
-      ),
-    )
-
-    throw new StudioError(
-      "La référence n’a pas été autorisée pour l’analyse.",
-      "SAFETY_REFUSAL",
-    )
-  }
-
-  if (!content) {
-    console.error(
-      "[mirava-analysis-empty-response]",
-      JSON.stringify(
-        responseDiagnostics,
-      ),
-    )
-
-    throw new StudioError(
-      finishReason === "length"
-        ? "L’analyse artistique a atteint sa limite de sortie."
-        : "L’analyse artistique est incomplète.",
-      finishReason === "length"
-        ? "ANALYSIS_OUTPUT_LIMIT"
-        : "INVALID_PROVIDER_RESPONSE",
+      "L’analyse artistique est incomplète.",
+      "INVALID_PROVIDER_RESPONSE",
       jobAttempt < 3,
     )
   }
@@ -5065,8 +5040,11 @@ async function extractMasterPrompt(
         reference.creationId,
       referenceAssetId:
         reference.id,
+      provider:
+        "kie",
       model:
-        analysisModel,
+        MIRAVA_ANALYSIS_MODEL,
+      jobAttempt,
       durationMs,
       contentLength:
         content.length,
@@ -5075,15 +5053,21 @@ async function extractMasterPrompt(
 
   try {
     const parsed =
-      parseV2Extraction(content)
+      parseV2Extraction(
+        content,
+      )
 
     const sceneContext =
-      await classifySceneContext(parsed)
+      await classifySceneContext(
+        parsed,
+      )
 
     const blueprint:
       VisualDirectionBlueprint = {
-        id: randomUUID(),
-        status: "published",
+        id:
+          randomUUID(),
+        status:
+          "published",
         transferMode:
           "FIDELITY",
         creativeDirectionSummary:
@@ -5102,9 +5086,10 @@ async function extractMasterPrompt(
           classifierVersion:
             MIRAVA_SCENE_CONTEXT_CLASSIFIER_V1_METADATA.version,
           model:
-            analysisModel,
+            MIRAVA_ANALYSIS_MODEL,
           createdAt:
-            new Date().toISOString(),
+            new Date()
+              .toISOString(),
           referenceAssetId:
             reference.id,
         },
@@ -5112,39 +5097,55 @@ async function extractMasterPrompt(
           lightingContractPresent:
             parsed.baseGenerationPrompt
               .toLowerCase()
-              .includes("light"),
+              .includes(
+                "light",
+              ),
           cameraContractPresent:
             parsed.baseGenerationPrompt
               .toLowerCase()
-              .includes("camera") ||
+              .includes(
+                "camera",
+              ) ||
             parsed.baseGenerationPrompt
               .toLowerCase()
-              .includes("crop"),
+              .includes(
+                "crop",
+              ),
           poseContractPresent:
             parsed.baseGenerationPrompt
               .toLowerCase()
-              .includes("pose"),
+              .includes(
+                "pose",
+              ),
           wardrobeContractPresent:
             parsed.baseGenerationPrompt
               .toLowerCase()
-              .includes("wardrobe") ||
+              .includes(
+                "wardrobe",
+              ) ||
             parsed.baseGenerationPrompt
               .toLowerCase()
-              .includes("garment"),
+              .includes(
+                "garment",
+              ),
           identityLanguageDetected:
             false,
           requiresHumanReview:
-            sceneContext.requiresHumanReview,
+            sceneContext
+              .requiresHumanReview,
         },
       }
 
     return {
       creativeDirectionSummary:
-        blueprint.creativeDirectionSummary,
+        blueprint
+          .creativeDirectionSummary,
       masterPrompt:
-        blueprint.baseGenerationPrompt,
+        blueprint
+          .baseGenerationPrompt,
       negativePrompt:
-        blueprint.negativeGuardrails,
+        blueprint
+          .negativeGuardrails,
     }
   } catch (error) {
     console.error(
@@ -5154,10 +5155,18 @@ async function extractMasterPrompt(
           reference.creationId,
         referenceAssetId:
           reference.id,
+        provider:
+          "kie",
+        model:
+          MIRAVA_ANALYSIS_MODEL,
         name:
-          providerExceptionName(error),
+          providerExceptionName(
+            error,
+          ),
         message:
-          providerExceptionMessage(error),
+          providerExceptionMessage(
+            error,
+          ),
         contentLength:
           content.length,
       }),
@@ -5558,17 +5567,6 @@ async function generateStudioImageCandidate(
   jobAttempt = 1,
   studioJob: StudioJobRecord | null = null,
 ): Promise<Buffer> {
-  /*
-   * Legacy direct-OpenAI executor is retained temporarily
-   * for source cleanup only.
-   *
-   * It is no longer an active provider route and its key
-   * must never gate MIRAVA generation.
-   */
-  const apiKey =
-    process.env.OPENAI_API_KEY ??
-    ""
-
   assertAtLeastOneValidatedIdentityImage(
     identityAssets,
   )
@@ -5599,11 +5597,6 @@ async function generateStudioImageCandidate(
       creation.parentCreationId &&
       continuationDirective,
     )
-
-  const providerTimeoutMs =
-    isContinuation
-      ? MIRAVA_CONTINUITY_IMAGE_PROVIDER_TIMEOUT_MS
-      : MIRAVA_IMAGE_PROVIDER_TIMEOUT_MS
 
   const isReferenceAnchor =
     frameIndex === 0 &&
@@ -5706,16 +5699,10 @@ async function generateStudioImageCandidate(
         )
       : primaryPrompt
 
-  const primaryIdentityAssets =
-    isReferenceAnchor ||
-    isContinuation
-      ? selectMiravaPrimaryIdentityAssets(
-          identityAssets,
-        )
-      : identityAssets
-
   /*
-   * KIE is now mandatory for every active MIRAVA image.
+   * KIE receives the validated identity profile.
+   * FACE_ID selection remains restricted downstream to
+   * the three canonical geometry-backed face crops.
    */
   if (
     !isMiravaKieImageProviderEnabled()
@@ -5746,15 +5733,9 @@ async function generateStudioImageCandidate(
    * Every active generation enters executeKieCall before
    * the legacy direct-OpenAI source block can be reached.
    */
-  const useKieCampaignProvider =
-    true
-
-  const useKieProviderRecovery =
-    false
-
   /*
-   * Any initial non-continuation generation may use its
-   * artistic reference through KIE, not only risky prompts.
+   * Every non-continuation generation may attach its
+   * retained artistic reference to the KIE request.
    */
   const kieArtisticReference =
     !isContinuation
@@ -5775,7 +5756,7 @@ async function generateStudioImageCandidate(
    * For a normal first-frame generation with a real
    * ART_DIRECTION image, send Seedream the concise
    * extracted creative summary instead of duplicating
-   * the complete master description.
+   * the complete 10k+ master description.
    */
   const userReferenceRuntimeBase =
     isReferenceAnchor &&
@@ -5863,8 +5844,7 @@ async function generateStudioImageCandidate(
       promptText: string,
       variant:
         | "campaign-safe-kie-primary"
-        | "campaign-safe-kie-fallback"
-        | "provider-recovery-kie",
+        | "campaign-safe-kie-fallback",
       allowResume: boolean,
     ): Promise<Buffer> => {
       const startedAt =
@@ -5984,15 +5964,17 @@ async function generateStudioImageCandidate(
       }
 
       /*
-       * Provider reference budget.
+       * Kie has a fixed reference budget.
        *
-       * FACE_ID is mandatory identity authority and must
-       * never be lost because Session Builder supplied
-       * additional non-identity references.
+       * Reserve all required FACE_ID slots first.
+       * CONTINUITY and the explicit artistic reference
+       * also remain first-class authorities.
        *
-       * Reserve FACE_ID first, then CONTINUITY and the
-       * explicit ART_DIRECTION image. Session Builder
-       * references consume only the remaining capacity.
+       * Session Builder references use only the
+       * remaining budget, preserving their existing
+       * deterministic ordering. In the saturated case
+       * the lowest-priority extra wardrobe view is
+       * omitted rather than truncating FACE_ID.
        */
       const kieNonIdentityReferenceBudget =
         Math.max(
@@ -6204,6 +6186,8 @@ async function generateStudioImageCandidate(
             variant,
             taskId:
               result.taskId,
+            creditsConsumed:
+              result.creditsConsumed,
             elapsedMs:
               Date.now() -
               startedAt,
@@ -6284,319 +6268,10 @@ async function generateStudioImageCandidate(
       }
     }
 
-  const executeCall = async (
-    promptText: string,
-    assets: Array<
-      StudioAssetRecord |
-      StudioIdentityAssetRecord
-    >,
-    variant:
-      | "parity-primary"
-      | "series-primary"
-      | "continuity-primary"
-      | "campaign-safe-primary"
-      | "campaign-safe-fallback"
-      | "official-safe-fallback"
-      | "semantic-fallback",
-    continuityInput:
-      | StudioAssetRecord
-      | null,
-  ): Promise<Buffer> => {
-    const promptHash =
-      createHash("sha256")
-        .update(promptText)
-        .digest("hex")
-        .slice(0, 16)
-
-    const startedAt =
-      Date.now()
-
-    console.info(
-      "[mirava-image-attempt]",
-      JSON.stringify({
-        creationId:
-          creation.id,
-        frameIndex,
-        shotIndex:
-          creation.shotIndex ?? 0,
-        shotIntent:
-          creation.shotIntent ?? null,
-        variant,
-        jobAttempt,
-        timeoutMs:
-          providerTimeoutMs,
-        campaignSafeTransfer:
-          campaignRisk.requiresCampaignSafeTransfer,
-        campaignRiskScore:
-          campaignRisk.riskScore,
-        campaignRiskReasons:
-          campaignRisk.reasons,
-        promptHash,
-        promptLength:
-          promptText.length,
-        identityAssetCount:
-          assets.length,
-        sessionProviderInputIds:
-          sessionProviderInputs.map(
-            (input) => input.id,
-          ),
-        sessionProviderInputRoles:
-          sessionProviderInputs.map(
-            (input) => input.role,
-          ),
-        continuityAssetPresent:
-          Boolean(continuityInput),
-        model:
-          MIRAVA_IMAGE_MODEL,
-      }),
-    )
-
-    const form = new FormData()
-    const providerPrompt =
-      buildMiravaSessionProviderInputPrompt(
-        promptText,
-        sessionProviderInputs,
-      )
-
-    form.append("model", MIRAVA_IMAGE_MODEL)
-    form.append("prompt", providerPrompt)
-    form.append("size", "1024x1536")
-    form.append("quality", "high")
-    form.append("output_format", "png")
-    form.append("moderation", "low")
-
-    if (continuityInput) {
-      const buffer =
-        await downloadAsset(
-          continuityInput,
-        )
-
-      form.append(
-        "image[]",
-        new Blob(
-          [new Uint8Array(buffer)],
-          {
-            type:
-              continuityInput.mimeType,
-          },
-        ),
-        `continuity-${continuityInput.id}.${extensionForMime(continuityInput.mimeType)}`,
-      )
-    }
-
-    for (const reference of sessionProviderInputs) {
-      const buffer = await downloadAsset(reference)
-      form.append(
-        "image[]",
-        new Blob(
-          [new Uint8Array(buffer)],
-          { type: reference.mimeType },
-        ),
-        `${reference.fileName}.${extensionForMime(reference.mimeType)}`,
-      )
-    }
-
-    for (const asset of assets) {
-      const buffer =
-        await downloadAsset(asset)
-
-      form.append(
-        "image[]",
-        new Blob(
-          [new Uint8Array(buffer)],
-          {
-            type:
-              asset.mimeType,
-          },
-        ),
-        `identity-${asset.id}.${extensionForMime(asset.mimeType)}`,
-      )
-    }
-
-    let response: Response
-
-    try {
-      response = await fetch(
-        "https://api.openai.com/v1/images/edits",
-        {
-          method: "POST",
-          headers: {
-            Authorization:
-              `Bearer ${apiKey}`,
-          },
-          body: form,
-          signal:
-            AbortSignal.timeout(
-              providerTimeoutMs,
-            ),
-        },
-      )
-    } catch (error) {
-      console.error(
-        "[Studio image provider transport error]",
-        JSON.stringify({
-          creationId:
-            creation.id,
-          frameIndex,
-          shotIndex:
-            creation.shotIndex ?? 0,
-          shotIntent:
-            creation.shotIntent ?? null,
-          variant,
-          jobAttempt,
-          timeoutMs:
-            providerTimeoutMs,
-          elapsedMs:
-            Date.now() - startedAt,
-          continuityAssetPresent:
-            Boolean(continuityInput),
-          sourceName:
-            providerExceptionName(error),
-          sourceMessage:
-            providerExceptionMessage(error),
-        }),
-      )
-
-      throw error
-    }
-
-    if (!response.ok) {
-      const retryable =
-        response.status === 429 ||
-        response.status >= 500
-
-      const providerBody =
-        await response.text()
-
-      console.error(
-        "[Studio image provider error]",
-        JSON.stringify({
-          status:
-            response.status,
-          requestId:
-            response.headers.get(
-              "x-request-id",
-            ),
-          contentType:
-            response.headers.get(
-              "content-type",
-            ),
-          model:
-            MIRAVA_IMAGE_MODEL,
-          variant,
-          jobAttempt,
-          timeoutMs:
-            providerTimeoutMs,
-          elapsedMs:
-            Date.now() - startedAt,
-          promptHash,
-          promptLength:
-            promptText.length,
-          identityAssetCount:
-            assets.length,
-          continuityAssetPresent:
-            Boolean(continuityInput),
-          body:
-            providerBody.slice(
-              0,
-              4000,
-            ),
-        }),
-      )
-
-      let providerCode = ""
-
-      try {
-        const parsed =
-          JSON.parse(
-            providerBody,
-          ) as {
-            error?: {
-              code?: string
-              type?: string
-            }
-          }
-
-        providerCode =
-          parsed.error?.code ??
-          parsed.error?.type ??
-          ""
-      } catch {
-        providerCode = ""
-      }
-
-      const safetyRefusal =
-        providerCode ===
-          "content_policy_violation" ||
-        providerCode ===
-          "safety_violations" ||
-        providerCode ===
-          "moderation_blocked"
-
-      if (safetyRefusal) {
-        throw new StudioError(
-          "La génération n’a pas été autorisée par les règles de sécurité.",
-          "SAFETY_REFUSAL",
-        )
-      }
-
-      throw new StudioError(
-        "La génération est temporairement indisponible.",
-        `OPENAI_${response.status}${providerCode ? `_${providerCode}` : ""}`,
-        retryable,
-      )
-    }
-
-    const data =
-      await response.json() as {
-        data?: Array<{
-          b64_json?: string
-        }>
-      }
-
-    const encoded =
-      data.data?.[0]?.b64_json
-
-    if (!encoded) {
-      throw new StudioError(
-        "La génération est incomplète.",
-        "INVALID_PROVIDER_RESPONSE",
-        true,
-      )
-    }
-
-    console.info(
-      "[mirava-image-success]",
-      JSON.stringify({
-        creationId:
-          creation.id,
-        frameIndex,
-        shotIndex:
-          creation.shotIndex ?? 0,
-        shotIntent:
-          creation.shotIntent ?? null,
-        variant,
-        jobAttempt,
-        timeoutMs:
-          providerTimeoutMs,
-        elapsedMs:
-          Date.now() - startedAt,
-        continuityAssetPresent:
-          Boolean(continuityInput),
-      }),
-    )
-
-    return Buffer.from(
-      encoded,
-      "base64",
-    )
-  }
-
   if (
-     useKieCampaignProvider &&
-     kieArtisticReference &&
-     isReferenceAnchor
-   ) {
+    kieArtisticReference &&
+    isReferenceAnchor
+  ) {
      /*
       * MIRAVA V6.9
       *
@@ -6732,81 +6407,18 @@ async function generateStudioImageCandidate(
      })
    }
 
-   /*
-    * Kie without an artistic reference remains the
-    * existing single-pass path.
-    */
-   if (useKieCampaignProvider) {
-     try {
-       return await executeKieCall(
-         resolvedKiePrimaryPrompt,
-         "campaign-safe-kie-primary",
-         true,
-       )
-     } catch (error) {
-       if (
-         !(
-           error instanceof
-             StudioError
-         ) ||
-         error.code !==
-           "SAFETY_REFUSAL"
-       ) {
-         throw error
-       }
-
-       await clearKieTaskState()
-
-       return await executeKieCall(
-         buildMiravaCampaignSafeTransferPrompt(
-           primaryPrompt,
-           "conservative",
-           campaignSafeContinuation,
-         ),
-         "campaign-safe-kie-fallback",
-         false,
-       )
-     }
-   }
-
-   if (useKieProviderRecovery) {
-    console.info(
-      "[mirava-image-provider-failover]",
-      JSON.stringify({
-        creationId:
-          creation.id,
-        frameIndex,
-        jobAttempt,
-        from:
-          "openai",
-        to:
-          "kie",
-        reason:
-          "retryable-primary-provider-failure",
-      }),
-    )
-
-    return await executeKieCall(
-      resolvedPrimaryPrompt,
-      "provider-recovery-kie",
-      true,
-    )
-  }
-
+  /*
+   * Every remaining MIRAVA image path is KIE-only.
+   *
+   * The first Seedream request uses the resolved primary
+   * direction. A provider safety refusal gets one
+   * conservative KIE rewrite, never an OpenAI fallback.
+   */
   try {
-    return await executeCall(
-      resolvedPrimaryPrompt,
-      primaryIdentityAssets,
-      campaignRisk.requiresCampaignSafeTransfer
-        ? "campaign-safe-primary"
-        : isContinuation
-          ? "continuity-primary"
-          : isReferenceAnchor
-            ? "parity-primary"
-            : "series-primary",
-      campaignRisk.requiresCampaignSafeTransfer
-        ? null
-        : continuityAsset,
+    return await executeKieCall(
+      resolvedKiePrimaryPrompt,
+      "campaign-safe-kie-primary",
+      true,
     )
   } catch (error) {
     if (
@@ -6820,83 +6432,16 @@ async function generateStudioImageCandidate(
       throw error
     }
 
-    const officialBlueprint =
-      getMiravaOfficialUniverseBlueprint(
-        creation.presetId,
-      )
+    await clearKieTaskState()
 
-    if (officialBlueprint) {
-      return await executeCall(
-        buildMiravaOfficialUniverseSafetyFallbackPrompt(
-          officialBlueprint,
-        ),
-        primaryIdentityAssets,
-        "official-safe-fallback",
-        null,
-      )
-    }
-
-    if (
-      campaignRisk.requiresCampaignSafeTransfer
-    ) {
-      return await executeCall(
-        buildMiravaCampaignSafeTransferPrompt(
-          primaryPrompt,
-          "conservative",
-          campaignSafeContinuation,
-        ),
-        primaryIdentityAssets,
-        "campaign-safe-fallback",
-        null,
-      )
-    }
-
-    const fallbackBase =
-      isContinuation &&
-      continuationDirective
-        ? buildMiravaSessionContinuationPrompt({
-            masterPrompt:
-              creation.masterPrompt ?? "",
-            negativePrompt:
-              creation.negativePrompt ?? "",
-            intents:
-              continuationDirective.intents,
-            customInstruction:
-              continuationDirective
-                .customInstruction,
-            shotIndex:
-              creation.shotIndex ?? 1,
-            hasContinuityImage:
-              false,
-          }).positivePrompt
-        : primaryPrompt
-
-    const rewritten =
-      complianceNeutralRewrite({
-        positivePrompt:
-          fallbackBase,
-        negativeGuardrails:
-          "",
-        sceneProfile:
-          "standard_fashion",
-        metadata: {
-          extractorVersion:
-            "2.0.0",
-          classifierVersion:
-            "1.0.0",
-          compilerVersion:
-            "1.0.0",
-          compiledAt:
-            new Date()
-              .toISOString(),
-        },
-      })
-
-    return await executeCall(
-      rewritten.positivePrompt,
-      primaryIdentityAssets,
-      "semantic-fallback",
-      null,
+    return await executeKieCall(
+      buildMiravaCampaignSafeTransferPrompt(
+        primaryPrompt,
+        "conservative",
+        campaignSafeContinuation,
+      ),
+      "campaign-safe-kie-fallback",
+      false,
     )
   }
 }

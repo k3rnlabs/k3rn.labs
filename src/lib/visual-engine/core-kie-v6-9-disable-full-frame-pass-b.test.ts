@@ -7,14 +7,16 @@ import {
   readFileSync,
 } from "node:fs"
 
-const core = readFileSync(
-  "src/lib/visual-engine/core.ts",
-  "utf8",
-)
+const core =
+  readFileSync(
+    "src/lib/visual-engine/core.ts",
+    "utf8",
+  )
 
-function artisticReferenceRoute(): string {
+function artisticReferenceRoute():
+  string {
   const match =
-    /if\s*\(\s*useKieCampaignProvider\s*&&\s*kieArtisticReference\s*&&\s*isReferenceAnchor\s*\)\s*\{/
+    /if\s*\(\s*kieArtisticReference\s*&&\s*isReferenceAnchor\s*\)\s*\{/
       .exec(core)
 
   if (
@@ -28,7 +30,7 @@ function artisticReferenceRoute(): string {
 
   const end =
     core.indexOf(
-      "Kie without an artistic reference",
+      "Every remaining MIRAVA image path is KIE-only.",
       match.index,
     )
 
@@ -54,7 +56,15 @@ describe(
           artisticReferenceRoute()
 
         expect(route).toContain(
+          "kieArtisticReference",
+        )
+
+        expect(route).toContain(
           "isReferenceAnchor",
+        )
+
+        expect(route).not.toContain(
+          "useKieCampaignProvider",
         )
       },
     )
@@ -68,6 +78,7 @@ describe(
         expect(route).toContain(
           "storeMiravaKieIntermediateAsset(",
         )
+
         expect(route).toContain(
           "MIRAVA_KIE_V6_PASS_A_READY_STATE",
         )
@@ -105,13 +116,18 @@ describe(
     )
 
     it(
-      "leaves later frames and continuations on the existing one-pass path",
+      "leaves later frames and continuations on the KIE one-pass path",
       () => {
         expect(core).toContain(
-          "Kie without an artistic reference remains the",
+          "Every remaining MIRAVA image path is KIE-only.",
         )
-        expect(core).toContain(
-          "if (useKieCampaignProvider)",
+
+        expect(core).toMatch(
+          /return await executeKieCall\([\s\S]*?resolvedKiePrimaryPrompt,[\s\S]*?"campaign-safe-kie-primary"/,
+        )
+
+        expect(core).not.toContain(
+          "useKieProviderRecovery",
         )
       },
     )

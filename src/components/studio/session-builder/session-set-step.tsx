@@ -5,10 +5,14 @@ import {
   useReducedMotion,
 } from "framer-motion"
 import {
+  ArrowLeft,
   ArrowRight,
   Check,
 } from "lucide-react"
 
+import {
+  MIRAVA_SESSION_SHOT_COUNT,
+} from "@/lib/mirava/session-builder/schema"
 import {
   MIRAVA_SET_PRESETS,
   type MiravaSetPresetCategory,
@@ -35,6 +39,7 @@ type PreviewImages =
 
 type SessionSetStepProps = {
   locale: Locale
+  shotCount?: number
   selectedSetPresetId:
     | MiravaSetPresetId
     | null
@@ -43,6 +48,7 @@ type SessionSetStepProps = {
       presetId:
         MiravaSetPresetId,
     ) => void
+  onBack: () => void
   onContinue: () => void
   continueBusy?: boolean
   previewImages?:
@@ -56,7 +62,12 @@ export const SESSION_SET_COPY = {
     title:
       "Choisissez votre plateau.",
     intro:
-      "Le studio définit l’espace physique de toute la séance. MIRAVA conservera ce décor sur les six photos.",
+      (
+        shotCount: number,
+      ) =>
+        shotCount === 1
+          ? "Le studio définit l’espace physique de toute la séance. MIRAVA conservera ce décor sur la photo."
+          : `Le studio définit l’espace physique de toute la séance. MIRAVA conservera ce décor sur les ${shotCount} photos.`,
     essential:
       "Essentiels",
     essentialHint:
@@ -68,7 +79,12 @@ export const SESSION_SET_COPY = {
     previewEyebrow:
       "Votre plateau",
     continuity:
-      "Conservé sur les 6 photos",
+      (
+        shotCount: number,
+      ) =>
+        shotCount === 1
+          ? "Conservé sur la photo"
+          : `Conservé sur les ${shotCount} photos`,
     emptyPreview:
       "Sélectionnez un studio pour préparer votre plateau.",
     continue:
@@ -82,7 +98,12 @@ export const SESSION_SET_COPY = {
     title:
       "Elige tu plató.",
     intro:
-      "El estudio define el espacio físico de toda la sesión. MIRAVA conservará este escenario en las seis fotos.",
+      (
+        shotCount: number,
+      ) =>
+        shotCount === 1
+          ? "El estudio define el espacio físico de toda la sesión. MIRAVA conservará este escenario en la foto."
+          : `El estudio define el espacio físico de toda la sesión. MIRAVA conservará este escenario en las ${shotCount} fotos.`,
     essential:
       "Esenciales",
     essentialHint:
@@ -94,7 +115,12 @@ export const SESSION_SET_COPY = {
     previewEyebrow:
       "Tu plató",
     continuity:
-      "Conservado en las 6 fotos",
+      (
+        shotCount: number,
+      ) =>
+        shotCount === 1
+          ? "Conservado en la foto"
+          : `Conservado en las ${shotCount} fotos`,
     emptyPreview:
       "Selecciona un estudio para preparar tu plató.",
     continue:
@@ -361,12 +387,14 @@ function SelectedSetPreview({
   preset,
   locale,
   image,
+  shotCount,
 }: {
   preset:
     MiravaSessionSetPreset
   locale:
     Locale
   image?: string
+  shotCount: number
 }) {
   const copy =
     SESSION_SET_COPY[locale]
@@ -389,7 +417,9 @@ function SelectedSetPreview({
         <span className="rounded-full border border-white/15 bg-black/25 px-3 py-1.5 font-jakarta text-[9px] font-semibold text-white/70 backdrop-blur-xl">
           {
             copy
-              .continuity
+              .continuity(
+                shotCount,
+              )
           }
         </span>
       </div>
@@ -428,8 +458,11 @@ function SelectedSetPreview({
 
 export function SessionSetStep({
   locale,
+  shotCount =
+    MIRAVA_SESSION_SHOT_COUNT,
   selectedSetPresetId,
   onSelect,
+  onBack,
   onContinue,
   continueBusy = false,
   previewImages,
@@ -493,7 +526,9 @@ export function SessionSetStep({
             <p className="mt-4 max-w-xl font-jakarta text-sm leading-6 text-white/58">
               {
                 copy
-                  .intro
+                  .intro(
+                    shotCount,
+                  )
               }
             </p>
           </motion.div>
@@ -584,6 +619,9 @@ export function SessionSetStep({
                 locale={
                   locale
                 }
+                shotCount={
+                  shotCount
+                }
                 image={
                   previewImages?.[
                     selectedPreset.id
@@ -605,7 +643,26 @@ export function SessionSetStep({
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#0d0e0e]/88 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-2xl lg:sticky lg:bottom-0 lg:bg-[#0d0e0e]/92 lg:px-8">
-        <div className="mx-auto flex w-full max-w-[1520px] justify-end">
+        <div className="mx-auto flex w-full max-w-[1520px] flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <button
+            type="button"
+            onClick={
+              onBack
+            }
+            disabled={
+              continueBusy
+            }
+            className="flex min-h-[54px] w-full items-center justify-center gap-2 rounded-2xl border border-white/12 bg-white/[0.04] px-5 font-jakarta text-sm font-semibold text-white/75 transition hover:bg-white/[0.08] active:scale-[0.985] disabled:opacity-40 sm:w-auto"
+          >
+            <ArrowLeft className="h-4 w-4" />
+
+            <span>
+              {locale === "fr"
+                ? "Retour au Studio"
+                : "Volver al Studio"}
+            </span>
+          </button>
+
           <button
             type="button"
             disabled={

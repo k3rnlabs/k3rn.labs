@@ -1,11 +1,12 @@
 import {
+  readFileSync,
+} from "node:fs"
+
+import {
   describe,
   expect,
   it,
 } from "vitest"
-import {
-  readFileSync,
-} from "node:fs"
 
 const core =
   readFileSync(
@@ -20,59 +21,114 @@ const schema =
   )
 
 describe(
-  "MIRAVA Kie routing contracts",
+  "MIRAVA KIE-only image runtime",
   () => {
     it(
-      "routes campaign-safe work directly to Kie when enabled",
+      "routes active image generation through KIE",
       () => {
-        expect(core).toContain(
+        expect(
+          core,
+        ).toContain(
+          "!isMiravaKieImageProviderEnabled()",
+        )
+
+        expect(
+          core,
+        ).toContain(
+          "runKieImageGeneration({",
+        )
+
+        expect(
+          core,
+        ).not.toContain(
           "useKieCampaignProvider",
         )
-        expect(core).toContain(
-          "runKieImageGeneration",
-        )
-        expect(core).toContain(
-          '"campaign-safe-kie-primary"',
-        )
-        expect(core).toContain(
-          '"campaign-safe-kie-fallback"',
+
+        expect(
+          core,
+        ).not.toContain(
+          "useKieProviderRecovery",
         )
       },
     )
 
     it(
-      "persists provider task state for idempotent retries",
+      "persists KIE task state for resumable retries",
       () => {
-        expect(schema).toContain(
+        expect(
+          schema,
+        ).toContain(
           "providerTaskId",
         )
-        expect(schema).toContain(
+
+        expect(
+          schema,
+        ).toContain(
           "providerFrameIndex",
         )
-        expect(core).toContain(
+
+        expect(
+          core,
+        ).toContain(
           "onTaskCreated:",
         )
-        expect(core).toContain(
+
+        expect(
+          core,
+        ).toContain(
           "const resumeTaskId =",
         )
 
-        expect(core).toContain(
+        expect(
+          core,
+        ).toContain(
           "resumeTaskId,",
         )
       },
     )
 
     it(
-      "retains the art-direction reference for Kie then purges it",
+      "retains the artistic reference for KIE and purges it after completion",
       () => {
-        expect(core).toContain(
-          "retainReferenceForKieGeneration",
+        expect(
+          core,
+        ).toContain(
+          "const kieArtisticReference =",
         )
-        expect(core).toContain(
-          "purgeMiravaArtisticReferenceAssets",
+
+        expect(
+          core,
+        ).toContain(
+          "purgeMiravaArtisticReferenceAssets(",
         )
-        expect(core).toContain(
+
+        expect(
+          core,
+        ).toContain(
           "[mirava-reference-retained-for-kie-generation]",
+        )
+      },
+    )
+
+    it(
+      "keeps V6 Pass A immutable with no full-frame restoration provider pass",
+      () => {
+        expect(
+          core,
+        ).toContain(
+          "v6-pass-a-ready",
+        )
+
+        expect(
+          core,
+        ).toContain(
+          "Pass A is the immutable final full-frame image",
+        )
+
+        expect(
+          core,
+        ).not.toContain(
+          '"identity-restoration"',
         )
       },
     )

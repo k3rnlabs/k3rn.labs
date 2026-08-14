@@ -1,4 +1,5 @@
 import {
+  MIRAVA_KIE_ANALYSIS_MODEL,
   MIRAVA_KIE_IMAGE_MODEL,
   MIRAVA_KIE_IMAGE_POLL_WINDOW_MS,
 } from "@/lib/mirava/server-config"
@@ -86,6 +87,7 @@ type KieTaskData = {
   failCode?: string | null
   failMsg?: string | null
   progress?: number | null
+  creditsConsumed?: number | null
 }
 
 type KieTaskBody = {
@@ -379,6 +381,260 @@ async function uploadReference(
   return parseKieUploadUrl(
     body,
   )
+}
+
+export type MiravaKieAnalysisImage = {
+  buffer: Buffer
+  mimeType: string
+  fileName: string
+  label?: string
+}
+
+type KieResponsesBody = {
+  output?: Array<{
+    type?: string
+    content?: Array<{
+      type?: string
+      text?: string
+    }>
+  }>
+  credits_consumed?: number
+  usage?: {
+    input_tokens?: number
+    output_tokens?: number
+    total_tokens?: number
+  }
+}
+
+export function parseKieResponsesText(
+  raw: string,
+): string {
+  const text =
+    raw.trim()
+
+  if (!text) {
+    return ""
+  }
+
+  try {
+    const body =
+      JSON.parse(text) as
+        KieResponsesBody
+
+    return (
+      body.output
+        ?.flatMap(
+          (item) =>
+            item.content ?? [],
+        )
+        .filter(
+          (item) =>
+            item.type ===
+              "output_text" &&
+            typeof item.text ===
+              "string",
+        )
+        .map(
+          (item) =>
+            item.text ?? "",
+        )
+        .join("")
+        .trim() ??
+      ""
+    )
+  } catch {
+    return ""
+  }
+}
+
+export async function runKieMultimodalAnalysis(
+  args: {
+    systemPrompt: string
+    userPrompt: string
+    images: MiravaKieAnalysisImage[]
+    timeoutMs: number
+  },
+): Promise<{
+  text: string
+  model: string
+  creditsConsumed: number | null
+  inputTokens: number | null
+  outputTokens: number | null
+}> {
+  if (args.images.length < 1) {
+    throw new KieProviderError({
+      message:
+        "Kie analysis requires an image.",
+      code:
+        "KIE_ANALYSIS_IMAGE_REQUIRED",
+      kind:
+        "configuration",
+      retryable:
+        false,
+    })
+  }
+
+  const imageUrls =
+    await Promise.all(
+      args.images.map(
+        async (image) => ({
+          label:
+            image.label,
+          url:
+            await uploadReference({
+              role:
+                "ART_DIRECTION",
+              buffer:
+                image.buffer,
+              mimeType:
+                image.mimeType,
+              fileName:
+                image.fileName,
+            }),
+        }),
+      ),
+    )
+
+  const content:
+    Array<Record<string, unknown>> =
+    [
+      {
+        type:
+          "input_text",
+        text:
+          [
+            args.systemPrompt,
+            args.userPrompt,
+          ]
+            .filter(Boolean)
+            .join("\n\n"),
+      },
+    ]
+
+  for (const image of imageUrls) {
+    if (image.label) {
+      content.push({
+        type:
+          "input_text",
+        text:
+          image.label,
+      })
+    }
+
+    content.push({
+      type:
+        "input_image",
+      image_url:
+        image.url,
+    })
+  }
+
+  const response =
+    await kieFetch(
+      "https://" +
+      "api.kie.ai" +
+      "/codex/v1/responses",
+      {
+        method:
+          "POST",
+        headers: {
+          Authorization:
+            `Bearer ${apiKey()}`,
+          "Content-Type":
+            "application/json",
+        },
+        body:
+          JSON.stringify({
+            model:
+              MIRAVA_KIE_ANALYSIS_MODEL,
+            stream:
+              false,
+            input: [
+              {
+                role:
+                  "user",
+                content,
+              },
+            ],
+            reasoning: {
+              effort:
+                "low",
+            },
+          }),
+        signal:
+          AbortSignal.timeout(
+            args.timeoutMs,
+          ),
+      },
+    )
+
+  const raw =
+    await response.text()
+
+  if (!response.ok) {
+    throw providerErrorFromHttp(
+      response.status,
+      raw,
+      "Kie analysis failed",
+    )
+  }
+
+  let body:
+    KieResponsesBody
+
+  try {
+    body =
+      JSON.parse(raw) as
+        KieResponsesBody
+  } catch {
+    throw new KieProviderError({
+      message:
+        "Kie analysis returned invalid JSON.",
+      code:
+        "KIE_ANALYSIS_INVALID_JSON",
+      kind:
+        "invalid_response",
+      retryable:
+        true,
+    })
+  }
+
+  const text =
+    parseKieResponsesText(raw)
+
+  if (!text) {
+    throw new KieProviderError({
+      message:
+        "Kie analysis returned no output text.",
+      code:
+        "KIE_ANALYSIS_EMPTY_RESPONSE",
+      kind:
+        "invalid_response",
+      retryable:
+        true,
+    })
+  }
+
+  return {
+    text,
+    model:
+      MIRAVA_KIE_ANALYSIS_MODEL,
+    creditsConsumed:
+      typeof body.credits_consumed ===
+        "number"
+        ? body.credits_consumed
+        : null,
+    inputTokens:
+      typeof body.usage?.input_tokens ===
+        "number"
+        ? body.usage.input_tokens
+        : null,
+    outputTokens:
+      typeof body.usage?.output_tokens ===
+        "number"
+        ? body.usage.output_tokens
+        : null,
+  }
 }
 
 export function shouldRouteMiravaPromptToKie(
@@ -1833,6 +2089,7 @@ export async function runKieImageGeneration(args: {
 }): Promise<{
   taskId: string
   image: Buffer
+  creditsConsumed: number | null
 }> {
   if (
     args.images.length === 0 &&
@@ -1972,12 +2229,19 @@ export async function runKieImageGeneration(args: {
         })
       }
 
+      const image =
+        await downloadResult(
+          resultUrl,
+        )
+
       return {
         taskId,
-        image:
-          await downloadResult(
-            resultUrl,
-          ),
+        image,
+        creditsConsumed:
+          typeof info.creditsConsumed ===
+            "number"
+            ? info.creditsConsumed
+            : null,
       }
     }
 

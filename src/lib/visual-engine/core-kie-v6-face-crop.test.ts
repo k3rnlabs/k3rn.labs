@@ -265,6 +265,18 @@ describe(
         expect(
           kieAssetsBlock,
         ).toContain(
+          "const kieIdentityAssets =",
+        )
+
+        expect(
+          kieAssetsBlock,
+        ).toContain(
+          "identityAssets",
+        )
+
+        expect(
+          kieAssetsBlock,
+        ).not.toContain(
           "? identityAssets",
         )
 

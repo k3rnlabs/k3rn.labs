@@ -8,9 +8,23 @@ import {
   isMiravaSetPresetId,
   type MiravaSetPresetId,
 } from "./set-presets"
+import {
+  MIRAVA_SESSION_LEGACY_SHOT_COUNT,
+  createDefaultMiravaSessionBuilderV2Options,
+  miravaSessionBuilderV2OptionsSchema,
+  miravaSessionPersistedShotCountSchema,
+} from "./session-options"
 
 export const MIRAVA_SESSION_BUILDER_VERSION = 1 as const
-export const MIRAVA_SESSION_SHOT_COUNT = 6 as const
+/*
+ * Transitional default only.
+ *
+ * Runtime Session Builder logic must use config.shotCount.
+ * The active default remains six until the variable-count
+ * database RPC is migrated and explicitly validated.
+ */
+export const MIRAVA_SESSION_SHOT_COUNT =
+  MIRAVA_SESSION_LEGACY_SHOT_COUNT
 
 export const MIRAVA_SESSION_BUILDER_MODES = [
   "CUSTOM_SHOOT",
@@ -50,12 +64,35 @@ export const miravaSessionBuilderDraftSchema =
         miravaSetPresetIdSchema.nullable(),
       lightingPresetId:
         miravaLightingPresetIdSchema.nullable(),
-      shotCount: z.literal(
-        MIRAVA_SESSION_SHOT_COUNT,
-      ),
+      shotCount:
+        miravaSessionPersistedShotCountSchema,
       lookMode: z.enum(
         MIRAVA_SESSION_LOOK_MODES,
       ),
+      framing:
+        miravaSessionBuilderV2OptionsSchema
+          .shape.framing,
+      pose:
+        miravaSessionBuilderV2OptionsSchema
+          .shape.pose,
+      expression:
+        miravaSessionBuilderV2OptionsSchema
+          .shape.expression,
+      gaze:
+        miravaSessionBuilderV2OptionsSchema
+          .shape.gaze,
+      makeup:
+        miravaSessionBuilderV2OptionsSchema
+          .shape.makeup,
+      skinFinish:
+        miravaSessionBuilderV2OptionsSchema
+          .shape.skinFinish,
+      hair:
+        miravaSessionBuilderV2OptionsSchema
+          .shape.hair,
+      userInstruction:
+        miravaSessionBuilderV2OptionsSchema
+          .shape.userInstruction,
     })
     .strict()
 
@@ -74,12 +111,35 @@ export const miravaSessionBuilderReadySchema =
       setPresetId: miravaSetPresetIdSchema,
       lightingPresetId:
         miravaLightingPresetIdSchema,
-      shotCount: z.literal(
-        MIRAVA_SESSION_SHOT_COUNT,
-      ),
+      shotCount:
+        miravaSessionPersistedShotCountSchema,
       lookMode: z.enum(
         MIRAVA_SESSION_LOOK_MODES,
       ),
+      framing:
+        miravaSessionBuilderV2OptionsSchema
+          .shape.framing,
+      pose:
+        miravaSessionBuilderV2OptionsSchema
+          .shape.pose,
+      expression:
+        miravaSessionBuilderV2OptionsSchema
+          .shape.expression,
+      gaze:
+        miravaSessionBuilderV2OptionsSchema
+          .shape.gaze,
+      makeup:
+        miravaSessionBuilderV2OptionsSchema
+          .shape.makeup,
+      skinFinish:
+        miravaSessionBuilderV2OptionsSchema
+          .shape.skinFinish,
+      hair:
+        miravaSessionBuilderV2OptionsSchema
+          .shape.hair,
+      userInstruction:
+        miravaSessionBuilderV2OptionsSchema
+          .shape.userInstruction,
     })
     .strict()
 
@@ -89,6 +149,9 @@ export type MiravaSessionBuilderReady =
   >
 
 export function createDefaultMiravaSessionBuilderDraft(): MiravaSessionBuilderDraft {
+  const v2 =
+    createDefaultMiravaSessionBuilderV2Options()
+
   return {
     version:
       MIRAVA_SESSION_BUILDER_VERSION,
@@ -98,6 +161,22 @@ export function createDefaultMiravaSessionBuilderDraft(): MiravaSessionBuilderDr
     shotCount:
       MIRAVA_SESSION_SHOT_COUNT,
     lookMode: "REFERENCE",
+    framing:
+      v2.framing,
+    pose:
+      v2.pose,
+    expression:
+      v2.expression,
+    gaze:
+      v2.gaze,
+    makeup:
+      v2.makeup,
+    skinFinish:
+      v2.skinFinish,
+    hair:
+      v2.hair,
+    userInstruction:
+      v2.userInstruction,
   }
 }
 

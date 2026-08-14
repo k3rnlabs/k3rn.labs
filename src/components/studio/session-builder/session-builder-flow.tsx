@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useRef,
   useState,
 } from "react"
 import {
@@ -23,8 +24,13 @@ import {
   getMiravaSessionBuilderClientSession,
   parseMiravaSessionBuilderClientSession,
   patchMiravaSessionBuilderClientSession,
+  type MiravaSessionBuilderClientPatch,
   type MiravaSessionBuilderClientSession,
 } from "@/lib/mirava/session-builder/session-builder.client"
+import {
+  MIRAVA_SESSION_BUILDER_RESUME_STEPS,
+  type MiravaSessionBuilderResumeStep,
+} from "@/lib/mirava/session-builder/session-progress"
 
 import {
   SessionSetStep,
@@ -32,6 +38,9 @@ import {
 import {
   SessionLightingStep,
 } from "./session-lighting-step"
+import {
+  SessionDirectionStep,
+} from "./session-direction-step"
 import {
   SessionLookStep,
 } from "./session-look-step"
@@ -43,12 +52,8 @@ type Locale =
   | "fr"
   | "es"
 
-export const MIRAVA_SESSION_BUILDER_STEPS = [
-  "SET",
-  "LIGHTING",
-  "LOOK",
-  "REVIEW",
-] as const
+export const MIRAVA_SESSION_BUILDER_STEPS =
+  MIRAVA_SESSION_BUILDER_RESUME_STEPS
 
 export type MiravaSessionBuilderStep =
   (typeof MIRAVA_SESSION_BUILDER_STEPS)[number]
@@ -58,7 +63,6 @@ type SessionBuilderFlowProps = {
   sessionId: string
   initialSession?:
     MiravaSessionBuilderClientSession
-  creditCost: number
   availableCredits?:
     | number
     | null
@@ -77,6 +81,8 @@ type SessionBuilderFlowProps = {
         string
       >
     >
+  onExit: () => void
+  onStepChange?: () => void
   onStart:
     (
       session:
@@ -131,7 +137,54 @@ export function resolveMiravaSessionBuilderStep(
     return "LIGHTING"
   }
 
-  return "LOOK"
+  if (
+    session.resumeStep ===
+      "REVIEW" &&
+    !canReviewMiravaSessionBuilderSession(
+      session,
+    )
+  ) {
+    return "LOOK"
+  }
+
+  return (
+    session.resumeStep ??
+    "DIRECTION"
+  )
+}
+
+export function mergeMiravaSessionAfterLookMutation(
+  current:
+    MiravaSessionBuilderClientSession,
+  value: unknown,
+): MiravaSessionBuilderClientSession {
+  const updated =
+    parseMiravaSessionBuilderClientSession(
+      value,
+    )
+
+  return {
+    ...updated,
+    config: {
+      ...updated.config,
+      framing:
+        current.config.framing,
+      pose:
+        current.config.pose,
+      expression:
+        current.config.expression,
+      gaze:
+        current.config.gaze,
+      makeup:
+        current.config.makeup,
+      skinFinish:
+        current.config.skinFinish,
+      hair:
+        current.config.hair,
+      userInstruction:
+        current.config.userInstruction,
+    },
+  }
 }
 
 export function canReviewMiravaSessionBuilderSession(
@@ -150,11 +203,12 @@ export function SessionBuilderFlow({
   locale,
   sessionId,
   initialSession,
-  creditCost,
   availableCredits = null,
   launchEnabled = true,
   setPreviewImages,
   lightingPreviewImages,
+  onExit,
+  onStepChange,
   onStart,
 }: SessionBuilderFlowProps) {
   const copy =
@@ -221,6 +275,11 @@ export function SessionBuilderFlow({
     saving,
     setSaving,
   ] = useState(false)
+
+  const directionSaveQueueRef =
+    useRef<Promise<void>>(
+      Promise.resolve(),
+    )
 
   const [
     startBusy,
@@ -318,18 +377,20 @@ export function SessionBuilderFlow({
     ],
   )
 
+  useEffect(
+    () => {
+      onStepChange?.()
+    },
+    [
+      onStepChange,
+      step,
+    ],
+  )
+
   const persist =
     async (
-      patch: {
-        setPresetId?:
-          | MiravaSetPresetId
-          | null
-        lightingPresetId?:
-          | MiravaLightingPresetId
-          | null
-        lookMode?:
-          MiravaSessionLookMode
-      },
+      patch:
+        MiravaSessionBuilderClientPatch,
     ) => {
       if (!session) {
         throw new Error(
@@ -350,6 +411,36 @@ export function SessionBuilderFlow({
       return updated
     }
 
+  const rememberStep =
+    async (
+      next:
+        MiravaSessionBuilderResumeStep,
+    ) => {
+      if (saving) {
+        return
+      }
+
+      setSaving(true)
+      setError(null)
+
+      try {
+        await persist({
+          resumeStep:
+            next,
+        })
+
+        setStep(
+          next,
+        )
+      } catch {
+        setError(
+          copy.saveError,
+        )
+      } finally {
+        setSaving(false)
+      }
+    }
+
   const continueSet =
     async () => {
       if (
@@ -366,6 +457,8 @@ export function SessionBuilderFlow({
         await persist({
           setPresetId:
             selectedSetPresetId,
+          resumeStep:
+            "LIGHTING",
         })
 
         setStep(
@@ -396,10 +489,125 @@ export function SessionBuilderFlow({
         await persist({
           lightingPresetId:
             selectedLightingPresetId,
+          resumeStep:
+            "DIRECTION",
         })
 
         setStep(
-          "LOOK",
+          "DIRECTION",
+        )
+      } catch {
+        setError(
+          copy.saveError,
+        )
+      } finally {
+        setSaving(false)
+      }
+    }
+
+  const persistDirection =
+    (
+      patch:
+        MiravaSessionBuilderClientPatch,
+    ): Promise<void> => {
+      if (!session) {
+        return Promise.reject(
+          new Error(
+            "MIRAVA_SESSION_FLOW_MISSING_SESSION",
+          ),
+        )
+      }
+
+      const currentSessionId =
+        session.id
+
+      setError(null)
+
+      const queuedSave =
+        directionSaveQueueRef
+          .current
+          .catch(
+            () =>
+              undefined,
+          )
+          .then(
+            async () => {
+              const updated =
+                await patchMiravaSessionBuilderClientSession(
+                  currentSessionId,
+                  {
+                    ...patch,
+                    resumeStep:
+                      "DIRECTION",
+                  },
+                )
+
+              setSession(
+                (
+                  current,
+                ) => {
+                  if (
+                    !current ||
+                    current.id !==
+                      updated.id
+                  ) {
+                    return current
+                  }
+
+                  return {
+                    ...updated,
+                    lookItems:
+                      updated.lookItems ??
+                      current.lookItems,
+                  }
+                },
+              )
+            },
+          )
+
+      directionSaveQueueRef.current =
+        queuedSave
+
+      return queuedSave.catch(
+        (
+          directionError,
+        ) => {
+          setError(
+            copy.saveError,
+          )
+
+          throw directionError
+        },
+      )
+    }
+
+  const moveFromDirection =
+    async (
+      patch:
+        MiravaSessionBuilderClientPatch,
+      next:
+        | "LIGHTING"
+        | "LOOK",
+    ) => {
+      if (saving) {
+        return
+      }
+
+      setSaving(true)
+      setError(null)
+
+      try {
+        await directionSaveQueueRef
+          .current
+
+        await persist({
+          ...patch,
+          resumeStep:
+            next,
+        })
+
+        setStep(
+          next,
         )
       } catch {
         setError(
@@ -421,6 +629,8 @@ export function SessionBuilderFlow({
         await persist({
           lookMode:
             mode,
+          resumeStep:
+            "LOOK",
         })
       } catch (
         modeError
@@ -434,37 +644,68 @@ export function SessionBuilderFlow({
     }
 
   const continueLook =
-    () => {
+    async () => {
       if (
         !session ||
+        saving ||
         !canReviewMiravaSessionBuilderSession(
           session,
         )
       ) {
-        setError(
-          copy.reviewError,
-        )
+        if (
+          !session ||
+          !canReviewMiravaSessionBuilderSession(
+            session,
+          )
+        ) {
+          setError(
+            copy.reviewError,
+          )
+        }
 
         return
       }
 
+      setSaving(true)
       setError(null)
-      setStep(
-        "REVIEW",
-      )
+
+      try {
+        await persist({
+          resumeStep:
+            "REVIEW",
+        })
+
+        setStep(
+          "REVIEW",
+        )
+      } catch {
+        setError(
+          copy.saveError,
+        )
+      } finally {
+        setSaving(false)
+      }
     }
 
   const handleLookSessionChange =
     (
       value: unknown,
     ) => {
-      const updated =
-        parseMiravaSessionBuilderClientSession(
-          value,
-        )
-
       setSession(
-        updated,
+        (
+          current,
+        ) => {
+          if (!current) {
+            return parseMiravaSessionBuilderClientSession(
+              value,
+            )
+          }
+
+          return mergeMiravaSessionAfterLookMutation(
+            current,
+            value,
+          )
+        },
       )
     }
 
@@ -535,11 +776,18 @@ export function SessionBuilderFlow({
           locale={
             locale
           }
+          shotCount={
+            session.config
+              .shotCount
+          }
           selectedSetPresetId={
             selectedSetPresetId
           }
           onSelect={
             setSelectedSetPresetId
+          }
+          onBack={
+            onExit
           }
           onContinue={() =>
             void continueSet()
@@ -559,6 +807,10 @@ export function SessionBuilderFlow({
           locale={
             locale
           }
+          shotCount={
+            session.config
+              .shotCount
+          }
           setPresetId={
             selectedSetPresetId ??
             session.config
@@ -571,7 +823,7 @@ export function SessionBuilderFlow({
             setSelectedLightingPresetId
           }
           onBack={() =>
-            setStep(
+            void rememberStep(
               "SET",
             )
           }
@@ -588,10 +840,50 @@ export function SessionBuilderFlow({
       ) : null}
 
       {step ===
+      "DIRECTION" ? (
+        <SessionDirectionStep
+          locale={
+            locale
+          }
+          config={
+            session.config
+          }
+          saving={
+            saving
+          }
+          onChange={
+            persistDirection
+          }
+          onBack={
+            (
+              patch,
+            ) =>
+              void moveFromDirection(
+                patch,
+                "LIGHTING",
+              )
+          }
+          onContinue={
+            (
+              patch,
+            ) =>
+              void moveFromDirection(
+                patch,
+                "LOOK",
+              )
+          }
+        />
+      ) : null}
+
+      {step ===
       "LOOK" ? (
         <SessionLookStep
           locale={
             locale
+          }
+          shotCount={
+            session.config
+              .shotCount
           }
           sessionId={
             session.id
@@ -599,6 +891,10 @@ export function SessionBuilderFlow({
           lookMode={
             session.config
               .lookMode
+          }
+          initialLookItems={
+            session.lookItems ??
+            []
           }
           persistedLookItemCount={
             session.lookItemCount
@@ -616,8 +912,8 @@ export function SessionBuilderFlow({
             handleLookSessionChange
           }
           onBack={() =>
-            setStep(
-              "LIGHTING",
+            void rememberStep(
+              "DIRECTION",
             )
           }
           onContinue={
@@ -644,11 +940,22 @@ export function SessionBuilderFlow({
           configurationReady={
             session.configurationReady
           }
+          lookItems={
+            session.lookItems ??
+            []
+          }
           lookItemCount={
             session.lookItemCount
           }
+          setPreviewImages={
+            setPreviewImages
+          }
+          lightingPreviewImages={
+            lightingPreviewImages
+          }
           creditCost={
-            creditCost
+            session.config
+              .shotCount
           }
           availableCredits={
             availableCredits
@@ -657,7 +964,7 @@ export function SessionBuilderFlow({
             launchEnabled
           }
           onBack={() =>
-            setStep(
+            void rememberStep(
               "LOOK",
             )
           }

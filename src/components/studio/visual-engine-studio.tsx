@@ -1,7 +1,7 @@
 "use client"
 
 import {
-  type ChangeEvent,
+    type ChangeEvent,
   type Dispatch,
   type ReactElement,
   type SetStateAction,
@@ -64,8 +64,13 @@ import { Header } from "@/components/ui/header-2"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import type { MiravaCreativeOptions } from "@/lib/mirava/creative-options"
 import {
+  MIRAVA_LIGHTING_PREVIEW_IMAGES,
+  MIRAVA_SET_PREVIEW_IMAGES,
+} from "@/lib/mirava/session-builder/studio-visual-assets"
+import {
   createMiravaSessionBuilderClientSession,
   type MiravaSessionBuilderClientSession,
+  listMiravaSessionBuilderClientSessions,
 } from "@/lib/mirava/session-builder/session-builder.client"
 import {
   MIRAVA_SESSION_SHOT_COUNT,
@@ -1224,12 +1229,60 @@ export function VisualEngineStudio() {
     MiravaSessionBuilderClientSession
     | null
   >(null)
+  const [
+    sessionBuilderDrafts,
+    setSessionBuilderDrafts,
+  ] = useState<
+    MiravaSessionBuilderClientSession[]
+  >([])
   const [sessionShootId, setSessionShootId] = useState<string | null>(null)
   const [
     sessionBuilderBusy,
     setSessionBuilderBusy,
   ] = useState(false)
   const [createStep, setCreateStepValue] = useState(0)
+
+  useEffect(() => {
+    if (!isLocaleReady) {
+      return
+    }
+
+    let cancelled =
+      false
+
+    void listMiravaSessionBuilderClientSessions()
+      .then(
+        (
+          sessions,
+        ) => {
+          if (
+            !cancelled
+          ) {
+            setSessionBuilderDrafts(
+              sessions,
+            )
+          }
+        },
+      )
+      .catch(
+        () => {
+          if (
+            !cancelled
+          ) {
+            setSessionBuilderDrafts(
+              [],
+            )
+          }
+        },
+      )
+
+    return () => {
+      cancelled =
+        true
+    }
+  }, [
+    isLocaleReady,
+  ])
   const [furthestCreateStep, setFurthestCreateStep] = useState(0)
   const [current, setCurrent] = useState<Detail | null>(null)
   const [portfolioCurrent, setPortfolioCurrent] =
@@ -2731,6 +2784,19 @@ await uploadMiravaIdentityProfile({
     { id: "library", label: t.library, icon: <Images /> },
     { id: "account", label: t.account, icon: <CircleUserRound /> },
   ]
+  const scrollSessionBuilderToTop =
+    useCallback(
+      () => {
+        studioScrollRef.current?.scrollTo({
+          top: 0,
+          left: 0,
+          behavior:
+            "auto",
+        })
+      },
+      [],
+    )
+
   const startSessionBuilder =
     async () => {
       if (sessionBuilderBusy) {
@@ -2768,6 +2834,20 @@ await uploadMiravaIdentityProfile({
         setSessionBuilderSession(
           nextSession,
         )
+        setSessionBuilderDrafts(
+          (
+            current,
+          ) => [
+            nextSession,
+            ...current.filter(
+              (
+                session,
+              ) =>
+                session.id !==
+                nextSession.id,
+            ),
+          ],
+        )
         setCurrent(null)
         setPortfolioCurrent(null)
         setDirectorOpen(false)
@@ -2783,6 +2863,21 @@ await uploadMiravaIdentityProfile({
       } finally {
         setSessionBuilderBusy(false)
       }
+    }
+
+  const resumeSessionBuilder =
+    (
+      builderSession:
+        MiravaSessionBuilderClientSession,
+    ) => {
+      setSessionBuilderSession(
+        builderSession,
+      )
+      setSessionShootId(null)
+      setCurrent(null)
+      setPortfolioCurrent(null)
+      setDirectorOpen(false)
+      selectView("create")
     }
 
   const openStudioHome = () => {
@@ -2837,6 +2932,18 @@ await uploadMiravaIdentityProfile({
       }
 
       setSessionBuilderSession(null)
+      setSessionBuilderDrafts(
+        (
+          current,
+        ) =>
+          current.filter(
+            (
+              session,
+            ) =>
+              session.id !==
+              builderSession.id,
+          ),
+      )
       setSessionShootId(builderSession.id)
       const url = new URL(window.location.href)
       url.searchParams.set("sessionShoot", builderSession.id)
@@ -3055,11 +3162,20 @@ await uploadMiravaIdentityProfile({
               initialSession={
                 sessionBuilderSession
               }
-              creditCost={
-                MIRAVA_SESSION_SHOT_COUNT
-              }
               availableCredits={
                 creditBalance
+              }
+              setPreviewImages={
+                MIRAVA_SET_PREVIEW_IMAGES
+              }
+              lightingPreviewImages={
+                MIRAVA_LIGHTING_PREVIEW_IMAGES
+              }
+              onExit={
+                openStudioHome
+              }
+              onStepChange={
+                scrollSessionBuilderToTop
               }
               onStart={launchSessionBuilderShoot}
             />
@@ -3089,6 +3205,13 @@ await uploadMiravaIdentityProfile({
               }
               sessionBuilderBusy={
                 sessionBuilderBusy
+              }
+              resumableSessionBuilder={
+                sessionBuilderDrafts[0] ??
+                null
+              }
+              onResumeSession={
+                resumeSessionBuilder
               }
               studios={studios}
               onReuse={(id) =>
@@ -3294,13 +3417,15 @@ await uploadMiravaIdentityProfile({
         }}
       />
 
-      <BottomNavBar
-        activeId={view}
-        items={bottomNavItems}
-        onValueChange={selectBottomNav}
-        navigationLabel={locale === "fr" ? "Navigation MIRAVA" : "Navegación MIRAVA"}
-        className="fixed inset-x-0 z-30 mx-auto lg:hidden"
-      />
+      {!sessionBuilderSession ? (
+        <BottomNavBar
+          activeId={view}
+          items={bottomNavItems}
+          onValueChange={selectBottomNav}
+          navigationLabel={locale === "fr" ? "Navigation MIRAVA" : "Navegación MIRAVA"}
+          className="fixed inset-x-0 z-30 mx-auto lg:hidden"
+        />
+      ) : null}
 
       {consentTarget !== undefined && <ConsentGate locale={locale} t={t} consents={consents} setConsents={setConsents} pending={pending} onClose={() => { setConsentTarget(undefined); setConsentReference(null) }} onConfirm={() => void acceptRequiredConsentsAndCreate()} />}
       {directorOpen && <MiravaCreativeDirector locale={locale} universeId={selectedUniverseId} options={options} onApply={applyAlmaDirection} onOpenReference={openReferenceFromAlma} onClose={closeDirector} />}
@@ -3395,6 +3520,8 @@ function StartView({
   onOpenCapture,
   onBuildSession,
   sessionBuilderBusy,
+  resumableSessionBuilder,
+  onResumeSession,
 }: {
   locale: Locale
   t: Copy
@@ -3416,6 +3543,14 @@ function StartView({
   onOpenCapture: () => void
   onBuildSession: () => void
   sessionBuilderBusy: boolean
+  resumableSessionBuilder:
+    | MiravaSessionBuilderClientSession
+    | null
+  onResumeSession:
+    (
+      session:
+        MiravaSessionBuilderClientSession,
+    ) => void
 }) {
   const [referenceFile, setReferenceFile] = useState<File | null>(null)
   const [referencePreview, setReferencePreview] = useState<string | null>(null)
@@ -3505,6 +3640,43 @@ function StartView({
 
       {step === 0 && (
         <div>
+          {entryIntent !== "reference" &&
+          !referenceFile &&
+          resumableSessionBuilder ? (
+            <button
+              type="button"
+              data-mirava-session-builder-resume
+              onClick={() =>
+                onResumeSession(
+                  resumableSessionBuilder,
+                )
+              }
+              className="mirava-dark-panel mb-3 flex min-h-[7.5rem] w-full items-end justify-between gap-5 overflow-hidden border border-white/15 p-5 text-left transition hover:-translate-y-0.5 sm:p-6"
+            >
+              <span className="min-w-0">
+                <span className="block font-jakarta text-xl font-semibold tracking-[-.04em] text-white sm:text-2xl">
+                  {locale === "fr"
+                    ? "Reprendre ma séance"
+                    : "Retomar mi sesión"}
+                </span>
+
+                <span className="mt-2 block max-w-xl text-xs leading-5 text-white/55">
+                  {locale === "fr"
+                    ? resumableSessionBuilder.configurationReady
+                      ? "Votre séance enregistrée est prête à être lancée."
+                      : "Votre configuration enregistrée vous attend."
+                    : resumableSessionBuilder.configurationReady
+                      ? "Tu sesión guardada está lista para iniciarse."
+                      : "Tu configuración guardada te está esperando."}
+                </span>
+              </span>
+
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/15 bg-white/[0.06] text-white">
+                <ArrowRight className="h-4 w-4" />
+              </span>
+            </button>
+          ) : null}
+
           {entryIntent !== "reference" && !referenceFile ? (
             <button
               type="button"
@@ -3525,8 +3697,16 @@ function StartView({
                 </span>
                 <span className="mt-2 block max-w-xl text-xs leading-5 text-white/55">
                   {locale === "fr"
-                    ? "Choisissez le studio, la lumière et le look. MIRAVA prépare un plan cohérent de 6 photos."
-                    : "Elige el estudio, la luz y el look. MIRAVA prepara un plan coherente de 6 fotos."}
+                    ? `Choisissez le studio, la lumière, la direction et le look. MIRAVA prépare un plan cohérent de ${MIRAVA_SESSION_SHOT_COUNT} ${
+                        Number(MIRAVA_SESSION_SHOT_COUNT) === 1
+                          ? "photo"
+                          : "photos"
+                      }.`
+                    : `Elige el estudio, la luz, la dirección y el look. MIRAVA prepara un plan coherente de ${MIRAVA_SESSION_SHOT_COUNT} ${
+                        Number(MIRAVA_SESSION_SHOT_COUNT) === 1
+                          ? "foto"
+                          : "fotos"
+                      }.`}
                 </span>
               </span>
 

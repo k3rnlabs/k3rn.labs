@@ -24,6 +24,14 @@ describe("MIRAVA Session Builder contract", () => {
       lightingPresetId: null,
       shotCount: 6,
       lookMode: "REFERENCE",
+      framing: "FREE",
+      pose: "FREE",
+      expression: "FREE",
+      gaze: "FREE",
+      makeup: "NATURAL",
+      skinFinish: "NATURAL",
+      hair: "PROFILE",
+      userInstruction: "",
     })
 
     expect(
@@ -47,6 +55,14 @@ describe("MIRAVA Session Builder contract", () => {
       shotCount:
         MIRAVA_SESSION_SHOT_COUNT,
       lookMode: "REFERENCE",
+      framing: "FREE",
+      pose: "FREE",
+      expression: "FREE",
+      gaze: "FREE",
+      makeup: "NATURAL",
+      skinFinish: "NATURAL",
+      hair: "PROFILE",
+      userInstruction: "",
     } as const
 
     expect(
@@ -70,6 +86,14 @@ describe("MIRAVA Session Builder contract", () => {
           "direct-flash-v1",
         shotCount: 6,
         lookMode: "REFERENCE",
+        framing: "FREE",
+        pose: "FREE",
+        expression: "FREE",
+        gaze: "FREE",
+        makeup: "NATURAL",
+        skinFinish: "NATURAL",
+        hair: "PROFILE",
+        userInstruction: "",
       }),
     ).toBe(false)
 
@@ -83,11 +107,19 @@ describe("MIRAVA Session Builder contract", () => {
           "cinematic-v1",
         shotCount: 6,
         lookMode: "REFERENCE",
+        framing: "FREE",
+        pose: "FREE",
+        expression: "FREE",
+        gaze: "FREE",
+        makeup: "NATURAL",
+        skinFinish: "NATURAL",
+        hair: "PROFILE",
+        userInstruction: "",
       }),
     ).toBe(false)
   })
 
-  it("locks the V1 session to six shots", () => {
+  it("accepts supported variable persisted shot counts", () => {
     expect(
       isMiravaSessionBuilderReady({
         version: 1,
@@ -98,8 +130,16 @@ describe("MIRAVA Session Builder contract", () => {
           "clean-v1",
         shotCount: 8,
         lookMode: "REFERENCE",
+        framing: "FREE",
+        pose: "FREE",
+        expression: "FREE",
+        gaze: "FREE",
+        makeup: "NATURAL",
+        skinFinish: "NATURAL",
+        hair: "PROFILE",
+        userInstruction: "",
       }),
-    ).toBe(false)
+    ).toBe(true)
   })
 
   it("rejects undeclared builder fields", () => {
@@ -113,6 +153,14 @@ describe("MIRAVA Session Builder contract", () => {
           "clean-v1",
         shotCount: 6,
         lookMode: "REFERENCE",
+        framing: "FREE",
+        pose: "FREE",
+        expression: "FREE",
+        gaze: "FREE",
+        makeup: "NATURAL",
+        skinFinish: "NATURAL",
+        hair: "PROFILE",
+        userInstruction: "",
         studioPresetId:
           "legacy-ambiguous-name",
       }).success,

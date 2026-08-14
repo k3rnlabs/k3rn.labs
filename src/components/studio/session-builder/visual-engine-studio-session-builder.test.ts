@@ -51,7 +51,7 @@ describe(
       )
     })
 
-    it("opens the dedicated six-slot darkroom after launch", () => {
+    it("opens the dynamic session darkroom after launch", () => {
       expect(
         source,
       ).toContain(
@@ -61,7 +61,13 @@ describe(
       expect(
         source,
       ).toContain(
-        "MIRAVA_SESSION_SHOT_COUNT",
+        "sessionBuilderSession",
+      )
+
+      expect(
+        source,
+      ).not.toContain(
+        "creditCost={\n                MIRAVA_SESSION_SHOT_COUNT",
       )
     })
   },

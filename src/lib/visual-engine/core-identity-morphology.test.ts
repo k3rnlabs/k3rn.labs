@@ -37,8 +37,12 @@ describe(
           "1280",
         )
 
+        expect(core).toMatch(
+          /images\.push\(\{[\s\S]*?buffer:\s*preview,[\s\S]*?mimeType:\s*"image\/jpeg"/,
+        )
+
         expect(core).toContain(
-          'toDataUrl(\n                preview,\n                "image/jpeg"',
+          "runKieMultimodalAnalysis({",
         )
       },
     )
@@ -81,7 +85,7 @@ describe(
 
         const providerIndex =
           core.indexOf(
-            "https://api.openai.com/v1/chat/completions",
+            "runKieMultimodalAnalysis({",
             refreshStart,
           )
 

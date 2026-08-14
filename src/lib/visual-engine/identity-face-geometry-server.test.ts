@@ -118,6 +118,64 @@ describe(
     )
 
     it(
+      "requires geometry for every face-capable identity view",
+      () => {
+        const start =
+          core.indexOf(
+            "function normalizeMiravaIdentityFaceGeometryForView",
+          )
+
+        const end =
+          core.indexOf(
+            "function normalizeMiravaIdentityAssets",
+            start,
+          )
+
+        const normalizer =
+          core.slice(
+            start,
+            end,
+          )
+
+        expect(
+          normalizer,
+        ).toContain(
+          "const faceGeometryRequired",
+        )
+
+        expect(
+          normalizer,
+        ).toContain(
+          "MIRAVA_FACE_GEOMETRY_VIEW_KEYS",
+        )
+
+        expect(
+          normalizer,
+        ).toContain(
+          "if (faceGeometryRequired)",
+        )
+
+        expect(
+          normalizer,
+        ).toContain(
+          '"IDENTITY_REQUIRED"',
+        )
+
+        expect(
+          normalizer,
+        ).toContain(
+          "return null",
+        )
+
+        expect(
+          normalizer,
+        ).toContain(
+          "if (!faceGeometryRequired)",
+        )
+      },
+    )
+
+    it(
       "validates geometry before durable persistence",
       () => {
         expect(core).toContain(

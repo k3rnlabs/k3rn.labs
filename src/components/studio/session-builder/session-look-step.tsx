@@ -1,6 +1,10 @@
 "use client"
 
 import {
+  MIRAVA_SESSION_SHOT_COUNT,
+} from "@/lib/mirava/session-builder/schema"
+
+import {
   useEffect,
   useRef,
   useState,
@@ -10,14 +14,17 @@ import {
   motion,
   useReducedMotion,
 } from "framer-motion"
+import * as DialogPrimitive from "@radix-ui/react-dialog"
 import {
   ArrowLeft,
   ArrowRight,
   Check,
   ImageIcon,
   Loader2,
+  Pencil,
   Plus,
   Shirt,
+  Trash2,
   Upload,
   X,
 } from "lucide-react"
@@ -34,6 +41,11 @@ import {
   type MiravaSessionLookMode,
 } from "@/lib/mirava/session-builder/schema"
 import {
+  deleteMiravaSessionLookAssetClient,
+  deleteMiravaSessionLookItemClient,
+  updateMiravaSessionLookItemClient,
+  uploadMiravaSessionLookAssets,
+  replaceMiravaSessionLookAssetClient,
   uploadMiravaSessionLookItem,
   type MiravaSessionLookClientItem,
   type MiravaSessionLookClientSession,
@@ -56,6 +68,7 @@ type LocalLookFile = {
 
 type SessionLookStepProps = {
   locale: Locale
+  shotCount?: number
   sessionId: string
   lookMode:
     MiravaSessionLookMode
@@ -83,11 +96,16 @@ type SessionLookStepProps = {
 export const SESSION_LOOK_COPY = {
   fr: {
     eyebrow:
-      "Étape 3 · Look",
+      "Étape 4 · Look",
     title:
       "Habillez votre séance.",
     intro:
-      "Utilisez la tenue de votre référence artistique ou fournissez vos propres vêtements et accessoires. Le look choisi restera cohérent sur les six photos.",
+      (
+        shotCount: number,
+      ) =>
+        shotCount === 1
+          ? "Utilisez la tenue de votre référence artistique ou fournissez vos propres vêtements et accessoires. Le look choisi restera cohérent sur la photo."
+          : `Utilisez la tenue de votre référence artistique ou fournissez vos propres vêtements et accessoires. Le look choisi restera cohérent sur les ${shotCount} photos.`,
     referenceTitle:
       "Utiliser la référence",
     referenceBody:
@@ -137,21 +155,68 @@ export const SESSION_LOOK_COPY = {
     maxItems:
       "Nombre maximum d’articles atteint.",
     back:
-      "Lumière",
+      "Direction",
     continue:
       "Voir ma séance",
     continuing:
       "Préparation…",
     modeError:
       "Impossible de modifier le mode du look.",
+    editArticle:
+      "Modifier l’article",
+    editArticleHint:
+      "Modifiez les informations de ce vêtement et gérez ses différentes vues.",
+    deleteView:
+      "Supprimer cette vue",
+    deletingView:
+      "Suppression de la vue…",
+    replaceView:
+      "Remplacer cette vue",
+    replacingView:
+      "Remplacement…",
+    lastViewRequired:
+      "Un article doit conserver au moins une photo.",
+    addView:
+      "Ajouter une vue",
+    addingView:
+      "Ajout de la vue…",
+    viewType:
+      "Type de vue",
+    viewLimit:
+      "Maximum de six vues atteint.",
+    saveChanges:
+      "Enregistrer",
+    savingChanges:
+      "Enregistrement…",
+    deleteArticle:
+      "Supprimer l’article",
+    deleteConfirmTitle:
+      "Supprimer définitivement cet article ?",
+    deleteConfirmBody:
+      "Le vêtement et toutes ses photos privées seront supprimés de cette séance.",
+    confirmDelete:
+      "Confirmer la suppression",
+    deletingArticle:
+      "Suppression…",
+    cancel:
+      "Annuler",
+    close:
+      "Fermer",
+    mutationError:
+      "Cette modification n’a pas pu être enregistrée.",
   },
   es: {
     eyebrow:
-      "Paso 3 · Look",
+      "Paso 4 · Look",
     title:
       "Viste tu sesión.",
     intro:
-      "Utiliza el vestuario de tu referencia artística o añade tus propias prendas y accesorios. El look elegido se mantendrá coherente en las seis fotos.",
+      (
+        shotCount: number,
+      ) =>
+        shotCount === 1
+          ? "Utiliza el vestuario de tu referencia artística o añade tus propias prendas y accesorios. El look elegido se mantendrá coherente en la foto."
+          : `Utiliza el vestuario de tu referencia artística o añade tus propias prendas y accesorios. El look elegido se mantendrá coherente en las ${shotCount} fotos.`,
     referenceTitle:
       "Usar la referencia",
     referenceBody:
@@ -201,13 +266,55 @@ export const SESSION_LOOK_COPY = {
     maxItems:
       "Se alcanzó el número máximo de prendas.",
     back:
-      "Luz",
+      "Dirección",
     continue:
       "Ver mi sesión",
     continuing:
       "Preparando…",
     modeError:
       "No se pudo modificar el modo del look.",
+    editArticle:
+      "Modificar la prenda",
+    editArticleHint:
+      "Modifica la información de esta prenda y gestiona sus diferentes vistas.",
+    deleteView:
+      "Eliminar esta vista",
+    deletingView:
+      "Eliminando la vista…",
+    replaceView:
+      "Reemplazar esta vista",
+    replacingView:
+      "Reemplazando…",
+    lastViewRequired:
+      "Una prenda debe conservar al menos una foto.",
+    addView:
+      "Añadir una vista",
+    addingView:
+      "Añadiendo vista…",
+    viewType:
+      "Tipo de vista",
+    viewLimit:
+      "Se alcanzó el máximo de seis vistas.",
+    saveChanges:
+      "Guardar",
+    savingChanges:
+      "Guardando…",
+    deleteArticle:
+      "Eliminar la prenda",
+    deleteConfirmTitle:
+      "¿Eliminar definitivamente esta prenda?",
+    deleteConfirmBody:
+      "La prenda y todas sus fotos privadas se eliminarán de esta sesión.",
+    confirmDelete:
+      "Confirmar eliminación",
+    deletingArticle:
+      "Eliminando…",
+    cancel:
+      "Cancelar",
+    close:
+      "Cerrar",
+    mutationError:
+      "No se pudo guardar esta modificación.",
   },
 } as const
 
@@ -411,11 +518,13 @@ function ModeCard({
 function LookItemCard({
   item,
   locale,
+  onEdit,
 }: {
   item:
     MiravaSessionLookClientItem
   locale:
     Locale
+  onEdit: () => void
 }) {
   const category =
     SESSION_LOOK_CATEGORY_LABELS[
@@ -432,49 +541,153 @@ function LookItemCard({
       locale
     ]
 
+  const title =
+    item.label ??
+    category
+
   return (
-    <div className="rounded-[20px] border border-white/10 bg-white/[0.035] p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <span className="font-jakarta text-[9px] font-bold uppercase tracking-[0.15em] text-[#bda995]">
-            {category}
-          </span>
+    <button
+      type="button"
+      data-mirava-look-item={
+        item.id
+      }
+      data-mirava-look-item-edit-trigger
+      onClick={
+        onEdit
+      }
+      aria-label={
+        `${copy.editArticle} · ${title}`
+      }
+      className="group block w-full overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.035] text-left transition hover:border-white/20 hover:bg-white/[0.055] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d7cab7]/60"
+    >
+      {assetCount > 0 ? (
+        <div
+          data-mirava-look-thumbnails
+          className={cn(
+            "grid gap-px border-b border-white/10 bg-white/10",
+            assetCount === 1
+              ? "grid-cols-1"
+              : assetCount === 2
+                ? "grid-cols-2"
+                : "grid-cols-3",
+          )}
+        >
+          {item.assets.map(
+            (
+              asset,
+              index,
+            ) => {
+              const viewLabel =
+                SESSION_LOOK_VIEW_LABELS[
+                  locale
+                ][
+                  asset.viewKey
+                ]
 
-          <strong className="mt-1.5 block truncate font-jakarta text-sm font-semibold text-white">
-            {item.label ??
-              category}
-          </strong>
+              return (
+                <div
+                  key={
+                    `${item.id}-${index}-${asset.viewKey}`
+                  }
+                  className={cn(
+                    "relative min-w-0 overflow-hidden bg-[#111212]",
+                    assetCount === 1
+                      ? "aspect-[16/10]"
+                      : "aspect-square",
+                  )}
+                >
+                  {asset.url ? (
+                    <img
+                      src={
+                        asset.url
+                      }
+                      alt={
+                        `${title} · ${viewLabel}`
+                      }
+                      loading="lazy"
+                      decoding="async"
+                      referrerPolicy="no-referrer"
+                      className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.015]"
+                    />
+                  ) : (
+                    <div
+                      data-mirava-look-thumbnail-unavailable
+                      className="flex h-full w-full items-center justify-center bg-black/20 text-white/20"
+                    >
+                      <ImageIcon className="h-5 w-5" />
+                    </div>
+                  )}
 
-          {item.brand ? (
-            <span className="mt-1 block truncate font-jakarta text-[11px] text-white/45">
+                  <span className="absolute bottom-1.5 left-1.5 max-w-[calc(100%-0.75rem)] truncate rounded-full border border-white/10 bg-black/65 px-2 py-1 font-jakarta text-[8px] font-medium text-white/70 backdrop-blur-md">
+                    {
+                      viewLabel
+                    }
+                  </span>
+                </div>
+              )
+            },
+          )}
+        </div>
+      ) : null}
+
+      <div className="p-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <span className="font-jakarta text-[9px] font-bold uppercase tracking-[0.15em] text-[#bda995]">
               {
-                item.brand
+                category
               }
             </span>
-          ) : null}
+
+            <strong className="mt-1.5 block truncate font-jakarta text-sm font-semibold text-white">
+              {
+                title
+              }
+            </strong>
+
+            {item.brand ? (
+              <span className="mt-1 block truncate font-jakarta text-[11px] text-white/45">
+                {
+                  item.brand
+                }
+              </span>
+            ) : null}
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 font-jakarta text-[9px] text-white/55">
+              {assetCount}{" "}
+              {assetCount === 1
+                ? copy.photo
+                : copy.photos}
+            </span>
+
+            <span
+              aria-hidden="true"
+              className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/40 transition group-hover:border-white/20 group-hover:text-white/75"
+            >
+              <Pencil className="h-3 w-3" />
+            </span>
+          </div>
         </div>
 
-        <span className="shrink-0 rounded-full border border-white/10 bg-black/20 px-2.5 py-1 font-jakarta text-[9px] text-white/55">
-          {assetCount}{" "}
-          {assetCount === 1
-            ? copy.photo
-            : copy.photos}
-        </span>
+        {item.description ? (
+          <p className="mt-3 line-clamp-2 font-jakarta text-[11px] leading-5 text-white/45">
+            {
+              item.description
+            }
+          </p>
+        ) : null}
       </div>
-
-      {item.description ? (
-        <p className="mt-3 line-clamp-2 font-jakarta text-[11px] leading-5 text-white/45">
-          {
-            item.description
-          }
-        </p>
-      ) : null}
-    </div>
+    </button>
   )
 }
 
+
 export function SessionLookStep({
   locale,
+  shotCount =
+    MIRAVA_SESSION_SHOT_COUNT,
   sessionId,
   lookMode,
   initialLookItems = [],
@@ -495,6 +708,16 @@ export function SessionLookStep({
     ]
 
   const fileInputRef =
+    useRef<HTMLInputElement>(
+      null,
+    )
+
+  const assetFileInputRef =
+    useRef<HTMLInputElement>(
+      null,
+    )
+
+  const replaceAssetFileInputRef =
     useRef<HTMLInputElement>(
       null,
     )
@@ -559,6 +782,84 @@ export function SessionLookStep({
   const [
     error,
     setError,
+  ] = useState<
+    string | null
+  >(null)
+
+  const [
+    editingItem,
+    setEditingItem,
+  ] = useState<
+    MiravaSessionLookClientItem | null
+  >(null)
+
+  const [
+    editCategory,
+    setEditCategory,
+  ] = useState<
+    MiravaSessionLookCategory
+  >(
+    "TOP",
+  )
+
+  const [
+    editLabel,
+    setEditLabel,
+  ] = useState("")
+
+  const [
+    editBrand,
+    setEditBrand,
+  ] = useState("")
+
+  const [
+    editDescription,
+    setEditDescription,
+  ] = useState("")
+
+  const [
+    itemMutationBusy,
+    setItemMutationBusy,
+  ] = useState<
+    | "save"
+    | "delete"
+    | "asset-delete"
+    | "asset-add"
+    | "asset-replace"
+    | null
+  >(null)
+
+  const [
+    deletingAssetId,
+    setDeletingAssetId,
+  ] = useState<
+    string | null
+  >(null)
+
+  const [
+    replacingAssetId,
+    setReplacingAssetId,
+  ] = useState<
+    string | null
+  >(null)
+
+  const [
+    newAssetViewKey,
+    setNewAssetViewKey,
+  ] = useState<
+    MiravaSessionLookViewKey
+  >(
+    "UNKNOWN",
+  )
+
+  const [
+    deleteConfirm,
+    setDeleteConfirm,
+  ] = useState(false)
+
+  const [
+    itemMutationError,
+    setItemMutationError,
   ] = useState<
     string | null
   >(null)
@@ -815,10 +1116,19 @@ export function SessionLookStep({
           )
 
         setLookItems(
-          (current) => [
-            ...current,
-            receipt.lookItem,
-          ],
+          Array.isArray(
+            receipt.session.lookItems,
+          ) &&
+          receipt.session.lookItems.length > 0
+            ? [
+                ...receipt.session.lookItems,
+              ]
+            : (
+                current,
+              ) => [
+                ...current,
+                receipt.lookItem,
+              ],
         )
 
         clearFiles()
@@ -846,6 +1156,700 @@ export function SessionLookStep({
         )
       } finally {
         setUploading(false)
+      }
+    }
+
+  const openLookItemEditor =
+    (
+      item:
+        MiravaSessionLookClientItem,
+    ) => {
+      if (
+        uploading ||
+        itemMutationBusy
+      ) {
+        return
+      }
+
+      setEditingItem(
+        item,
+      )
+
+      setEditCategory(
+        item.category,
+      )
+
+      setEditLabel(
+        item.label ??
+        "",
+      )
+
+      setEditBrand(
+        item.brand ??
+        "",
+      )
+
+      setEditDescription(
+        item.description ??
+        "",
+      )
+
+      setDeleteConfirm(
+        false,
+      )
+
+      setReplacingAssetId(
+        null,
+      )
+
+      setItemMutationError(
+        null,
+      )
+    }
+
+  const closeLookItemEditor =
+    () => {
+      if (
+        itemMutationBusy
+      ) {
+        return
+      }
+
+      setEditingItem(
+        null,
+      )
+
+      setDeleteConfirm(
+        false,
+      )
+
+      setItemMutationError(
+        null,
+      )
+    }
+
+  const saveLookItemChanges =
+    async () => {
+      if (
+        !editingItem ||
+        itemMutationBusy
+      ) {
+        return
+      }
+
+      const nextLabel =
+        editLabel.trim() ||
+        null
+
+      const nextBrand =
+        editBrand.trim() ||
+        null
+
+      const nextDescription =
+        editDescription.trim() ||
+        null
+
+      setItemMutationBusy(
+        "save",
+      )
+
+      setItemMutationError(
+        null,
+      )
+
+      try {
+        const refreshed =
+          await updateMiravaSessionLookItemClient({
+            sessionId,
+            lookItemId:
+              editingItem.id,
+            locale,
+            input: {
+              category:
+                editCategory,
+              label:
+                nextLabel,
+              brand:
+                nextBrand,
+              description:
+                nextDescription,
+            },
+          })
+
+        if (
+          Array.isArray(
+            refreshed.lookItems,
+          )
+        ) {
+          setLookItems(
+            [
+              ...refreshed.lookItems,
+            ],
+          )
+        } else {
+          setLookItems(
+            (
+              current,
+            ) =>
+              current.map(
+                (
+                  item,
+                ) =>
+                  item.id ===
+                  editingItem.id
+                    ? {
+                        ...item,
+                        category:
+                          editCategory,
+                        label:
+                          nextLabel,
+                        brand:
+                          nextBrand,
+                        description:
+                          nextDescription,
+                      }
+                    : item,
+              ),
+          )
+        }
+
+        onSessionChange?.(
+          refreshed,
+        )
+
+        setEditingItem(
+          null,
+        )
+
+        setDeleteConfirm(
+          false,
+        )
+      } catch (
+        mutationError
+      ) {
+        setItemMutationError(
+          mutationError instanceof
+            Error
+            ? mutationError.message
+            : copy.mutationError,
+        )
+      } finally {
+        setItemMutationBusy(
+          null,
+        )
+      }
+    }
+
+  const addLookAsset =
+    async (
+      event:
+        ChangeEvent<HTMLInputElement>,
+    ) => {
+      const file =
+        event.target.files?.[
+          0
+        ]
+
+      event.target.value =
+        ""
+
+      if (
+        !editingItem ||
+        itemMutationBusy ||
+        !file ||
+        editingItem.assets.length >=
+          MIRAVA_SESSION_LOOK_MAX_ASSETS_PER_ITEM
+      ) {
+        return
+      }
+
+      if (
+        ![
+          "image/jpeg",
+          "image/png",
+          "image/webp",
+        ].includes(
+          file.type,
+        ) ||
+        file.size <=
+          0
+      ) {
+        setItemMutationError(
+          locale ===
+            "fr"
+            ? "Ajoutez une image JPEG, PNG ou WebP valide."
+            : "Añade una imagen JPEG, PNG o WebP válida.",
+        )
+
+        return
+      }
+
+      setItemMutationBusy(
+        "asset-add",
+      )
+
+      setItemMutationError(
+        null,
+      )
+
+      try {
+        const currentItemId =
+          editingItem.id
+
+        const refreshed =
+          await uploadMiravaSessionLookAssets({
+            sessionId,
+            lookItemId:
+              currentItemId,
+            locale,
+            files: [
+              {
+                file,
+                viewKey:
+                  newAssetViewKey,
+              },
+            ],
+          })
+
+        if (
+          !Array.isArray(
+            refreshed.lookItems,
+          )
+        ) {
+          throw new Error(
+            copy.mutationError,
+          )
+        }
+
+        const refreshedItems = [
+          ...refreshed.lookItems,
+        ]
+
+        const refreshedEditingItem =
+          refreshedItems.find(
+            (item) =>
+              item.id ===
+              currentItemId,
+          )
+
+        if (
+          !refreshedEditingItem
+        ) {
+          throw new Error(
+            copy.mutationError,
+          )
+        }
+
+        setLookItems(
+          refreshedItems,
+        )
+
+        setEditingItem(
+          refreshedEditingItem,
+        )
+
+        setNewAssetViewKey(
+          "UNKNOWN",
+        )
+
+        onSessionChange?.(
+          refreshed,
+        )
+      } catch (
+        mutationError
+      ) {
+        setItemMutationError(
+          mutationError instanceof
+            Error
+            ? mutationError.message
+            : copy.mutationError,
+        )
+      } finally {
+        setItemMutationBusy(
+          null,
+        )
+      }
+    }
+
+  const replaceLookAsset =
+    async (
+      event:
+        ChangeEvent<HTMLInputElement>,
+    ) => {
+      const file =
+        event.target.files?.[
+          0
+        ]
+
+      event.target.value =
+        ""
+
+      const currentAsset =
+        editingItem?.assets.find(
+          (asset) =>
+            asset.id ===
+            replacingAssetId,
+        )
+
+      if (
+        !editingItem ||
+        itemMutationBusy ||
+        !file ||
+        !currentAsset?.id
+      ) {
+        setReplacingAssetId(
+          null,
+        )
+
+        return
+      }
+
+      if (
+        ![
+          "image/jpeg",
+          "image/png",
+          "image/webp",
+        ].includes(
+          file.type,
+        ) ||
+        file.size <=
+          0
+      ) {
+        setItemMutationError(
+          locale ===
+            "fr"
+            ? "Ajoutez une image JPEG, PNG ou WebP valide."
+            : "Añade una imagen JPEG, PNG o WebP válida.",
+        )
+
+        setReplacingAssetId(
+          null,
+        )
+
+        return
+      }
+
+      setItemMutationBusy(
+        "asset-replace",
+      )
+
+      setItemMutationError(
+        null,
+      )
+
+      try {
+        const currentItemId =
+          editingItem.id
+
+        const refreshed =
+          await replaceMiravaSessionLookAssetClient({
+            sessionId,
+            lookItemId:
+              currentItemId,
+            assetId:
+              currentAsset.id,
+            locale,
+            file: {
+              file,
+              viewKey:
+                currentAsset.viewKey,
+            },
+          })
+
+        if (
+          !Array.isArray(
+            refreshed.lookItems,
+          )
+        ) {
+          throw new Error(
+            copy.mutationError,
+          )
+        }
+
+        const refreshedItems = [
+          ...refreshed.lookItems,
+        ]
+
+        const refreshedEditingItem =
+          refreshedItems.find(
+            (item) =>
+              item.id ===
+              currentItemId,
+          )
+
+        if (
+          !refreshedEditingItem
+        ) {
+          throw new Error(
+            copy.mutationError,
+          )
+        }
+
+        setLookItems(
+          refreshedItems,
+        )
+
+        setEditingItem(
+          refreshedEditingItem,
+        )
+
+        onSessionChange?.(
+          refreshed,
+        )
+      } catch (
+        mutationError
+      ) {
+        setItemMutationError(
+          mutationError instanceof
+            Error
+            ? mutationError.message
+            : copy.mutationError,
+        )
+      } finally {
+        setReplacingAssetId(
+          null,
+        )
+
+        setItemMutationBusy(
+          null,
+        )
+      }
+    }
+
+  const openReplaceLookAsset =
+    (
+      assetId:
+        string | undefined,
+    ) => {
+      if (
+        !assetId ||
+        itemMutationBusy
+      ) {
+        return
+      }
+
+      setReplacingAssetId(
+        assetId,
+      )
+
+      replaceAssetFileInputRef
+        .current
+        ?.click()
+    }
+
+  const deleteLookAsset =
+    async (
+      assetId:
+        string | undefined,
+    ) => {
+      if (
+        !editingItem ||
+        itemMutationBusy ||
+        !assetId ||
+        editingItem.assets.length <=
+          1
+      ) {
+        return
+      }
+
+      setItemMutationBusy(
+        "asset-delete",
+      )
+
+      setDeletingAssetId(
+        assetId,
+      )
+
+      setItemMutationError(
+        null,
+      )
+
+      try {
+        const currentItemId =
+          editingItem.id
+
+        const refreshed =
+          await deleteMiravaSessionLookAssetClient({
+            sessionId,
+            lookItemId:
+              currentItemId,
+            assetId,
+            locale,
+          })
+
+        if (
+          Array.isArray(
+            refreshed.lookItems,
+          )
+        ) {
+          const refreshedItems = [
+            ...refreshed.lookItems,
+          ]
+
+          setLookItems(
+            refreshedItems,
+          )
+
+          const refreshedEditingItem =
+            refreshedItems.find(
+              (item) =>
+                item.id ===
+                currentItemId,
+            )
+
+          if (
+            refreshedEditingItem
+          ) {
+            setEditingItem(
+              refreshedEditingItem,
+            )
+          } else {
+            setEditingItem(
+              null,
+            )
+          }
+        } else {
+          const nextEditingItem = {
+            ...editingItem,
+            assets:
+              editingItem.assets.filter(
+                (asset) =>
+                  asset.id !==
+                  assetId,
+              ),
+          }
+
+          setEditingItem(
+            nextEditingItem,
+          )
+
+          setLookItems(
+            (current) =>
+              current.map(
+                (item) =>
+                  item.id ===
+                  currentItemId
+                    ? nextEditingItem
+                    : item,
+              ),
+          )
+        }
+
+        onSessionChange?.(
+          refreshed,
+        )
+      } catch (
+        mutationError
+      ) {
+        setItemMutationError(
+          mutationError instanceof
+            Error
+            ? mutationError.message
+            : copy.mutationError,
+        )
+      } finally {
+        setDeletingAssetId(
+          null,
+        )
+
+        setItemMutationBusy(
+          null,
+        )
+      }
+    }
+
+  const deleteLookItem =
+    async () => {
+      if (
+        !editingItem ||
+        itemMutationBusy
+      ) {
+        return
+      }
+
+      if (
+        !deleteConfirm
+      ) {
+        setDeleteConfirm(
+          true,
+        )
+
+        setItemMutationError(
+          null,
+        )
+
+        return
+      }
+
+      setItemMutationBusy(
+        "delete",
+      )
+
+      setItemMutationError(
+        null,
+      )
+
+      try {
+        const removedId =
+          editingItem.id
+
+        const refreshed =
+          await deleteMiravaSessionLookItemClient({
+            sessionId,
+            lookItemId:
+              removedId,
+            locale,
+          })
+
+        if (
+          Array.isArray(
+            refreshed.lookItems,
+          )
+        ) {
+          setLookItems(
+            [
+              ...refreshed.lookItems,
+            ],
+          )
+        } else {
+          setLookItems(
+            (
+              current,
+            ) =>
+              current.filter(
+                (
+                  item,
+                ) =>
+                  item.id !==
+                  removedId,
+              ),
+          )
+        }
+
+        onSessionChange?.(
+          refreshed,
+        )
+
+        setEditingItem(
+          null,
+        )
+
+        setDeleteConfirm(
+          false,
+        )
+      } catch (
+        mutationError
+      ) {
+        setItemMutationError(
+          mutationError instanceof
+            Error
+            ? mutationError.message
+            : copy.mutationError,
+        )
+      } finally {
+        setItemMutationBusy(
+          null,
+        )
       }
     }
 
@@ -906,7 +1910,9 @@ export function SessionLookStep({
 
             <p className="mt-4 max-w-2xl font-jakarta text-sm leading-6 text-white/58">
               {
-                copy.intro
+                copy.intro(
+                  shotCount,
+                )
               }
             </p>
           </motion.div>
@@ -1390,6 +2396,11 @@ export function SessionLookStep({
                       locale={
                         locale
                       }
+                      onEdit={() =>
+                        openLookItemEditor(
+                          item,
+                        )
+                      }
                     />
                   ),
                 )}
@@ -1418,6 +2429,644 @@ export function SessionLookStep({
           </div>
         </div>
       </div>
+
+      {editingItem ? (
+        <DialogPrimitive.Root
+          open
+          onOpenChange={(
+            open,
+          ) => {
+            if (!open) {
+              closeLookItemEditor()
+            }
+          }}
+        >
+          <DialogPrimitive.Portal>
+            <DialogPrimitive.Overlay
+              data-mirava-look-editor-overlay
+              className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm"
+            />
+
+            <DialogPrimitive.Content
+              data-mirava-look-editor
+              onOpenAutoFocus={(
+                event,
+              ) => {
+                event.preventDefault()
+              }}
+              className="fixed inset-x-0 bottom-0 z-50 max-h-[92dvh] overflow-y-auto rounded-t-[28px] border border-white/10 bg-[#111212] p-5 text-[#f1f1ed] shadow-[0_-24px_80px_rgba(0,0,0,0.55)] outline-none sm:left-1/2 sm:bottom-auto sm:top-1/2 sm:w-[min(92vw,620px)] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-[28px] sm:p-6"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <span className="font-jakarta text-[9px] font-bold uppercase tracking-[0.16em] text-[#c7b6a4]">
+                    MIRAVA / LOOK
+                  </span>
+
+                  <DialogPrimitive.Title className="mt-2 font-jakarta text-2xl font-semibold tracking-[-0.035em] text-white">
+                    {
+                      copy.editArticle
+                    }
+                  </DialogPrimitive.Title>
+
+                  <DialogPrimitive.Description className="mt-2 max-w-md font-jakarta text-xs leading-5 text-white/45">
+                    {
+                      copy.editArticleHint
+                    }
+                  </DialogPrimitive.Description>
+                </div>
+
+                <DialogPrimitive.Close
+                  type="button"
+                  disabled={
+                    Boolean(
+                      itemMutationBusy,
+                    )
+                  }
+                  aria-label={
+                    copy.close
+                  }
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white/65 transition hover:bg-white/[0.08] disabled:opacity-40"
+                >
+                  <X className="h-4 w-4" />
+                </DialogPrimitive.Close>
+              </div>
+
+              {editingItem.assets.length >
+              0 ? (
+                <div
+                  className={cn(
+                    "mt-5 grid gap-1 overflow-hidden rounded-[18px] border border-white/10 bg-white/10",
+                    editingItem.assets.length === 1
+                      ? "grid-cols-1"
+                      : editingItem.assets.length === 2
+                        ? "grid-cols-2"
+                        : "grid-cols-3",
+                  )}
+                >
+                  {editingItem.assets.map(
+                    (
+                      asset,
+                      index,
+                    ) => (
+                      <div
+                        key={
+                          asset.id ??
+                          `${editingItem.id}-editor-${index}-${asset.viewKey}`
+                        }
+                        className={cn(
+                          "relative overflow-hidden bg-black/30",
+                          editingItem.assets.length === 1
+                            ? "aspect-[16/9] max-h-[260px]"
+                            : "aspect-square",
+                        )}
+                      >
+                        {asset.url ? (
+                          <img
+                            src={
+                              asset.url
+                            }
+                            alt={
+                              SESSION_LOOK_VIEW_LABELS[
+                                locale
+                              ][
+                                asset.viewKey
+                              ]
+                            }
+                            referrerPolicy="no-referrer"
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-white/20">
+                            <ImageIcon className="h-5 w-5" />
+                          </div>
+                        )}
+
+                        <span className="absolute bottom-1.5 left-1.5 rounded-full bg-black/70 px-2 py-1 font-jakarta text-[8px] text-white/70">
+                          {
+                            SESSION_LOOK_VIEW_LABELS[
+                              locale
+                            ][
+                              asset.viewKey
+                            ]
+                          }
+                        </span>
+
+                        <button
+                          type="button"
+                          data-mirava-look-asset-replace
+                          data-mirava-look-asset-id={
+                            asset.id
+                          }
+                          aria-label={
+                            copy.replaceView
+                          }
+                          title={
+                            copy.replaceView
+                          }
+                          disabled={
+                            Boolean(
+                              itemMutationBusy,
+                            ) ||
+                            !asset.id
+                          }
+                          onClick={() =>
+                            openReplaceLookAsset(
+                              asset.id,
+                            )
+                          }
+                          className="absolute right-11 top-2 flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-black/70 text-white/80 backdrop-blur-xl transition hover:border-white/30 hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-30"
+                        >
+                          {
+                            itemMutationBusy ===
+                              "asset-replace" &&
+                            replacingAssetId ===
+                              asset.id
+                              ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                )
+                              : (
+                                  <Upload className="h-3.5 w-3.5" />
+                                )
+                          }
+                        </button>
+
+                        <button
+                          type="button"
+                          data-mirava-look-asset-delete
+                          data-mirava-look-asset-id={
+                            asset.id
+                          }
+                          aria-label={
+                            copy.deleteView
+                          }
+                          title={
+                            editingItem.assets.length <=
+                            1
+                              ? copy.lastViewRequired
+                              : copy.deleteView
+                          }
+                          disabled={
+                            Boolean(
+                              itemMutationBusy,
+                            ) ||
+                            editingItem.assets.length <=
+                              1 ||
+                            !asset.id
+                          }
+                          onClick={() =>
+                            void deleteLookAsset(
+                              asset.id,
+                            )
+                          }
+                          className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-black/70 text-white/80 backdrop-blur-xl transition hover:border-red-300/35 hover:bg-red-400/20 hover:text-red-100 disabled:cursor-not-allowed disabled:opacity-30"
+                        >
+                          {
+                            itemMutationBusy ===
+                              "asset-delete" &&
+                            deletingAssetId ===
+                              asset.id
+                              ? (
+                                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                )
+                              : (
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                )
+                          }
+                        </button>
+                      </div>
+                    ),
+                  )}
+                </div>
+              ) : null}
+
+              <input
+                ref={
+                  replaceAssetFileInputRef
+                }
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                data-mirava-look-asset-replace-input
+                onChange={(
+                  event,
+                ) =>
+                  void replaceLookAsset(
+                    event,
+                  )
+                }
+              />
+
+              <input
+                ref={
+                  assetFileInputRef
+                }
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                data-mirava-look-asset-add-input
+                onChange={(
+                  event,
+                ) =>
+                  void addLookAsset(
+                    event,
+                  )
+                }
+              />
+
+              <div
+                data-mirava-look-asset-add
+                className="mt-3 rounded-[16px] border border-white/10 bg-white/[0.025] p-3"
+              >
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                  <label className="min-w-0 flex-1">
+                    <span className="mb-2 block font-jakarta text-[9px] font-semibold uppercase tracking-[0.12em] text-white/40">
+                      {
+                        copy.viewType
+                      }
+                    </span>
+
+                    <select
+                      value={
+                        newAssetViewKey
+                      }
+                      disabled={
+                        Boolean(
+                          itemMutationBusy,
+                        ) ||
+                        editingItem.assets.length >=
+                          MIRAVA_SESSION_LOOK_MAX_ASSETS_PER_ITEM
+                      }
+                      onChange={(
+                        event,
+                      ) =>
+                        setNewAssetViewKey(
+                          event.target
+                            .value as
+                            MiravaSessionLookViewKey,
+                        )
+                      }
+                      className="min-h-[44px] w-full rounded-xl border border-white/10 bg-[#171818] px-3 font-jakarta text-xs text-white outline-none focus:border-white/30 disabled:opacity-40"
+                    >
+                      {MIRAVA_SESSION_LOOK_VIEW_KEYS.map(
+                        (
+                          viewKey,
+                        ) => (
+                          <option
+                            key={
+                              viewKey
+                            }
+                            value={
+                              viewKey
+                            }
+                          >
+                            {
+                              SESSION_LOOK_VIEW_LABELS[
+                                locale
+                              ][
+                                viewKey
+                              ]
+                            }
+                          </option>
+                        ),
+                      )}
+                    </select>
+                  </label>
+
+                  <button
+                    type="button"
+                    data-mirava-look-asset-add-trigger
+                    disabled={
+                      Boolean(
+                        itemMutationBusy,
+                      ) ||
+                      editingItem.assets.length >=
+                        MIRAVA_SESSION_LOOK_MAX_ASSETS_PER_ITEM
+                    }
+                    onClick={() =>
+                      assetFileInputRef
+                        .current
+                        ?.click()
+                    }
+                    className="flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-xl border border-white/12 bg-white/[0.05] px-4 font-jakarta text-xs font-semibold text-white/75 transition hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-35"
+                  >
+                    {
+                      itemMutationBusy ===
+                        "asset-add"
+                        ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          )
+                        : (
+                            <Plus className="h-3.5 w-3.5" />
+                          )
+                    }
+
+                    {
+                      itemMutationBusy ===
+                        "asset-add"
+                        ? copy.addingView
+                        : copy.addView
+                    }
+                  </button>
+                </div>
+
+                {
+                  editingItem.assets.length >=
+                  MIRAVA_SESSION_LOOK_MAX_ASSETS_PER_ITEM
+                    ? (
+                        <p className="mt-2 font-jakarta text-[10px] text-white/35">
+                          {
+                            copy.viewLimit
+                          }
+                        </p>
+                      )
+                    : null
+                }
+              </div>
+
+              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                <label className="block">
+                  <span className="mb-2 block font-jakarta text-[9px] font-semibold uppercase tracking-[0.12em] text-white/40">
+                    {
+                      copy.category
+                    }
+                  </span>
+
+                  <select
+                    value={
+                      editCategory
+                    }
+                    disabled={
+                      Boolean(
+                        itemMutationBusy,
+                      )
+                    }
+                    onChange={(
+                      event,
+                    ) =>
+                      setEditCategory(
+                        event.target
+                          .value as
+                          MiravaSessionLookCategory,
+                      )
+                    }
+                    className="min-h-[48px] w-full rounded-xl border border-white/10 bg-[#171818] px-3 font-jakarta text-sm text-white outline-none focus:border-white/30 disabled:opacity-50"
+                  >
+                    {MIRAVA_SESSION_LOOK_CATEGORIES.map(
+                      (
+                        value,
+                      ) => (
+                        <option
+                          key={
+                            value
+                          }
+                          value={
+                            value
+                          }
+                        >
+                          {
+                            SESSION_LOOK_CATEGORY_LABELS[
+                              locale
+                            ][
+                              value
+                            ]
+                          }
+                        </option>
+                      ),
+                    )}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 block font-jakarta text-[9px] font-semibold uppercase tracking-[0.12em] text-white/40">
+                    {
+                      copy.label
+                    }
+                  </span>
+
+                  <input
+                    value={
+                      editLabel
+                    }
+                    maxLength={
+                      80
+                    }
+                    disabled={
+                      Boolean(
+                        itemMutationBusy,
+                      )
+                    }
+                    onChange={(
+                      event,
+                    ) =>
+                      setEditLabel(
+                        event.target
+                          .value,
+                      )
+                    }
+                    placeholder={
+                      copy.labelPlaceholder
+                    }
+                    className="min-h-[48px] w-full rounded-xl border border-white/10 bg-[#171818] px-3 font-jakarta text-sm text-white outline-none placeholder:text-white/25 focus:border-white/30 disabled:opacity-50"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 block font-jakarta text-[9px] font-semibold uppercase tracking-[0.12em] text-white/40">
+                    {
+                      copy.brand
+                    }
+                  </span>
+
+                  <input
+                    value={
+                      editBrand
+                    }
+                    maxLength={
+                      80
+                    }
+                    disabled={
+                      Boolean(
+                        itemMutationBusy,
+                      )
+                    }
+                    onChange={(
+                      event,
+                    ) =>
+                      setEditBrand(
+                        event.target
+                          .value,
+                      )
+                    }
+                    placeholder={
+                      copy.brandPlaceholder
+                    }
+                    className="min-h-[48px] w-full rounded-xl border border-white/10 bg-[#171818] px-3 font-jakarta text-sm text-white outline-none placeholder:text-white/25 focus:border-white/30 disabled:opacity-50"
+                  />
+                </label>
+
+                <label className="block sm:col-span-2">
+                  <span className="mb-2 block font-jakarta text-[9px] font-semibold uppercase tracking-[0.12em] text-white/40">
+                    {
+                      copy.description
+                    }
+                  </span>
+
+                  <textarea
+                    value={
+                      editDescription
+                    }
+                    maxLength={
+                      300
+                    }
+                    rows={
+                      3
+                    }
+                    disabled={
+                      Boolean(
+                        itemMutationBusy,
+                      )
+                    }
+                    onChange={(
+                      event,
+                    ) =>
+                      setEditDescription(
+                        event.target
+                          .value,
+                      )
+                    }
+                    placeholder={
+                      copy.descriptionPlaceholder
+                    }
+                    className="w-full resize-none rounded-xl border border-white/10 bg-[#171818] px-3 py-3 font-jakarta text-sm text-white outline-none placeholder:text-white/25 focus:border-white/30 disabled:opacity-50"
+                  />
+                </label>
+              </div>
+
+              {itemMutationError ? (
+                <p
+                  role="alert"
+                  className="mt-4 rounded-xl border border-red-400/20 bg-red-400/[0.07] px-3 py-2.5 font-jakarta text-xs leading-5 text-red-200"
+                >
+                  {
+                    itemMutationError
+                  }
+                </p>
+              ) : null}
+
+              <button
+                type="button"
+                data-mirava-look-editor-save
+                disabled={
+                  Boolean(
+                    itemMutationBusy,
+                  )
+                }
+                onClick={() =>
+                  void saveLookItemChanges()
+                }
+                className="mt-5 flex min-h-[50px] w-full items-center justify-center gap-2 rounded-xl bg-[#ede8df] px-5 font-jakarta text-sm font-semibold text-[#101111] transition hover:bg-white active:scale-[0.99] disabled:opacity-50"
+              >
+                {itemMutationBusy ===
+                "save" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : null}
+
+                {itemMutationBusy ===
+                "save"
+                  ? copy.savingChanges
+                  : copy.saveChanges}
+              </button>
+
+              <div className="mt-6 border-t border-white/10 pt-5">
+                {deleteConfirm ? (
+                  <div
+                    data-mirava-look-delete-confirm
+                    className="rounded-[18px] border border-red-400/20 bg-red-400/[0.055] p-4"
+                  >
+                    <strong className="block font-jakarta text-sm font-semibold text-red-100">
+                      {
+                        copy.deleteConfirmTitle
+                      }
+                    </strong>
+
+                    <p className="mt-2 font-jakarta text-xs leading-5 text-white/45">
+                      {
+                        copy.deleteConfirmBody
+                      }
+                    </p>
+
+                    <div className="mt-4 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                      <button
+                        type="button"
+                        disabled={
+                          Boolean(
+                            itemMutationBusy,
+                          )
+                        }
+                        onClick={() =>
+                          setDeleteConfirm(
+                            false,
+                          )
+                        }
+                        className="min-h-[44px] rounded-xl border border-white/10 bg-white/[0.04] px-4 font-jakarta text-xs font-semibold text-white/65 disabled:opacity-40"
+                      >
+                        {
+                          copy.cancel
+                        }
+                      </button>
+
+                      <button
+                        type="button"
+                        data-mirava-look-delete-confirm-button
+                        disabled={
+                          Boolean(
+                            itemMutationBusy,
+                          )
+                        }
+                        onClick={() =>
+                          void deleteLookItem()
+                        }
+                        className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-red-400/25 bg-red-400/10 px-4 font-jakarta text-xs font-semibold text-red-200 transition hover:bg-red-400/15 disabled:opacity-40"
+                      >
+                        {itemMutationBusy ===
+                        "delete" ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+
+                        {itemMutationBusy ===
+                        "delete"
+                          ? copy.deletingArticle
+                          : copy.confirmDelete}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    data-mirava-look-delete-trigger
+                    disabled={
+                      Boolean(
+                        itemMutationBusy,
+                      )
+                    }
+                    onClick={() =>
+                      void deleteLookItem()
+                    }
+                    className="flex min-h-[44px] items-center gap-2 rounded-xl px-1 font-jakarta text-xs font-semibold text-red-300/80 transition hover:text-red-200 disabled:opacity-40"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    {
+                      copy.deleteArticle
+                    }
+                  </button>
+                )}
+              </div>
+            </DialogPrimitive.Content>
+          </DialogPrimitive.Portal>
+        </DialogPrimitive.Root>
+      ) : null}
 
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#0d0e0e]/88 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-2xl lg:sticky lg:bottom-0 lg:bg-[#0d0e0e]/92 lg:px-8">
         <div className="mx-auto flex w-full max-w-[1520px] items-center justify-between gap-3">

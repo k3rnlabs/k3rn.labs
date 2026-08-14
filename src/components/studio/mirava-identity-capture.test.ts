@@ -93,6 +93,96 @@ describe("MIRAVA identity capture accessibility contracts", () => {
     )
   })
 
+  it("aligns the smile slot with the actual Vision orientation contract", () => {
+    const slotStart =
+      capture.indexOf('id: "smile"')
+    const slotEnd =
+      capture.indexOf('id: "body"', slotStart)
+    const smileSlot =
+      capture.slice(slotStart, slotEnd)
+
+    expect(smileSlot).toContain(
+      "Visage de face, regard vers l'objectif",
+    )
+    expect(smileSlot).toContain(
+      "Visage clairement et uniformément éclairé",
+    )
+
+    const mapStart =
+      capture.indexOf(
+        "  smile: {",
+        capture.indexOf(
+          "const SLOT_CRITERION_MAP",
+        ),
+      )
+    const mapEnd =
+      capture.indexOf(
+        "  body: {",
+        mapStart,
+      )
+    const smileMap =
+      capture.slice(mapStart, mapEnd)
+
+    expect(smileMap).toContain(
+      "orientation: 2",
+    )
+    expect(smileMap).toContain(
+      "eyes: 2",
+    )
+    expect(smileMap).toContain(
+      "lighting: 3",
+    )
+    expect(smileMap).not.toContain(
+      "lighting: 2",
+    )
+  })
+
+  it("never paints a Vision-rejected scanned photo as validated", () => {
+    const badgeStart =
+      capture.indexOf(
+        '{(currentSlotState.status === "scanned"',
+      )
+    const badgeEnd =
+      capture.indexOf(
+        '{currentSlotState.status === "scanned" && (',
+        badgeStart,
+      )
+    const badge =
+      capture.slice(
+        badgeStart,
+        badgeEnd,
+      )
+
+    expect(badge).toContain(
+      "currentPhotoHasBlockingIssues",
+    )
+    expect(badge).toContain(
+      "Photo validée",
+    )
+
+    expect(capture).toContain(
+      "hasUnmappedBlockingIssue",
+    )
+    expect(capture).toContain(
+      "!hasUnmappedBlockingIssue",
+    )
+  })
+
+  it("does not require natural light for identity reference examples", () => {
+    expect(capture).toContain(
+      "un éclairage clair et homogène",
+    )
+    expect(capture).toContain(
+      "una iluminación clara y uniforme",
+    )
+    expect(capture).not.toContain(
+      "cet éclairage naturel",
+    )
+    expect(capture).not.toContain(
+      "postura e iluminación natural",
+    )
+  })
+
   it("never exposes validation as the primary action for a rejected photo", () => {
     const blockingBranch = capture.slice(
       capture.indexOf("if (currentPhotoHasBlockingIssues)"),

@@ -21,7 +21,7 @@ const route =
   )
 
 describe(
-  "MIRAVA BODY_ID OpenAI consent boundary",
+  "MIRAVA BODY_ID external identity-analysis consent boundary",
   () => {
     it(
       "invalidates morphology before checking external-analysis consent",
@@ -52,7 +52,7 @@ describe(
 
         const consentIndex =
           refresh.indexOf(
-            "requireMiravaOpenAiIdentityAnalysisConsent(",
+            "requireMiravaExternalIdentityAnalysisConsent(",
           )
 
         const assetsIndex =
@@ -109,7 +109,7 @@ describe(
     )
 
     it(
-      "keeps the OpenAI request strictly downstream of the consent gate",
+      "keeps the external KIE request strictly downstream of the consent gate",
       () => {
         const start =
           core.indexOf(
@@ -118,13 +118,13 @@ describe(
 
         const consentIndex =
           core.indexOf(
-            "requireMiravaOpenAiIdentityAnalysisConsent(",
+            "requireMiravaExternalIdentityAnalysisConsent(",
             start,
           )
 
-        const openAiIndex =
+        const providerIndex =
           core.indexOf(
-            "https://api.openai.com/v1/chat/completions",
+            "runKieMultimodalAnalysis({",
             start,
           )
 
@@ -132,7 +132,7 @@ describe(
           start,
         )
 
-        expect(openAiIndex).toBeGreaterThan(
+        expect(providerIndex).toBeGreaterThan(
           consentIndex,
         )
       },

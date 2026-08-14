@@ -11,6 +11,22 @@ import {
 import {
   type MiravaSetPresetId,
 } from "./set-presets"
+import type {
+  MiravaSessionBuilderV2Options,
+} from "./session-options"
+import {
+  miravaSessionBuilderResumeStepSchema,
+  type MiravaSessionBuilderResumeStep,
+} from "./session-progress"
+import {
+  MIRAVA_SESSION_LOOK_CATEGORIES,
+  MIRAVA_SESSION_LOOK_VIEW_KEYS,
+  type MiravaSessionLookCategory,
+  type MiravaSessionLookViewKey,
+} from "./look"
+import type {
+  MiravaSessionLookClientItem,
+} from "./session-look-upload.client"
 
 export type MiravaSessionBuilderClientSession =
   Readonly<{
@@ -21,7 +37,11 @@ export type MiravaSessionBuilderClientSession =
     config:
       MiravaSessionBuilderDraft
     lookItemCount: number
+    lookItems?:
+      MiravaSessionLookClientItem[]
     configurationReady: boolean
+    resumeStep?:
+      MiravaSessionBuilderResumeStep
     createdAt: string
     updatedAt: string
   }>
@@ -34,12 +54,51 @@ export type MiravaSessionBuilderClientPatch =
     lightingPresetId?:
       | MiravaLightingPresetId
       | null
+    shotCount?:
+      MiravaSessionBuilderV2Options[
+        "shotCount"
+      ]
     lookMode?:
       MiravaSessionLookMode
+    framing?:
+      MiravaSessionBuilderV2Options[
+        "framing"
+      ]
+    pose?:
+      MiravaSessionBuilderV2Options[
+        "pose"
+      ]
+    expression?:
+      MiravaSessionBuilderV2Options[
+        "expression"
+      ]
+    gaze?:
+      MiravaSessionBuilderV2Options[
+        "gaze"
+      ]
+    makeup?:
+      MiravaSessionBuilderV2Options[
+        "makeup"
+      ]
+    skinFinish?:
+      MiravaSessionBuilderV2Options[
+        "skinFinish"
+      ]
+    hair?:
+      MiravaSessionBuilderV2Options[
+        "hair"
+      ]
+    userInstruction?:
+      MiravaSessionBuilderV2Options[
+        "userInstruction"
+      ]
+    resumeStep?:
+      MiravaSessionBuilderResumeStep
   }>
 
 type ApiPayload = {
   session?: unknown
+  sessions?: unknown
   error?: unknown
   message?: unknown
 }
@@ -58,6 +117,182 @@ function isRecord(
   )
 }
 
+function parseMiravaSessionLookItems(
+  value: unknown,
+): MiravaSessionLookClientItem[] {
+  if (
+    value ===
+      undefined
+  ) {
+    return []
+  }
+
+  if (
+    !Array.isArray(
+      value,
+    )
+  ) {
+    throw new Error(
+      "MIRAVA_SESSION_CLIENT_INVALID_RESPONSE",
+    )
+  }
+
+  return value.map(
+    (
+      item,
+    ) => {
+      if (
+        typeof item !==
+          "object" ||
+        item === null ||
+        Array.isArray(
+          item,
+        )
+      ) {
+        throw new Error(
+          "MIRAVA_SESSION_CLIENT_INVALID_RESPONSE",
+        )
+      }
+
+      const record =
+        item as
+          Record<
+            string,
+            unknown
+          >
+
+      if (
+        typeof record.id !==
+          "string" ||
+        !MIRAVA_SESSION_LOOK_CATEGORIES.includes(
+          record.category as
+            MiravaSessionLookCategory,
+        ) ||
+        !Number.isInteger(
+          record.position,
+        ) ||
+        (
+          record.label !==
+            null &&
+          typeof record.label !==
+            "string"
+        ) ||
+        (
+          record.brand !==
+            null &&
+          typeof record.brand !==
+            "string"
+        ) ||
+        (
+          record.description !==
+            null &&
+          typeof record.description !==
+            "string"
+        ) ||
+        !Array.isArray(
+          record.assets,
+        )
+      ) {
+        throw new Error(
+          "MIRAVA_SESSION_CLIENT_INVALID_RESPONSE",
+        )
+      }
+
+      const assets =
+        record.assets.map(
+          (
+            asset,
+          ) => {
+            if (
+              typeof asset !==
+                "object" ||
+              asset === null ||
+              Array.isArray(
+                asset,
+              )
+            ) {
+              throw new Error(
+                "MIRAVA_SESSION_CLIENT_INVALID_RESPONSE",
+              )
+            }
+
+            const assetRecord =
+              asset as
+                Record<
+                  string,
+                  unknown
+                >
+
+            if (
+              "storagePath" in
+                assetRecord ||
+              typeof assetRecord.id !==
+                "string" ||
+              assetRecord.id.length <
+                1 ||
+              typeof assetRecord.mimeType !==
+                "string" ||
+              !Number.isInteger(
+                assetRecord.bytes,
+              ) ||
+              (
+                assetRecord.url !==
+                  null &&
+                typeof assetRecord.url !==
+                  "string"
+              ) ||
+              !MIRAVA_SESSION_LOOK_VIEW_KEYS.includes(
+                assetRecord.viewKey as
+                  MiravaSessionLookViewKey,
+              )
+            ) {
+              throw new Error(
+                "MIRAVA_SESSION_CLIENT_INVALID_RESPONSE",
+              )
+            }
+
+            return {
+              id:
+                assetRecord.id,
+              mimeType:
+                assetRecord.mimeType,
+              bytes:
+                assetRecord.bytes as
+                  number,
+              viewKey:
+                assetRecord.viewKey as
+                  MiravaSessionLookViewKey,
+              url:
+                assetRecord.url as
+                  string | null,
+            }
+          },
+        )
+
+      return {
+        id:
+          record.id,
+        category:
+          record.category as
+            MiravaSessionLookCategory,
+        label:
+          record.label as
+            string | null,
+        brand:
+          record.brand as
+            string | null,
+        description:
+          record.description as
+            string | null,
+        position:
+          record.position as
+            number,
+        assets,
+      }
+    },
+  )
+}
+
 export function parseMiravaSessionBuilderClientSession(
   value: unknown,
 ): MiravaSessionBuilderClientSession {
@@ -73,8 +308,21 @@ export function parseMiravaSessionBuilderClientSession(
         value.config,
       )
 
+  const resumeStep =
+    value.resumeStep ===
+      undefined
+      ? null
+      : miravaSessionBuilderResumeStepSchema
+          .safeParse(
+            value.resumeStep,
+          )
+
   if (
     !config.success ||
+    (
+      resumeStep !== null &&
+      !resumeStep.success
+    ) ||
     typeof value.id !==
       "string" ||
     value.id.length < 1 ||
@@ -109,8 +357,18 @@ export function parseMiravaSessionBuilderClientSession(
       value.identityProfileId,
     config:
       config.data,
+    ...(resumeStep?.success
+      ? {
+          resumeStep:
+            resumeStep.data,
+        }
+      : {}),
     lookItemCount:
       value.lookItemCount,
+    lookItems:
+      parseMiravaSessionLookItems(
+        value.lookItems,
+      ),
     configurationReady:
       value.configurationReady,
     createdAt:
@@ -168,6 +426,48 @@ function readError(
   }
 
   return fallback
+}
+
+export async function listMiravaSessionBuilderClientSessions():
+Promise<
+  MiravaSessionBuilderClientSession[]
+> {
+  const response =
+    await fetch(
+      endpoint(),
+      {
+        method:
+          "GET",
+      },
+    )
+
+  const payload =
+    await readPayload(
+      response,
+    )
+
+  if (
+    !response.ok ||
+    !Array.isArray(
+      payload.sessions,
+    )
+  ) {
+    throw new Error(
+      readError(
+        payload,
+        "MIRAVA_SESSION_LIST_FAILED",
+      ),
+    )
+  }
+
+  return payload.sessions.map(
+    (
+      session,
+    ) =>
+      parseMiravaSessionBuilderClientSession(
+        session,
+      ),
+  )
 }
 
 export async function createMiravaSessionBuilderClientSession():

@@ -2,7 +2,7 @@ import { NextRequest } from "next/server"
 import { verifySession } from "@/lib/auth"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { miravaApiError as apiError, miravaApiSuccess as apiSuccess } from "@/lib/visual-engine/http"
-import { appendIdentityProfile, appendIdentityProfileFromStagedUploads, deleteIdentityProfile, getIdentityProfilePublic, MAX_IDENTITY_ASSETS, MIN_IDENTITY_ASSETS, replaceIdentityProfile, replaceIdentityProfileFromStagedUploads, studioErrorResponse } from "@/lib/visual-engine/core"
+import { appendIdentityProfileFromStagedUploads, deleteIdentityProfile, getIdentityProfilePublic, replaceIdentityProfileFromStagedUploads, studioErrorResponse } from "@/lib/visual-engine/core"
 import { recordMiravaAudit } from "@/lib/visual-engine/audit"
 import {
   requireMiravaIdentityConsent,
@@ -97,25 +97,10 @@ export async function POST(req: NextRequest) {
       return apiSuccess({ profile })
     }
 
-    const form = await req.formData()
-    const creationId = form.get("creationId")
-    const mode = form.get("mode") === "append" ? "append" : "replace"
-    const files = form.getAll("file").filter((file): file is File => file instanceof File)
-    if ((mode === "replace" && files.length < MIN_IDENTITY_ASSETS) || files.length < 1 || files.length > MAX_IDENTITY_ASSETS) {
-      return apiError(mode === "append" ? "Ajoutez au moins une photo." : "Entre trois et dix photos sont requises.", 400)
-    }
-    const normalizedCreationId = typeof creationId === "string" && creationId.length > 0 ? creationId : undefined
-    const updateProfile = mode === "append" ? appendIdentityProfile : replaceIdentityProfile
-    const profile = await updateProfile({
-      userId: session.userId,
-      creationId: normalizedCreationId,
-      ageConfirmed: form.get("ageConfirmed") === "true",
-      rightsConfirmed: form.get("rightsConfirmed") === "true",
-      retentionAccepted: form.get("retentionAccepted") === "true",
-      files: await Promise.all(files.map(async (file) => ({ mimeType: file.type, buffer: Buffer.from(await file.arrayBuffer()) }))),
-    })
-    await recordMiravaAudit(session.userId, mode === "append" ? "IDENTITY_PROFILE_EXTENDED" : "IDENTITY_PROFILE_UPDATED", normalizedCreationId ?? "identity-onboarding")
-    return apiSuccess({ profile })
+    return apiError(
+      "Ce format d’envoi du Profil identité n’est plus pris en charge.",
+      415,
+    )
   } catch (error) {
     if (
       error instanceof Error &&

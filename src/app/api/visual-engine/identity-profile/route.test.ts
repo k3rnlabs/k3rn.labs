@@ -119,26 +119,27 @@ describe("MIRAVA identity profile route", () => {
     expect(mocks.replaceIdentityProfile).not.toHaveBeenCalled()
   })
 
-  it("requires three private views for a replacement identity profile", async () => {
-    const response = await POST(identityUpload({ count: 2 }))
+  it(
+    "rejects the retired multipart identity upload path",
+    async () => {
+      const response =
+        await POST(
+          identityUpload(),
+        )
 
-    expect(response.status).toBe(400)
-    expect(mocks.replaceIdentityProfile).not.toHaveBeenCalled()
-  })
+      expect(
+        response.status,
+      ).toBe(415)
 
-  it("passes consent, ownership and binary files only to the private profile service", async () => {
-    const response = await POST(identityUpload())
+      expect(
+        mocks.replaceIdentityProfileFromStagedUploads,
+      ).not.toHaveBeenCalled()
 
-    expect(response.status).toBe(200)
-    expect(mocks.replaceIdentityProfile).toHaveBeenCalledWith(expect.objectContaining({
-      userId: "user-1",
-      ageConfirmed: true,
-      rightsConfirmed: true,
-      retentionAccepted: true,
-      files: expect.arrayContaining([expect.objectContaining({ mimeType: "image/png", buffer: expect.any(Buffer) })]),
-    }))
-    expect(mocks.recordMiravaAudit).toHaveBeenCalledWith("user-1", "IDENTITY_PROFILE_UPDATED", "identity-onboarding")
-  })
+      expect(
+        mocks.appendIdentityProfileFromStagedUploads,
+      ).not.toHaveBeenCalled()
+    },
+  )
 
   it("finalizes direct private uploads from a small JSON request", async () => {
     const response = await POST(
@@ -189,14 +190,6 @@ describe("MIRAVA identity profile route", () => {
     expect(
       mocks.replaceIdentityProfileFromStagedUploads,
     ).not.toHaveBeenCalled()
-  })
-
-  it("permits a single additional view only through append mode", async () => {
-    const response = await POST(identityUpload({ mode: "append", count: 1 }))
-
-    expect(response.status).toBe(200)
-    expect(mocks.appendIdentityProfile).toHaveBeenCalledOnce()
-    expect(mocks.replaceIdentityProfile).not.toHaveBeenCalled()
   })
 
   it("records an auditable server-side deletion", async () => {

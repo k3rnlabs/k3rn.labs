@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useState } from "react"
 import { AlertCircle, Download, Loader2, Sparkles } from "lucide-react"
 
+import {
+  MIRAVA_SESSION_SHOT_COUNT,
+} from "@/lib/mirava/session-builder/schema"
+
 export type MiravaSessionGalleryLocale = "fr" | "es"
 
 export type MiravaSessionGalleryStatus = {
@@ -31,7 +35,13 @@ const galleryCopy = {
   fr: {
     eyebrow: "CHAMBRE NOIRE",
     title: "Votre séance se révèle.",
-    preparing: "Préparation des six prises…",
+    preparing:
+      (
+        total: number,
+      ) =>
+        total === 1
+          ? "Préparation de la prise…"
+          : `Préparation des ${total} prises…`,
     ready: (completed: number, total: number) => `${completed}/${total} photos prêtes`,
     status: {
       QUEUED: "En préparation",
@@ -56,7 +66,13 @@ const galleryCopy = {
   es: {
     eyebrow: "CUARTO OSCURO",
     title: "Tu sesión se revela.",
-    preparing: "Preparando las seis imágenes…",
+    preparing:
+      (
+        total: number,
+      ) =>
+        total === 1
+          ? "Preparando la imagen…"
+          : `Preparando las ${total} imágenes…`,
     ready: (completed: number, total: number) => `${completed}/${total} fotos listas`,
     status: {
       QUEUED: "En preparación",
@@ -166,7 +182,9 @@ export function SessionGallery({
     }
   }, [copy.retry, refreshNonce, refreshSession])
 
-  const total = session?.shotCount ?? 6
+  const total =
+    session?.shotCount ??
+    MIRAVA_SESSION_SHOT_COUNT
   const shots = [...(session?.shots ?? Array.from({ length: total }, (_, shotIndex) => ({
     creationId: "", shotIndex, shotIntent: null, status: "GENERATION_QUEUED", resultUrl: null,
     failureKind: null, failureMessage: null, continuationActive: false,
@@ -180,7 +198,16 @@ export function SessionGallery({
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-white/45">{copy.eyebrow}</p>
           <h1 className="mt-3 font-jakarta text-3xl font-semibold tracking-[-0.045em] text-white sm:text-5xl">{copy.title}</h1>
-          <p className="mt-2 text-sm text-white/58">{session ? copy.ready(session.completedCount, total) : copy.preparing}</p>
+          <p className="mt-2 text-sm text-white/58">
+            {session
+              ? copy.ready(
+                  session.completedCount,
+                  total,
+                )
+              : copy.preparing(
+                  total,
+                )}
+          </p>
         </div>
         <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/70">{copy.status[session?.status ?? "QUEUED"]}</span>
       </div>

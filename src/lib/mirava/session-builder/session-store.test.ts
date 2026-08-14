@@ -116,6 +116,14 @@ describe(
             shotCount: 6,
             lookMode:
               "REFERENCE",
+            framing: "FREE",
+            pose: "FREE",
+            expression: "FREE",
+            gaze: "FREE",
+            makeup: "NATURAL",
+            skinFinish: "NATURAL",
+            hair: "PROFILE",
+            userInstruction: "",
           },
         },
       })
@@ -147,6 +155,9 @@ describe(
           userId:
             "user-1",
           builderVersion: 1,
+          creations: {
+            none: {},
+          },
         },
         orderBy: {
           updatedAt:
@@ -154,13 +165,30 @@ describe(
         },
         include: {
           lookItems: {
+            orderBy: {
+              position:
+                "asc",
+            },
             select: {
               id: true,
+              category: true,
+              label: true,
+              brand: true,
+              description: true,
+              position: true,
             },
             include: {
               assets: {
+                orderBy: {
+                  createdAt:
+                    "asc",
+                },
                 select: {
                   id: true,
+                  storagePath: true,
+                  mimeType: true,
+                  bytes: true,
+                  viewKey: true,
                 },
               },
             },
@@ -198,13 +226,30 @@ describe(
         },
         include: {
           lookItems: {
+            orderBy: {
+              position:
+                "asc",
+            },
             select: {
               id: true,
+              category: true,
+              label: true,
+              brand: true,
+              description: true,
+              position: true,
             },
             include: {
               assets: {
+                orderBy: {
+                  createdAt:
+                    "asc",
+                },
                 select: {
                   id: true,
+                  storagePath: true,
+                  mimeType: true,
+                  bytes: true,
+                  viewKey: true,
                 },
               },
             },
@@ -274,6 +319,14 @@ describe(
             shotCount: 6,
             lookMode:
               "CUSTOM",
+            framing: "FREE",
+            pose: "FREE",
+            expression: "FREE",
+            gaze: "FREE",
+            makeup: "NATURAL",
+            skinFinish: "NATURAL",
+            hair: "PROFILE",
+            userInstruction: "",
           },
         },
       })
@@ -302,10 +355,26 @@ describe(
             {
               id:
                 "look-item-1",
+              category:
+                "TOP",
+              label:
+                "White shirt",
+              brand:
+                null,
+              description:
+                "Cotton shirt",
+              position:
+                0,
               assets: [
                 {
                   id:
                     "look-asset-1",
+                  mimeType:
+                    "image/jpeg",
+                  bytes:
+                    1234,
+                  viewKey:
+                    "FRONT",
                 },
               ],
             },
@@ -325,6 +394,39 @@ describe(
       expect(
         session?.configurationReady,
       ).toBe(true)
+
+      expect(
+        session?.lookItems,
+      ).toEqual([
+        {
+          id:
+            "look-item-1",
+          category:
+            "TOP",
+          label:
+            "White shirt",
+          brand:
+            null,
+          description:
+            "Cotton shirt",
+          position:
+            0,
+          assets: [
+            {
+              id:
+                "look-asset-1",
+              mimeType:
+                "image/jpeg",
+              bytes:
+                1234,
+              viewKey:
+                "FRONT",
+              url:
+                null,
+            },
+          ],
+        },
+      ])
     })
 
     it("keeps a complete CUSTOM session unready when its look item has no persisted asset", async () => {
@@ -346,6 +448,16 @@ describe(
             {
               id:
                 "look-item-empty",
+              category:
+                "TOP",
+              label:
+                null,
+              brand:
+                null,
+              description:
+                null,
+              position:
+                0,
               assets: [],
             },
           ],
@@ -364,6 +476,73 @@ describe(
       expect(
         session?.configurationReady,
       ).toBe(false)
+    })
+
+    it("persists a ten-photo shot count in canonical builder metadata", async () => {
+      mocks.findSession
+        .mockResolvedValue(
+          baseRow,
+        )
+
+      mocks.updateSession
+        .mockResolvedValue({
+          ...baseRow,
+          builderConfig: {
+            mode:
+              "CUSTOM_SHOOT",
+            shotCount:
+              10,
+            lookMode:
+              "REFERENCE",
+            framing:
+              "FREE",
+            pose:
+              "FREE",
+            expression:
+              "FREE",
+            gaze:
+              "FREE",
+            makeup:
+              "NATURAL",
+            skinFinish:
+              "NATURAL",
+            hair:
+              "PROFILE",
+            userInstruction:
+              "",
+          },
+        })
+
+      const updated =
+        await updateMiravaSessionBuilderDraft(
+          "user-1",
+          "session-1",
+          {
+            shotCount:
+              10,
+          },
+        )
+
+      expect(
+        mocks.updateSession,
+      ).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data:
+            expect.objectContaining({
+              builderConfig:
+                expect.objectContaining({
+                  shotCount:
+                    10,
+                }),
+            }),
+        }),
+      )
+
+      expect(
+        updated.config.shotCount,
+      ).toBe(
+        10,
+      )
     })
 
     it("rejects invalid updates and missing sessions", async () => {

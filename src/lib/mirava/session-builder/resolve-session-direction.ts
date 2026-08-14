@@ -17,6 +17,7 @@ export const MIRAVA_SESSION_AUTHORITY_SOURCES = [
   "SESSION_SET",
   "SESSION_LIGHTING",
   "SESSION_LOOK",
+  "SESSION_OPTIONS",
   "SHOT_PLAN",
 ] as const
 
@@ -30,9 +31,20 @@ export type MiravaSessionAuthorityMap = Readonly<{
   wardrobe:
     | "SESSION_LOOK"
     | "ARTISTIC_REFERENCE"
-  pose: "SHOT_PLAN"
+  pose:
+    | "SESSION_OPTIONS"
+    | "SHOT_PLAN"
   composition: "SHOT_PLAN"
-  framing: "SHOT_PLAN"
+  framing:
+    | "SESSION_OPTIONS"
+    | "SHOT_PLAN"
+  expression: "SESSION_OPTIONS"
+  gaze: "SESSION_OPTIONS"
+  makeup: "SESSION_OPTIONS"
+  skinFinish: "SESSION_OPTIONS"
+  hair: "SESSION_OPTIONS"
+  userInstruction:
+    "SESSION_OPTIONS"
   photographicCharacter:
     "ARTISTIC_REFERENCE"
 }>
@@ -59,16 +71,54 @@ export type MiravaResolvedLightingDirection =
     constraints: readonly string[]
   }>
 
+export type MiravaResolvedSessionOptions =
+  Readonly<{
+    framing:
+      MiravaSessionBuilderReady[
+        "framing"
+      ]
+    pose:
+      MiravaSessionBuilderReady[
+        "pose"
+      ]
+    expression:
+      MiravaSessionBuilderReady[
+        "expression"
+      ]
+    gaze:
+      MiravaSessionBuilderReady[
+        "gaze"
+      ]
+    makeup:
+      MiravaSessionBuilderReady[
+        "makeup"
+      ]
+    skinFinish:
+      MiravaSessionBuilderReady[
+        "skinFinish"
+      ]
+    hair:
+      MiravaSessionBuilderReady[
+        "hair"
+      ]
+    userInstruction: string
+  }>
+
 export type MiravaResolvedSessionDirection =
   Readonly<{
     builderVersion: number
     mode: "CUSTOM_SHOOT"
-    shotCount: 6
+    shotCount:
+      MiravaSessionBuilderReady[
+        "shotCount"
+      ]
     lookMode:
       | "REFERENCE"
       | "CUSTOM"
     authority:
       MiravaSessionAuthorityMap
+    options:
+      MiravaResolvedSessionOptions
     set: MiravaResolvedSetDirection
     lighting:
       MiravaResolvedLightingDirection
@@ -106,9 +156,27 @@ function resolveAuthorityMap(
       config.lookMode === "CUSTOM"
         ? "SESSION_LOOK"
         : "ARTISTIC_REFERENCE",
-    pose: "SHOT_PLAN",
+    pose:
+      config.pose === "FREE"
+        ? "SHOT_PLAN"
+        : "SESSION_OPTIONS",
     composition: "SHOT_PLAN",
-    framing: "SHOT_PLAN",
+    framing:
+      config.framing === "FREE"
+        ? "SHOT_PLAN"
+        : "SESSION_OPTIONS",
+    expression:
+      "SESSION_OPTIONS",
+    gaze:
+      "SESSION_OPTIONS",
+    makeup:
+      "SESSION_OPTIONS",
+    skinFinish:
+      "SESSION_OPTIONS",
+    hair:
+      "SESSION_OPTIONS",
+    userInstruction:
+      "SESSION_OPTIONS",
     photographicCharacter:
       "ARTISTIC_REFERENCE",
   }
@@ -162,6 +230,24 @@ export function resolveMiravaSessionDirection(
     lookMode: config.lookMode,
     authority:
       resolveAuthorityMap(config),
+    options: {
+      framing:
+        config.framing,
+      pose:
+        config.pose,
+      expression:
+        config.expression,
+      gaze:
+        config.gaze,
+      makeup:
+        config.makeup,
+      skinFinish:
+        config.skinFinish,
+      hair:
+        config.hair,
+      userInstruction:
+        config.userInstruction,
+    },
     set: {
       presetId: setPreset.id,
       version: setPreset.version,

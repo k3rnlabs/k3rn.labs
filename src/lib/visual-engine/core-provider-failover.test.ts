@@ -1,6 +1,7 @@
 import {
   readFileSync,
 } from "node:fs"
+
 import {
   describe,
   expect,
@@ -14,93 +15,108 @@ const core =
   )
 
 describe(
-  "MIRAVA image provider failover",
+  "MIRAVA KIE-only provider recovery contract",
   () => {
     it(
-      "keeps OpenAI as the first provider for ordinary universes",
+      "contains no legacy OpenAI to KIE failover route",
       () => {
-        expect(core).toContain(
-          "jobAttempt > 1",
-        )
-
-        expect(core).toContain(
+        expect(
+          core,
+        ).not.toContain(
           "useKieProviderRecovery",
         )
 
-        const recovery =
-          core.indexOf(
-            "if (useKieProviderRecovery)",
-          )
-
-        const openAi =
-          core.indexOf(
-            "return await executeCall(",
-            recovery,
-          )
-
-        expect(recovery)
-          .toBeGreaterThan(-1)
-        expect(openAi)
-          .toBeGreaterThan(recovery)
-      },
-    )
-
-    it(
-      "fails over a retry attempt to Kie instead of repeating OpenAI",
-      () => {
-        expect(core).toContain(
+        expect(
+          core,
+        ).not.toContain(
           '"provider-recovery-kie"',
         )
 
-        expect(core).toContain(
+        expect(
+          core,
+        ).not.toContain(
           "[mirava-image-provider-failover]",
         )
 
-        expect(core).toContain(
-          'from:\n          "openai"',
-        )
-
-        expect(core).toContain(
-          'to:\n          "kie"',
+        expect(
+          core,
+        ).not.toContain(
+          "return await executeCall(",
         )
       },
     )
 
     it(
-      "keeps failover behind the existing Kie privacy/configuration gate",
+      "requires KIE before any active image generation",
       () => {
-        expect(core).toContain(
-          "const kieProviderEnabled =\n    isMiravaKieImageProviderEnabled()",
+        expect(
+          core,
+        ).toContain(
+          "!isMiravaKieImageProviderEnabled()",
         )
 
-        expect(core).toContain(
-          "kieProviderEnabled &&\n    !useKieCampaignProvider &&\n    jobAttempt > 1",
+        expect(
+          core,
+        ).toContain(
+          "hasMiravaExternalImageGenerationConsent(",
+        )
+
+        expect(
+          core,
+        ).toContain(
+          "runKieImageGeneration({",
         )
       },
     )
 
     it(
-      "records provider request diagnostics for HTTP failures",
+      "keeps the safety fallback inside KIE",
       () => {
-        expect(core).toContain(
-          'response.headers.get(\n              "x-request-id"',
+        expect(
+          core,
+        ).toContain(
+          '"campaign-safe-kie-primary"',
         )
 
-        expect(core).toContain(
-          'response.headers.get(\n              "content-type"',
+        expect(
+          core,
+        ).toContain(
+          '"campaign-safe-kie-fallback"',
+        )
+
+        expect(
+          core,
+        ).toContain(
+          "buildMiravaCampaignSafeTransferPrompt(",
+        )
+
+        expect(
+          core,
+        ).toContain(
+          "await clearKieTaskState()",
         )
       },
     )
 
     it(
-      "only retries OpenAI rate limits and server failures",
+      "does not retain a hidden OpenAI image fallback",
       () => {
-        expect(core).toContain(
-          "response.status === 429 ||\n        response.status >= 500",
+        expect(
+          core,
+        ).not.toContain(
+          "MIRAVA_IMAGE_MODEL",
         )
 
-        expect(core).toContain(
-          '"SAFETY_REFUSAL"',
+        expect(
+          core,
+        ).not.toContain(
+          "images/generations",
+        )
+
+        expect(
+          core,
+        ).not.toContain(
+          "images/edits",
         )
       },
     )

@@ -7,168 +7,242 @@ import {
   it,
 } from "vitest"
 
-const core = readFileSync(
-  "src/lib/visual-engine/core.ts",
-  "utf-8",
-)
+const core =
+  readFileSync(
+    "src/lib/visual-engine/core.ts",
+    "utf8",
+  )
+
+function generationFunction():
+  string {
+  const start =
+    core.indexOf(
+      "async function generateStudioImageCandidate(",
+    )
+
+  const end =
+    core.indexOf(
+      "\nasync function generateStudioImage(",
+      start,
+    )
+
+  if (
+    start < 0 ||
+    end < 0
+  ) {
+    throw new Error(
+      "generateStudioImageCandidate boundary not found",
+    )
+  }
+
+  return core.slice(
+    start,
+    end,
+  )
+}
 
 describe(
   "MIRAVA generation safety adaptation contracts",
   () => {
     it(
-      "adapts high-risk lingerie directions before the first provider call",
+      "adapts high-risk campaign directions before the first KIE provider call",
       () => {
-        expect(core).toContain(
-          "detectMiravaCampaignRisk",
-        )
-        expect(core).toContain(
-          "buildMiravaCampaignSafeTransferPrompt",
-        )
+        const generation =
+          generationFunction()
 
         const primaryStart =
-          core.indexOf(
+          generation.indexOf(
             "const primaryPrompt",
           )
 
         const executeStart =
-          core.indexOf(
-            "const executeCall",
+          generation.indexOf(
+            "const executeKieCall",
             primaryStart,
           )
 
+        expect(primaryStart).toBeGreaterThan(
+          -1,
+        )
+
+        expect(executeStart).toBeGreaterThan(
+          primaryStart,
+        )
+
         const primarySection =
-          core.slice(
+          generation.slice(
             primaryStart,
             executeStart,
           )
 
         expect(primarySection).toContain(
-          "const campaignRisk",
+          "detectMiravaCampaignRisk(",
         )
+
         expect(primarySection).toContain(
           "const resolvedPrimaryPrompt",
         )
+
         expect(primarySection).toContain(
           "requiresCampaignSafeTransfer",
         )
+
         expect(primarySection).toContain(
-          "buildMiravaCampaignSafeTransferPrompt",
+          "buildMiravaCampaignSafeTransferPrompt(",
         )
       },
     )
 
     it(
-      "uses campaign-safe variants and a fresh conservative retry",
+      "uses KIE primary and conservative fallback variants",
       () => {
-        expect(core).toContain(
-          '"campaign-safe-primary"',
-        )
-        expect(core).toContain(
-          '"campaign-safe-fallback"',
-        )
-        expect(core).toContain(
-          'buildMiravaCampaignSafeTransferPrompt(\n          primaryPrompt,\n          "conservative"',
+        const generation =
+          generationFunction()
+
+        expect(generation).toContain(
+          '"campaign-safe-kie-primary"',
         )
 
-        const campaignFallbackStart =
-          core.indexOf(
-            "if (\n      campaignRisk.requiresCampaignSafeTransfer",
-          )
-
-        const genericFallbackStart =
-          core.indexOf(
-            "const fallbackBase =",
-            campaignFallbackStart,
-          )
-
-        expect(
-          campaignFallbackStart,
-        ).toBeGreaterThan(-1)
-        expect(
-          genericFallbackStart,
-        ).toBeGreaterThan(
-          campaignFallbackStart,
+        expect(generation).toContain(
+          '"campaign-safe-kie-fallback"',
         )
 
-        const campaignFallbackSection =
-          core.slice(
-            campaignFallbackStart,
-            genericFallbackStart,
-          )
-
-        expect(
-          campaignFallbackSection,
-        ).not.toContain(
-          "fallbackBase",
+        expect(generation).toMatch(
+          /buildMiravaCampaignSafeTransferPrompt\([\s\S]*?primaryPrompt,[\s\S]*?"conservative"/,
         )
-        expect(
-          campaignFallbackSection,
-        ).not.toContain(
-          "complianceNeutralRewrite",
+
+        expect(generation).toContain(
+          "await clearKieTaskState()",
         )
       },
     )
 
     it(
-      "keeps one conservative semantic retry for non-campaign refusals",
+      "keeps the safety retry entirely inside KIE",
       () => {
-        const fallbackStart =
-          core.indexOf(
-            "const fallbackBase =",
+        const generation =
+          generationFunction()
+
+        expect(generation).toContain(
+          '"SAFETY_REFUSAL"',
+        )
+
+        expect(generation).toContain(
+          "return await executeKieCall(",
+        )
+
+        expect(generation).not.toContain(
+          "return await executeCall(",
+        )
+
+        expect(generation).not.toContain(
+          "complianceNeutralRewrite(",
+        )
+
+        expect(generation).not.toContain(
+          '"semantic-fallback"',
+        )
+      },
+    )
+
+    it(
+      "maps KIE provider safety errors to SAFETY_REFUSAL",
+      () => {
+        const generation =
+          generationFunction()
+
+        const providerStart =
+          generation.indexOf(
+            "const executeKieCall =",
           )
 
-        const fallbackEnd =
-          core.indexOf(
-            '"semantic-fallback"',
-            fallbackStart,
+        const passAStart =
+          generation.indexOf(
+            "MIRAVA V6.9",
+            providerStart,
           )
 
-        expect(fallbackStart).toBeGreaterThan(
+        expect(providerStart).toBeGreaterThan(
           -1,
         )
-        expect(fallbackEnd).toBeGreaterThan(
-          fallbackStart,
+
+        expect(passAStart).toBeGreaterThan(
+          providerStart,
         )
 
-        const fallbackSection =
-          core.slice(
-            fallbackStart,
-            fallbackEnd + 40,
+        const provider =
+          generation.slice(
+            providerStart,
+            passAStart,
           )
 
-        expect(fallbackSection).toContain(
-          "complianceNeutralRewrite({",
+        expect(provider).toMatch(
+          /error\.kind\s*===\s*"safety"/,
         )
-        expect(fallbackSection).toContain(
-          "fallbackBase",
+
+        expect(provider).toContain(
+          '"SAFETY_REFUSAL"',
+        )
+
+        expect(provider).toContain(
+          "KieProviderError",
         )
       },
     )
 
     it(
-      "uses a dedicated safe fallback for official MIRAVA universes",
+      "logs provider diagnostics without exposing the prompt body",
       () => {
-        expect(core).toContain(
-          "buildMiravaOfficialUniverseSafetyFallbackPrompt",
+        const generation =
+          generationFunction()
+
+        const logStart =
+          generation.indexOf(
+            '"[mirava-kie-image-attempt]"',
+          )
+
+        const callStart =
+          generation.indexOf(
+            "runKieImageGeneration({",
+            logStart,
+          )
+
+        expect(logStart).toBeGreaterThan(
+          -1,
         )
 
-        expect(core).toContain(
-          '"official-safe-fallback"',
+        expect(callStart).toBeGreaterThan(
+          logStart,
         )
-      },
-    )
 
-    it(
-      "logs campaign risk metadata without exposing prompt contents",
-      () => {
-        expect(core).toContain(
-          "campaignSafeTransfer:",
+        const logSection =
+          generation.slice(
+            logStart,
+            callStart,
+          )
+
+        expect(logSection).toContain(
+          "variant",
         )
-        expect(core).toContain(
-          "campaignRiskScore:",
+
+        expect(logSection).toContain(
+          "promptHash",
         )
-        expect(core).toContain(
-          "campaignRiskReasons:",
+
+        expect(logSection).toContain(
+          "promptLength",
+        )
+
+        expect(logSection).toContain(
+          "referenceRoles",
+        )
+
+        expect(logSection).not.toContain(
+          "prompt: providerPrompt",
+        )
+
+        expect(logSection).not.toContain(
+          "prompt: promptText",
         )
       },
     )
@@ -176,17 +250,32 @@ describe(
     it(
       "restores missing generation credits after a final safety refusal",
       () => {
-        const compensationBlock =
-          core.slice(
-            core.indexOf(
-              "const requiresTechnicalCompensation",
-            ),
-            core.indexOf(
-              "if (requiresTechnicalCompensation)",
-            ),
+        const compensationStart =
+          core.indexOf(
+            "const requiresTechnicalCompensation",
           )
 
-        expect(compensationBlock).not.toContain(
+        const compensationEnd =
+          core.indexOf(
+            "if (requiresTechnicalCompensation)",
+            compensationStart,
+          )
+
+        expect(compensationStart).toBeGreaterThan(
+          -1,
+        )
+
+        expect(compensationEnd).toBeGreaterThan(
+          compensationStart,
+        )
+
+        const compensation =
+          core.slice(
+            compensationStart,
+            compensationEnd,
+          )
+
+        expect(compensation).not.toContain(
           'studioError.code !== "SAFETY_REFUSAL"',
         )
 
@@ -197,18 +286,22 @@ describe(
     )
 
     it(
-      "normalizes moderation_blocked as a non-retryable safety refusal",
+      "keeps historical OpenAI moderation failures readable without using OpenAI at runtime",
       () => {
         expect(core).toContain(
-          '"moderation_blocked"',
+          '"OPENAI_400_moderation_blocked"',
         )
 
-        expect(core).toContain(
-          '"SAFETY_REFUSAL"',
+        expect(core).toMatch(
+          /code === "SAFETY_REFUSAL" \|\|[\s\S]*?code === "OPENAI_400_moderation_blocked"[\s\S]*?return "SAFETY_REFUSAL"/,
         )
 
-        expect(core).toContain(
-          "const retryable =",
+        expect(core).not.toContain(
+          "api.openai.com",
+        )
+
+        expect(core).not.toContain(
+          "OPENAI_API_KEY",
         )
       },
     )
@@ -227,17 +320,25 @@ describe(
             finishStart,
           )
 
-        const finishSection =
+        expect(finishStart).toBeGreaterThan(
+          -1,
+        )
+
+        expect(finishEnd).toBeGreaterThan(
+          finishStart,
+        )
+
+        const finish =
           core.slice(
             finishStart,
             finishEnd,
           )
 
-        expect(finishSection).toContain(
+        expect(finish).toContain(
           'status: "DONE"',
         )
 
-        expect(finishSection).toContain(
+        expect(finish).toContain(
           "failureCode: null",
         )
       },

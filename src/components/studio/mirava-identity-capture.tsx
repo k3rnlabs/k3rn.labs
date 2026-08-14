@@ -175,13 +175,15 @@ export const PHOTO_SLOTS: PhotoSlotDefinition[] = [
     criteria: {
       fr: [
         "Sourire naturel et détendu",
-        "Visage bien dégagé",
-        "Regard vers l'objectif",
+        "Visage net, dégagé et bien cadré",
+        "Visage de face, regard vers l'objectif",
+        "Visage clairement et uniformément éclairé",
       ],
       es: [
         "Sonrisa natural y relajada",
-        "Rostro bien despejado",
-        "Mirada hacia la cámara",
+        "Rostro nítido, despejado y bien encuadrado",
+        "Rostro de frente, mirada hacia la cámara",
+        "Rostro claramente y uniformemente iluminado",
       ],
     },
   },
@@ -500,9 +502,10 @@ const SLOT_CRITERION_MAP: Record<PhotoSlotId, SlotCriterionMap> = {
   smile: {
     expression: 0,
     framing: 1,
-    eyes: 1,
-    lighting: 2,
     sharpness: 1,
+    orientation: 2,
+    eyes: 2,
+    lighting: 3,
   },
   body: {
     framing: 0,
@@ -2180,8 +2183,8 @@ export function MiravaIdentityCapture({
 
                       <p className="mt-2 font-jakarta text-xs leading-5 text-white/75">
                         {locale === "fr"
-                          ? "Reproduisez ce cadrage, cette posture et cet éclairage naturel."
-                          : "Reproduce este encuadre, postura e iluminación natural."}
+                          ? "Reproduisez ce cadrage, cette posture et un éclairage clair et homogène."
+                          : "Reproduce este encuadre, esta postura y una iluminación clara y uniforme."}
                       </p>
                     </div>
                   </div>
@@ -2217,14 +2220,12 @@ export function MiravaIdentityCapture({
                       <div
                         className={cn(
                           "absolute left-3 top-3 flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold backdrop-blur-md",
-                          currentSlotState.failedCriteria &&
-                            currentSlotState.failedCriteria.length > 0
+                          currentPhotoHasBlockingIssues
                             ? "border-amber-500/40 bg-amber-950/80 text-amber-300"
                             : "border-emerald-500/40 bg-emerald-950/80 text-emerald-300",
                         )}
                       >
-                        {currentSlotState.failedCriteria &&
-                        currentSlotState.failedCriteria.length > 0 ? (
+                        {currentPhotoHasBlockingIssues ? (
                           <>
                             <CircleAlert className="h-3.5 w-3.5" />
                             <span>
@@ -2449,18 +2450,52 @@ export function MiravaIdentityCapture({
                       currentSlotState
                         .failedCriteria
                         ?.includes(index)
+
+                    /*
+                     * Défense de cohérence :
+                     *
+                     * si le moteur déclare ready=false mais qu'un futur
+                     * verdict n'a pas encore de mapping vers un critère
+                     * visible, l'interface ne doit jamais afficher toute
+                     * la checklist en vert.
+                     */
+                    const hasUnmappedBlockingIssue =
+                      currentSlotState.status ===
+                        "scanned" &&
+                      currentSlotState
+                        .visionResult
+                        ?.ready !== true &&
+                      (
+                        currentSlotState
+                          .failedCriteria
+                          ?.length ?? 0
+                      ) === 0
+
                     const isChecked =
                       (
                         currentSlotState.status ===
                           "existing" ||
-                        currentSlotState
-                          .criteriaProgress >
-                          index ||
-                        currentSlotState.status ===
-                          "scanned"
+                        (
+                          currentSlotState.status ===
+                            "scanning" &&
+                          currentSlotState
+                            .criteriaProgress >
+                            index
+                        ) ||
+                        (
+                          currentSlotState.status ===
+                            "scanned" &&
+                          !hasUnmappedBlockingIssue
+                        )
                       ) &&
                       !isFailed
-                    const isCurrentScanning = currentSlotState.status === "scanning" && currentSlotState.criteriaProgress === index
+
+                    const isCurrentScanning =
+                      currentSlotState.status ===
+                        "scanning" &&
+                      currentSlotState
+                        .criteriaProgress ===
+                        index
 
                     return (
                       <div

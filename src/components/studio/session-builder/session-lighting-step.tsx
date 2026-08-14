@@ -11,6 +11,9 @@ import {
 } from "lucide-react"
 
 import {
+  MIRAVA_SESSION_SHOT_COUNT,
+} from "@/lib/mirava/session-builder/schema"
+import {
   MIRAVA_LIGHTING_PRESETS,
   type MiravaLightingPresetId,
 } from "@/lib/mirava/session-builder/lighting-presets"
@@ -39,6 +42,7 @@ type LightingPreviewImages =
 
 type SessionLightingStepProps = {
   locale: Locale
+  shotCount?: number
   setPresetId:
     MiravaSetPresetId
   selectedLightingPresetId:
@@ -67,7 +71,12 @@ export const SESSION_LIGHTING_COPY = {
     previewEyebrow:
       "Aperçu lumière",
     continuity:
-      "Même plateau · 6 photos",
+      (
+        shotCount: number,
+      ) =>
+        shotCount === 1
+          ? "Même plateau · 1 photo"
+          : `Même plateau · ${shotCount} photos`,
     setLabel:
       "Studio",
     emptyPreview:
@@ -89,7 +98,12 @@ export const SESSION_LIGHTING_COPY = {
     previewEyebrow:
       "Vista previa de luz",
     continuity:
-      "Mismo plató · 6 fotos",
+      (
+        shotCount: number,
+      ) =>
+        shotCount === 1
+          ? "Mismo plató · 1 foto"
+          : `Mismo plató · ${shotCount} fotos`,
     setLabel:
       "Estudio",
     emptyPreview:
@@ -271,6 +285,23 @@ function LightingScene({
   image?: string
   compact?: boolean
 }) {
+  if (image) {
+    return (
+      <div
+        data-mirava-canonical-lighting-preview={
+          preset.id
+        }
+        className="absolute inset-0 overflow-hidden"
+      >
+        <img
+          src={image}
+          alt=""
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      </div>
+    )
+  }
+
   const profile =
     MIRAVA_LIGHTING_VISUAL_PROFILE[
       preset.id
@@ -443,6 +474,7 @@ function LightingPreview({
   locale,
   setPresetId,
   image,
+  shotCount,
 }: {
   preset:
     MiravaSessionLightingPreset
@@ -451,6 +483,7 @@ function LightingPreview({
   setPresetId:
     MiravaSetPresetId
   image?: string
+  shotCount: number
 }) {
   const copy =
     SESSION_LIGHTING_COPY[
@@ -481,7 +514,9 @@ function LightingPreview({
 
         <span className="rounded-full border border-white/15 bg-black/25 px-3 py-1.5 font-jakarta text-[9px] font-semibold text-white/70 backdrop-blur-xl">
           {
-            copy.continuity
+            copy.continuity(
+              shotCount,
+            )
           }
         </span>
       </div>
@@ -525,6 +560,8 @@ function LightingPreview({
 
 export function SessionLightingStep({
   locale,
+  shotCount =
+    MIRAVA_SESSION_SHOT_COUNT,
   setPresetId,
   selectedLightingPresetId,
   onSelect,
@@ -641,6 +678,9 @@ export function SessionLightingStep({
                 }
                 setPresetId={
                   setPresetId
+                }
+                shotCount={
+                  shotCount
                 }
                 image={
                   previewImages?.[

@@ -73,7 +73,7 @@ describe(
           )
         const identityIndex =
           core.indexOf(
-            "`identity-${asset.id}",
+            "`identity-face-${asset.id}",
             continuityIndex,
           )
 

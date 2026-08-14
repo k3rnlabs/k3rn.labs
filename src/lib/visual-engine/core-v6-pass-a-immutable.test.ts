@@ -10,39 +10,73 @@ import {
   join,
 } from "node:path"
 
-const core = readFileSync(
-  join(
-    process.cwd(),
-    "src/lib/visual-engine/core.ts",
-  ),
-  "utf8",
-)
+const core =
+  readFileSync(
+    join(
+      process.cwd(),
+      "src/lib/visual-engine/core.ts",
+    ),
+    "utf8",
+  )
 
-function artisticReferenceBranch(): string {
+function artisticReferenceBranch():
+  string {
   const execute =
     core.indexOf(
-      "const executeKieCall",
+      "const executeKieCall =",
     )
 
-  const start =
-    core.indexOf(
-      "if (\n     useKieCampaignProvider &&\n     kieArtisticReference",
+  if (execute < 0) {
+    throw new Error(
+      "executeKieCall not found",
+    )
+  }
+
+  const remaining =
+    core.slice(
       execute,
     )
 
-  const end =
-    core.indexOf(
-      "Kie without an artistic reference",
-      start,
-    )
+  const route =
+    /if\s*\(\s*kieArtisticReference\s*&&\s*isReferenceAnchor\s*\)\s*\{/
+      .exec(
+        remaining,
+      )
 
   if (
-    execute < 0 ||
-    start < 0 ||
-    end < 0
+    !route ||
+    route.index === undefined
   ) {
     throw new Error(
       "MIRAVA V6 artistic-reference branch not found",
+    )
+  }
+
+  const start =
+    execute +
+    route.index
+
+  const tail =
+    core.indexOf(
+      "Every remaining MIRAVA image path is KIE-only.",
+      start,
+    )
+
+  if (tail < 0) {
+    throw new Error(
+      "MIRAVA V6 KIE-only tail not found",
+    )
+  }
+
+  const end =
+    core.lastIndexOf(
+      "/*",
+      tail,
+    )
+
+  if (end <= start) {
+    throw new Error(
+      "MIRAVA V6 artistic-reference branch end not found",
     )
   }
 
@@ -58,13 +92,18 @@ describe(
     it(
       "persists v6-pass-a-ready",
       () => {
+        const branch =
+          artisticReferenceBranch()
+
         expect(core).toContain(
           '"v6-pass-a-ready"',
         )
 
-        expect(
-          artisticReferenceBranch(),
-        ).toMatch(
+        expect(branch).toContain(
+          "MIRAVA_KIE_V6_PASS_A_READY_STATE",
+        )
+
+        expect(branch).toMatch(
           /providerState:\s*MIRAVA_KIE_V6_PASS_A_READY_STATE/,
         )
       },
@@ -95,6 +134,30 @@ describe(
         expect(branch).not.toContain(
           "referenceFaceGeometry",
         )
+
+        expect(branch).not.toContain(
+          '"identity-restoration"',
+        )
+
+        expect(branch).not.toContain(
+          "buildMiravaKieIdentityRestorationPrompt",
+        )
+      },
+    )
+
+    it(
+      "activates only for the artistic-reference anchor",
+      () => {
+        const branch =
+          artisticReferenceBranch()
+
+        expect(branch).toMatch(
+          /kieArtisticReference\s*&&\s*isReferenceAnchor/,
+        )
+
+        expect(branch).not.toContain(
+          "useKieCampaignProvider",
+        )
       },
     )
 
@@ -111,6 +174,10 @@ describe(
 
         expect(core).toContain(
           "resolveMiravaDetectedFaceRestorationCrop({",
+        )
+
+        expect(core).not.toContain(
+          "useKieProviderRecovery",
         )
       },
     )

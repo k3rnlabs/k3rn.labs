@@ -29,8 +29,17 @@ const publicSession = {
     shotCount: 6,
     lookMode:
       "REFERENCE",
+    framing: "FREE",
+    pose: "FREE",
+    expression: "FREE",
+    gaze: "FREE",
+    makeup: "NATURAL",
+    skinFinish: "NATURAL",
+    hair: "PROFILE",
+    userInstruction: "",
   },
   lookItemCount: 0,
+  lookItems: [],
   configurationReady:
     true,
   createdAt:
@@ -70,6 +79,25 @@ describe(
           ),
       ).toThrow(
         "MIRAVA_SESSION_CLIENT_INVALID_RESPONSE",
+      )
+    })
+
+    it("parses a persisted ten-photo public session", () => {
+      const tenPhotoSession = {
+        ...publicSession,
+        config: {
+          ...publicSession.config,
+          shotCount:
+            10,
+        },
+      }
+
+      expect(
+        parseMiravaSessionBuilderClientSession(
+          tenPhotoSession,
+        ).config.shotCount,
+      ).toBe(
+        10,
       )
     })
 

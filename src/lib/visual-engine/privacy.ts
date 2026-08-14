@@ -570,6 +570,36 @@ export async function withdrawMiravaIdentityConsent(
   )
 }
 
+export async function requireMiravaExternalIdentityAnalysisConsent(
+  userId: string,
+) {
+  const status =
+    await getMiravaPrivacyStatus(
+      userId,
+    )
+
+  /*
+   * Migration compatibility:
+   *
+   * Existing durable consent evidence is still stored
+   * under the historical OpenAI-specific purpose.
+   *
+   * The current user disclosure is provider-neutral,
+   * therefore runtime code uses this neutral primitive
+   * without rewriting append-only consent history.
+   */
+  if (
+    !status
+      .openaiIdentityAnalysisAccepted
+  ) {
+    throw new Error(
+      "MIRAVA_EXTERNAL_IDENTITY_ANALYSIS_CONSENT_MISSING",
+    )
+  }
+
+  return status
+}
+
 export async function requireMiravaRequiredConsents(
   userId: string,
 ) {
